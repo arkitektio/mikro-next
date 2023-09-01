@@ -6,15 +6,15 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'mikro',
-  tagline: 'graphql based data-management for microscopy',
+  title: 'mikro_next',
+  tagline: 'next graphql based data-management for microscopy',
   url: 'https://jhnnsrs.github.io/',
-  baseUrl: '/mikro/',
+  baseUrl: '/mikro_next/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
   favicon: 'img/favicon.ico',
   organizationName: 'jhnnsrs', // Usually your GitHub org/user name.
-  projectName: 'mikro', // Usually your repo name.
+  projectName: 'mikro_next', // Usually your repo name.
 
   presets: [
     [
@@ -44,7 +44,7 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: 'mikro',
+        title: 'mikro_next',
         items: [
           {
             type: 'doc',
