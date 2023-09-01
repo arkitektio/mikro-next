@@ -27,8 +27,8 @@ if rekuest:
         id_shrink,
     )
     from rekuest.widgets import SearchWidget
-    from mikro_new.api.schema import ImageFragment, aget_image, SearchImagesQuery
-    from mikro_new.api.schema import (
+    from mikro_next.api.schema import ImageFragment, aget_image, SearchImagesQuery
+    from mikro_next.api.schema import (
         SnapshotFragment,
         aget_snapshot,
         SearchSnapshotsQuery,
