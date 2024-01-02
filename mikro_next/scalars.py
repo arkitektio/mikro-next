@@ -6,7 +6,7 @@ Custom scalars for mikro_next
 
 
 import os
-from typing import Any, IO, Optional
+from typing import Any, IO
 import xarray as xr
 import pandas as pd
 import numpy as np
@@ -17,7 +17,7 @@ import uuid
 
 
 if TYPE_CHECKING:
-    from mikro_next.datalayer import DataLayer
+    pass
 
 
 class AssignationID(str):

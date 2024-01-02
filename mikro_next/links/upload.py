@@ -4,7 +4,7 @@ from mikro_next.scalars import ArrayLike, ParquetLike, FileLike
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation, opify
 from mikro_next.io.types import Uploader
-from typing import Any, TYPE_CHECKING
+from typing import Any
 from mikro_next.io.upload import aupload_bigfile, aupload_xarray, aupload_parquet
 from pydantic import Field
 from concurrent.futures import ThreadPoolExecutor
