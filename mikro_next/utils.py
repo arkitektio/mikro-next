@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 import math
 from .errors import NotQueriedError
 
@@ -50,7 +50,34 @@ def rechunk(
     return chunk
 
 
-def get_nested_error(obj: Any, nested: list[str], above: []) -> Any:
+def get_nested_error(obj: Any, nested: List[str], above: List[str]) -> Any:
+    """Get a nested attribute or raise an error
+    
+    
+    Raises an error if a nested attribut is not present
+
+    This is used to raise an error if a nested attribute is not present.
+    And to give a hint where in a query tree a the nested attribute is missing.
+
+    Parameters
+    ----------
+    obj : Any
+        The object to query
+    nested : List[str]
+        The nested attributes to query
+    above : _type_
+        The attributes above the nested attribute ( will be filled by the function)
+
+    Returns
+    -------
+    Any
+        The queried object
+
+    Raises
+    ------
+    NotQueriedError
+        The nested attribute was not queried
+    """
     if hasattr(obj, nested[0]):
         obj = getattr(obj, nested[0])
         if len(nested) > 1:

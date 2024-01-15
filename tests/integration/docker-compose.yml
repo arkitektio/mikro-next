@@ -15,10 +15,10 @@ services:
     - redis
     - db
     - minio
-    image: jhnnsrs/mikro-next:prod
+    image: jhnnsrs/mikro:next
     command: bash run-debug.sh
     ports:
-    - 8456:8030
+    - 8456:80
     volumes:
     - ./configs/mikro_next.yaml:/workspace/config.yaml
     - ./public_key.pem:/workspace/public_key.pem

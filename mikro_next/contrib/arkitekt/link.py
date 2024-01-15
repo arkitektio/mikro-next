@@ -15,4 +15,3 @@ class ArkitektMikroNextLinkComposition(TypedComposedLink):
     upload: UploadLink = Field(default_factory=UploadLink)
     auth: AuthTokenLink
     split: SplitLink
-

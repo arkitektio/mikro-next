@@ -21,7 +21,7 @@ lok:
   static_tokens:
       johannes:
           sub: 1
-minio:
+s3:
   access_key: mikro_access_key
   buckets:
     zarr: zarrnew

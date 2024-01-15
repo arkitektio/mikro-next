@@ -1,11 +1,9 @@
 from .api.schema import (
-    PartialTransformationViewInput,
+    PartialAffineTransformationViewInput,
     PartialChannelViewInput,
     PartialTimepointViewInput,
     PartialOpticsViewInput,
     PartialLabelViewInput,
-    TransformationKind,
-    ViewInput,
     ChannelFragment,
     FluorophoreFragment,
     ObjectiveFragment,
@@ -14,9 +12,9 @@ from .api.schema import (
     EraFragment,
     AntibodyFragment,
 )
-from .scalars import ThreeDVector, Milliseconds
+from .scalars import ThreeDVector, Milliseconds, FourByFourMatrix
 from rath.scalars import ID
-from typing import List
+from typing import List, Optional
 import numpy as np
 
 
@@ -37,7 +35,7 @@ def view_from_pixel_size_and_position(
     position: ThreeDVector,
     stage: ID = None,
     **kwargs,
-) -> PartialTransformationViewInput:
+) -> PartialAffineTransformationViewInput:
     """Creates a view from the pixel size and position
 
     Args:
@@ -63,8 +61,12 @@ def view_from_pixel_size_and_position(
         ]
     )
 
-    return PartialTransformationViewInput(
-        matrix=affine, kind=TransformationKind.AFFINE, stage=stage, **kwargs
+    FourByFourMatrix.validate(affine)
+
+    
+
+    return PartialAffineTransformationViewInput(
+        affineMatrix=affine, stage=stage, **kwargs
     )
 
 
@@ -133,7 +135,7 @@ def timepoint_view_from_era(
 
 
 def labelview_from_agents(
-    fluorophore: FluorophoreFragment = None,
+    fluorophore: Optional[FluorophoreFragment] = None,
     primary_antibody: AntibodyFragment = None,
     secondary_antibody: AntibodyFragment = None,
     c: int = None,

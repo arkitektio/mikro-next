@@ -8,8 +8,7 @@ directory = os.getcwd()
 file_path = os.path.dirname(__file__)
 
 
-
-v1_file= """
+v1_file = """
 projects:
   mikro:
     schema: http://localhost:8080/graphql
@@ -84,11 +83,9 @@ projects:
 """
 
 
-
 @click.group()
 def cli():
     pass
-
 
 
 @cli.command()
@@ -101,13 +98,11 @@ def generate():
     """Generates the mikro api"""
     with open(f"{file_path}/../graphql.config.yaml", "w") as f:
         f.write(v1_file)
-    subprocess.run(["turms", "generate", "--config", f"{file_path}/../graphql.config.yaml"])
+    subprocess.run(
+        ["turms", "generate", "--config", f"{file_path}/../graphql.config.yaml"]
+    )
     os.remove(f"{file_path}/../graphql.config.yaml")
 
-    
 
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()
-   

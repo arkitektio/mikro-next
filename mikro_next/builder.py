@@ -1,8 +1,5 @@
-
-
 def easy_mikro_next(base_url: str, minio_url: str):
     """Build mikro_next when the parameters are known."""
-
 
 
 def build_local_mikro_next(base_url, storage_path: str):
@@ -10,7 +7,7 @@ def build_local_mikro_next(base_url, storage_path: str):
 
     Attention, the storage path here needs to map to a local
     storage that is also accessible from the docker container.
-    
-    
+
+
     """
     raise NotImplementedError("Not implemented yet")

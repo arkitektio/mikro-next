@@ -20,7 +20,9 @@ test_path = os.path.join(os.path.dirname(__file__), "deployments", "test")
 
 def build_deployment() -> Deployment:
     setup = easy(copy_path_project(test_path, "test_setup"))
-    setup.add_health_check(url="http://localhost:8456/graphql", service="mikro")
+    setup.add_health_check(
+        url="http://localhost:7788/ht", service="mikro", timeout=5, max_retries=10
+    )
     return setup
 
 
@@ -30,7 +32,7 @@ async def token_loader():
 
 def build_deployed_mikro_next():
     datalayer = DataLayer(
-        endpoint_url="http://localhost:8457",
+        endpoint_url="http://localhost:7799",
     )
 
     y = MikroNextRath(
@@ -41,8 +43,8 @@ def build_deployed_mikro_next():
             ),
             upload=UploadLink(datalayer=datalayer),
             split=SplitLink(
-                left=AIOHttpLink(endpoint_url="http://localhost:8456/graphql"),
-                right=GraphQLWSLink(ws_endpoint_url="ws://localhost:8456/graphql"),
+                left=AIOHttpLink(endpoint_url="http://localhost:7788/graphql"),
+                right=GraphQLWSLink(ws_endpoint_url="ws://localhost:7788/graphql"),
                 split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
             ),
         ),

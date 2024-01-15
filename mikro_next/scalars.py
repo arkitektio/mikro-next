@@ -10,14 +10,7 @@ from typing import Any, IO
 import xarray as xr
 import pandas as pd
 import numpy as np
-import io
-from typing import TYPE_CHECKING
-from .utils import rechunk
 import uuid
-
-
-if TYPE_CHECKING:
-    pass
 
 
 class AssignationID(str):
@@ -238,6 +231,15 @@ class FourByFourMatrix(list):
 
     def as_matrix(self):
         return np.array(self).reshape(3, 3)
+    
+    @classmethod
+    def from_np(cls, v: np.ndarray):
+        """Validate the input array and convert it to a xr.DataArray."""
+        assert v.ndim == 2
+        assert v.shape[0] == v.shape[1]
+        assert v.shape == (4, 4)
+        v = v.tolist()
+        return cls(v)
 
 
 class ArrayLike:
@@ -380,5 +382,3 @@ class FileLike:
 
     def __repr__(self):
         return f"FileLikeInput({self.value})"
-
-

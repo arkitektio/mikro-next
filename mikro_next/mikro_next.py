@@ -3,6 +3,7 @@ from koil.composition import Composition
 from mikro_next.rath import MikroNextRath
 from mikro_next.datalayer import DataLayer
 
+
 class MikroNext(Composition):
     """The Mikro Composition
 
@@ -25,8 +26,11 @@ class MikroNext(Composition):
     )
     ```
     """
-    datalayer: DataLayer = Field(..., description="The datalayer for interacting with the mikro api")
-    rath: MikroNextRath 
+
+    datalayer: DataLayer = Field(
+        ..., description="The datalayer for interacting with the mikro api"
+    )
+    rath: MikroNextRath
 
     def _repr_html_inline_(self):
         return f"<table><td>rath</td><td>{self.rath._repr_html_inline_()}</td></tr></table>"

@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from mikro_next.api.schema import CredentialsFragment
     from mikro_next.datalayer import DataLayer
 
+
 def _store_xarray_input(
     xarray: ArrayLike,
     credentials: "CredentialsFragment",

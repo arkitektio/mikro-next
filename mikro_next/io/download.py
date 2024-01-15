@@ -10,7 +10,7 @@ import pyarrow.parquet as pq
 from koil import unkoil
 import zarr
 import aiohttp
-from typing import Tuple
+from typing import Tuple, Optional
 
 
 async def aget_zarr_credentials_and_endpoint(
@@ -97,7 +97,7 @@ def open_parquet_filesystem(store_id: str):
     return pq.ParquetDataset(credentials.path, filesystem=_s3fs)
 
 
-async def adownload_file(presigned_url: str, file_name: str = None, datalayer=None):
+async def adownload_file(presigned_url: str, file_name: Optional[str] = None, datalayer=None):
     datalayer = datalayer or current_next_datalayer.get()
     endpoint_url = await datalayer.get_endpoint_url()
 
@@ -115,5 +115,7 @@ async def adownload_file(presigned_url: str, file_name: str = None, datalayer=No
     return file_name
 
 
-def download_file(presigned_url: str, file_name: str = None, datalayer=None):
-    return unkoil(adownload_file, presigned_url, file_name=file_name, datalayer=datalayer)
+def download_file(presigned_url: str, file_name: Optional[str] = None, datalayer=None):
+    return unkoil(
+        adownload_file, presigned_url, file_name=file_name, datalayer=datalayer
+    )

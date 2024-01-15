@@ -18,7 +18,7 @@ services:
     image: jhnnsrs/mikro:next
     command: bash run-debug.sh
     ports:
-    - 8456:80
+    - 7788:80
     volumes:
     - ./configs/mikro_next.yaml:/workspace/config.yaml
     - ./public_key.pem:/workspace/public_key.pem
@@ -29,7 +29,7 @@ services:
       MINIO_ROOT_USER: crappygreysetter
     image: minio/minio:RELEASE.2023-02-10T18-48-39Z
     ports:
-    - 8457:9000
+    - 7799:9000
   initc:
     depends_on:
       minio:

@@ -1,30 +1,30 @@
+from enum import Enum
+from typing import Optional, Tuple, Union, Literal, List
+from mikro_next.scalars import (
+    ArrayLike,
+    FourByFourMatrix,
+    ParquetLike,
+    Upload,
+    Micrometers,
+    Milliseconds,
+    FileLike,
+)
+from pydantic import Field, BaseModel
 from mikro_next.traits import (
-    Stage,
-    MediaStore,
-    Table,
     BigFileStore,
-    ParquetStore,
     File,
     Objective,
     ZarrStore,
+    Stage,
+    MediaStore,
+    Table,
     Image,
+    ParquetStore,
 )
-from typing import Union, List, Literal, Tuple, Optional
-from mikro_next.scalars import (
-    FileLike,
-    Micrometers,
-    FourByFourMatrix,
-    Upload,
-    ParquetLike,
-    Milliseconds,
-    ArrayLike,
-)
-from enum import Enum
 from datetime import datetime
-from rath.scalars import ID
-from mikro_next.funcs import aexecute, execute
-from pydantic import BaseModel, Field
+from mikro_next.funcs import execute, aexecute
 from mikro_next.rath import MikroNextRath
+from rath.scalars import ID
 
 
 class ViewKind(str, Enum):
@@ -1741,6 +1741,7 @@ class FileFragment(File, BaseModel):
 
 class InstrumentFragment(BaseModel):
     typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
+    id: ID
     model: Optional[str]
     name: str
     serial_number: str = Field(alias="serialNumber")
@@ -1762,8 +1763,11 @@ class ZarrStoreFragment(ZarrStore, BaseModel):
     typename: Optional[Literal["ZarrStore"]] = Field(alias="__typename", exclude=True)
     id: ID
     key: str
+    "The key where the data is stored."
     bucket: str
-    path: str
+    "The bucket where the data is stored."
+    path: Optional[str]
+    "The path to the data. Relative to the bucket."
 
     class Config:
         frozen = True
@@ -1843,6 +1847,7 @@ class DatasetFragment(BaseModel):
 
 class FluorophoreFragment(BaseModel):
     typename: Optional[Literal["Fluorophore"]] = Field(alias="__typename", exclude=True)
+    id: ID
     name: str
     emission_wavelength: Optional[Micrometers] = Field(alias="emissionWavelength")
     excitation_wavelength: Optional[Micrometers] = Field(alias="excitationWavelength")
@@ -1909,6 +1914,7 @@ class ImageFragment(Image, BaseModel):
     id: ID
     name: str
     store: ZarrStoreFragment
+    "The store where the image data is stored."
     views: Tuple[
         Union[
             ImageFragmentViewsChannelView,
@@ -1926,6 +1932,7 @@ class ImageFragment(Image, BaseModel):
 
 class ObjectiveFragment(Objective, BaseModel):
     typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
+    id: ID
     na: Optional[float]
     name: str
     serial_number: str = Field(alias="serialNumber")
@@ -2383,7 +2390,7 @@ class From_array_likeMutation(BaseModel):
         tags: Optional[List[str]] = Field(default=None)
 
     class Meta:
-        document = "fragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Fluorophore on Fluorophore {\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $labelViews: [PartialLabelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, labelViews: $labelViews, timepointViews: $timepointViews, rgbViews: $rgbViews, opticsViews: $opticsViews, tags: $tags}\n  ) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $labelViews: [PartialLabelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, labelViews: $labelViews, timepointViews: $timepointViews, rgbViews: $rgbViews, opticsViews: $opticsViews, tags: $tags}\n  ) {\n    ...Image\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -2399,6 +2406,7 @@ class RequestUploadMutation(BaseModel):
 
 class RequestAccessMutation(BaseModel):
     request_access: AccessCredentialsFragment = Field(alias="requestAccess")
+    "Request upload credentials for a given key"
 
     class Arguments(BaseModel):
         store: ID
@@ -2531,7 +2539,7 @@ class GetInstrumentQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Instrument on Instrument {\n  model\n  name\n  serialNumber\n}\n\nquery GetInstrument($id: ID!) {\n  instrument(id: $id) {\n    ...Instrument\n  }\n}"
+        document = "fragment Instrument on Instrument {\n  id\n  model\n  name\n  serialNumber\n}\n\nquery GetInstrument($id: ID!) {\n  instrument(id: $id) {\n    ...Instrument\n  }\n}"
 
 
 class GetSnapshotQuery(BaseModel):
@@ -2599,7 +2607,7 @@ class GetImageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Fluorophore on Fluorophore {\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -2609,7 +2617,7 @@ class GetRandomImageQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Fluorophore on Fluorophore {\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
 
 
 class SearchImagesQueryOptions(Image, BaseModel):
@@ -2639,7 +2647,7 @@ class GetObjectiveQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Objective on Objective {\n  na\n  name\n  serialNumber\n}\n\nquery GetObjective($id: ID!) {\n  objective(id: $id) {\n    ...Objective\n  }\n}"
+        document = "fragment Objective on Objective {\n  id\n  na\n  name\n  serialNumber\n}\n\nquery GetObjective($id: ID!) {\n  objective(id: $id) {\n    ...Objective\n  }\n}"
 
 
 class GetCameraQuery(BaseModel):
@@ -2657,7 +2665,7 @@ async def afrom_parquet_like(
     name: str,
     origins: Optional[List[ID]] = None,
     dataset: Optional[ID] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> TableFragment:
     """from_parquet_like
 
@@ -2691,7 +2699,7 @@ def from_parquet_like(
     name: str,
     origins: Optional[List[ID]] = None,
     dataset: Optional[ID] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> TableFragment:
     """from_parquet_like
 
@@ -2714,10 +2722,12 @@ def from_parquet_like(
 
 
 async def arequest_table_upload(
-    key: str, datalayer: str, rath: MikroNextRath = None
+    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
 ) -> CredentialsFragment:
     """RequestTableUpload
 
+
+     requestTableUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -2735,10 +2745,12 @@ async def arequest_table_upload(
 
 
 def request_table_upload(
-    key: str, datalayer: str, rath: MikroNextRath = None
+    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
 ) -> CredentialsFragment:
     """RequestTableUpload
 
+
+     requestTableUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -2754,10 +2766,12 @@ def request_table_upload(
 
 
 async def arequest_table_access(
-    store: ID, duration: Optional[int] = None, rath: MikroNextRath = None
+    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
 ) -> AccessCredentialsFragment:
     """RequestTableAccess
 
+
+     requestTableAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -2777,10 +2791,12 @@ async def arequest_table_access(
 
 
 def request_table_access(
-    store: ID, duration: Optional[int] = None, rath: MikroNextRath = None
+    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
 ) -> AccessCredentialsFragment:
     """RequestTableAccess
 
+
+     requestTableAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -2796,7 +2812,7 @@ def request_table_access(
 
 
 async def acreate_stage(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateStageMutationCreatestage:
     """CreateStage
 
@@ -2812,7 +2828,7 @@ async def acreate_stage(
 
 
 def create_stage(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateStageMutationCreatestage:
     """CreateStage
 
@@ -2828,7 +2844,7 @@ def create_stage(
 
 
 async def acreate_channel(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateChannelMutationCreatechannel:
     """CreateChannel
 
@@ -2846,7 +2862,7 @@ async def acreate_channel(
 
 
 def create_channel(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateChannelMutationCreatechannel:
     """CreateChannel
 
@@ -2862,7 +2878,7 @@ def create_channel(
 
 
 async def aensure_channel(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> EnsureChannelMutationEnsurechannel:
     """EnsureChannel
 
@@ -2880,7 +2896,7 @@ async def aensure_channel(
 
 
 def ensure_channel(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> EnsureChannelMutationEnsurechannel:
     """EnsureChannel
 
@@ -2896,7 +2912,7 @@ def ensure_channel(
 
 
 async def acreate_era(
-    name: str, begin: Optional[datetime] = None, rath: MikroNextRath = None
+    name: str, begin: Optional[datetime] = None, rath: Optional[MikroNextRath] = None
 ) -> CreateEraMutationCreateera:
     """CreateEra
 
@@ -2915,7 +2931,7 @@ async def acreate_era(
 
 
 def create_era(
-    name: str, begin: Optional[datetime] = None, rath: MikroNextRath = None
+    name: str, begin: Optional[datetime] = None, rath: Optional[MikroNextRath] = None
 ) -> CreateEraMutationCreateera:
     """CreateEra
 
@@ -2938,7 +2954,7 @@ async def afrom_file_like(
     name: str,
     origins: Optional[List[ID]] = None,
     dataset: Optional[ID] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> FileFragment:
     """from_file_like
 
@@ -2967,7 +2983,7 @@ def from_file_like(
     name: str,
     origins: Optional[List[ID]] = None,
     dataset: Optional[ID] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> FileFragment:
     """from_file_like
 
@@ -2990,10 +3006,12 @@ def from_file_like(
 
 
 async def arequest_file_upload(
-    key: str, datalayer: str, rath: MikroNextRath = None
+    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
 ) -> CredentialsFragment:
     """RequestFileUpload
 
+
+     requestFileUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -3011,10 +3029,12 @@ async def arequest_file_upload(
 
 
 def request_file_upload(
-    key: str, datalayer: str, rath: MikroNextRath = None
+    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
 ) -> CredentialsFragment:
     """RequestFileUpload
 
+
+     requestFileUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -3030,10 +3050,12 @@ def request_file_upload(
 
 
 async def arequest_file_access(
-    store: ID, duration: Optional[int] = None, rath: MikroNextRath = None
+    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
 ) -> AccessCredentialsFragment:
     """RequestFileAccess
 
+
+     requestFileAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -3051,10 +3073,12 @@ async def arequest_file_access(
 
 
 def request_file_access(
-    store: ID, duration: Optional[int] = None, rath: MikroNextRath = None
+    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
 ) -> AccessCredentialsFragment:
     """RequestFileAccess
 
+
+     requestFileAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -3070,7 +3094,7 @@ def request_file_access(
 
 
 async def acreate_rgb_context(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateRGBContextMutationCreatergbcontext:
     """CreateRGBContext
 
@@ -3088,7 +3112,7 @@ async def acreate_rgb_context(
 
 
 def create_rgb_context(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateRGBContextMutationCreatergbcontext:
     """CreateRGBContext
 
@@ -3109,7 +3133,7 @@ async def acreate_instrument(
     serial_number: str,
     name: Optional[str] = None,
     model: Optional[str] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> CreateInstrumentMutationCreateinstrument:
     """CreateInstrument
 
@@ -3136,7 +3160,7 @@ def create_instrument(
     serial_number: str,
     name: Optional[str] = None,
     model: Optional[str] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> CreateInstrumentMutationCreateinstrument:
     """CreateInstrument
 
@@ -3161,7 +3185,7 @@ async def aensure_instrument(
     serial_number: str,
     name: Optional[str] = None,
     model: Optional[str] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> EnsureInstrumentMutationEnsureinstrument:
     """EnsureInstrument
 
@@ -3188,7 +3212,7 @@ def ensure_instrument(
     serial_number: str,
     name: Optional[str] = None,
     model: Optional[str] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> EnsureInstrumentMutationEnsureinstrument:
     """EnsureInstrument
 
@@ -3210,7 +3234,7 @@ def ensure_instrument(
 
 
 async def acreate_view_collection(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateViewCollectionMutationCreateviewcollection:
     """CreateViewCollection
 
@@ -3228,7 +3252,7 @@ async def acreate_view_collection(
 
 
 def create_view_collection(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateViewCollectionMutationCreateviewcollection:
     """CreateViewCollection
 
@@ -3246,7 +3270,7 @@ def create_view_collection(
 
 
 async def acreate_antibody(
-    name: str, epitope: Optional[str] = None, rath: MikroNextRath = None
+    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
 ) -> CreateAntibodyMutationCreateantibody:
     """CreateAntibody
 
@@ -3267,7 +3291,7 @@ async def acreate_antibody(
 
 
 def create_antibody(
-    name: str, epitope: Optional[str] = None, rath: MikroNextRath = None
+    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
 ) -> CreateAntibodyMutationCreateantibody:
     """CreateAntibody
 
@@ -3286,7 +3310,7 @@ def create_antibody(
 
 
 async def aensure_antibody(
-    name: str, epitope: Optional[str] = None, rath: MikroNextRath = None
+    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
 ) -> EnsureAntibodyMutationEnsureantibody:
     """EnsureAntibody
 
@@ -3307,7 +3331,7 @@ async def aensure_antibody(
 
 
 def ensure_antibody(
-    name: str, epitope: Optional[str] = None, rath: MikroNextRath = None
+    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
 ) -> EnsureAntibodyMutationEnsureantibody:
     """EnsureAntibody
 
@@ -3326,7 +3350,7 @@ def ensure_antibody(
 
 
 async def acreate_snapshot(
-    image: ID, file: Upload, rath: MikroNextRath = None
+    image: ID, file: Upload, rath: Optional[MikroNextRath] = None
 ) -> SnapshotFragment:
     """CreateSnapshot
 
@@ -3347,7 +3371,7 @@ async def acreate_snapshot(
 
 
 def create_snapshot(
-    image: ID, file: Upload, rath: MikroNextRath = None
+    image: ID, file: Upload, rath: Optional[MikroNextRath] = None
 ) -> SnapshotFragment:
     """CreateSnapshot
 
@@ -3366,7 +3390,7 @@ def create_snapshot(
 
 
 async def acreate_dataset(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateDatasetMutationCreatedataset:
     """CreateDataset
 
@@ -3384,7 +3408,7 @@ async def acreate_dataset(
 
 
 def create_dataset(
-    name: str, rath: MikroNextRath = None
+    name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateDatasetMutationCreatedataset:
     """CreateDataset
 
@@ -3400,7 +3424,7 @@ def create_dataset(
 
 
 async def aupdate_dataset(
-    id: ID, name: str, rath: MikroNextRath = None
+    id: ID, name: str, rath: Optional[MikroNextRath] = None
 ) -> UpdateDatasetMutationUpdatedataset:
     """UpdateDataset
 
@@ -3419,7 +3443,7 @@ async def aupdate_dataset(
 
 
 def update_dataset(
-    id: ID, name: str, rath: MikroNextRath = None
+    id: ID, name: str, rath: Optional[MikroNextRath] = None
 ) -> UpdateDatasetMutationUpdatedataset:
     """UpdateDataset
 
@@ -3438,7 +3462,7 @@ def update_dataset(
 
 
 async def arevert_dataset(
-    dataset: ID, history: ID, rath: MikroNextRath = None
+    dataset: ID, history: ID, rath: Optional[MikroNextRath] = None
 ) -> RevertDatasetMutationRevertdataset:
     """RevertDataset
 
@@ -3459,7 +3483,7 @@ async def arevert_dataset(
 
 
 def revert_dataset(
-    dataset: ID, history: ID, rath: MikroNextRath = None
+    dataset: ID, history: ID, rath: Optional[MikroNextRath] = None
 ) -> RevertDatasetMutationRevertdataset:
     """RevertDataset
 
@@ -3481,7 +3505,7 @@ async def acreate_fluorophore(
     name: str,
     excitation_wavelength: Optional[Micrometers] = None,
     emission_wavelength: Optional[Micrometers] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> CreateFluorophoreMutationCreatefluorophore:
     """CreateFluorophore
 
@@ -3512,7 +3536,7 @@ def create_fluorophore(
     name: str,
     excitation_wavelength: Optional[Micrometers] = None,
     emission_wavelength: Optional[Micrometers] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> CreateFluorophoreMutationCreatefluorophore:
     """CreateFluorophore
 
@@ -3541,7 +3565,7 @@ async def aensure_fluorophore(
     name: str,
     excitation_wavelength: Optional[Micrometers] = None,
     emission_wavelength: Optional[Micrometers] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> EnsureFluorophoreMutationEnsurefluorophore:
     """EnsureFluorophore
 
@@ -3572,7 +3596,7 @@ def ensure_fluorophore(
     name: str,
     excitation_wavelength: Optional[Micrometers] = None,
     emission_wavelength: Optional[Micrometers] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> EnsureFluorophoreMutationEnsurefluorophore:
     """EnsureFluorophore
 
@@ -3609,7 +3633,7 @@ async def afrom_array_like(
     timepoint_views: Optional[List[PartialTimepointViewInput]] = None,
     optics_views: Optional[List[PartialOpticsViewInput]] = None,
     tags: Optional[List[str]] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> ImageFragment:
     """from_array_like
 
@@ -3664,7 +3688,7 @@ def from_array_like(
     timepoint_views: Optional[List[PartialTimepointViewInput]] = None,
     optics_views: Optional[List[PartialOpticsViewInput]] = None,
     tags: Optional[List[str]] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> ImageFragment:
     """from_array_like
 
@@ -3706,10 +3730,12 @@ def from_array_like(
 
 
 async def arequest_upload(
-    key: str, datalayer: str, rath: MikroNextRath = None
+    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
 ) -> CredentialsFragment:
     """RequestUpload
 
+
+     requestUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -3727,10 +3753,12 @@ async def arequest_upload(
 
 
 def request_upload(
-    key: str, datalayer: str, rath: MikroNextRath = None
+    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
 ) -> CredentialsFragment:
     """RequestUpload
 
+
+     requestUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -3746,10 +3774,12 @@ def request_upload(
 
 
 async def arequest_access(
-    store: ID, duration: Optional[int] = None, rath: MikroNextRath = None
+    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
 ) -> AccessCredentialsFragment:
     """RequestAccess
 
+
+     requestAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -3767,10 +3797,12 @@ async def arequest_access(
 
 
 def request_access(
-    store: ID, duration: Optional[int] = None, rath: MikroNextRath = None
+    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
 ) -> AccessCredentialsFragment:
     """RequestAccess
 
+
+     requestAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
 
 
     Arguments:
@@ -3790,7 +3822,7 @@ async def acreate_objective(
     name: Optional[str] = None,
     na: Optional[float] = None,
     magnification: Optional[float] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> CreateObjectiveMutationCreateobjective:
     """CreateObjective
 
@@ -3824,7 +3856,7 @@ def create_objective(
     name: Optional[str] = None,
     na: Optional[float] = None,
     magnification: Optional[float] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> CreateObjectiveMutationCreateobjective:
     """CreateObjective
 
@@ -3856,7 +3888,7 @@ async def aensure_objective(
     name: Optional[str] = None,
     na: Optional[float] = None,
     magnification: Optional[float] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> EnsureObjectiveMutationEnsureobjective:
     """EnsureObjective
 
@@ -3890,7 +3922,7 @@ def ensure_objective(
     name: Optional[str] = None,
     na: Optional[float] = None,
     magnification: Optional[float] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> EnsureObjectiveMutationEnsureobjective:
     """EnsureObjective
 
@@ -3924,7 +3956,7 @@ async def acreate_camera(
     pixel_size_y: Optional[Micrometers] = None,
     sensor_size_x: Optional[int] = None,
     sensor_size_y: Optional[int] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> CreateCameraMutationCreatecamera:
     """CreateCamera
 
@@ -3964,7 +3996,7 @@ def create_camera(
     pixel_size_y: Optional[Micrometers] = None,
     sensor_size_x: Optional[int] = None,
     sensor_size_y: Optional[int] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> CreateCameraMutationCreatecamera:
     """CreateCamera
 
@@ -4002,7 +4034,7 @@ async def aensure_camera(
     pixel_size_y: Optional[Micrometers] = None,
     sensor_size_x: Optional[int] = None,
     sensor_size_y: Optional[int] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> EnsureCameraMutationEnsurecamera:
     """EnsureCamera
 
@@ -4042,7 +4074,7 @@ def ensure_camera(
     pixel_size_y: Optional[Micrometers] = None,
     sensor_size_x: Optional[int] = None,
     sensor_size_y: Optional[int] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> EnsureCameraMutationEnsurecamera:
     """EnsureCamera
 
@@ -4073,7 +4105,7 @@ def ensure_camera(
     ).ensure_camera
 
 
-async def aget_table(id: ID, rath: MikroNextRath = None) -> TableFragment:
+async def aget_table(id: ID, rath: Optional[MikroNextRath] = None) -> TableFragment:
     """GetTable
 
 
@@ -4087,7 +4119,7 @@ async def aget_table(id: ID, rath: MikroNextRath = None) -> TableFragment:
     return (await aexecute(GetTableQuery, {"id": id}, rath=rath)).table
 
 
-def get_table(id: ID, rath: MikroNextRath = None) -> TableFragment:
+def get_table(id: ID, rath: Optional[MikroNextRath] = None) -> TableFragment:
     """GetTable
 
 
@@ -4101,7 +4133,7 @@ def get_table(id: ID, rath: MikroNextRath = None) -> TableFragment:
     return execute(GetTableQuery, {"id": id}, rath=rath).table
 
 
-async def aget_file(id: ID, rath: MikroNextRath = None) -> FileFragment:
+async def aget_file(id: ID, rath: Optional[MikroNextRath] = None) -> FileFragment:
     """GetFile
 
 
@@ -4115,7 +4147,7 @@ async def aget_file(id: ID, rath: MikroNextRath = None) -> FileFragment:
     return (await aexecute(GetFileQuery, {"id": id}, rath=rath)).file
 
 
-def get_file(id: ID, rath: MikroNextRath = None) -> FileFragment:
+def get_file(id: ID, rath: Optional[MikroNextRath] = None) -> FileFragment:
     """GetFile
 
 
@@ -4129,7 +4161,9 @@ def get_file(id: ID, rath: MikroNextRath = None) -> FileFragment:
     return execute(GetFileQuery, {"id": id}, rath=rath).file
 
 
-async def aget_instrument(id: ID, rath: MikroNextRath = None) -> InstrumentFragment:
+async def aget_instrument(
+    id: ID, rath: Optional[MikroNextRath] = None
+) -> InstrumentFragment:
     """GetInstrument
 
 
@@ -4143,7 +4177,7 @@ async def aget_instrument(id: ID, rath: MikroNextRath = None) -> InstrumentFragm
     return (await aexecute(GetInstrumentQuery, {"id": id}, rath=rath)).instrument
 
 
-def get_instrument(id: ID, rath: MikroNextRath = None) -> InstrumentFragment:
+def get_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> InstrumentFragment:
     """GetInstrument
 
 
@@ -4157,7 +4191,9 @@ def get_instrument(id: ID, rath: MikroNextRath = None) -> InstrumentFragment:
     return execute(GetInstrumentQuery, {"id": id}, rath=rath).instrument
 
 
-async def aget_snapshot(id: ID, rath: MikroNextRath = None) -> SnapshotFragment:
+async def aget_snapshot(
+    id: ID, rath: Optional[MikroNextRath] = None
+) -> SnapshotFragment:
     """GetSnapshot
 
 
@@ -4171,7 +4207,7 @@ async def aget_snapshot(id: ID, rath: MikroNextRath = None) -> SnapshotFragment:
     return (await aexecute(GetSnapshotQuery, {"id": id}, rath=rath)).snapshot
 
 
-def get_snapshot(id: ID, rath: MikroNextRath = None) -> SnapshotFragment:
+def get_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> SnapshotFragment:
     """GetSnapshot
 
 
@@ -4188,7 +4224,7 @@ def get_snapshot(id: ID, rath: MikroNextRath = None) -> SnapshotFragment:
 async def asearch_snapshots(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> List[SearchSnapshotsQueryOptions]:
     """SearchSnapshots
 
@@ -4211,7 +4247,7 @@ async def asearch_snapshots(
 def search_snapshots(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> List[SearchSnapshotsQueryOptions]:
     """SearchSnapshots
 
@@ -4229,7 +4265,7 @@ def search_snapshots(
     ).snapshots
 
 
-async def aget_dataset(id: ID, rath: MikroNextRath = None) -> DatasetFragment:
+async def aget_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> DatasetFragment:
     """GetDataset
 
 
@@ -4243,7 +4279,7 @@ async def aget_dataset(id: ID, rath: MikroNextRath = None) -> DatasetFragment:
     return (await aexecute(GetDatasetQuery, {"id": id}, rath=rath)).dataset
 
 
-def get_dataset(id: ID, rath: MikroNextRath = None) -> DatasetFragment:
+def get_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> DatasetFragment:
     """GetDataset
 
 
@@ -4257,7 +4293,7 @@ def get_dataset(id: ID, rath: MikroNextRath = None) -> DatasetFragment:
     return execute(GetDatasetQuery, {"id": id}, rath=rath).dataset
 
 
-async def aimages(rath: MikroNextRath = None) -> List[ImagesQueryImages]:
+async def aimages(rath: Optional[MikroNextRath] = None) -> List[ImagesQueryImages]:
     """Images
 
 
@@ -4270,7 +4306,7 @@ async def aimages(rath: MikroNextRath = None) -> List[ImagesQueryImages]:
     return (await aexecute(ImagesQuery, {}, rath=rath)).images
 
 
-def images(rath: MikroNextRath = None) -> List[ImagesQueryImages]:
+def images(rath: Optional[MikroNextRath] = None) -> List[ImagesQueryImages]:
     """Images
 
 
@@ -4283,7 +4319,7 @@ def images(rath: MikroNextRath = None) -> List[ImagesQueryImages]:
     return execute(ImagesQuery, {}, rath=rath).images
 
 
-async def aget_image(id: ID, rath: MikroNextRath = None) -> ImageFragment:
+async def aget_image(id: ID, rath: Optional[MikroNextRath] = None) -> ImageFragment:
     """GetImage
 
 
@@ -4297,7 +4333,7 @@ async def aget_image(id: ID, rath: MikroNextRath = None) -> ImageFragment:
     return (await aexecute(GetImageQuery, {"id": id}, rath=rath)).image
 
 
-def get_image(id: ID, rath: MikroNextRath = None) -> ImageFragment:
+def get_image(id: ID, rath: Optional[MikroNextRath] = None) -> ImageFragment:
     """GetImage
 
 
@@ -4311,7 +4347,7 @@ def get_image(id: ID, rath: MikroNextRath = None) -> ImageFragment:
     return execute(GetImageQuery, {"id": id}, rath=rath).image
 
 
-async def aget_random_image(rath: MikroNextRath = None) -> ImageFragment:
+async def aget_random_image(rath: Optional[MikroNextRath] = None) -> ImageFragment:
     """GetRandomImage
 
 
@@ -4324,7 +4360,7 @@ async def aget_random_image(rath: MikroNextRath = None) -> ImageFragment:
     return (await aexecute(GetRandomImageQuery, {}, rath=rath)).random_image
 
 
-def get_random_image(rath: MikroNextRath = None) -> ImageFragment:
+def get_random_image(rath: Optional[MikroNextRath] = None) -> ImageFragment:
     """GetRandomImage
 
 
@@ -4340,7 +4376,7 @@ def get_random_image(rath: MikroNextRath = None) -> ImageFragment:
 async def asearch_images(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> List[SearchImagesQueryOptions]:
     """SearchImages
 
@@ -4363,7 +4399,7 @@ async def asearch_images(
 def search_images(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
-    rath: MikroNextRath = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> List[SearchImagesQueryOptions]:
     """SearchImages
 
@@ -4381,7 +4417,9 @@ def search_images(
     ).images
 
 
-async def aget_objective(id: ID, rath: MikroNextRath = None) -> ObjectiveFragment:
+async def aget_objective(
+    id: ID, rath: Optional[MikroNextRath] = None
+) -> ObjectiveFragment:
     """GetObjective
 
 
@@ -4395,7 +4433,7 @@ async def aget_objective(id: ID, rath: MikroNextRath = None) -> ObjectiveFragmen
     return (await aexecute(GetObjectiveQuery, {"id": id}, rath=rath)).objective
 
 
-def get_objective(id: ID, rath: MikroNextRath = None) -> ObjectiveFragment:
+def get_objective(id: ID, rath: Optional[MikroNextRath] = None) -> ObjectiveFragment:
     """GetObjective
 
 
@@ -4409,7 +4447,7 @@ def get_objective(id: ID, rath: MikroNextRath = None) -> ObjectiveFragment:
     return execute(GetObjectiveQuery, {"id": id}, rath=rath).objective
 
 
-async def aget_camera(id: ID, rath: MikroNextRath = None) -> CameraFragment:
+async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFragment:
     """GetCamera
 
 
@@ -4423,7 +4461,7 @@ async def aget_camera(id: ID, rath: MikroNextRath = None) -> CameraFragment:
     return (await aexecute(GetCameraQuery, {"id": id}, rath=rath)).camera
 
 
-def get_camera(id: ID, rath: MikroNextRath = None) -> CameraFragment:
+def get_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFragment:
     """GetCamera
 
 

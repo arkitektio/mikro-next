@@ -77,7 +77,6 @@ class Image(BaseModel):
         )
 
 
-
 class Stage:
     pass
 
@@ -122,8 +121,8 @@ class PhysicalSize:
     def is_similar(
         self: PhysicalSizeProtocol,
         other: PhysicalSizeProtocol,
-        tolerance: Optional[float]=0.02,
-        raise_exception: Optional[bool]=False,
+        tolerance: Optional[float] = 0.02,
+        raise_exception: Optional[bool] = False,
     ) -> bool:
         if hasattr(self, "x") and self.x is not None and other.x is not None:
             if abs(other.x - self.x) > tolerance:
