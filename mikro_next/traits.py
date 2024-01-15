@@ -18,10 +18,12 @@ import xarray as xr
 import pandas as pd
 from typing import TYPE_CHECKING
 from .scalars import FiveDVector
-from .utils import get_attributes_or_error
+from .utils import rechunk
 from rath.scalars import ID
 from typing import Any
 import pyarrow.parquet as pq
+from rath.turms.utils import get_attributes_or_error
+
 
 if TYPE_CHECKING:
     pass

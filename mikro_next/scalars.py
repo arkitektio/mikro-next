@@ -11,7 +11,7 @@ import xarray as xr
 import pandas as pd
 import numpy as np
 import uuid
-
+from .utils import rechunk
 
 class AssignationID(str):
     """A custom scalar to represent an affine matrix."""
