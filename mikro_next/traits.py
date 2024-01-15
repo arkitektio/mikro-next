@@ -16,7 +16,6 @@ import numpy as np
 from pydantic import BaseModel
 import xarray as xr
 import pandas as pd
-from rath.links.shrink import ShrinkByID
 from typing import TYPE_CHECKING
 from .scalars import FiveDVector
 from .utils import get_attributes_or_error
@@ -240,7 +239,7 @@ class ROI(BaseModel):
         )
 
 
-class Table(BaseModel, ShrinkByID):
+class Table(BaseModel):
     """Table Trait
 
     Implements both identifier and shrinking methods.
@@ -262,7 +261,7 @@ class Table(BaseModel, ShrinkByID):
         return store.parquet_dataset.read_pandas().to_pandas()
 
 
-class File(BaseModel, ShrinkByID):
+class File(BaseModel):
     """Table Trait
 
     Implements both identifier and shrinking methods.

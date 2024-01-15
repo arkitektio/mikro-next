@@ -1,4 +1,4 @@
-from dokker import easy, copy_path_project, Deployment
+from dokker import  mirror, Deployment
 import os
 from koil.composition import Composition
 from .mikro_next import MikroNext
@@ -13,13 +13,13 @@ from mikro_next.rath import (
     MikroNextLinkComposition,
 )
 from mikro_next.datalayer import DataLayer
-from rath.operation import OperationType
+from graphql import OperationType
 
 test_path = os.path.join(os.path.dirname(__file__), "deployments", "test")
 
 
 def build_deployment() -> Deployment:
-    setup = easy(copy_path_project(test_path, "test_setup"))
+    setup = mirror(test_path)
     setup.add_health_check(
         url="http://localhost:7788/ht", service="mikro", timeout=5, max_retries=10
     )
