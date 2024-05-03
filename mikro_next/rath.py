@@ -8,8 +8,12 @@ from rath.links.dictinglink import DictingLink
 from rath.links.file import FileExtraction
 from rath.links.split import SplitLink
 from typing import Optional
+from rekuest_next.links.context import ContextLink
 
-current_mikro_next_rath: contextvars.ContextVar[Optional["MikroNextRath"]] = contextvars.ContextVar("current_mikro_next_rath")
+
+current_mikro_next_rath: contextvars.ContextVar[Optional["MikroNextRath"]] = (
+    contextvars.ContextVar("current_mikro_next_rath")
+)
 
 
 class MikroNextLinkComposition(TypedComposedLink):
@@ -28,9 +32,10 @@ class MikroNextLinkComposition(TypedComposedLink):
     upload: UploadLink
     """ A link that uploads supported data types like numpy arrays and parquet files to the datalayer"""
     auth: AuthTokenLink
+    """ A link that splits the request into a http and a websocket request"""
+    assignation: ContextLink = Field(default_factory=ContextLink)
     """ A link that adds the auth token to the request"""
     split: SplitLink
-    """ A link that splits the request into a http and a websocket request"""
 
 
 class MikroNextRath(rath.Rath):
@@ -46,14 +51,13 @@ class MikroNextRath(rath.Rath):
 
     link: MikroNextLinkComposition
 
-
     async def __aenter__(self) -> "MikroNextRath":
-        """ Sets the current mikro_next rath to this instance"""
+        """Sets the current mikro_next rath to this instance"""
         await super().__aenter__()
         current_mikro_next_rath.set(self)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> Optional[bool]:
-        """ Resets the current mikro_next rath to None"""
+        """Resets the current mikro_next rath to None"""
         await super().__aexit__(exc_type, exc_val, exc_tb)
         current_mikro_next_rath.set(None)

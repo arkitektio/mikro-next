@@ -1838,6 +1838,7 @@ class HistoryStuffFragment(BaseModel):
 class DatasetFragment(BaseModel):
     typename: Optional[Literal["Dataset"]] = Field(alias="__typename", exclude=True)
     name: str
+    id: ID
     description: Optional[str]
     history: Tuple[HistoryStuffFragment, ...]
 
@@ -2369,9 +2370,9 @@ class From_array_likeMutation(BaseModel):
         channel_views: Optional[List[PartialChannelViewInput]] = Field(
             alias="channelViews", default=None
         )
-        transformation_views: Optional[
-            List[PartialAffineTransformationViewInput]
-        ] = Field(alias="transformationViews", default=None)
+        transformation_views: Optional[List[PartialAffineTransformationViewInput]] = (
+            Field(alias="transformationViews", default=None)
+        )
         label_views: Optional[List[PartialLabelViewInput]] = Field(
             alias="labelViews", default=None
         )
@@ -2579,7 +2580,7 @@ class GetDatasetQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment HistoryStuff on History {\n  id\n  app {\n    id\n  }\n}\n\nfragment Dataset on Dataset {\n  name\n  description\n  history {\n    ...HistoryStuff\n  }\n}\n\nquery GetDataset($id: ID!) {\n  dataset(id: $id) {\n    ...Dataset\n  }\n}"
+        document = "fragment HistoryStuff on History {\n  id\n  app {\n    id\n  }\n}\n\nfragment Dataset on Dataset {\n  name\n  id\n description\n  history {\n    ...HistoryStuff\n  }\n}\n\nquery GetDataset($id: ID!) {\n  dataset(id: $id) {\n    ...Dataset\n  }\n}"
 
 
 class ImagesQueryImages(Image, BaseModel):

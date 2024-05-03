@@ -1,11 +1,10 @@
 from typing import Any, Dict
 
-from fakts.fakt.base import Fakt
 from fakts.fakts import Fakts
 from mikro_next.datalayer import DataLayer
+from pydantic import BaseModel
 
-
-class DataLayerFakt(Fakt):
+class DataLayerFakt(BaseModel):
     endpoint_url: str
 
 
