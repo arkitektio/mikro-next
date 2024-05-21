@@ -1,0 +1,14 @@
+mutation create_roi(
+  $image: ID!
+  $vectors: [FiveDVector!]!
+  $kind: RoiKind!
+) {
+  createRoi(
+    input: {image: $image
+    vectors: $vectors
+    kind: $kind
+    }
+  ) {
+    ...ROI
+  }
+}

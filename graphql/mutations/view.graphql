@@ -1,0 +1,5 @@
+mutation CreateRgbView($image: ID! $rScale: Float!, $bScale: Float!, $gScale: Float!, $context: ID) {
+ createRgbView(input: {rScale: $rScale, bScale: $bScale, gScale: $gScale, context: $context, image: $image}) {
+    id
+  }
+}

@@ -1,0 +1,5 @@
+mutation CreateRGBContext($name: String!) {
+  createRgbContext(input: {name: $name}) {
+    id
+  }
+}

@@ -1,0 +1,16 @@
+
+
+
+
+fragment BaseRoi on ROI {
+    id 
+    image {
+        id
+    }
+    vectors
+}
+
+fragment ROI on ROI {
+    ...BaseRoi
+    id
+}

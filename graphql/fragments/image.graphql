@@ -1,0 +1,17 @@
+fragment Image on Image {
+  origins {
+    id
+  }
+  id
+  name
+  store {
+    ...ZarrStore
+  }
+  views {
+    ...ChannelView
+    ...AffineTransformationView
+    ...LabelView
+    ...TimepointView
+    ...OpticsView
+  }
+}

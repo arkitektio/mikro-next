@@ -1,0 +1,6 @@
+mutation CreateStage($name: String!) {
+  createStage(input: {name: $name}) {
+    id
+    name
+  }
+}

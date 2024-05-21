@@ -1,0 +1,6 @@
+fragment Fluorophore on Fluorophore {
+    id
+    name
+    emissionWavelength
+    excitationWavelength
+}

@@ -112,8 +112,7 @@ class PhysicalSizeProtocol(Protocol):
         z: Optional[int] = None,
         t: Optional[int] = None,
         c: Optional[int] = None,
-    ):
-        ...
+    ): ...
 
 
 class PhysicalSize:
@@ -173,7 +172,7 @@ class PhysicalSize:
         ]
 
 
-class ROI(BaseModel):
+class ROI:
     """Additional Methods for ROI"""
 
     @property
@@ -360,8 +359,7 @@ class Vector(Protocol):
         z: Optional[int] = None,
         t: Optional[int] = None,
         c: Optional[int] = None,
-    ) -> V:
-        ...
+    ) -> V: ...
 
 
 T = TypeVar("T", bound=Vector)

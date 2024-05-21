@@ -1,0 +1,65 @@
+fragment View on View {
+    zMin
+    zMax
+}
+
+fragment ChannelView on ChannelView {
+    ...View
+    id
+    channel {
+        ...Channel
+    }
+}
+
+fragment AffineTransformationView on AffineTransformationView {
+    ...View
+    id
+    affineMatrix
+    stage {
+        id
+    }
+}
+
+
+fragment TimepointView on TimepointView {
+    ...View
+    id
+    msSinceStart
+    indexSinceStart
+    era {
+        ...Era
+    }
+}
+
+fragment OpticsView on OpticsView {
+    ...View
+    objective {
+        id
+        name
+        serialNumber
+    }
+    camera {
+        id
+        name
+        serialNumber
+    }
+    instrument {
+        id
+        name
+        serialNumber
+    }
+}
+
+fragment LabelView on LabelView {
+    ...View
+    id
+    fluorophore {
+        ...Fluorophore
+    }
+    primaryAntibody {
+        ...Antibody
+    }
+    secondaryAntibody {
+        ...Antibody
+    }
+}
