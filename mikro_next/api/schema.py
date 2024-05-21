@@ -1,704 +1,30 @@
-from enum import Enum
-from typing import Optional, Tuple, Union, Literal, List
+dfrom typing import Tuple, List, Optional, Union, Literal
 from mikro_next.scalars import (
+    ParquetLike,
+    FileLike,
     ArrayLike,
     FourByFourMatrix,
-    ParquetLike,
     Upload,
     Micrometers,
     Milliseconds,
-    FileLike,
 )
 from pydantic import Field, BaseModel
 from mikro_next.traits import (
-    BigFileStore,
-    File,
-    Objective,
-    ZarrStore,
     Stage,
+    ParquetStore,
+    ZarrStore,
     MediaStore,
     Table,
     Image,
-    ParquetStore,
+    Objective,
+    BigFileStore,
+    File,
 )
 from datetime import datetime
-from mikro_next.funcs import execute, aexecute
-from mikro_next.rath import MikroNextRath
+from mikro_next.funcs import aexecute, execute
 from rath.scalars import ID
-
-
-class ViewKind(str, Enum):
-    CHANNEL = "CHANNEL"
-    LABEL = "LABEL"
-    AFFINE_TRANSFORMATION = "AFFINE_TRANSFORMATION"
-    TIMEPOINT = "TIMEPOINT"
-    OPTICS = "OPTICS"
-
-
-class Ordering(str, Enum):
-    ASC = "ASC"
-    DESC = "DESC"
-
-
-class HistoryKind(str, Enum):
-    CREATE = "CREATE"
-    UPDATE = "UPDATE"
-    DELETE = "DELETE"
-
-
-class RenderKind(str, Enum):
-    VIDEO = "VIDEO"
-    SNAPSHOT = "SNAPSHOT"
-
-
-class RoiKind(str, Enum):
-    ELLIPSIS = "ELLIPSIS"
-    POLYGON = "POLYGON"
-    LINE = "LINE"
-    RECTANGLE = "RECTANGLE"
-    SPECTRAL_RECTANGLE = "SPECTRAL_RECTANGLE"
-    TEMPORAL_RECTANGLE = "TEMPORAL_RECTANGLE"
-    CUBE = "CUBE"
-    SPECTRAL_CUBE = "SPECTRAL_CUBE"
-    TEMPORAL_CUBE = "TEMPORAL_CUBE"
-    HYPERCUBE = "HYPERCUBE"
-    SPECTRAL_HYPERCUBE = "SPECTRAL_HYPERCUBE"
-    PATH = "PATH"
-    UNKNOWN = "UNKNOWN"
-    FRAME = "FRAME"
-    SLICE = "SLICE"
-    POINT = "POINT"
-
-
-class ScanDirection(str, Enum):
-    ROW_COLUMN_SLICE = "ROW_COLUMN_SLICE"
-    COLUMN_ROW_SLICE = "COLUMN_ROW_SLICE"
-    SLICE_ROW_COLUMN = "SLICE_ROW_COLUMN"
-    ROW_COLUMN_SLICE_SNAKE = "ROW_COLUMN_SLICE_SNAKE"
-    COLUMN_ROW_SLICE_SNAKE = "COLUMN_ROW_SLICE_SNAKE"
-    SLICE_ROW_COLUMN_SNAKE = "SLICE_ROW_COLUMN_SNAKE"
-
-
-class ContinousScanDirection(str, Enum):
-    ROW_COLUMN_SLICE = "ROW_COLUMN_SLICE"
-    COLUMN_ROW_SLICE = "COLUMN_ROW_SLICE"
-    SLICE_ROW_COLUMN = "SLICE_ROW_COLUMN"
-    ROW_COLUMN_SLICE_SNAKE = "ROW_COLUMN_SLICE_SNAKE"
-    COLUMN_ROW_SLICE_SNAKE = "COLUMN_ROW_SLICE_SNAKE"
-    SLICE_ROW_COLUMN_SNAKE = "SLICE_ROW_COLUMN_SNAKE"
-
-
-class ColorFormat(str, Enum):
-    RGB = "RGB"
-    HSL = "HSL"
-
-
-class ViewFilter(BaseModel):
-    is_global: Optional[bool] = Field(alias="isGlobal")
-    provenance: Optional["ProvenanceFilter"]
-    and_: Optional["ViewFilter"] = Field(alias="AND")
-    or_: Optional["ViewFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ProvenanceFilter(BaseModel):
-    during: Optional[str]
-    and_: Optional["ProvenanceFilter"] = Field(alias="AND")
-    or_: Optional["ProvenanceFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class SnapshotFilter(BaseModel):
-    name: Optional["StrFilterLookup"]
-    ids: Optional[Tuple[ID, ...]]
-    and_: Optional["SnapshotFilter"] = Field(alias="AND")
-    or_: Optional["SnapshotFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class StrFilterLookup(BaseModel):
-    exact: Optional[str]
-    i_exact: Optional[str] = Field(alias="iExact")
-    contains: Optional[str]
-    i_contains: Optional[str] = Field(alias="iContains")
-    in_list: Optional[Tuple[str, ...]] = Field(alias="inList")
-    gt: Optional[str]
-    gte: Optional[str]
-    lt: Optional[str]
-    lte: Optional[str]
-    starts_with: Optional[str] = Field(alias="startsWith")
-    i_starts_with: Optional[str] = Field(alias="iStartsWith")
-    ends_with: Optional[str] = Field(alias="endsWith")
-    i_ends_with: Optional[str] = Field(alias="iEndsWith")
-    range: Optional[Tuple[str, ...]]
-    is_null: Optional[bool] = Field(alias="isNull")
-    regex: Optional[str]
-    i_regex: Optional[str] = Field(alias="iRegex")
-    n_exact: Optional[str] = Field(alias="nExact")
-    n_i_exact: Optional[str] = Field(alias="nIExact")
-    n_contains: Optional[str] = Field(alias="nContains")
-    n_i_contains: Optional[str] = Field(alias="nIContains")
-    n_in_list: Optional[Tuple[str, ...]] = Field(alias="nInList")
-    n_gt: Optional[str] = Field(alias="nGt")
-    n_gte: Optional[str] = Field(alias="nGte")
-    n_lt: Optional[str] = Field(alias="nLt")
-    n_lte: Optional[str] = Field(alias="nLte")
-    n_starts_with: Optional[str] = Field(alias="nStartsWith")
-    n_i_starts_with: Optional[str] = Field(alias="nIStartsWith")
-    n_ends_with: Optional[str] = Field(alias="nEndsWith")
-    n_i_ends_with: Optional[str] = Field(alias="nIEndsWith")
-    n_range: Optional[Tuple[str, ...]] = Field(alias="nRange")
-    n_is_null: Optional[bool] = Field(alias="nIsNull")
-    n_regex: Optional[str] = Field(alias="nRegex")
-    n_i_regex: Optional[str] = Field(alias="nIRegex")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class OffsetPaginationInput(BaseModel):
-    offset: int
-    limit: int
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ImageFilter(BaseModel):
-    name: Optional[StrFilterLookup]
-    ids: Optional[Tuple[ID, ...]]
-    store: Optional["ZarrStoreFilter"]
-    dataset: Optional["DatasetFilter"]
-    transformation_views: Optional["AffineTransformationViewFilter"] = Field(
-        alias="transformationViews"
-    )
-    timepoint_views: Optional["TimepointViewFilter"] = Field(alias="timepointViews")
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["ImageFilter"] = Field(alias="AND")
-    or_: Optional["ImageFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ZarrStoreFilter(BaseModel):
-    shape: Optional["IntFilterLookup"]
-    and_: Optional["ZarrStoreFilter"] = Field(alias="AND")
-    or_: Optional["ZarrStoreFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class IntFilterLookup(BaseModel):
-    exact: Optional[int]
-    i_exact: Optional[int] = Field(alias="iExact")
-    contains: Optional[int]
-    i_contains: Optional[int] = Field(alias="iContains")
-    in_list: Optional[Tuple[int, ...]] = Field(alias="inList")
-    gt: Optional[int]
-    gte: Optional[int]
-    lt: Optional[int]
-    lte: Optional[int]
-    starts_with: Optional[int] = Field(alias="startsWith")
-    i_starts_with: Optional[int] = Field(alias="iStartsWith")
-    ends_with: Optional[int] = Field(alias="endsWith")
-    i_ends_with: Optional[int] = Field(alias="iEndsWith")
-    range: Optional[Tuple[int, ...]]
-    is_null: Optional[bool] = Field(alias="isNull")
-    regex: Optional[str]
-    i_regex: Optional[str] = Field(alias="iRegex")
-    n_exact: Optional[int] = Field(alias="nExact")
-    n_i_exact: Optional[int] = Field(alias="nIExact")
-    n_contains: Optional[int] = Field(alias="nContains")
-    n_i_contains: Optional[int] = Field(alias="nIContains")
-    n_in_list: Optional[Tuple[int, ...]] = Field(alias="nInList")
-    n_gt: Optional[int] = Field(alias="nGt")
-    n_gte: Optional[int] = Field(alias="nGte")
-    n_lt: Optional[int] = Field(alias="nLt")
-    n_lte: Optional[int] = Field(alias="nLte")
-    n_starts_with: Optional[int] = Field(alias="nStartsWith")
-    n_i_starts_with: Optional[int] = Field(alias="nIStartsWith")
-    n_ends_with: Optional[int] = Field(alias="nEndsWith")
-    n_i_ends_with: Optional[int] = Field(alias="nIEndsWith")
-    n_range: Optional[Tuple[int, ...]] = Field(alias="nRange")
-    n_is_null: Optional[bool] = Field(alias="nIsNull")
-    n_regex: Optional[str] = Field(alias="nRegex")
-    n_i_regex: Optional[str] = Field(alias="nIRegex")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DatasetFilter(BaseModel):
-    id: Optional[ID]
-    name: Optional[StrFilterLookup]
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["DatasetFilter"] = Field(alias="AND")
-    or_: Optional["DatasetFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class AffineTransformationViewFilter(BaseModel):
-    is_global: Optional[bool] = Field(alias="isGlobal")
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["AffineTransformationViewFilter"] = Field(alias="AND")
-    or_: Optional["AffineTransformationViewFilter"] = Field(alias="OR")
-    stage: Optional["StageFilter"]
-    pixel_size: Optional["FloatFilterLookup"] = Field(alias="pixelSize")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class StageFilter(BaseModel):
-    ids: Optional[Tuple[ID, ...]]
-    search: Optional[str]
-    id: Optional[ID]
-    kind: Optional[str]
-    name: Optional[StrFilterLookup]
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["StageFilter"] = Field(alias="AND")
-    or_: Optional["StageFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class FloatFilterLookup(BaseModel):
-    exact: Optional[float]
-    i_exact: Optional[float] = Field(alias="iExact")
-    contains: Optional[float]
-    i_contains: Optional[float] = Field(alias="iContains")
-    in_list: Optional[Tuple[float, ...]] = Field(alias="inList")
-    gt: Optional[float]
-    gte: Optional[float]
-    lt: Optional[float]
-    lte: Optional[float]
-    starts_with: Optional[float] = Field(alias="startsWith")
-    i_starts_with: Optional[float] = Field(alias="iStartsWith")
-    ends_with: Optional[float] = Field(alias="endsWith")
-    i_ends_with: Optional[float] = Field(alias="iEndsWith")
-    range: Optional[Tuple[float, ...]]
-    is_null: Optional[bool] = Field(alias="isNull")
-    regex: Optional[str]
-    i_regex: Optional[str] = Field(alias="iRegex")
-    n_exact: Optional[float] = Field(alias="nExact")
-    n_i_exact: Optional[float] = Field(alias="nIExact")
-    n_contains: Optional[float] = Field(alias="nContains")
-    n_i_contains: Optional[float] = Field(alias="nIContains")
-    n_in_list: Optional[Tuple[float, ...]] = Field(alias="nInList")
-    n_gt: Optional[float] = Field(alias="nGt")
-    n_gte: Optional[float] = Field(alias="nGte")
-    n_lt: Optional[float] = Field(alias="nLt")
-    n_lte: Optional[float] = Field(alias="nLte")
-    n_starts_with: Optional[float] = Field(alias="nStartsWith")
-    n_i_starts_with: Optional[float] = Field(alias="nIStartsWith")
-    n_ends_with: Optional[float] = Field(alias="nEndsWith")
-    n_i_ends_with: Optional[float] = Field(alias="nIEndsWith")
-    n_range: Optional[Tuple[float, ...]] = Field(alias="nRange")
-    n_is_null: Optional[bool] = Field(alias="nIsNull")
-    n_regex: Optional[str] = Field(alias="nRegex")
-    n_i_regex: Optional[str] = Field(alias="nIRegex")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class TimepointViewFilter(BaseModel):
-    is_global: Optional[bool] = Field(alias="isGlobal")
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["TimepointViewFilter"] = Field(alias="AND")
-    or_: Optional["TimepointViewFilter"] = Field(alias="OR")
-    era: Optional["EraFilter"]
-    ms_since_start: Optional[float] = Field(alias="msSinceStart")
-    index_since_start: Optional[int] = Field(alias="indexSinceStart")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class EraFilter(BaseModel):
-    id: Optional[ID]
-    begin: Optional[datetime]
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["EraFilter"] = Field(alias="AND")
-    or_: Optional["EraFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ImageOrder(BaseModel):
-    created_at: Optional[Ordering] = Field(alias="createdAt")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class FileFilter(BaseModel):
-    id: Optional[ID]
-    name: Optional[StrFilterLookup]
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["FileFilter"] = Field(alias="AND")
-    or_: Optional["FileFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class OpticsViewFilter(BaseModel):
-    is_global: Optional[bool] = Field(alias="isGlobal")
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["OpticsViewFilter"] = Field(alias="AND")
-    or_: Optional["OpticsViewFilter"] = Field(alias="OR")
-    instrument: Optional["InstrumentFilter"]
-    objective: Optional["ObjectiveFilter"]
-    camera: Optional["CameraFilter"]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class InstrumentFilter(BaseModel):
-    id: Optional[ID]
-    name: Optional[str]
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["InstrumentFilter"] = Field(alias="AND")
-    or_: Optional["InstrumentFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ObjectiveFilter(BaseModel):
-    id: Optional[ID]
-    name: Optional[str]
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["ObjectiveFilter"] = Field(alias="AND")
-    or_: Optional["ObjectiveFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class CameraFilter(BaseModel):
-    id: Optional[ID]
-    name: Optional[str]
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["CameraFilter"] = Field(alias="AND")
-    or_: Optional["CameraFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ROIFilter(BaseModel):
-    id: Optional[ID]
-    kind: Optional[RoiKind]
-    and_: Optional["ROIFilter"] = Field(alias="AND")
-    or_: Optional["ROIFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ContinousScanViewFilter(BaseModel):
-    is_global: Optional[bool] = Field(alias="isGlobal")
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["ContinousScanViewFilter"] = Field(alias="AND")
-    or_: Optional["ContinousScanViewFilter"] = Field(alias="OR")
-    direction: Optional[ContinousScanDirection]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class WellPositionViewFilter(BaseModel):
-    is_global: Optional[bool] = Field(alias="isGlobal")
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["WellPositionViewFilter"] = Field(alias="AND")
-    or_: Optional["WellPositionViewFilter"] = Field(alias="OR")
-    well: Optional["MultiWellPlateFilter"]
-    row: Optional[int]
-    column: Optional[int]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class MultiWellPlateFilter(BaseModel):
-    ids: Optional[Tuple[ID, ...]]
-    search: Optional[str]
-    id: Optional[ID]
-    name: Optional[StrFilterLookup]
-    and_: Optional["MultiWellPlateFilter"] = Field(alias="AND")
-    or_: Optional["MultiWellPlateFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class FluorophoreFilter(BaseModel):
-    id: Optional[ID]
-    emission_wavelength: Optional[IntFilterLookup] = Field(alias="emissionWavelength")
-    excitation_wavelength: Optional[IntFilterLookup] = Field(
-        alias="excitationWavelength"
-    )
-    provenance: Optional[ProvenanceFilter]
-    search: Optional[str]
-    ids: Optional[Tuple[ID, ...]]
-    and_: Optional["FluorophoreFilter"] = Field(alias="AND")
-    or_: Optional["FluorophoreFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class AntibodyFilter(BaseModel):
-    ids: Optional[Tuple[ID, ...]]
-    search: Optional[str]
-    id: Optional[ID]
-    name: Optional[StrFilterLookup]
-    and_: Optional["AntibodyFilter"] = Field(alias="AND")
-    or_: Optional["AntibodyFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class RGBContextFilter(BaseModel):
-    ids: Optional[Tuple[ID, ...]]
-    search: Optional[str]
-    id: Optional[ID]
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["RGBContextFilter"] = Field(alias="AND")
-    or_: Optional["RGBContextFilter"] = Field(alias="OR")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class RelateToDatasetInput(BaseModel):
-    id: ID
-    other: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class RequestUploadInput(BaseModel):
-    key: str
-    datalayer: str
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class RequestAccessInput(BaseModel):
-    store: ID
-    duration: Optional[int]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class RequestTableUploadInput(BaseModel):
-    key: str
-    datalayer: str
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class RequestTableAccessInput(BaseModel):
-    store: ID
-    duration: Optional[int]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class RequestFileUploadInput(BaseModel):
-    key: str
-    datalayer: str
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class RequestFileAccessInput(BaseModel):
-    store: ID
-    duration: Optional[int]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class AffineTransformationViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    stage: Optional[ID]
-    affine_matrix: FourByFourMatrix = Field(alias="affineMatrix")
-    image: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class FromArrayLikeInput(BaseModel):
-    name: str
-    array: ArrayLike
-    origins: Optional[Tuple[ID, ...]]
-    dataset: Optional[ID]
-    channel_views: Optional[Tuple["PartialChannelViewInput", ...]] = Field(
-        alias="channelViews"
-    )
-    transformation_views: Optional[
-        Tuple["PartialAffineTransformationViewInput", ...]
-    ] = Field(alias="transformationViews")
-    acquisition_views: Optional[Tuple["PartialAcquisitionViewInput", ...]] = Field(
-        alias="acquisitionViews"
-    )
-    label_views: Optional[Tuple["PartialLabelViewInput", ...]] = Field(
-        alias="labelViews"
-    )
-    rgb_views: Optional[Tuple["PartialRGBViewInput", ...]] = Field(alias="rgbViews")
-    timepoint_views: Optional[Tuple["PartialTimepointViewInput", ...]] = Field(
-        alias="timepointViews"
-    )
-    optics_views: Optional[Tuple["PartialOpticsViewInput", ...]] = Field(
-        alias="opticsViews"
-    )
-    tags: Optional[Tuple[str, ...]]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+from mikro_next.rath import MikroNextRath
+from enum import Enum
 
 
 class PartialChannelViewInput(BaseModel):
@@ -716,6 +42,8 @@ class PartialChannelViewInput(BaseModel):
     channel: ID
 
     class Config:
+        """A config class"""
+
         frozen = True
         extra = "forbid"
         allow_population_by_field_name = True
@@ -738,6 +66,8 @@ class PartialAffineTransformationViewInput(BaseModel):
     affine_matrix: FourByFourMatrix = Field(alias="affineMatrix")
 
     class Config:
+        """A config class"""
+
         frozen = True
         extra = "forbid"
         allow_population_by_field_name = True
@@ -761,6 +91,8 @@ class PartialAcquisitionViewInput(BaseModel):
     operator: Optional[ID]
 
     class Config:
+        """A config class"""
+
         frozen = True
         extra = "forbid"
         allow_population_by_field_name = True
@@ -784,6 +116,8 @@ class PartialLabelViewInput(BaseModel):
     secondary_antibody: Optional[ID] = Field(alias="secondaryAntibody")
 
     class Config:
+        """A config class"""
+
         frozen = True
         extra = "forbid"
         allow_population_by_field_name = True
@@ -808,6 +142,8 @@ class PartialRGBViewInput(BaseModel):
     b_scale: float = Field(alias="bScale")
 
     class Config:
+        """A config class"""
+
         frozen = True
         extra = "forbid"
         allow_population_by_field_name = True
@@ -831,6 +167,8 @@ class PartialTimepointViewInput(BaseModel):
     index_since_start: Optional[int] = Field(alias="indexSinceStart")
 
     class Config:
+        """A config class"""
+
         frozen = True
         extra = "forbid"
         allow_population_by_field_name = True
@@ -854,700 +192,8 @@ class PartialOpticsViewInput(BaseModel):
     camera: Optional[ID]
 
     class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+        """A config class"""
 
-
-class PinImageInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class UpdateImageInput(BaseModel):
-    id: ID
-    tags: Optional[Tuple[str, ...]]
-    name: Optional[str]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class FromParquetLike(BaseModel):
-    name: str
-    dataframe: ParquetLike
-    origins: Optional[Tuple[ID, ...]]
-    dataset: Optional[ID]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class FromFileLike(BaseModel):
-    name: str
-    file: FileLike
-    origins: Optional[Tuple[ID, ...]]
-    dataset: Optional[ID]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ChannelInput(BaseModel):
-    name: str
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinChannelInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteChannelInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class StageInput(BaseModel):
-    name: str
-    instrument: Optional[ID]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinStageInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteStageInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class RGBContextInput(BaseModel):
-    name: Optional[str]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteRGBContextInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class CreateDatasetInput(BaseModel):
-    name: str
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ChangeDatasetInput(BaseModel):
-    name: str
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class RevertInput(BaseModel):
-    id: ID
-    history_id: ID = Field(alias="historyId")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinDatasetInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteDatasetInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class AssociateInput(BaseModel):
-    selfs: Tuple[ID, ...]
-    other: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DesociateInput(BaseModel):
-    selfs: Tuple[ID, ...]
-    other: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class FluorophoreInput(BaseModel):
-    name: str
-    emission_wavelength: Optional[Micrometers] = Field(alias="emissionWavelength")
-    excitation_wavelength: Optional[Micrometers] = Field(alias="excitationWavelength")
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinFluorophoreInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteFluorophoreInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class MultiWellPlateInput(BaseModel):
-    name: str
-    columns: Optional[int]
-    rows: Optional[int]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PintMultiWellPlateInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteMultiWellInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class AntibodyInput(BaseModel):
-    name: str
-    epitope: Optional[str]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinAntibodyInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteAntibodyInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ViewCollectionInput(BaseModel):
-    name: str
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinViewCollectionInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteViewCollectionInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class EraInput(BaseModel):
-    name: str
-    begin: Optional[datetime]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinEraInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteEraInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class LabelViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    fluorophore: Optional[ID]
-    primary_antibody: Optional[ID] = Field(alias="primaryAntibody")
-    secondary_antibody: Optional[ID] = Field(alias="secondaryAntibody")
-    image: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class TimepointViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    era: Optional[ID]
-    ms_since_start: Optional[Milliseconds] = Field(alias="msSinceStart")
-    index_since_start: Optional[int] = Field(alias="indexSinceStart")
-    image: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class OpticsViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    instrument: Optional[ID]
-    objective: Optional[ID]
-    camera: Optional[ID]
-    image: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class RGBViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    context: Optional[ID]
-    r_scale: float = Field(alias="rScale")
-    g_scale: float = Field(alias="gScale")
-    b_scale: float = Field(alias="bScale")
-    image: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ChannelViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    channel: ID
-    image: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class WellPositionViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    well: Optional[ID]
-    row: Optional[int]
-    column: Optional[int]
-    image: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ContinousScanViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    direction: ScanDirection
-    image: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteViewInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinViewInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class InstrumentInput(BaseModel):
-    serial_number: str = Field(alias="serialNumber")
-    manufacturer: Optional[str]
-    name: Optional[str]
-    model: Optional[str]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteInstrumentInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinInstrumentInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class ObjectiveInput(BaseModel):
-    serial_number: str = Field(alias="serialNumber")
-    name: Optional[str]
-    na: Optional[float]
-    magnification: Optional[float]
-    immersion: Optional[str]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteObjectiveInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinObjectiveInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class CameraInput(BaseModel):
-    serial_number: str = Field(alias="serialNumber")
-    name: Optional[str]
-    model: Optional[str]
-    bit_depth: Optional[int] = Field(alias="bitDepth")
-    sensor_size_x: Optional[int] = Field(alias="sensorSizeX")
-    sensor_size_y: Optional[int] = Field(alias="sensorSizeY")
-    pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX")
-    pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY")
-    manufacturer: Optional[str]
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteCameraInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinCameraInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class SnaphotInput(BaseModel):
-    file: Upload
-    image: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class DeleteSnaphotInput(BaseModel):
-    id: ID
-
-    class Config:
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
-
-
-class PinSnapshotInput(BaseModel):
-    id: ID
-    pin: bool
-
-    class Config:
         frozen = True
         extra = "forbid"
         allow_population_by_field_name = True
@@ -1559,6 +205,8 @@ class TableFragmentOrigins(Image, BaseModel):
     id: ID
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1570,6 +218,8 @@ class TableFragment(Table, BaseModel):
     store: "ParquetStoreFragment"
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1584,6 +234,8 @@ class CredentialsFragment(BaseModel):
     store: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1599,6 +251,8 @@ class AccessCredentialsFragment(BaseModel):
     path: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1613,6 +267,8 @@ class ChannelViewFragment(ViewFragmentBase, BaseModel):
     channel: "ChannelFragment"
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1621,6 +277,8 @@ class AffineTransformationViewFragmentStage(Stage, BaseModel):
     id: ID
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1633,6 +291,8 @@ class AffineTransformationViewFragment(ViewFragmentBase, BaseModel):
     stage: AffineTransformationViewFragmentStage
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1646,6 +306,8 @@ class TimepointViewFragment(ViewFragmentBase, BaseModel):
     era: "EraFragment"
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1656,6 +318,8 @@ class OpticsViewFragmentObjective(Objective, BaseModel):
     serial_number: str = Field(alias="serialNumber")
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1666,6 +330,8 @@ class OpticsViewFragmentCamera(BaseModel):
     serial_number: str = Field(alias="serialNumber")
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1676,6 +342,8 @@ class OpticsViewFragmentInstrument(BaseModel):
     serial_number: str = Field(alias="serialNumber")
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1686,6 +354,8 @@ class OpticsViewFragment(ViewFragmentBase, BaseModel):
     instrument: Optional[OpticsViewFragmentInstrument]
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1697,6 +367,8 @@ class LabelViewFragment(ViewFragmentBase, BaseModel):
     secondary_antibody: Optional["AntibodyFragment"] = Field(alias="secondaryAntibody")
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1707,6 +379,8 @@ class ChannelFragment(BaseModel):
     excitation_wavelength: Optional[float] = Field(alias="excitationWavelength")
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1717,6 +391,8 @@ class EraFragment(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1725,6 +401,8 @@ class FileFragmentOrigins(Image, BaseModel):
     id: ID
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1736,6 +414,8 @@ class FileFragment(File, BaseModel):
     store: "BigFileStoreFragment"
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1747,6 +427,8 @@ class InstrumentFragment(BaseModel):
     serial_number: str = Field(alias="serialNumber")
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1756,6 +438,8 @@ class AntibodyFragment(BaseModel):
     epitope: Optional[str]
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1770,6 +454,8 @@ class ZarrStoreFragment(ZarrStore, BaseModel):
     "The path to the data. Relative to the bucket."
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1783,6 +469,8 @@ class ParquetStoreFragment(ParquetStore, BaseModel):
     path: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1796,6 +484,8 @@ class BigFileStoreFragment(BigFileStore, BaseModel):
     path: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1805,6 +495,8 @@ class SnapshotFragmentStore(MediaStore, BaseModel):
     presigned_url: str = Field(alias="presignedUrl")
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1815,6 +507,8 @@ class SnapshotFragment(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1823,6 +517,8 @@ class HistoryStuffFragmentApp(BaseModel):
     id: ID
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1832,6 +528,8 @@ class HistoryStuffFragment(BaseModel):
     app: Optional[HistoryStuffFragmentApp]
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1842,6 +540,8 @@ class DatasetFragment(BaseModel):
     history: Tuple[HistoryStuffFragment, ...]
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1853,6 +553,8 @@ class FluorophoreFragment(BaseModel):
     excitation_wavelength: Optional[Micrometers] = Field(alias="excitationWavelength")
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1861,6 +563,8 @@ class ImageFragmentOrigins(Image, BaseModel):
     id: ID
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1868,6 +572,8 @@ class ImageFragmentViewsBase(BaseModel):
     pass
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1875,6 +581,8 @@ class ImageFragmentViewsChannelView(ImageFragmentViewsBase, ChannelViewFragment)
     pass
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1884,6 +592,8 @@ class ImageFragmentViewsAffineTransformationView(
     pass
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1891,6 +601,8 @@ class ImageFragmentViewsLabelView(ImageFragmentViewsBase, LabelViewFragment):
     pass
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1898,6 +610,8 @@ class ImageFragmentViewsTimepointView(ImageFragmentViewsBase, TimepointViewFragm
     pass
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1905,6 +619,8 @@ class ImageFragmentViewsOpticsView(ImageFragmentViewsBase, OpticsViewFragment):
     pass
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1927,6 +643,8 @@ class ImageFragment(Image, BaseModel):
     ]
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1938,6 +656,8 @@ class ObjectiveFragment(Objective, BaseModel):
     serial_number: str = Field(alias="serialNumber")
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1951,6 +671,8 @@ class CameraFragment(BaseModel):
     serial_number: str = Field(alias="serialNumber")
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -1995,6 +717,8 @@ class CreateStageMutationCreatestage(Stage, BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2014,6 +738,8 @@ class CreateChannelMutationCreatechannel(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2033,6 +759,8 @@ class EnsureChannelMutationEnsurechannel(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2052,6 +780,8 @@ class CreateEraMutationCreateera(BaseModel):
     begin: Optional[datetime]
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2064,6 +794,30 @@ class CreateEraMutation(BaseModel):
 
     class Meta:
         document = "mutation CreateEra($name: String!, $begin: DateTime) {\n  createEra(input: {name: $name, begin: $begin}) {\n    id\n    begin\n  }\n}"
+
+
+class CreateRgbViewMutationCreatergbview(BaseModel):
+    typename: Optional[Literal["RGBView"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateRgbViewMutation(BaseModel):
+    create_rgb_view: CreateRgbViewMutationCreatergbview = Field(alias="createRgbView")
+
+    class Arguments(BaseModel):
+        image: ID
+        r_scale: float = Field(alias="rScale")
+        b_scale: float = Field(alias="bScale")
+        g_scale: float = Field(alias="gScale")
+        context: Optional[ID] = Field(default=None)
+
+    class Meta:
+        document = "mutation CreateRgbView($image: ID!, $rScale: Float!, $bScale: Float!, $gScale: Float!, $context: ID) {\n  createRgbView(\n    input: {rScale: $rScale, bScale: $bScale, gScale: $gScale, context: $context, image: $image}\n  ) {\n    id\n  }\n}"
 
 
 class From_file_likeMutation(BaseModel):
@@ -2106,6 +860,8 @@ class CreateRGBContextMutationCreatergbcontext(BaseModel):
     id: ID
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2127,6 +883,8 @@ class CreateInstrumentMutationCreateinstrument(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2150,6 +908,8 @@ class EnsureInstrumentMutationEnsureinstrument(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2175,6 +935,8 @@ class CreateViewCollectionMutationCreateviewcollection(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2196,6 +958,8 @@ class CreateAntibodyMutationCreateantibody(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2218,6 +982,8 @@ class EnsureAntibodyMutationEnsureantibody(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2251,6 +1017,8 @@ class CreateDatasetMutationCreatedataset(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2270,6 +1038,8 @@ class UpdateDatasetMutationUpdatedataset(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2291,6 +1061,8 @@ class RevertDatasetMutationRevertdataset(BaseModel):
     description: Optional[str]
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2311,6 +1083,8 @@ class CreateFluorophoreMutationCreatefluorophore(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2338,6 +1112,8 @@ class EnsureFluorophoreMutationEnsurefluorophore(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2390,7 +1166,7 @@ class From_array_likeMutation(BaseModel):
         tags: Optional[List[str]] = Field(default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $labelViews: [PartialLabelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, labelViews: $labelViews, timepointViews: $timepointViews, rgbViews: $rgbViews, opticsViews: $opticsViews, tags: $tags}\n  ) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $labelViews: [PartialLabelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, labelViews: $labelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, tags: $tags}\n  ) {\n    ...Image\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -2422,6 +1198,8 @@ class CreateObjectiveMutationCreateobjective(Objective, BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2446,6 +1224,8 @@ class EnsureObjectiveMutationEnsureobjective(Objective, BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2470,6 +1250,8 @@ class CreateCameraMutationCreatecamera(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2494,6 +1276,8 @@ class EnsureCameraMutationEnsurecamera(BaseModel):
     name: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2558,6 +1342,8 @@ class SearchSnapshotsQueryOptions(BaseModel):
     label: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2587,6 +1373,8 @@ class ImagesQueryImages(Image, BaseModel):
     id: ID
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2607,7 +1395,7 @@ class GetImageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -2617,7 +1405,7 @@ class GetRandomImageQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
 
 
 class SearchImagesQueryOptions(Image, BaseModel):
@@ -2626,6 +1414,8 @@ class SearchImagesQueryOptions(Image, BaseModel):
     label: str
 
     class Config:
+        """A config class"""
+
         frozen = True
 
 
@@ -2947,6 +1737,78 @@ def create_era(
     return execute(
         CreateEraMutation, {"name": name, "begin": begin}, rath=rath
     ).create_era
+
+
+async def acreate_rgb_view(
+    image: ID,
+    r_scale: float,
+    b_scale: float,
+    g_scale: float,
+    context: Optional[ID] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> CreateRgbViewMutationCreatergbview:
+    """CreateRgbView
+
+
+
+    Arguments:
+        image (ID): image
+        r_scale (float): rScale
+        b_scale (float): bScale
+        g_scale (float): gScale
+        context (Optional[ID], optional): context.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateRgbViewMutationCreatergbview"""
+    return (
+        await aexecute(
+            CreateRgbViewMutation,
+            {
+                "image": image,
+                "rScale": r_scale,
+                "bScale": b_scale,
+                "gScale": g_scale,
+                "context": context,
+            },
+            rath=rath,
+        )
+    ).create_rgb_view
+
+
+def create_rgb_view(
+    image: ID,
+    r_scale: float,
+    b_scale: float,
+    g_scale: float,
+    context: Optional[ID] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> CreateRgbViewMutationCreatergbview:
+    """CreateRgbView
+
+
+
+    Arguments:
+        image (ID): image
+        r_scale (float): rScale
+        b_scale (float): bScale
+        g_scale (float): gScale
+        context (Optional[ID], optional): context.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateRgbViewMutationCreatergbview"""
+    return execute(
+        CreateRgbViewMutation,
+        {
+            "image": image,
+            "rScale": r_scale,
+            "bScale": b_scale,
+            "gScale": g_scale,
+            "context": context,
+        },
+        rath=rath,
+    ).create_rgb_view
 
 
 async def afrom_file_like(
@@ -4241,7 +3103,7 @@ async def asearch_snapshots(
         await aexecute(
             SearchSnapshotsQuery, {"search": search, "values": values}, rath=rath
         )
-    ).snapshots
+    ).options
 
 
 def search_snapshots(
@@ -4262,7 +3124,7 @@ def search_snapshots(
         List[SearchSnapshotsQuerySnapshots]"""
     return execute(
         SearchSnapshotsQuery, {"search": search, "values": values}, rath=rath
-    ).snapshots
+    ).options
 
 
 async def aget_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> DatasetFragment:
@@ -4393,7 +3255,7 @@ async def asearch_images(
         await aexecute(
             SearchImagesQuery, {"search": search, "values": values}, rath=rath
         )
-    ).images
+    ).options
 
 
 def search_images(
@@ -4414,7 +3276,7 @@ def search_images(
         List[SearchImagesQueryImages]"""
     return execute(
         SearchImagesQuery, {"search": search, "values": values}, rath=rath
-    ).images
+    ).options
 
 
 async def aget_objective(
@@ -4475,31 +3337,8 @@ def get_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFragment:
     return execute(GetCameraQuery, {"id": id}, rath=rath).camera
 
 
-AffineTransformationViewFilter.update_forward_refs()
-AntibodyFilter.update_forward_refs()
-CameraFilter.update_forward_refs()
 ChannelViewFragment.update_forward_refs()
-ContinousScanViewFilter.update_forward_refs()
-DatasetFilter.update_forward_refs()
-EraFilter.update_forward_refs()
-FileFilter.update_forward_refs()
 FileFragment.update_forward_refs()
-FluorophoreFilter.update_forward_refs()
-FromArrayLikeInput.update_forward_refs()
-ImageFilter.update_forward_refs()
-InstrumentFilter.update_forward_refs()
 LabelViewFragment.update_forward_refs()
-MultiWellPlateFilter.update_forward_refs()
-ObjectiveFilter.update_forward_refs()
-OpticsViewFilter.update_forward_refs()
-ProvenanceFilter.update_forward_refs()
-RGBContextFilter.update_forward_refs()
-ROIFilter.update_forward_refs()
-SnapshotFilter.update_forward_refs()
-StageFilter.update_forward_refs()
 TableFragment.update_forward_refs()
-TimepointViewFilter.update_forward_refs()
 TimepointViewFragment.update_forward_refs()
-ViewFilter.update_forward_refs()
-WellPositionViewFilter.update_forward_refs()
-ZarrStoreFilter.update_forward_refs()

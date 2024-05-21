@@ -8,6 +8,7 @@ from .api.schema import (
     FluorophoreFragment,
     ObjectiveFragment,
     InstrumentFragment,
+    PartialRGBViewInput,
     CameraFragment,
     EraFragment,
     AntibodyFragment,
@@ -63,14 +64,14 @@ def view_from_pixel_size_and_position(
 
     FourByFourMatrix.validate(affine)
 
-    
-
     return PartialAffineTransformationViewInput(
         affineMatrix=affine, stage=stage, **kwargs
     )
 
 
-def view_from_channel(channel: ChannelFragment, c: int = None, **kwargs) -> ViewInput:
+def view_from_channel(
+    channel: ChannelFragment, c: int = None, **kwargs
+) -> PartialChannelViewInput:
     """Creates a view from the channel name
 
     Args:
@@ -90,7 +91,7 @@ def opticsview_from_path(
     camera: CameraFragment = None,
     instrument: InstrumentFragment = None,
     **kwargs,
-) -> ViewInput:
+) -> PartialOpticsViewInput:
     """Creates a view from the channel name
 
     Args:
@@ -109,7 +110,7 @@ def timepoint_view_from_era(
     index_since_start: int = None,
     ms_since_start: Milliseconds = None,
     t: int = None,
-) -> ViewInput:
+) -> PartialTimepointViewInput:
     """Creates a view from the channel name
 
     Args:
@@ -140,7 +141,7 @@ def labelview_from_agents(
     secondary_antibody: AntibodyFragment = None,
     c: int = None,
     **kwargs,
-) -> ViewInput:
+) -> PartialLabelViewInput:
     """Creates a view from the channel name
 
     Args:
@@ -165,3 +166,31 @@ def labelview_from_agents(
         secondary_antibody=secondary_antibody.id,
         **kwargs,
     )
+
+
+def view_from_color(
+    rgb_context: ID,
+    c: int = None,
+    r_scale: float = 1,
+    g_scale: float = 1,
+    b_scale: float = 1,
+    **kwargs,
+) -> PartialRGBViewInput:
+    """Creates a view from the channel name
+
+    Args:
+        channel_name (str): The channel name
+
+    Returns:
+        View: The view
+    """
+    if c is not None:
+        return PartialRGBViewInput(
+            context=rgb_context,
+            cMax=c,
+            cMin=c,
+            rScale=r_scale,
+            gScale=g_scale,
+            bScale=b_scale,
+            **kwargs,
+        )
