@@ -66,7 +66,7 @@ if True:
     )
     structure_reg.register_as_structure(
         DatasetFragment,
-        identifier="@mikro/image",
+        identifier="@mikro/dataset",
         aexpand=aget_dataset,
         ashrink=id_shrink,
         scope=PortScope.GLOBAL,
