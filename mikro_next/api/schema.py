@@ -1,32 +1,32 @@
-from mikro_next.funcs import aexecute, execute
+from pydantic import BaseModel, Field
 from mikro_next.traits import (
-    Table,
-    ZarrStore,
-    File,
-    ROI,
-    BigFileStore,
-    Stage,
-    Image,
     ParquetStore,
     MediaStore,
     Objective,
+    ZarrStore,
+    ROI,
+    File,
+    BigFileStore,
+    Image,
+    Stage,
+    Table,
 )
-from pydantic import Field, BaseModel
+from typing import Tuple, List, Optional, Literal, Union
+from datetime import datetime
 from mikro_next.scalars import (
-    ArrayLike,
     Milliseconds,
-    Micrometers,
     Upload,
+    Micrometers,
+    ArrayLike,
     FiveDVector,
-    ParquetLike,
     FourByFourMatrix,
     FileLike,
+    ParquetLike,
 )
+from enum import Enum
+from mikro_next.funcs import execute, aexecute
 from mikro_next.rath import MikroNextRath
 from rath.scalars import ID
-from datetime import datetime
-from typing import Optional, Union, Tuple, Literal, List
-from enum import Enum
 
 
 class RoiKind(str, Enum):
@@ -46,6 +46,12 @@ class RoiKind(str, Enum):
     FRAME = "FRAME"
     SLICE = "SLICE"
     POINT = "POINT"
+
+
+class RenderNodeKind(str, Enum):
+    CONTEXT = "CONTEXT"
+    OVERLAY = "OVERLAY"
+    GRID = "GRID"
 
 
 class PartialChannelViewInput(BaseModel):
@@ -211,6 +217,36 @@ class PartialOpticsViewInput(BaseModel):
     instrument: Optional[ID]
     objective: Optional[ID]
     camera: Optional[ID]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class TreeInput(BaseModel):
+    id: Optional[str]
+    children: Tuple["TreeNodeInput", ...]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class TreeNodeInput(BaseModel):
+    id: Optional[str]
+    kind: RenderNodeKind
+    label: Optional[str]
+    context: Optional[str]
+    gap: Optional[int]
+    children: Optional[Tuple["TreeNodeInput", ...]]
 
     class Config:
         """A config class"""
@@ -674,6 +710,17 @@ class ImageFragmentViewsOpticsView(ImageFragmentViewsBase, OpticsViewFragment):
         frozen = True
 
 
+class ImageFragmentRgbcontexts(BaseModel):
+    typename: Optional[Literal["RGBContext"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
 class ImageFragment(Image, BaseModel):
     typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
     origins: Tuple[ImageFragmentOrigins, ...]
@@ -691,6 +738,7 @@ class ImageFragment(Image, BaseModel):
         ],
         ...,
     ]
+    rgb_contexts: Tuple[ImageFragmentRgbcontexts, ...] = Field(alias="rgbContexts")
 
     class Config:
         """A config class"""
@@ -724,6 +772,29 @@ class CameraFragment(BaseModel):
         """A config class"""
 
         frozen = True
+
+
+class CreateRenderTreeMutationCreaterendertree(BaseModel):
+    typename: Optional[Literal["RenderTree"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateRenderTreeMutation(BaseModel):
+    create_render_tree: CreateRenderTreeMutationCreaterendertree = Field(
+        alias="createRenderTree"
+    )
+
+    class Arguments(BaseModel):
+        name: str
+        tree: TreeInput
+
+    class Meta:
+        document = "mutation CreateRenderTree($name: String!, $tree: TreeInput!) {\n  createRenderTree(input: {name: $name, tree: $tree}) {\n    id\n  }\n}"
 
 
 class From_parquet_likeMutation(BaseModel):
@@ -934,9 +1005,10 @@ class CreateRGBContextMutation(BaseModel):
 
     class Arguments(BaseModel):
         name: str
+        image: ID
 
     class Meta:
-        document = "mutation CreateRGBContext($name: String!) {\n  createRgbContext(input: {name: $name}) {\n    id\n  }\n}"
+        document = "mutation CreateRGBContext($name: String!, $image: ID!) {\n  createRgbContext(input: {name: $name, image: $image}) {\n    id\n  }\n}"
 
 
 class CreateInstrumentMutationCreateinstrument(BaseModel):
@@ -1228,7 +1300,7 @@ class From_array_likeMutation(BaseModel):
         tags: Optional[List[str]] = Field(default=None)
 
     class Meta:
-        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $labelViews: [PartialLabelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, labelViews: $labelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, tags: $tags}\n  ) {\n    ...Image\n  }\n}"
+        document = "fragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $labelViews: [PartialLabelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, labelViews: $labelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, tags: $tags}\n  ) {\n    ...Image\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -1457,7 +1529,7 @@ class GetImageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
+        document = "fragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -1467,7 +1539,7 @@ class GetRandomImageQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+        document = "fragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
 
 
 class SearchImagesQueryOptions(Image, BaseModel):
@@ -1510,6 +1582,46 @@ class GetCameraQuery(BaseModel):
 
     class Meta:
         document = "fragment Camera on Camera {\n  sensorSizeX\n  sensorSizeY\n  pixelSizeX\n  pixelSizeY\n  name\n  serialNumber\n}\n\nquery GetCamera($id: ID!) {\n  camera(id: $id) {\n    ...Camera\n  }\n}"
+
+
+async def acreate_render_tree(
+    name: str, tree: TreeInput, rath: Optional[MikroNextRath] = None
+) -> CreateRenderTreeMutationCreaterendertree:
+    """CreateRenderTree
+
+
+
+    Arguments:
+        name (str): name
+        tree (TreeInput): tree
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateRenderTreeMutationCreaterendertree"""
+    return (
+        await aexecute(
+            CreateRenderTreeMutation, {"name": name, "tree": tree}, rath=rath
+        )
+    ).create_render_tree
+
+
+def create_render_tree(
+    name: str, tree: TreeInput, rath: Optional[MikroNextRath] = None
+) -> CreateRenderTreeMutationCreaterendertree:
+    """CreateRenderTree
+
+
+
+    Arguments:
+        name (str): name
+        tree (TreeInput): tree
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateRenderTreeMutationCreaterendertree"""
+    return execute(
+        CreateRenderTreeMutation, {"name": name, "tree": tree}, rath=rath
+    ).create_render_tree
 
 
 async def afrom_parquet_like(
@@ -2070,7 +2182,7 @@ def request_file_access(
 
 
 async def acreate_rgb_context(
-    name: str, rath: Optional[MikroNextRath] = None
+    name: str, image: ID, rath: Optional[MikroNextRath] = None
 ) -> CreateRGBContextMutationCreatergbcontext:
     """CreateRGBContext
 
@@ -2078,17 +2190,20 @@ async def acreate_rgb_context(
 
     Arguments:
         name (str): name
+        image (ID): image
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateRGBContextMutationCreatergbcontext"""
     return (
-        await aexecute(CreateRGBContextMutation, {"name": name}, rath=rath)
+        await aexecute(
+            CreateRGBContextMutation, {"name": name, "image": image}, rath=rath
+        )
     ).create_rgb_context
 
 
 def create_rgb_context(
-    name: str, rath: Optional[MikroNextRath] = None
+    name: str, image: ID, rath: Optional[MikroNextRath] = None
 ) -> CreateRGBContextMutationCreatergbcontext:
     """CreateRGBContext
 
@@ -2096,12 +2211,13 @@ def create_rgb_context(
 
     Arguments:
         name (str): name
+        image (ID): image
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateRGBContextMutationCreatergbcontext"""
     return execute(
-        CreateRGBContextMutation, {"name": name}, rath=rath
+        CreateRGBContextMutation, {"name": name, "image": image}, rath=rath
     ).create_rgb_context
 
 
@@ -3456,3 +3572,5 @@ FileFragment.update_forward_refs()
 LabelViewFragment.update_forward_refs()
 TableFragment.update_forward_refs()
 TimepointViewFragment.update_forward_refs()
+TreeInput.update_forward_refs()
+TreeNodeInput.update_forward_refs()
