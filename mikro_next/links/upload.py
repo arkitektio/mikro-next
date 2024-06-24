@@ -14,17 +14,36 @@ from mikro_next.datalayer import DataLayer
 
 
 async def apply_recursive(func, obj, typeguard):
-    if isinstance(obj, dict):  # if dict, apply to each key
+    """
+    Recursively applies an asynchronous function to elements in a nested structure.
+
+    Args:
+        func (callable): The asynchronous function to apply.
+        obj (any): The nested structure (dict, list, tuple, etc.) to process.
+        typeguard (type): The type of elements to apply the function to.
+
+    Returns:
+        any: The nested structure with the function applied to elements of the specified type.
+    """
+    if isinstance(
+        obj, dict
+    ):  # If obj is a dictionary, recursively apply to each key-value pair
         return {k: await apply_recursive(func, v, typeguard) for k, v in obj.items()}
-    elif isinstance(obj, list):  # if list, apply to each element
+    elif isinstance(obj, list):  # If obj is a list, recursively apply to each element
         return await asyncio.gather(
             *[apply_recursive(func, elem, typeguard) for elem in obj]
         )
-    elif isinstance(obj, tuple):  # if tuple, apply to each element
-        return tuple(await apply_recursive(func, elem, typeguard) for elem in obj)
-    if isinstance(obj, typeguard):
+    elif isinstance(
+        obj, tuple
+    ):  # If obj is a tuple, recursively apply to each element and convert back to tuple
+        return tuple(
+            await asyncio.gather(
+                *[apply_recursive(func, elem, typeguard) for elem in obj]
+            )
+        )
+    elif isinstance(obj, typeguard):  # If obj matches the typeguard, apply the function
         return await func(obj)
-    else:
+    else:  # If obj is not a dict, list, tuple, or matching the typeguard, return it as is
         return obj
 
 

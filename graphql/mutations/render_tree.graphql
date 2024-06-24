@@ -1,0 +1,6 @@
+
+mutation CreateRenderTree($name: String!, $tree: TreeInput!) {
+  createRenderTree(input: {name: $name, tree: $tree}) {
+    id
+  }
+}
