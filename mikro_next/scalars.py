@@ -1,9 +1,8 @@
-""" 
+"""
 Custom scalars for mikro_next
 
 
 """
-
 
 import os
 from typing import Any, IO
@@ -12,6 +11,8 @@ import pandas as pd
 import numpy as np
 import uuid
 from .utils import rechunk
+from collections.abc import Iterable
+
 
 class AssignationID(str):
     """A custom scalar to represent an affine matrix."""
@@ -96,7 +97,6 @@ class Milliseconds(float):
 
 
 class TwoDVector(list):
-
     """A custom scalar to represent a vector."""
 
     @classmethod
@@ -119,7 +119,6 @@ class TwoDVector(list):
 
 
 class ThreeDVector(list):
-
     """A custom scalar to represent a vector."""
 
     @classmethod
@@ -142,7 +141,6 @@ class ThreeDVector(list):
 
 
 class FourDVector(list):
-
     """A custom scalar to represent a vector."""
 
     @classmethod
@@ -165,7 +163,6 @@ class FourDVector(list):
 
 
 class FiveDVector(list):
-
     """A custom scalar to represent a vector."""
 
     @classmethod
@@ -176,11 +173,29 @@ class FiveDVector(list):
     def validate(cls, v):
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
-            assert v.ndim == 1
+            if not v.ndim == 1:
+                raise ValueError("The input array must be a 1D array")
             v = v.tolist()
 
-        assert isinstance(v, list)
-        assert len(v) == 5
+        if not isinstance(v, Iterable):
+            raise ValueError("The input must be a list or a 1-D numpy array.")
+
+        if not isinstance(v, list):
+            v = list(v)
+
+        for i in v:
+            if not isinstance(i, (int, float)):
+                raise ValueError("The input must be a list of integers or floats.")
+
+        if len(v) < 2 or len(v) > 5:
+            raise ValueError(
+                f"The input must be a list or at least 2 elements (x, y) but not more than 5e lements (c, t, z, x, y). Every additional element is a z value (c, t, z, x, y). You provided a list o {len(v)} elements"
+            )
+
+        # prepend list with zeros
+        if len(v) < 5:
+            v = [0] * (5 - len(v)) + v
+
         return cls(v)
 
     def as_vector(self):
@@ -231,7 +246,7 @@ class FourByFourMatrix(list):
 
     def as_matrix(self):
         return np.array(self).reshape(3, 3)
-    
+
     @classmethod
     def from_np(cls, v: np.ndarray):
         """Validate the input array and convert it to a xr.DataArray."""
@@ -258,10 +273,15 @@ class ArrayLike:
     @classmethod
     def validate(cls, v: xr.DataArray):
         """Validate the input array and convert it to a xr.DataArray."""
+        was_labeled = True
+        # initial coercion checks, if a numpy array is passed, we need to convert it to a xarray
+        # but that means the user didnt pass the dimensions explicitly so we need to add them
+        # but error if they do not make sense
 
         if isinstance(v, np.ndarray):
             dims = ["c", "t", "z", "y", "x"]
             v = xr.DataArray(v, dims=dims[5 - v.ndim :])
+            was_labeled = False
 
         if not isinstance(v, xr.DataArray):
             raise ValueError("This needs to be a instance of xarray.DataArray")
@@ -282,6 +302,19 @@ class ArrayLike:
         chunks = rechunk(
             v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000
         )
+        if not was_labeled:
+            if v.sizes["t"] > v.sizes["x"] or v.sizes["t"] > v.sizes["y"]:
+                raise ValueError(
+                    f"Probably Non sensical dimensions. T is bigger than x or y: Sizes {v.sizes}"
+                )
+            if v.sizes["z"] > v.sizes["x"] or v.sizes["z"] > v.sizes["y"]:
+                raise ValueError(
+                    f"Probably Non sensical dimensions. Z is bigger than x or y: Sizes {v.sizes}"
+                )
+            if v.sizes["c"] > v.sizes["x"] or v.sizes["c"] > v.sizes["y"]:
+                raise ValueError(
+                    f"Probably Non sensical dimensions. C is bigger than x or y: Sizes {v.sizes}"
+                )
 
         v = v.chunk(
             {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
