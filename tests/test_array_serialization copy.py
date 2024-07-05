@@ -10,7 +10,7 @@ class Arguments(BaseModel):
 
 
 def test_numpy_serialization():
-    x = np.random.random((1000, 1000, 10))
+    x = np.random.random((20, 1000, 1000))
 
     t = Arguments(x=x)
     assert t.x.value.ndim == 5, "Should be five dimensionsal"

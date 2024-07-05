@@ -19,3 +19,9 @@ query SearchImages($search: String, $values: [ID!]) {
     label: name
   }
 }
+
+query Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {
+  images(filters: $filter, pagination: $pagination) {
+    ...Image
+  }
+}

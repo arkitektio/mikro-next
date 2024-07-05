@@ -1,3 +1,9 @@
+from pydantic import Field
+from rath.links.file import FileExtraction
+from rath.links.dictinglink import DictingLink
+from rath.links.auth import AuthTokenLink
+
+
 try:
     from rath.contrib.fakts.links.aiohttp import FaktsAIOHttpLink
     from rath.links.split import SplitLink
@@ -5,7 +11,6 @@ try:
     from rath.contrib.herre.links.auth import HerreAuthLink
     from fakts import Fakts
     from herre import Herre
-    from rekuest_next.postmans.graphql import GraphQLPostman
     from arkitekt_next.service_registry import get_default_service_builder_registry, Params
     from arkitekt_next.model import Requirement
 
@@ -23,9 +28,32 @@ try:
     from herre import Herre
     from fakts import Fakts
 
+    try:
+        from rekuest_next.links.context import ContextLink
+        from rath.links.compose import TypedComposedLink
+        class ArkitektMikroNextLinkComposition(TypedComposedLink):
+            fileextraction: FileExtraction = Field(default_factory=FileExtraction)
+            """ A link that extracts files from the request and follows the graphql multipart request spec"""
+            dicting: DictingLink = Field(default_factory=DictingLink)
+            """ A link that converts basemodels to dicts"""
+            upload: UploadLink
+            """ A link that uploads supported data types like numpy arrays and parquet files to the datalayer"""
+            auth: AuthTokenLink
+            """ A link that adds the auth token to the request"""
+            """ A link that splits the request into a http and a websocket request"""
+            assignation: ContextLink = Field(default_factory=ContextLink)
+            split: SplitLink
+    except ImportError: 
+    
+        ArkitektMikroNextLinkComposition = MikroNextLinkComposition
+
+
+    class ArkitektMikroNextRath(MikroNextRath):
+        link: ArkitektMikroNextLinkComposition
+
 
     class ArkitektNextMikroNext(MikroNext):
-        rath: MikroNextRath
+        rath: ArkitektMikroNextRath
         datalayer: DataLayer
 
 
@@ -33,8 +61,8 @@ try:
         datalayer = FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
 
         return ArkitektNextMikroNext(
-            rath=MikroNextRath(
-                link=MikroNextLinkComposition(
+            rath=ArkitektMikroNextRath(
+                link=ArkitektMikroNextLinkComposition(
                     auth=HerreAuthLink(herre=herre),
                     upload=UploadLink(
                         datalayer=datalayer,
@@ -63,9 +91,70 @@ try:
             description="An instance of ArkitektNext Datalayer to make requests to the user's data",
             optional=True,
         ),)
+    
+
+    try:
+
+        from rekuest_next.structures.default import (
+            get_default_structure_registry,
+            PortScope,
+            id_shrink,
+        )
+        from rekuest_next.widgets import SearchWidget
+        from mikro_next.api.schema import (
+            ImageFragment,
+            aget_image,
+            SearchImagesQuery,
+            DatasetFragment,
+            aget_dataset,
+        )
+        from mikro_next.api.schema import (
+            SnapshotFragment,
+            aget_snapshot,
+            SearchSnapshotsQuery,
+        )
+
+        structure_reg = get_default_structure_registry()
+        structure_reg.register_as_structure(
+            ImageFragment,
+            identifier="@mikro/image",
+            aexpand=aget_image,
+            ashrink=id_shrink,
+            scope=PortScope.GLOBAL,
+            default_widget=SearchWidget(
+                query=SearchImagesQuery.Meta.document, ward="mikro"
+            ),
+        )
+        structure_reg.register_as_structure(
+            SnapshotFragment,
+            identifier="@mikro/snapshot",
+            aexpand=aget_snapshot,
+            ashrink=id_shrink,
+            scope=PortScope.GLOBAL,
+            default_widget=SearchWidget(
+                query=SearchSnapshotsQuery.Meta.document, ward="mikro"
+            ),
+        )
+        structure_reg.register_as_structure(
+            DatasetFragment,
+            identifier="@mikro/dataset",
+            aexpand=aget_dataset,
+            ashrink=id_shrink,
+            scope=PortScope.GLOBAL,
+            default_widget=SearchWidget(
+                query=SearchImagesQuery.Meta.document, ward="mikro"
+            ),
+        )
+
+    except ImportError:
+        raise ImportError("Default structures not found")
+
     imported = True
+
+
+
+
 
 except ImportError as e:
 
     imported = False
-    raise e

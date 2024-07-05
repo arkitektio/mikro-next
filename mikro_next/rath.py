@@ -8,7 +8,6 @@ from rath.links.dictinglink import DictingLink
 from rath.links.file import FileExtraction
 from rath.links.split import SplitLink
 from typing import Optional
-from rekuest_next.links.context import ContextLink
 
 
 current_mikro_next_rath: contextvars.ContextVar[Optional["MikroNextRath"]] = (
@@ -33,8 +32,6 @@ class MikroNextLinkComposition(TypedComposedLink):
     """ A link that uploads supported data types like numpy arrays and parquet files to the datalayer"""
     auth: AuthTokenLink
     """ A link that splits the request into a http and a websocket request"""
-    assignation: ContextLink = Field(default_factory=ContextLink)
-    """ A link that adds the auth token to the request"""
     split: SplitLink
 
 

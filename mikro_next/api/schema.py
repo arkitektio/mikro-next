@@ -1,32 +1,32 @@
+from mikro_next.scalars import (
+    Micrometers,
+    Upload,
+    FiveDVector,
+    FileLike,
+    Milliseconds,
+    FourByFourMatrix,
+    ParquetLike,
+    ArrayLike,
+)
 from pydantic import BaseModel, Field
+from datetime import datetime
 from mikro_next.traits import (
     ParquetStore,
     MediaStore,
+    Table,
     Objective,
     ZarrStore,
-    ROI,
-    File,
     BigFileStore,
-    Image,
     Stage,
-    Table,
+    Image,
+    File,
+    ROI,
 )
-from typing import Tuple, List, Optional, Literal, Union
-from datetime import datetime
-from mikro_next.scalars import (
-    Milliseconds,
-    Upload,
-    Micrometers,
-    ArrayLike,
-    FiveDVector,
-    FourByFourMatrix,
-    FileLike,
-    ParquetLike,
-)
-from enum import Enum
 from mikro_next.funcs import execute, aexecute
-from mikro_next.rath import MikroNextRath
+from typing import List, Tuple, Optional, Union, Literal
+from enum import Enum
 from rath.scalars import ID
+from mikro_next.rath import MikroNextRath
 
 
 class RoiKind(str, Enum):
@@ -52,6 +52,291 @@ class RenderNodeKind(str, Enum):
     CONTEXT = "CONTEXT"
     OVERLAY = "OVERLAY"
     GRID = "GRID"
+    SPIT = "SPIT"
+
+
+class ProvenanceFilter(BaseModel):
+    during: Optional[str]
+    and_: Optional["ProvenanceFilter"] = Field(alias="AND")
+    or_: Optional["ProvenanceFilter"] = Field(alias="OR")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class StrFilterLookup(BaseModel):
+    exact: Optional[str]
+    i_exact: Optional[str] = Field(alias="iExact")
+    contains: Optional[str]
+    i_contains: Optional[str] = Field(alias="iContains")
+    in_list: Optional[Tuple[str, ...]] = Field(alias="inList")
+    gt: Optional[str]
+    gte: Optional[str]
+    lt: Optional[str]
+    lte: Optional[str]
+    starts_with: Optional[str] = Field(alias="startsWith")
+    i_starts_with: Optional[str] = Field(alias="iStartsWith")
+    ends_with: Optional[str] = Field(alias="endsWith")
+    i_ends_with: Optional[str] = Field(alias="iEndsWith")
+    range: Optional[Tuple[str, ...]]
+    is_null: Optional[bool] = Field(alias="isNull")
+    regex: Optional[str]
+    i_regex: Optional[str] = Field(alias="iRegex")
+    n_exact: Optional[str] = Field(alias="nExact")
+    n_i_exact: Optional[str] = Field(alias="nIExact")
+    n_contains: Optional[str] = Field(alias="nContains")
+    n_i_contains: Optional[str] = Field(alias="nIContains")
+    n_in_list: Optional[Tuple[str, ...]] = Field(alias="nInList")
+    n_gt: Optional[str] = Field(alias="nGt")
+    n_gte: Optional[str] = Field(alias="nGte")
+    n_lt: Optional[str] = Field(alias="nLt")
+    n_lte: Optional[str] = Field(alias="nLte")
+    n_starts_with: Optional[str] = Field(alias="nStartsWith")
+    n_i_starts_with: Optional[str] = Field(alias="nIStartsWith")
+    n_ends_with: Optional[str] = Field(alias="nEndsWith")
+    n_i_ends_with: Optional[str] = Field(alias="nIEndsWith")
+    n_range: Optional[Tuple[str, ...]] = Field(alias="nRange")
+    n_is_null: Optional[bool] = Field(alias="nIsNull")
+    n_regex: Optional[str] = Field(alias="nRegex")
+    n_i_regex: Optional[str] = Field(alias="nIRegex")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class OffsetPaginationInput(BaseModel):
+    offset: int
+    limit: int
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class ImageFilter(BaseModel):
+    name: Optional[StrFilterLookup]
+    ids: Optional[Tuple[ID, ...]]
+    store: Optional["ZarrStoreFilter"]
+    dataset: Optional["DatasetFilter"]
+    transformation_views: Optional["AffineTransformationViewFilter"] = Field(
+        alias="transformationViews"
+    )
+    timepoint_views: Optional["TimepointViewFilter"] = Field(alias="timepointViews")
+    provenance: Optional[ProvenanceFilter]
+    and_: Optional["ImageFilter"] = Field(alias="AND")
+    or_: Optional["ImageFilter"] = Field(alias="OR")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class ZarrStoreFilter(BaseModel):
+    shape: Optional["IntFilterLookup"]
+    and_: Optional["ZarrStoreFilter"] = Field(alias="AND")
+    or_: Optional["ZarrStoreFilter"] = Field(alias="OR")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class IntFilterLookup(BaseModel):
+    exact: Optional[int]
+    i_exact: Optional[int] = Field(alias="iExact")
+    contains: Optional[int]
+    i_contains: Optional[int] = Field(alias="iContains")
+    in_list: Optional[Tuple[int, ...]] = Field(alias="inList")
+    gt: Optional[int]
+    gte: Optional[int]
+    lt: Optional[int]
+    lte: Optional[int]
+    starts_with: Optional[int] = Field(alias="startsWith")
+    i_starts_with: Optional[int] = Field(alias="iStartsWith")
+    ends_with: Optional[int] = Field(alias="endsWith")
+    i_ends_with: Optional[int] = Field(alias="iEndsWith")
+    range: Optional[Tuple[int, ...]]
+    is_null: Optional[bool] = Field(alias="isNull")
+    regex: Optional[str]
+    i_regex: Optional[str] = Field(alias="iRegex")
+    n_exact: Optional[int] = Field(alias="nExact")
+    n_i_exact: Optional[int] = Field(alias="nIExact")
+    n_contains: Optional[int] = Field(alias="nContains")
+    n_i_contains: Optional[int] = Field(alias="nIContains")
+    n_in_list: Optional[Tuple[int, ...]] = Field(alias="nInList")
+    n_gt: Optional[int] = Field(alias="nGt")
+    n_gte: Optional[int] = Field(alias="nGte")
+    n_lt: Optional[int] = Field(alias="nLt")
+    n_lte: Optional[int] = Field(alias="nLte")
+    n_starts_with: Optional[int] = Field(alias="nStartsWith")
+    n_i_starts_with: Optional[int] = Field(alias="nIStartsWith")
+    n_ends_with: Optional[int] = Field(alias="nEndsWith")
+    n_i_ends_with: Optional[int] = Field(alias="nIEndsWith")
+    n_range: Optional[Tuple[int, ...]] = Field(alias="nRange")
+    n_is_null: Optional[bool] = Field(alias="nIsNull")
+    n_regex: Optional[str] = Field(alias="nRegex")
+    n_i_regex: Optional[str] = Field(alias="nIRegex")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class DatasetFilter(BaseModel):
+    id: Optional[ID]
+    name: Optional[StrFilterLookup]
+    provenance: Optional[ProvenanceFilter]
+    and_: Optional["DatasetFilter"] = Field(alias="AND")
+    or_: Optional["DatasetFilter"] = Field(alias="OR")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class AffineTransformationViewFilter(BaseModel):
+    is_global: Optional[bool] = Field(alias="isGlobal")
+    provenance: Optional[ProvenanceFilter]
+    and_: Optional["AffineTransformationViewFilter"] = Field(alias="AND")
+    or_: Optional["AffineTransformationViewFilter"] = Field(alias="OR")
+    stage: Optional["StageFilter"]
+    pixel_size: Optional["FloatFilterLookup"] = Field(alias="pixelSize")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class StageFilter(BaseModel):
+    ids: Optional[Tuple[ID, ...]]
+    search: Optional[str]
+    id: Optional[ID]
+    kind: Optional[str]
+    name: Optional[StrFilterLookup]
+    provenance: Optional[ProvenanceFilter]
+    and_: Optional["StageFilter"] = Field(alias="AND")
+    or_: Optional["StageFilter"] = Field(alias="OR")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class FloatFilterLookup(BaseModel):
+    exact: Optional[float]
+    i_exact: Optional[float] = Field(alias="iExact")
+    contains: Optional[float]
+    i_contains: Optional[float] = Field(alias="iContains")
+    in_list: Optional[Tuple[float, ...]] = Field(alias="inList")
+    gt: Optional[float]
+    gte: Optional[float]
+    lt: Optional[float]
+    lte: Optional[float]
+    starts_with: Optional[float] = Field(alias="startsWith")
+    i_starts_with: Optional[float] = Field(alias="iStartsWith")
+    ends_with: Optional[float] = Field(alias="endsWith")
+    i_ends_with: Optional[float] = Field(alias="iEndsWith")
+    range: Optional[Tuple[float, ...]]
+    is_null: Optional[bool] = Field(alias="isNull")
+    regex: Optional[str]
+    i_regex: Optional[str] = Field(alias="iRegex")
+    n_exact: Optional[float] = Field(alias="nExact")
+    n_i_exact: Optional[float] = Field(alias="nIExact")
+    n_contains: Optional[float] = Field(alias="nContains")
+    n_i_contains: Optional[float] = Field(alias="nIContains")
+    n_in_list: Optional[Tuple[float, ...]] = Field(alias="nInList")
+    n_gt: Optional[float] = Field(alias="nGt")
+    n_gte: Optional[float] = Field(alias="nGte")
+    n_lt: Optional[float] = Field(alias="nLt")
+    n_lte: Optional[float] = Field(alias="nLte")
+    n_starts_with: Optional[float] = Field(alias="nStartsWith")
+    n_i_starts_with: Optional[float] = Field(alias="nIStartsWith")
+    n_ends_with: Optional[float] = Field(alias="nEndsWith")
+    n_i_ends_with: Optional[float] = Field(alias="nIEndsWith")
+    n_range: Optional[Tuple[float, ...]] = Field(alias="nRange")
+    n_is_null: Optional[bool] = Field(alias="nIsNull")
+    n_regex: Optional[str] = Field(alias="nRegex")
+    n_i_regex: Optional[str] = Field(alias="nIRegex")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class TimepointViewFilter(BaseModel):
+    is_global: Optional[bool] = Field(alias="isGlobal")
+    provenance: Optional[ProvenanceFilter]
+    and_: Optional["TimepointViewFilter"] = Field(alias="AND")
+    or_: Optional["TimepointViewFilter"] = Field(alias="OR")
+    era: Optional["EraFilter"]
+    ms_since_start: Optional[float] = Field(alias="msSinceStart")
+    index_since_start: Optional[int] = Field(alias="indexSinceStart")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class EraFilter(BaseModel):
+    id: Optional[ID]
+    begin: Optional[datetime]
+    provenance: Optional[ProvenanceFilter]
+    and_: Optional["EraFilter"] = Field(alias="AND")
+    or_: Optional["EraFilter"] = Field(alias="OR")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
 
 
 class PartialChannelViewInput(BaseModel):
@@ -241,7 +526,6 @@ class TreeInput(BaseModel):
 
 
 class TreeNodeInput(BaseModel):
-    id: Optional[str]
     kind: RenderNodeKind
     label: Optional[str]
     context: Optional[str]
@@ -255,62 +539,6 @@ class TreeNodeInput(BaseModel):
         extra = "forbid"
         allow_population_by_field_name = True
         use_enum_values = True
-
-
-class TableFragmentOrigins(Image, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class TableFragment(Table, BaseModel):
-    typename: Optional[Literal["Table"]] = Field(alias="__typename", exclude=True)
-    origins: Tuple[TableFragmentOrigins, ...]
-    id: ID
-    name: str
-    store: "ParquetStoreFragment"
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class CredentialsFragment(BaseModel):
-    typename: Optional[Literal["Credentials"]] = Field(alias="__typename", exclude=True)
-    access_key: str = Field(alias="accessKey")
-    status: str
-    secret_key: str = Field(alias="secretKey")
-    bucket: str
-    key: str
-    session_token: str = Field(alias="sessionToken")
-    store: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class AccessCredentialsFragment(BaseModel):
-    typename: Optional[Literal["AccessCredentials"]] = Field(
-        alias="__typename", exclude=True
-    )
-    access_key: str = Field(alias="accessKey")
-    secret_key: str = Field(alias="secretKey")
-    bucket: str
-    key: str
-    session_token: str = Field(alias="sessionToken")
-    path: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
 
 
 class ViewFragmentBase(BaseModel):
@@ -429,11 +657,93 @@ class LabelViewFragment(ViewFragmentBase, BaseModel):
         frozen = True
 
 
-class ChannelFragment(BaseModel):
-    typename: Optional[Literal["Channel"]] = Field(alias="__typename", exclude=True)
+class CameraFragment(BaseModel):
+    typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
+    sensor_size_x: Optional[int] = Field(alias="sensorSizeX")
+    sensor_size_y: Optional[int] = Field(alias="sensorSizeY")
+    pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX")
+    pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY")
+    name: str
+    serial_number: str = Field(alias="serialNumber")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class TableFragmentOrigins(Image, BaseModel):
+    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class TableFragment(Table, BaseModel):
+    typename: Optional[Literal["Table"]] = Field(alias="__typename", exclude=True)
+    origins: Tuple[TableFragmentOrigins, ...]
     id: ID
     name: str
-    excitation_wavelength: Optional[float] = Field(alias="excitationWavelength")
+    store: "ParquetStoreFragment"
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CredentialsFragment(BaseModel):
+    typename: Optional[Literal["Credentials"]] = Field(alias="__typename", exclude=True)
+    access_key: str = Field(alias="accessKey")
+    status: str
+    secret_key: str = Field(alias="secretKey")
+    bucket: str
+    key: str
+    session_token: str = Field(alias="sessionToken")
+    store: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class AccessCredentialsFragment(BaseModel):
+    typename: Optional[Literal["AccessCredentials"]] = Field(
+        alias="__typename", exclude=True
+    )
+    access_key: str = Field(alias="accessKey")
+    secret_key: str = Field(alias="secretKey")
+    bucket: str
+    key: str
+    session_token: str = Field(alias="sessionToken")
+    path: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class FileFragmentOrigins(Image, BaseModel):
+    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class FileFragment(File, BaseModel):
+    typename: Optional[Literal["File"]] = Field(alias="__typename", exclude=True)
+    origins: Tuple[FileFragmentOrigins, ...]
+    id: ID
+    name: str
+    store: "BigFileStoreFragment"
 
     class Config:
         """A config class"""
@@ -468,127 +778,12 @@ class ROIFragmentBaseBaseRoi(BaseRoiFragmentBase, ROIFragmentBase):
 ROIFragment = Union[ROIFragmentBaseBaseRoi, ROIFragmentBase]
 
 
-class EraFragment(BaseModel):
-    typename: Optional[Literal["Era"]] = Field(alias="__typename", exclude=True)
+class ObjectiveFragment(Objective, BaseModel):
+    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
     id: ID
-    begin: Optional[datetime]
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class FileFragmentOrigins(Image, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class FileFragment(File, BaseModel):
-    typename: Optional[Literal["File"]] = Field(alias="__typename", exclude=True)
-    origins: Tuple[FileFragmentOrigins, ...]
-    id: ID
-    name: str
-    store: "BigFileStoreFragment"
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class InstrumentFragment(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    model: Optional[str]
+    na: Optional[float]
     name: str
     serial_number: str = Field(alias="serialNumber")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class AntibodyFragment(BaseModel):
-    typename: Optional[Literal["Antibody"]] = Field(alias="__typename", exclude=True)
-    name: str
-    epitope: Optional[str]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class ZarrStoreFragment(ZarrStore, BaseModel):
-    typename: Optional[Literal["ZarrStore"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    key: str
-    "The key where the data is stored."
-    bucket: str
-    "The bucket where the data is stored."
-    path: Optional[str]
-    "The path to the data. Relative to the bucket."
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class ParquetStoreFragment(ParquetStore, BaseModel):
-    typename: Optional[Literal["ParquetStore"]] = Field(
-        alias="__typename", exclude=True
-    )
-    id: ID
-    key: str
-    bucket: str
-    path: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class BigFileStoreFragment(BigFileStore, BaseModel):
-    typename: Optional[Literal["BigFileStore"]] = Field(
-        alias="__typename", exclude=True
-    )
-    id: ID
-    key: str
-    bucket: str
-    path: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class SnapshotFragmentStore(MediaStore, BaseModel):
-    typename: Optional[Literal["MediaStore"]] = Field(alias="__typename", exclude=True)
-    key: str
-    presigned_url: str = Field(alias="presignedUrl")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class SnapshotFragment(BaseModel):
-    typename: Optional[Literal["Snapshot"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    store: SnapshotFragmentStore
-    name: str
 
     class Config:
         """A config class"""
@@ -624,6 +819,30 @@ class DatasetFragment(BaseModel):
     name: str
     description: Optional[str]
     history: Tuple[HistoryStuffFragment, ...]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class InstrumentFragment(BaseModel):
+    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    model: Optional[str]
+    name: str
+    serial_number: str = Field(alias="serialNumber")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class AntibodyFragment(BaseModel):
+    typename: Optional[Literal["Antibody"]] = Field(alias="__typename", exclude=True)
+    name: str
+    epitope: Optional[str]
 
     class Config:
         """A config class"""
@@ -726,7 +945,7 @@ class ImageFragment(Image, BaseModel):
     origins: Tuple[ImageFragmentOrigins, ...]
     id: ID
     name: str
-    store: ZarrStoreFragment
+    store: "ZarrStoreFragment"
     "The store where the image data is stored."
     views: Tuple[
         Union[
@@ -746,12 +965,11 @@ class ImageFragment(Image, BaseModel):
         frozen = True
 
 
-class ObjectiveFragment(Objective, BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
+class EraFragment(BaseModel):
+    typename: Optional[Literal["Era"]] = Field(alias="__typename", exclude=True)
     id: ID
-    na: Optional[float]
+    begin: Optional[datetime]
     name: str
-    serial_number: str = Field(alias="serialNumber")
 
     class Config:
         """A config class"""
@@ -759,19 +977,137 @@ class ObjectiveFragment(Objective, BaseModel):
         frozen = True
 
 
-class CameraFragment(BaseModel):
+class SnapshotFragmentStore(MediaStore, BaseModel):
+    typename: Optional[Literal["MediaStore"]] = Field(alias="__typename", exclude=True)
+    key: str
+    presigned_url: str = Field(alias="presignedUrl")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SnapshotFragment(BaseModel):
+    typename: Optional[Literal["Snapshot"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    store: SnapshotFragmentStore
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ZarrStoreFragment(ZarrStore, BaseModel):
+    typename: Optional[Literal["ZarrStore"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    key: str
+    "The key where the data is stored."
+    bucket: str
+    "The bucket where the data is stored."
+    path: Optional[str]
+    "The path to the data. Relative to the bucket."
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ParquetStoreFragment(ParquetStore, BaseModel):
+    typename: Optional[Literal["ParquetStore"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    key: str
+    bucket: str
+    path: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class BigFileStoreFragment(BigFileStore, BaseModel):
+    typename: Optional[Literal["BigFileStore"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    key: str
+    bucket: str
+    path: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ChannelFragment(BaseModel):
+    typename: Optional[Literal["Channel"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+    excitation_wavelength: Optional[float] = Field(alias="excitationWavelength")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateCameraMutationCreatecamera(BaseModel):
     typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
-    sensor_size_x: Optional[int] = Field(alias="sensorSizeX")
-    sensor_size_y: Optional[int] = Field(alias="sensorSizeY")
-    pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX")
-    pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY")
+    id: ID
     name: str
-    serial_number: str = Field(alias="serialNumber")
 
     class Config:
         """A config class"""
 
         frozen = True
+
+
+class CreateCameraMutation(BaseModel):
+    create_camera: CreateCameraMutationCreatecamera = Field(alias="createCamera")
+
+    class Arguments(BaseModel):
+        serial_number: str = Field(alias="serialNumber")
+        name: Optional[str] = Field(default=None)
+        pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX", default=None)
+        pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY", default=None)
+        sensor_size_x: Optional[int] = Field(alias="sensorSizeX", default=None)
+        sensor_size_y: Optional[int] = Field(alias="sensorSizeY", default=None)
+
+    class Meta:
+        document = "mutation CreateCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int) {\n  createCamera(\n    input: {name: $name, pixelSizeX: $pixelSizeX, serialNumber: $serialNumber, pixelSizeY: $pixelSizeY, sensorSizeX: $sensorSizeX, sensorSizeY: $sensorSizeY}\n  ) {\n    id\n    name\n  }\n}"
+
+
+class EnsureCameraMutationEnsurecamera(BaseModel):
+    typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EnsureCameraMutation(BaseModel):
+    ensure_camera: EnsureCameraMutationEnsurecamera = Field(alias="ensureCamera")
+
+    class Arguments(BaseModel):
+        serial_number: str = Field(alias="serialNumber")
+        name: Optional[str] = Field(default=None)
+        pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX", default=None)
+        pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY", default=None)
+        sensor_size_x: Optional[int] = Field(alias="sensorSizeX", default=None)
+        sensor_size_y: Optional[int] = Field(alias="sensorSizeY", default=None)
+
+    class Meta:
+        document = "mutation EnsureCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int) {\n  ensureCamera(\n    input: {name: $name, pixelSizeX: $pixelSizeX, serialNumber: $serialNumber, pixelSizeY: $pixelSizeY, sensorSizeX: $sensorSizeX, sensorSizeY: $sensorSizeY}\n  ) {\n    id\n    name\n  }\n}"
 
 
 class CreateRenderTreeMutationCreaterendertree(BaseModel):
@@ -832,127 +1168,6 @@ class RequestTableAccessMutation(BaseModel):
         document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestTableAccess($store: ID!, $duration: Int) {\n  requestTableAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
 
 
-class CreateStageMutationCreatestage(Stage, BaseModel):
-    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class CreateStageMutation(BaseModel):
-    create_stage: CreateStageMutationCreatestage = Field(alias="createStage")
-
-    class Arguments(BaseModel):
-        name: str
-
-    class Meta:
-        document = "mutation CreateStage($name: String!) {\n  createStage(input: {name: $name}) {\n    id\n    name\n  }\n}"
-
-
-class CreateChannelMutationCreatechannel(BaseModel):
-    typename: Optional[Literal["Channel"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class CreateChannelMutation(BaseModel):
-    create_channel: CreateChannelMutationCreatechannel = Field(alias="createChannel")
-
-    class Arguments(BaseModel):
-        name: str
-
-    class Meta:
-        document = "mutation CreateChannel($name: String!) {\n  createChannel(input: {name: $name}) {\n    id\n    name\n  }\n}"
-
-
-class EnsureChannelMutationEnsurechannel(BaseModel):
-    typename: Optional[Literal["Channel"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class EnsureChannelMutation(BaseModel):
-    ensure_channel: EnsureChannelMutationEnsurechannel = Field(alias="ensureChannel")
-
-    class Arguments(BaseModel):
-        name: str
-
-    class Meta:
-        document = "mutation EnsureChannel($name: String!) {\n  ensureChannel(input: {name: $name}) {\n    id\n    name\n  }\n}"
-
-
-class Create_roiMutation(BaseModel):
-    create_roi: ROIFragment = Field(alias="createRoi")
-
-    class Arguments(BaseModel):
-        image: ID
-        vectors: List[FiveDVector]
-        kind: RoiKind
-
-    class Meta:
-        document = "fragment BaseRoi on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n}\n\nfragment ROI on ROI {\n  ...BaseRoi\n  id\n}\n\nmutation create_roi($image: ID!, $vectors: [FiveDVector!]!, $kind: RoiKind!) {\n  createRoi(input: {image: $image, vectors: $vectors, kind: $kind}) {\n    ...ROI\n  }\n}"
-
-
-class CreateEraMutationCreateera(BaseModel):
-    typename: Optional[Literal["Era"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    begin: Optional[datetime]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class CreateEraMutation(BaseModel):
-    create_era: CreateEraMutationCreateera = Field(alias="createEra")
-
-    class Arguments(BaseModel):
-        name: str
-        begin: Optional[datetime] = Field(default=None)
-
-    class Meta:
-        document = "mutation CreateEra($name: String!, $begin: DateTime) {\n  createEra(input: {name: $name, begin: $begin}) {\n    id\n    begin\n  }\n}"
-
-
-class CreateRgbViewMutationCreatergbview(BaseModel):
-    typename: Optional[Literal["RGBView"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class CreateRgbViewMutation(BaseModel):
-    create_rgb_view: CreateRgbViewMutationCreatergbview = Field(alias="createRgbView")
-
-    class Arguments(BaseModel):
-        image: ID
-        r_scale: float = Field(alias="rScale")
-        b_scale: float = Field(alias="bScale")
-        g_scale: float = Field(alias="gScale")
-        context: Optional[ID] = Field(default=None)
-
-    class Meta:
-        document = "mutation CreateRgbView($image: ID!, $rScale: Float!, $bScale: Float!, $gScale: Float!, $context: ID) {\n  createRgbView(\n    input: {rScale: $rScale, bScale: $bScale, gScale: $gScale, context: $context, image: $image}\n  ) {\n    id\n  }\n}"
-
-
 class From_file_likeMutation(BaseModel):
     from_file_like: FileFragment = Field(alias="fromFileLike")
 
@@ -988,31 +1203,8 @@ class RequestFileAccessMutation(BaseModel):
         document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestFileAccess($store: ID!, $duration: Int) {\n  requestFileAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
 
 
-class CreateRGBContextMutationCreatergbcontext(BaseModel):
-    typename: Optional[Literal["RGBContext"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class CreateRGBContextMutation(BaseModel):
-    create_rgb_context: CreateRGBContextMutationCreatergbcontext = Field(
-        alias="createRgbContext"
-    )
-
-    class Arguments(BaseModel):
-        name: str
-        image: ID
-
-    class Meta:
-        document = "mutation CreateRGBContext($name: String!, $image: ID!) {\n  createRgbContext(input: {name: $name, image: $image}) {\n    id\n  }\n}"
-
-
-class CreateInstrumentMutationCreateinstrument(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
+class CreateStageMutationCreatestage(Stage, BaseModel):
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
 
@@ -1022,22 +1214,56 @@ class CreateInstrumentMutationCreateinstrument(BaseModel):
         frozen = True
 
 
-class CreateInstrumentMutation(BaseModel):
-    create_instrument: CreateInstrumentMutationCreateinstrument = Field(
-        alias="createInstrument"
+class CreateStageMutation(BaseModel):
+    create_stage: CreateStageMutationCreatestage = Field(alias="createStage")
+
+    class Arguments(BaseModel):
+        name: str
+
+    class Meta:
+        document = "mutation CreateStage($name: String!) {\n  createStage(input: {name: $name}) {\n    id\n    name\n  }\n}"
+
+
+class Create_roiMutation(BaseModel):
+    create_roi: ROIFragment = Field(alias="createRoi")
+
+    class Arguments(BaseModel):
+        image: ID
+        vectors: List[FiveDVector]
+        kind: RoiKind
+
+    class Meta:
+        document = "fragment BaseRoi on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n}\n\nfragment ROI on ROI {\n  ...BaseRoi\n  id\n}\n\nmutation create_roi($image: ID!, $vectors: [FiveDVector!]!, $kind: RoiKind!) {\n  createRoi(input: {image: $image, vectors: $vectors, kind: $kind}) {\n    ...ROI\n  }\n}"
+
+
+class CreateObjectiveMutationCreateobjective(Objective, BaseModel):
+    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateObjectiveMutation(BaseModel):
+    create_objective: CreateObjectiveMutationCreateobjective = Field(
+        alias="createObjective"
     )
 
     class Arguments(BaseModel):
         serial_number: str = Field(alias="serialNumber")
         name: Optional[str] = Field(default=None)
-        model: Optional[str] = Field(default=None)
+        na: Optional[float] = Field(default=None)
+        magnification: Optional[float] = Field(default=None)
 
     class Meta:
-        document = "mutation CreateInstrument($serialNumber: String!, $name: String, $model: String) {\n  createInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n  }\n}"
+        document = "mutation CreateObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  createObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n  }\n}"
 
 
-class EnsureInstrumentMutationEnsureinstrument(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
+class EnsureObjectiveMutationEnsureobjective(Objective, BaseModel):
+    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
 
@@ -1047,102 +1273,19 @@ class EnsureInstrumentMutationEnsureinstrument(BaseModel):
         frozen = True
 
 
-class EnsureInstrumentMutation(BaseModel):
-    ensure_instrument: EnsureInstrumentMutationEnsureinstrument = Field(
-        alias="ensureInstrument"
+class EnsureObjectiveMutation(BaseModel):
+    ensure_objective: EnsureObjectiveMutationEnsureobjective = Field(
+        alias="ensureObjective"
     )
 
     class Arguments(BaseModel):
         serial_number: str = Field(alias="serialNumber")
         name: Optional[str] = Field(default=None)
-        model: Optional[str] = Field(default=None)
+        na: Optional[float] = Field(default=None)
+        magnification: Optional[float] = Field(default=None)
 
     class Meta:
-        document = "mutation EnsureInstrument($serialNumber: String!, $name: String, $model: String) {\n  ensureInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n  }\n}"
-
-
-class CreateViewCollectionMutationCreateviewcollection(BaseModel):
-    typename: Optional[Literal["ViewCollection"]] = Field(
-        alias="__typename", exclude=True
-    )
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class CreateViewCollectionMutation(BaseModel):
-    create_view_collection: CreateViewCollectionMutationCreateviewcollection = Field(
-        alias="createViewCollection"
-    )
-
-    class Arguments(BaseModel):
-        name: str
-
-    class Meta:
-        document = "mutation CreateViewCollection($name: String!) {\n  createViewCollection(input: {name: $name}) {\n    id\n    name\n  }\n}"
-
-
-class CreateAntibodyMutationCreateantibody(BaseModel):
-    typename: Optional[Literal["Antibody"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class CreateAntibodyMutation(BaseModel):
-    create_antibody: CreateAntibodyMutationCreateantibody = Field(
-        alias="createAntibody"
-    )
-
-    class Arguments(BaseModel):
-        name: str
-        epitope: Optional[str] = Field(default=None)
-
-    class Meta:
-        document = "mutation CreateAntibody($name: String!, $epitope: String) {\n  createAntibody(input: {name: $name, epitope: $epitope}) {\n    id\n    name\n  }\n}"
-
-
-class EnsureAntibodyMutationEnsureantibody(BaseModel):
-    typename: Optional[Literal["Antibody"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class EnsureAntibodyMutation(BaseModel):
-    ensure_antibody: EnsureAntibodyMutationEnsureantibody = Field(
-        alias="ensureAntibody"
-    )
-
-    class Arguments(BaseModel):
-        name: str
-        epitope: Optional[str] = Field(default=None)
-
-    class Meta:
-        document = "mutation EnsureAntibody($name: String!, $epitope: String) {\n  ensureAntibody(input: {name: $name, epitope: $epitope}) {\n    id\n    name\n  }\n}"
-
-
-class CreateSnapshotMutation(BaseModel):
-    create_snapshot: SnapshotFragment = Field(alias="createSnapshot")
-
-    class Arguments(BaseModel):
-        image: ID
-        file: Upload
-
-    class Meta:
-        document = "fragment Snapshot on Snapshot {\n  id\n  store {\n    key\n    presignedUrl\n  }\n  name\n}\n\nmutation CreateSnapshot($image: ID!, $file: Upload!) {\n  createSnapshot(input: {file: $file, image: $image}) {\n    ...Snapshot\n  }\n}"
+        document = "mutation EnsureObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  ensureObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n  }\n}"
 
 
 class CreateDatasetMutationCreatedataset(BaseModel):
@@ -1209,6 +1352,104 @@ class RevertDatasetMutation(BaseModel):
 
     class Meta:
         document = "mutation RevertDataset($dataset: ID!, $history: ID!) {\n  revertDataset(input: {id: $dataset, historyId: $history}) {\n    id\n    name\n    description\n  }\n}"
+
+
+class CreateInstrumentMutationCreateinstrument(BaseModel):
+    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateInstrumentMutation(BaseModel):
+    create_instrument: CreateInstrumentMutationCreateinstrument = Field(
+        alias="createInstrument"
+    )
+
+    class Arguments(BaseModel):
+        serial_number: str = Field(alias="serialNumber")
+        name: Optional[str] = Field(default=None)
+        model: Optional[str] = Field(default=None)
+
+    class Meta:
+        document = "mutation CreateInstrument($serialNumber: String!, $name: String, $model: String) {\n  createInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n  }\n}"
+
+
+class EnsureInstrumentMutationEnsureinstrument(BaseModel):
+    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EnsureInstrumentMutation(BaseModel):
+    ensure_instrument: EnsureInstrumentMutationEnsureinstrument = Field(
+        alias="ensureInstrument"
+    )
+
+    class Arguments(BaseModel):
+        serial_number: str = Field(alias="serialNumber")
+        name: Optional[str] = Field(default=None)
+        model: Optional[str] = Field(default=None)
+
+    class Meta:
+        document = "mutation EnsureInstrument($serialNumber: String!, $name: String, $model: String) {\n  ensureInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n  }\n}"
+
+
+class CreateAntibodyMutationCreateantibody(BaseModel):
+    typename: Optional[Literal["Antibody"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateAntibodyMutation(BaseModel):
+    create_antibody: CreateAntibodyMutationCreateantibody = Field(
+        alias="createAntibody"
+    )
+
+    class Arguments(BaseModel):
+        name: str
+        epitope: Optional[str] = Field(default=None)
+
+    class Meta:
+        document = "mutation CreateAntibody($name: String!, $epitope: String) {\n  createAntibody(input: {name: $name, epitope: $epitope}) {\n    id\n    name\n  }\n}"
+
+
+class EnsureAntibodyMutationEnsureantibody(BaseModel):
+    typename: Optional[Literal["Antibody"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EnsureAntibodyMutation(BaseModel):
+    ensure_antibody: EnsureAntibodyMutationEnsureantibody = Field(
+        alias="ensureAntibody"
+    )
+
+    class Arguments(BaseModel):
+        name: str
+        epitope: Optional[str] = Field(default=None)
+
+    class Meta:
+        document = "mutation EnsureAntibody($name: String!, $epitope: String) {\n  ensureAntibody(input: {name: $name, epitope: $epitope}) {\n    id\n    name\n  }\n}"
 
 
 class CreateFluorophoreMutationCreatefluorophore(BaseModel):
@@ -1279,9 +1520,9 @@ class From_array_likeMutation(BaseModel):
         channel_views: Optional[List[PartialChannelViewInput]] = Field(
             alias="channelViews", default=None
         )
-        transformation_views: Optional[
-            List[PartialAffineTransformationViewInput]
-        ] = Field(alias="transformationViews", default=None)
+        transformation_views: Optional[List[PartialAffineTransformationViewInput]] = (
+            Field(alias="transformationViews", default=None)
+        )
         label_views: Optional[List[PartialLabelViewInput]] = Field(
             alias="labelViews", default=None
         )
@@ -1300,7 +1541,7 @@ class From_array_likeMutation(BaseModel):
         tags: Optional[List[str]] = Field(default=None)
 
     class Meta:
-        document = "fragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $labelViews: [PartialLabelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, labelViews: $labelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, tags: $tags}\n  ) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $labelViews: [PartialLabelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, labelViews: $labelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, tags: $tags}\n  ) {\n    ...Image\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -1326,10 +1567,10 @@ class RequestAccessMutation(BaseModel):
         document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestAccess($store: ID!, $duration: Int) {\n  requestAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
 
 
-class CreateObjectiveMutationCreateobjective(Objective, BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
+class CreateEraMutationCreateera(BaseModel):
+    typename: Optional[Literal["Era"]] = Field(alias="__typename", exclude=True)
     id: ID
-    name: str
+    begin: Optional[datetime]
 
     class Config:
         """A config class"""
@@ -1337,23 +1578,79 @@ class CreateObjectiveMutationCreateobjective(Objective, BaseModel):
         frozen = True
 
 
-class CreateObjectiveMutation(BaseModel):
-    create_objective: CreateObjectiveMutationCreateobjective = Field(
-        alias="createObjective"
+class CreateEraMutation(BaseModel):
+    create_era: CreateEraMutationCreateera = Field(alias="createEra")
+
+    class Arguments(BaseModel):
+        name: str
+        begin: Optional[datetime] = Field(default=None)
+
+    class Meta:
+        document = "mutation CreateEra($name: String!, $begin: DateTime) {\n  createEra(input: {name: $name, begin: $begin}) {\n    id\n    begin\n  }\n}"
+
+
+class CreateSnapshotMutation(BaseModel):
+    create_snapshot: SnapshotFragment = Field(alias="createSnapshot")
+
+    class Arguments(BaseModel):
+        image: ID
+        file: Upload
+
+    class Meta:
+        document = "fragment Snapshot on Snapshot {\n  id\n  store {\n    key\n    presignedUrl\n  }\n  name\n}\n\nmutation CreateSnapshot($image: ID!, $file: Upload!) {\n  createSnapshot(input: {file: $file, image: $image}) {\n    ...Snapshot\n  }\n}"
+
+
+class CreateRgbViewMutationCreatergbview(BaseModel):
+    typename: Optional[Literal["RGBView"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateRgbViewMutation(BaseModel):
+    create_rgb_view: CreateRgbViewMutationCreatergbview = Field(alias="createRgbView")
+
+    class Arguments(BaseModel):
+        image: ID
+        r_scale: float = Field(alias="rScale")
+        b_scale: float = Field(alias="bScale")
+        g_scale: float = Field(alias="gScale")
+        context: Optional[ID] = Field(default=None)
+
+    class Meta:
+        document = "mutation CreateRgbView($image: ID!, $rScale: Float!, $bScale: Float!, $gScale: Float!, $context: ID) {\n  createRgbView(\n    input: {rScale: $rScale, bScale: $bScale, gScale: $gScale, context: $context, image: $image}\n  ) {\n    id\n  }\n}"
+
+
+class CreateRGBContextMutationCreatergbcontext(BaseModel):
+    typename: Optional[Literal["RGBContext"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateRGBContextMutation(BaseModel):
+    create_rgb_context: CreateRGBContextMutationCreatergbcontext = Field(
+        alias="createRgbContext"
     )
 
     class Arguments(BaseModel):
-        serial_number: str = Field(alias="serialNumber")
-        name: Optional[str] = Field(default=None)
-        na: Optional[float] = Field(default=None)
-        magnification: Optional[float] = Field(default=None)
+        name: str
+        image: ID
 
     class Meta:
-        document = "mutation CreateObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  createObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n  }\n}"
+        document = "mutation CreateRGBContext($name: String!, $image: ID!) {\n  createRgbContext(input: {name: $name, image: $image}) {\n    id\n  }\n}"
 
 
-class EnsureObjectiveMutationEnsureobjective(Objective, BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
+class CreateViewCollectionMutationCreateviewcollection(BaseModel):
+    typename: Optional[Literal["ViewCollection"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
     name: str
 
@@ -1363,23 +1660,20 @@ class EnsureObjectiveMutationEnsureobjective(Objective, BaseModel):
         frozen = True
 
 
-class EnsureObjectiveMutation(BaseModel):
-    ensure_objective: EnsureObjectiveMutationEnsureobjective = Field(
-        alias="ensureObjective"
+class CreateViewCollectionMutation(BaseModel):
+    create_view_collection: CreateViewCollectionMutationCreateviewcollection = Field(
+        alias="createViewCollection"
     )
 
     class Arguments(BaseModel):
-        serial_number: str = Field(alias="serialNumber")
-        name: Optional[str] = Field(default=None)
-        na: Optional[float] = Field(default=None)
-        magnification: Optional[float] = Field(default=None)
+        name: str
 
     class Meta:
-        document = "mutation EnsureObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  ensureObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n  }\n}"
+        document = "mutation CreateViewCollection($name: String!) {\n  createViewCollection(input: {name: $name}) {\n    id\n    name\n  }\n}"
 
 
-class CreateCameraMutationCreatecamera(BaseModel):
-    typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
+class CreateChannelMutationCreatechannel(BaseModel):
+    typename: Optional[Literal["Channel"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
 
@@ -1389,23 +1683,18 @@ class CreateCameraMutationCreatecamera(BaseModel):
         frozen = True
 
 
-class CreateCameraMutation(BaseModel):
-    create_camera: CreateCameraMutationCreatecamera = Field(alias="createCamera")
+class CreateChannelMutation(BaseModel):
+    create_channel: CreateChannelMutationCreatechannel = Field(alias="createChannel")
 
     class Arguments(BaseModel):
-        serial_number: str = Field(alias="serialNumber")
-        name: Optional[str] = Field(default=None)
-        pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX", default=None)
-        pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY", default=None)
-        sensor_size_x: Optional[int] = Field(alias="sensorSizeX", default=None)
-        sensor_size_y: Optional[int] = Field(alias="sensorSizeY", default=None)
+        name: str
 
     class Meta:
-        document = "mutation CreateCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int) {\n  createCamera(\n    input: {name: $name, pixelSizeX: $pixelSizeX, serialNumber: $serialNumber, pixelSizeY: $pixelSizeY, sensorSizeX: $sensorSizeX, sensorSizeY: $sensorSizeY}\n  ) {\n    id\n    name\n  }\n}"
+        document = "mutation CreateChannel($name: String!) {\n  createChannel(input: {name: $name}) {\n    id\n    name\n  }\n}"
 
 
-class EnsureCameraMutationEnsurecamera(BaseModel):
-    typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
+class EnsureChannelMutationEnsurechannel(BaseModel):
+    typename: Optional[Literal["Channel"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
 
@@ -1415,19 +1704,24 @@ class EnsureCameraMutationEnsurecamera(BaseModel):
         frozen = True
 
 
-class EnsureCameraMutation(BaseModel):
-    ensure_camera: EnsureCameraMutationEnsurecamera = Field(alias="ensureCamera")
+class EnsureChannelMutation(BaseModel):
+    ensure_channel: EnsureChannelMutationEnsurechannel = Field(alias="ensureChannel")
 
     class Arguments(BaseModel):
-        serial_number: str = Field(alias="serialNumber")
-        name: Optional[str] = Field(default=None)
-        pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX", default=None)
-        pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY", default=None)
-        sensor_size_x: Optional[int] = Field(alias="sensorSizeX", default=None)
-        sensor_size_y: Optional[int] = Field(alias="sensorSizeY", default=None)
+        name: str
 
     class Meta:
-        document = "mutation EnsureCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int) {\n  ensureCamera(\n    input: {name: $name, pixelSizeX: $pixelSizeX, serialNumber: $serialNumber, pixelSizeY: $pixelSizeY, sensorSizeX: $sensorSizeX, sensorSizeY: $sensorSizeY}\n  ) {\n    id\n    name\n  }\n}"
+        document = "mutation EnsureChannel($name: String!) {\n  ensureChannel(input: {name: $name}) {\n    id\n    name\n  }\n}"
+
+
+class GetCameraQuery(BaseModel):
+    camera: CameraFragment
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Camera on Camera {\n  sensorSizeX\n  sensorSizeY\n  pixelSizeX\n  pixelSizeY\n  name\n  serialNumber\n}\n\nquery GetCamera($id: ID!) {\n  camera(id: $id) {\n    ...Camera\n  }\n}"
 
 
 class GetTableQuery(BaseModel):
@@ -1450,6 +1744,26 @@ class GetFileQuery(BaseModel):
         document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment File on File {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n  }\n}\n\nquery GetFile($id: ID!) {\n  file(id: $id) {\n    ...File\n  }\n}"
 
 
+class GetObjectiveQuery(BaseModel):
+    objective: ObjectiveFragment
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Objective on Objective {\n  id\n  na\n  name\n  serialNumber\n}\n\nquery GetObjective($id: ID!) {\n  objective(id: $id) {\n    ...Objective\n  }\n}"
+
+
+class GetDatasetQuery(BaseModel):
+    dataset: DatasetFragment
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment HistoryStuff on History {\n  id\n  app {\n    id\n  }\n}\n\nfragment Dataset on Dataset {\n  name\n  description\n  history {\n    ...HistoryStuff\n  }\n}\n\nquery GetDataset($id: ID!) {\n  dataset(id: $id) {\n    ...Dataset\n  }\n}"
+
+
 class GetInstrumentQuery(BaseModel):
     instrument: InstrumentFragment
 
@@ -1458,6 +1772,59 @@ class GetInstrumentQuery(BaseModel):
 
     class Meta:
         document = "fragment Instrument on Instrument {\n  id\n  model\n  name\n  serialNumber\n}\n\nquery GetInstrument($id: ID!) {\n  instrument(id: $id) {\n    ...Instrument\n  }\n}"
+
+
+class GetImageQuery(BaseModel):
+    image: ImageFragment
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
+
+
+class GetRandomImageQuery(BaseModel):
+    random_image: ImageFragment = Field(alias="randomImage")
+
+    class Arguments(BaseModel):
+        pass
+
+    class Meta:
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+
+
+class SearchImagesQueryOptions(Image, BaseModel):
+    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchImagesQuery(BaseModel):
+    options: Tuple[SearchImagesQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchImages($search: String, $values: [ID!]) {\n  options: images(\n    filters: {name: {contains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
+
+
+class ImagesQuery(BaseModel):
+    images: Tuple[ImageFragment, ...]
+
+    class Arguments(BaseModel):
+        filter: Optional[ImageFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+
+    class Meta:
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
 
 
 class GetSnapshotQuery(BaseModel):
@@ -1492,96 +1859,160 @@ class SearchSnapshotsQuery(BaseModel):
         document = "query SearchSnapshots($search: String, $values: [ID!]) {\n  options: snapshots(\n    filters: {name: {contains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
 
 
-class GetDatasetQuery(BaseModel):
-    dataset: DatasetFragment
-
-    class Arguments(BaseModel):
-        id: ID
-
-    class Meta:
-        document = "fragment HistoryStuff on History {\n  id\n  app {\n    id\n  }\n}\n\nfragment Dataset on Dataset {\n  name\n  description\n  history {\n    ...HistoryStuff\n  }\n}\n\nquery GetDataset($id: ID!) {\n  dataset(id: $id) {\n    ...Dataset\n  }\n}"
-
-
-class ImagesQueryImages(Image, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+async def acreate_camera(
+    serial_number: str,
+    name: Optional[str] = None,
+    pixel_size_x: Optional[Micrometers] = None,
+    pixel_size_y: Optional[Micrometers] = None,
+    sensor_size_x: Optional[int] = None,
+    sensor_size_y: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> CreateCameraMutationCreatecamera:
+    """CreateCamera
 
 
-class ImagesQuery(BaseModel):
-    images: Tuple[ImagesQueryImages, ...]
 
-    class Arguments(BaseModel):
-        pass
+    Arguments:
+        serial_number (str): serialNumber
+        name (Optional[str], optional): name.
+        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
+        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
+        sensor_size_x (Optional[int], optional): sensorSizeX.
+        sensor_size_y (Optional[int], optional): sensorSizeY.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
-    class Meta:
-        document = "query Images {\n  images {\n    id\n  }\n}"
-
-
-class GetImageQuery(BaseModel):
-    image: ImageFragment
-
-    class Arguments(BaseModel):
-        id: ID
-
-    class Meta:
-        document = "fragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
-
-
-class GetRandomImageQuery(BaseModel):
-    random_image: ImageFragment = Field(alias="randomImage")
-
-    class Arguments(BaseModel):
-        pass
-
-    class Meta:
-        document = "fragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+    Returns:
+        CreateCameraMutationCreatecamera"""
+    return (
+        await aexecute(
+            CreateCameraMutation,
+            {
+                "serialNumber": serial_number,
+                "name": name,
+                "pixelSizeX": pixel_size_x,
+                "pixelSizeY": pixel_size_y,
+                "sensorSizeX": sensor_size_x,
+                "sensorSizeY": sensor_size_y,
+            },
+            rath=rath,
+        )
+    ).create_camera
 
 
-class SearchImagesQueryOptions(Image, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
-    value: ID
-    label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class SearchImagesQuery(BaseModel):
-    options: Tuple[SearchImagesQueryOptions, ...]
-
-    class Arguments(BaseModel):
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-
-    class Meta:
-        document = "query SearchImages($search: String, $values: [ID!]) {\n  options: images(\n    filters: {name: {contains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
+def create_camera(
+    serial_number: str,
+    name: Optional[str] = None,
+    pixel_size_x: Optional[Micrometers] = None,
+    pixel_size_y: Optional[Micrometers] = None,
+    sensor_size_x: Optional[int] = None,
+    sensor_size_y: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> CreateCameraMutationCreatecamera:
+    """CreateCamera
 
 
-class GetObjectiveQuery(BaseModel):
-    objective: ObjectiveFragment
 
-    class Arguments(BaseModel):
-        id: ID
+    Arguments:
+        serial_number (str): serialNumber
+        name (Optional[str], optional): name.
+        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
+        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
+        sensor_size_x (Optional[int], optional): sensorSizeX.
+        sensor_size_y (Optional[int], optional): sensorSizeY.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
-    class Meta:
-        document = "fragment Objective on Objective {\n  id\n  na\n  name\n  serialNumber\n}\n\nquery GetObjective($id: ID!) {\n  objective(id: $id) {\n    ...Objective\n  }\n}"
+    Returns:
+        CreateCameraMutationCreatecamera"""
+    return execute(
+        CreateCameraMutation,
+        {
+            "serialNumber": serial_number,
+            "name": name,
+            "pixelSizeX": pixel_size_x,
+            "pixelSizeY": pixel_size_y,
+            "sensorSizeX": sensor_size_x,
+            "sensorSizeY": sensor_size_y,
+        },
+        rath=rath,
+    ).create_camera
 
 
-class GetCameraQuery(BaseModel):
-    camera: CameraFragment
+async def aensure_camera(
+    serial_number: str,
+    name: Optional[str] = None,
+    pixel_size_x: Optional[Micrometers] = None,
+    pixel_size_y: Optional[Micrometers] = None,
+    sensor_size_x: Optional[int] = None,
+    sensor_size_y: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> EnsureCameraMutationEnsurecamera:
+    """EnsureCamera
 
-    class Arguments(BaseModel):
-        id: ID
 
-    class Meta:
-        document = "fragment Camera on Camera {\n  sensorSizeX\n  sensorSizeY\n  pixelSizeX\n  pixelSizeY\n  name\n  serialNumber\n}\n\nquery GetCamera($id: ID!) {\n  camera(id: $id) {\n    ...Camera\n  }\n}"
+
+    Arguments:
+        serial_number (str): serialNumber
+        name (Optional[str], optional): name.
+        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
+        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
+        sensor_size_x (Optional[int], optional): sensorSizeX.
+        sensor_size_y (Optional[int], optional): sensorSizeY.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EnsureCameraMutationEnsurecamera"""
+    return (
+        await aexecute(
+            EnsureCameraMutation,
+            {
+                "serialNumber": serial_number,
+                "name": name,
+                "pixelSizeX": pixel_size_x,
+                "pixelSizeY": pixel_size_y,
+                "sensorSizeX": sensor_size_x,
+                "sensorSizeY": sensor_size_y,
+            },
+            rath=rath,
+        )
+    ).ensure_camera
+
+
+def ensure_camera(
+    serial_number: str,
+    name: Optional[str] = None,
+    pixel_size_x: Optional[Micrometers] = None,
+    pixel_size_y: Optional[Micrometers] = None,
+    sensor_size_x: Optional[int] = None,
+    sensor_size_y: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> EnsureCameraMutationEnsurecamera:
+    """EnsureCamera
+
+
+
+    Arguments:
+        serial_number (str): serialNumber
+        name (Optional[str], optional): name.
+        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
+        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
+        sensor_size_x (Optional[int], optional): sensorSizeX.
+        sensor_size_y (Optional[int], optional): sensorSizeY.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EnsureCameraMutationEnsurecamera"""
+    return execute(
+        EnsureCameraMutation,
+        {
+            "serialNumber": serial_number,
+            "name": name,
+            "pixelSizeX": pixel_size_x,
+            "pixelSizeY": pixel_size_y,
+            "sensorSizeX": sensor_size_x,
+            "sensorSizeY": sensor_size_y,
+        },
+        rath=rath,
+    ).ensure_camera
 
 
 async def acreate_render_tree(
@@ -1775,268 +2206,6 @@ def request_table_access(
     ).request_table_access
 
 
-async def acreate_stage(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> CreateStageMutationCreatestage:
-    """CreateStage
-
-
-
-    Arguments:
-        name (str): name
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateStageMutationCreatestage"""
-    return (await aexecute(CreateStageMutation, {"name": name}, rath=rath)).create_stage
-
-
-def create_stage(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> CreateStageMutationCreatestage:
-    """CreateStage
-
-
-
-    Arguments:
-        name (str): name
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateStageMutationCreatestage"""
-    return execute(CreateStageMutation, {"name": name}, rath=rath).create_stage
-
-
-async def acreate_channel(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> CreateChannelMutationCreatechannel:
-    """CreateChannel
-
-
-
-    Arguments:
-        name (str): name
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateChannelMutationCreatechannel"""
-    return (
-        await aexecute(CreateChannelMutation, {"name": name}, rath=rath)
-    ).create_channel
-
-
-def create_channel(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> CreateChannelMutationCreatechannel:
-    """CreateChannel
-
-
-
-    Arguments:
-        name (str): name
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateChannelMutationCreatechannel"""
-    return execute(CreateChannelMutation, {"name": name}, rath=rath).create_channel
-
-
-async def aensure_channel(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> EnsureChannelMutationEnsurechannel:
-    """EnsureChannel
-
-
-
-    Arguments:
-        name (str): name
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EnsureChannelMutationEnsurechannel"""
-    return (
-        await aexecute(EnsureChannelMutation, {"name": name}, rath=rath)
-    ).ensure_channel
-
-
-def ensure_channel(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> EnsureChannelMutationEnsurechannel:
-    """EnsureChannel
-
-
-
-    Arguments:
-        name (str): name
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EnsureChannelMutationEnsurechannel"""
-    return execute(EnsureChannelMutation, {"name": name}, rath=rath).ensure_channel
-
-
-async def acreate_roi(
-    image: ID,
-    vectors: List[FiveDVector],
-    kind: RoiKind,
-    rath: Optional[MikroNextRath] = None,
-) -> ROIFragment:
-    """create_roi
-
-
-
-    Arguments:
-        image (ID): image
-        vectors (List[FiveDVector]): vectors
-        kind (RoiKind): kind
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        ROIFragment"""
-    return (
-        await aexecute(
-            Create_roiMutation,
-            {"image": image, "vectors": vectors, "kind": kind},
-            rath=rath,
-        )
-    ).create_roi
-
-
-def create_roi(
-    image: ID,
-    vectors: List[FiveDVector],
-    kind: RoiKind,
-    rath: Optional[MikroNextRath] = None,
-) -> ROIFragment:
-    """create_roi
-
-
-
-    Arguments:
-        image (ID): image
-        vectors (List[FiveDVector]): vectors
-        kind (RoiKind): kind
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        ROIFragment"""
-    return execute(
-        Create_roiMutation,
-        {"image": image, "vectors": vectors, "kind": kind},
-        rath=rath,
-    ).create_roi
-
-
-async def acreate_era(
-    name: str, begin: Optional[datetime] = None, rath: Optional[MikroNextRath] = None
-) -> CreateEraMutationCreateera:
-    """CreateEra
-
-
-
-    Arguments:
-        name (str): name
-        begin (Optional[datetime], optional): begin.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateEraMutationCreateera"""
-    return (
-        await aexecute(CreateEraMutation, {"name": name, "begin": begin}, rath=rath)
-    ).create_era
-
-
-def create_era(
-    name: str, begin: Optional[datetime] = None, rath: Optional[MikroNextRath] = None
-) -> CreateEraMutationCreateera:
-    """CreateEra
-
-
-
-    Arguments:
-        name (str): name
-        begin (Optional[datetime], optional): begin.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateEraMutationCreateera"""
-    return execute(
-        CreateEraMutation, {"name": name, "begin": begin}, rath=rath
-    ).create_era
-
-
-async def acreate_rgb_view(
-    image: ID,
-    r_scale: float,
-    b_scale: float,
-    g_scale: float,
-    context: Optional[ID] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> CreateRgbViewMutationCreatergbview:
-    """CreateRgbView
-
-
-
-    Arguments:
-        image (ID): image
-        r_scale (float): rScale
-        b_scale (float): bScale
-        g_scale (float): gScale
-        context (Optional[ID], optional): context.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateRgbViewMutationCreatergbview"""
-    return (
-        await aexecute(
-            CreateRgbViewMutation,
-            {
-                "image": image,
-                "rScale": r_scale,
-                "bScale": b_scale,
-                "gScale": g_scale,
-                "context": context,
-            },
-            rath=rath,
-        )
-    ).create_rgb_view
-
-
-def create_rgb_view(
-    image: ID,
-    r_scale: float,
-    b_scale: float,
-    g_scale: float,
-    context: Optional[ID] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> CreateRgbViewMutationCreatergbview:
-    """CreateRgbView
-
-
-
-    Arguments:
-        image (ID): image
-        r_scale (float): rScale
-        b_scale (float): bScale
-        g_scale (float): gScale
-        context (Optional[ID], optional): context.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateRgbViewMutationCreatergbview"""
-    return execute(
-        CreateRgbViewMutation,
-        {
-            "image": image,
-            "rScale": r_scale,
-            "bScale": b_scale,
-            "gScale": g_scale,
-            "context": context,
-        },
-        rath=rath,
-    ).create_rgb_view
-
-
 async def afrom_file_like(
     file: FileLike,
     name: str,
@@ -2181,304 +2350,220 @@ def request_file_access(
     ).request_file_access
 
 
-async def acreate_rgb_context(
-    name: str, image: ID, rath: Optional[MikroNextRath] = None
-) -> CreateRGBContextMutationCreatergbcontext:
-    """CreateRGBContext
+async def acreate_stage(
+    name: str, rath: Optional[MikroNextRath] = None
+) -> CreateStageMutationCreatestage:
+    """CreateStage
 
 
 
     Arguments:
         name (str): name
-        image (ID): image
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRGBContextMutationCreatergbcontext"""
-    return (
-        await aexecute(
-            CreateRGBContextMutation, {"name": name, "image": image}, rath=rath
-        )
-    ).create_rgb_context
+        CreateStageMutationCreatestage"""
+    return (await aexecute(CreateStageMutation, {"name": name}, rath=rath)).create_stage
 
 
-def create_rgb_context(
-    name: str, image: ID, rath: Optional[MikroNextRath] = None
-) -> CreateRGBContextMutationCreatergbcontext:
-    """CreateRGBContext
+def create_stage(
+    name: str, rath: Optional[MikroNextRath] = None
+) -> CreateStageMutationCreatestage:
+    """CreateStage
 
 
 
     Arguments:
         name (str): name
-        image (ID): image
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRGBContextMutationCreatergbcontext"""
-    return execute(
-        CreateRGBContextMutation, {"name": name, "image": image}, rath=rath
-    ).create_rgb_context
+        CreateStageMutationCreatestage"""
+    return execute(CreateStageMutation, {"name": name}, rath=rath).create_stage
 
 
-async def acreate_instrument(
-    serial_number: str,
-    name: Optional[str] = None,
-    model: Optional[str] = None,
+async def acreate_roi(
+    image: ID,
+    vectors: List[FiveDVector],
+    kind: RoiKind,
     rath: Optional[MikroNextRath] = None,
-) -> CreateInstrumentMutationCreateinstrument:
-    """CreateInstrument
+) -> ROIFragment:
+    """create_roi
 
 
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        model (Optional[str], optional): model.
+        image (ID): image
+        vectors (List[FiveDVector]): vectors
+        kind (RoiKind): kind
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateInstrumentMutationCreateinstrument"""
+        ROIFragment"""
     return (
         await aexecute(
-            CreateInstrumentMutation,
-            {"serialNumber": serial_number, "name": name, "model": model},
+            Create_roiMutation,
+            {"image": image, "vectors": vectors, "kind": kind},
             rath=rath,
         )
-    ).create_instrument
+    ).create_roi
 
 
-def create_instrument(
-    serial_number: str,
-    name: Optional[str] = None,
-    model: Optional[str] = None,
+def create_roi(
+    image: ID,
+    vectors: List[FiveDVector],
+    kind: RoiKind,
     rath: Optional[MikroNextRath] = None,
-) -> CreateInstrumentMutationCreateinstrument:
-    """CreateInstrument
+) -> ROIFragment:
+    """create_roi
 
 
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        model (Optional[str], optional): model.
+        image (ID): image
+        vectors (List[FiveDVector]): vectors
+        kind (RoiKind): kind
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateInstrumentMutationCreateinstrument"""
+        ROIFragment"""
     return execute(
-        CreateInstrumentMutation,
-        {"serialNumber": serial_number, "name": name, "model": model},
+        Create_roiMutation,
+        {"image": image, "vectors": vectors, "kind": kind},
         rath=rath,
-    ).create_instrument
+    ).create_roi
 
 
-async def aensure_instrument(
+async def acreate_objective(
     serial_number: str,
     name: Optional[str] = None,
-    model: Optional[str] = None,
+    na: Optional[float] = None,
+    magnification: Optional[float] = None,
     rath: Optional[MikroNextRath] = None,
-) -> EnsureInstrumentMutationEnsureinstrument:
-    """EnsureInstrument
+) -> CreateObjectiveMutationCreateobjective:
+    """CreateObjective
 
 
 
     Arguments:
         serial_number (str): serialNumber
         name (Optional[str], optional): name.
-        model (Optional[str], optional): model.
+        na (Optional[float], optional): na.
+        magnification (Optional[float], optional): magnification.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureInstrumentMutationEnsureinstrument"""
+        CreateObjectiveMutationCreateobjective"""
     return (
         await aexecute(
-            EnsureInstrumentMutation,
-            {"serialNumber": serial_number, "name": name, "model": model},
+            CreateObjectiveMutation,
+            {
+                "serialNumber": serial_number,
+                "name": name,
+                "na": na,
+                "magnification": magnification,
+            },
             rath=rath,
         )
-    ).ensure_instrument
+    ).create_objective
 
 
-def ensure_instrument(
+def create_objective(
     serial_number: str,
     name: Optional[str] = None,
-    model: Optional[str] = None,
+    na: Optional[float] = None,
+    magnification: Optional[float] = None,
     rath: Optional[MikroNextRath] = None,
-) -> EnsureInstrumentMutationEnsureinstrument:
-    """EnsureInstrument
+) -> CreateObjectiveMutationCreateobjective:
+    """CreateObjective
 
 
 
     Arguments:
         serial_number (str): serialNumber
         name (Optional[str], optional): name.
-        model (Optional[str], optional): model.
+        na (Optional[float], optional): na.
+        magnification (Optional[float], optional): magnification.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureInstrumentMutationEnsureinstrument"""
+        CreateObjectiveMutationCreateobjective"""
     return execute(
-        EnsureInstrumentMutation,
-        {"serialNumber": serial_number, "name": name, "model": model},
+        CreateObjectiveMutation,
+        {
+            "serialNumber": serial_number,
+            "name": name,
+            "na": na,
+            "magnification": magnification,
+        },
         rath=rath,
-    ).ensure_instrument
+    ).create_objective
 
 
-async def acreate_view_collection(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> CreateViewCollectionMutationCreateviewcollection:
-    """CreateViewCollection
-
-
-
-    Arguments:
-        name (str): name
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateViewCollectionMutationCreateviewcollection"""
-    return (
-        await aexecute(CreateViewCollectionMutation, {"name": name}, rath=rath)
-    ).create_view_collection
-
-
-def create_view_collection(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> CreateViewCollectionMutationCreateviewcollection:
-    """CreateViewCollection
+async def aensure_objective(
+    serial_number: str,
+    name: Optional[str] = None,
+    na: Optional[float] = None,
+    magnification: Optional[float] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> EnsureObjectiveMutationEnsureobjective:
+    """EnsureObjective
 
 
 
     Arguments:
-        name (str): name
+        serial_number (str): serialNumber
+        name (Optional[str], optional): name.
+        na (Optional[float], optional): na.
+        magnification (Optional[float], optional): magnification.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateViewCollectionMutationCreateviewcollection"""
-    return execute(
-        CreateViewCollectionMutation, {"name": name}, rath=rath
-    ).create_view_collection
-
-
-async def acreate_antibody(
-    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
-) -> CreateAntibodyMutationCreateantibody:
-    """CreateAntibody
-
-
-
-    Arguments:
-        name (str): name
-        epitope (Optional[str], optional): epitope.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateAntibodyMutationCreateantibody"""
+        EnsureObjectiveMutationEnsureobjective"""
     return (
         await aexecute(
-            CreateAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
+            EnsureObjectiveMutation,
+            {
+                "serialNumber": serial_number,
+                "name": name,
+                "na": na,
+                "magnification": magnification,
+            },
+            rath=rath,
         )
-    ).create_antibody
+    ).ensure_objective
 
 
-def create_antibody(
-    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
-) -> CreateAntibodyMutationCreateantibody:
-    """CreateAntibody
+def ensure_objective(
+    serial_number: str,
+    name: Optional[str] = None,
+    na: Optional[float] = None,
+    magnification: Optional[float] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> EnsureObjectiveMutationEnsureobjective:
+    """EnsureObjective
 
 
 
     Arguments:
-        name (str): name
-        epitope (Optional[str], optional): epitope.
+        serial_number (str): serialNumber
+        name (Optional[str], optional): name.
+        na (Optional[float], optional): na.
+        magnification (Optional[float], optional): magnification.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateAntibodyMutationCreateantibody"""
+        EnsureObjectiveMutationEnsureobjective"""
     return execute(
-        CreateAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
-    ).create_antibody
-
-
-async def aensure_antibody(
-    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
-) -> EnsureAntibodyMutationEnsureantibody:
-    """EnsureAntibody
-
-
-
-    Arguments:
-        name (str): name
-        epitope (Optional[str], optional): epitope.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EnsureAntibodyMutationEnsureantibody"""
-    return (
-        await aexecute(
-            EnsureAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
-        )
-    ).ensure_antibody
-
-
-def ensure_antibody(
-    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
-) -> EnsureAntibodyMutationEnsureantibody:
-    """EnsureAntibody
-
-
-
-    Arguments:
-        name (str): name
-        epitope (Optional[str], optional): epitope.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EnsureAntibodyMutationEnsureantibody"""
-    return execute(
-        EnsureAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
-    ).ensure_antibody
-
-
-async def acreate_snapshot(
-    image: ID, file: Upload, rath: Optional[MikroNextRath] = None
-) -> SnapshotFragment:
-    """CreateSnapshot
-
-
-
-    Arguments:
-        image (ID): image
-        file (Upload): file
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        SnapshotFragment"""
-    return (
-        await aexecute(
-            CreateSnapshotMutation, {"image": image, "file": file}, rath=rath
-        )
-    ).create_snapshot
-
-
-def create_snapshot(
-    image: ID, file: Upload, rath: Optional[MikroNextRath] = None
-) -> SnapshotFragment:
-    """CreateSnapshot
-
-
-
-    Arguments:
-        image (ID): image
-        file (Upload): file
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        SnapshotFragment"""
-    return execute(
-        CreateSnapshotMutation, {"image": image, "file": file}, rath=rath
-    ).create_snapshot
+        EnsureObjectiveMutation,
+        {
+            "serialNumber": serial_number,
+            "name": name,
+            "na": na,
+            "magnification": magnification,
+        },
+        rath=rath,
+    ).ensure_objective
 
 
 async def acreate_dataset(
@@ -2591,6 +2676,190 @@ def revert_dataset(
     return execute(
         RevertDatasetMutation, {"dataset": dataset, "history": history}, rath=rath
     ).revert_dataset
+
+
+async def acreate_instrument(
+    serial_number: str,
+    name: Optional[str] = None,
+    model: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> CreateInstrumentMutationCreateinstrument:
+    """CreateInstrument
+
+
+
+    Arguments:
+        serial_number (str): serialNumber
+        name (Optional[str], optional): name.
+        model (Optional[str], optional): model.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateInstrumentMutationCreateinstrument"""
+    return (
+        await aexecute(
+            CreateInstrumentMutation,
+            {"serialNumber": serial_number, "name": name, "model": model},
+            rath=rath,
+        )
+    ).create_instrument
+
+
+def create_instrument(
+    serial_number: str,
+    name: Optional[str] = None,
+    model: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> CreateInstrumentMutationCreateinstrument:
+    """CreateInstrument
+
+
+
+    Arguments:
+        serial_number (str): serialNumber
+        name (Optional[str], optional): name.
+        model (Optional[str], optional): model.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateInstrumentMutationCreateinstrument"""
+    return execute(
+        CreateInstrumentMutation,
+        {"serialNumber": serial_number, "name": name, "model": model},
+        rath=rath,
+    ).create_instrument
+
+
+async def aensure_instrument(
+    serial_number: str,
+    name: Optional[str] = None,
+    model: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> EnsureInstrumentMutationEnsureinstrument:
+    """EnsureInstrument
+
+
+
+    Arguments:
+        serial_number (str): serialNumber
+        name (Optional[str], optional): name.
+        model (Optional[str], optional): model.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EnsureInstrumentMutationEnsureinstrument"""
+    return (
+        await aexecute(
+            EnsureInstrumentMutation,
+            {"serialNumber": serial_number, "name": name, "model": model},
+            rath=rath,
+        )
+    ).ensure_instrument
+
+
+def ensure_instrument(
+    serial_number: str,
+    name: Optional[str] = None,
+    model: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> EnsureInstrumentMutationEnsureinstrument:
+    """EnsureInstrument
+
+
+
+    Arguments:
+        serial_number (str): serialNumber
+        name (Optional[str], optional): name.
+        model (Optional[str], optional): model.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EnsureInstrumentMutationEnsureinstrument"""
+    return execute(
+        EnsureInstrumentMutation,
+        {"serialNumber": serial_number, "name": name, "model": model},
+        rath=rath,
+    ).ensure_instrument
+
+
+async def acreate_antibody(
+    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
+) -> CreateAntibodyMutationCreateantibody:
+    """CreateAntibody
+
+
+
+    Arguments:
+        name (str): name
+        epitope (Optional[str], optional): epitope.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateAntibodyMutationCreateantibody"""
+    return (
+        await aexecute(
+            CreateAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
+        )
+    ).create_antibody
+
+
+def create_antibody(
+    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
+) -> CreateAntibodyMutationCreateantibody:
+    """CreateAntibody
+
+
+
+    Arguments:
+        name (str): name
+        epitope (Optional[str], optional): epitope.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateAntibodyMutationCreateantibody"""
+    return execute(
+        CreateAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
+    ).create_antibody
+
+
+async def aensure_antibody(
+    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
+) -> EnsureAntibodyMutationEnsureantibody:
+    """EnsureAntibody
+
+
+
+    Arguments:
+        name (str): name
+        epitope (Optional[str], optional): epitope.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EnsureAntibodyMutationEnsureantibody"""
+    return (
+        await aexecute(
+            EnsureAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
+        )
+    ).ensure_antibody
+
+
+def ensure_antibody(
+    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
+) -> EnsureAntibodyMutationEnsureantibody:
+    """EnsureAntibody
+
+
+
+    Arguments:
+        name (str): name
+        epitope (Optional[str], optional): epitope.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EnsureAntibodyMutationEnsureantibody"""
+    return execute(
+        EnsureAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
+    ).ensure_antibody
 
 
 async def acreate_fluorophore(
@@ -2909,292 +3178,326 @@ def request_access(
     ).request_access
 
 
-async def acreate_objective(
-    serial_number: str,
-    name: Optional[str] = None,
-    na: Optional[float] = None,
-    magnification: Optional[float] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> CreateObjectiveMutationCreateobjective:
-    """CreateObjective
+async def acreate_era(
+    name: str, begin: Optional[datetime] = None, rath: Optional[MikroNextRath] = None
+) -> CreateEraMutationCreateera:
+    """CreateEra
 
 
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        na (Optional[float], optional): na.
-        magnification (Optional[float], optional): magnification.
+        name (str): name
+        begin (Optional[datetime], optional): begin.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateObjectiveMutationCreateobjective"""
+        CreateEraMutationCreateera"""
+    return (
+        await aexecute(CreateEraMutation, {"name": name, "begin": begin}, rath=rath)
+    ).create_era
+
+
+def create_era(
+    name: str, begin: Optional[datetime] = None, rath: Optional[MikroNextRath] = None
+) -> CreateEraMutationCreateera:
+    """CreateEra
+
+
+
+    Arguments:
+        name (str): name
+        begin (Optional[datetime], optional): begin.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateEraMutationCreateera"""
+    return execute(
+        CreateEraMutation, {"name": name, "begin": begin}, rath=rath
+    ).create_era
+
+
+async def acreate_snapshot(
+    image: ID, file: Upload, rath: Optional[MikroNextRath] = None
+) -> SnapshotFragment:
+    """CreateSnapshot
+
+
+
+    Arguments:
+        image (ID): image
+        file (Upload): file
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        SnapshotFragment"""
     return (
         await aexecute(
-            CreateObjectiveMutation,
+            CreateSnapshotMutation, {"image": image, "file": file}, rath=rath
+        )
+    ).create_snapshot
+
+
+def create_snapshot(
+    image: ID, file: Upload, rath: Optional[MikroNextRath] = None
+) -> SnapshotFragment:
+    """CreateSnapshot
+
+
+
+    Arguments:
+        image (ID): image
+        file (Upload): file
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        SnapshotFragment"""
+    return execute(
+        CreateSnapshotMutation, {"image": image, "file": file}, rath=rath
+    ).create_snapshot
+
+
+async def acreate_rgb_view(
+    image: ID,
+    r_scale: float,
+    b_scale: float,
+    g_scale: float,
+    context: Optional[ID] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> CreateRgbViewMutationCreatergbview:
+    """CreateRgbView
+
+
+
+    Arguments:
+        image (ID): image
+        r_scale (float): rScale
+        b_scale (float): bScale
+        g_scale (float): gScale
+        context (Optional[ID], optional): context.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateRgbViewMutationCreatergbview"""
+    return (
+        await aexecute(
+            CreateRgbViewMutation,
             {
-                "serialNumber": serial_number,
-                "name": name,
-                "na": na,
-                "magnification": magnification,
+                "image": image,
+                "rScale": r_scale,
+                "bScale": b_scale,
+                "gScale": g_scale,
+                "context": context,
             },
             rath=rath,
         )
-    ).create_objective
+    ).create_rgb_view
 
 
-def create_objective(
-    serial_number: str,
-    name: Optional[str] = None,
-    na: Optional[float] = None,
-    magnification: Optional[float] = None,
+def create_rgb_view(
+    image: ID,
+    r_scale: float,
+    b_scale: float,
+    g_scale: float,
+    context: Optional[ID] = None,
     rath: Optional[MikroNextRath] = None,
-) -> CreateObjectiveMutationCreateobjective:
-    """CreateObjective
+) -> CreateRgbViewMutationCreatergbview:
+    """CreateRgbView
 
 
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        na (Optional[float], optional): na.
-        magnification (Optional[float], optional): magnification.
+        image (ID): image
+        r_scale (float): rScale
+        b_scale (float): bScale
+        g_scale (float): gScale
+        context (Optional[ID], optional): context.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateObjectiveMutationCreateobjective"""
+        CreateRgbViewMutationCreatergbview"""
     return execute(
-        CreateObjectiveMutation,
+        CreateRgbViewMutation,
         {
-            "serialNumber": serial_number,
-            "name": name,
-            "na": na,
-            "magnification": magnification,
+            "image": image,
+            "rScale": r_scale,
+            "bScale": b_scale,
+            "gScale": g_scale,
+            "context": context,
         },
         rath=rath,
-    ).create_objective
+    ).create_rgb_view
 
 
-async def aensure_objective(
-    serial_number: str,
-    name: Optional[str] = None,
-    na: Optional[float] = None,
-    magnification: Optional[float] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> EnsureObjectiveMutationEnsureobjective:
-    """EnsureObjective
+async def acreate_rgb_context(
+    name: str, image: ID, rath: Optional[MikroNextRath] = None
+) -> CreateRGBContextMutationCreatergbcontext:
+    """CreateRGBContext
 
 
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        na (Optional[float], optional): na.
-        magnification (Optional[float], optional): magnification.
+        name (str): name
+        image (ID): image
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureObjectiveMutationEnsureobjective"""
+        CreateRGBContextMutationCreatergbcontext"""
     return (
         await aexecute(
-            EnsureObjectiveMutation,
-            {
-                "serialNumber": serial_number,
-                "name": name,
-                "na": na,
-                "magnification": magnification,
-            },
-            rath=rath,
+            CreateRGBContextMutation, {"name": name, "image": image}, rath=rath
         )
-    ).ensure_objective
+    ).create_rgb_context
 
 
-def ensure_objective(
-    serial_number: str,
-    name: Optional[str] = None,
-    na: Optional[float] = None,
-    magnification: Optional[float] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> EnsureObjectiveMutationEnsureobjective:
-    """EnsureObjective
+def create_rgb_context(
+    name: str, image: ID, rath: Optional[MikroNextRath] = None
+) -> CreateRGBContextMutationCreatergbcontext:
+    """CreateRGBContext
 
 
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        na (Optional[float], optional): na.
-        magnification (Optional[float], optional): magnification.
+        name (str): name
+        image (ID): image
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureObjectiveMutationEnsureobjective"""
+        CreateRGBContextMutationCreatergbcontext"""
     return execute(
-        EnsureObjectiveMutation,
-        {
-            "serialNumber": serial_number,
-            "name": name,
-            "na": na,
-            "magnification": magnification,
-        },
-        rath=rath,
-    ).ensure_objective
+        CreateRGBContextMutation, {"name": name, "image": image}, rath=rath
+    ).create_rgb_context
 
 
-async def acreate_camera(
-    serial_number: str,
-    name: Optional[str] = None,
-    pixel_size_x: Optional[Micrometers] = None,
-    pixel_size_y: Optional[Micrometers] = None,
-    sensor_size_x: Optional[int] = None,
-    sensor_size_y: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> CreateCameraMutationCreatecamera:
-    """CreateCamera
+async def acreate_view_collection(
+    name: str, rath: Optional[MikroNextRath] = None
+) -> CreateViewCollectionMutationCreateviewcollection:
+    """CreateViewCollection
 
 
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
-        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
-        sensor_size_x (Optional[int], optional): sensorSizeX.
-        sensor_size_y (Optional[int], optional): sensorSizeY.
+        name (str): name
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateCameraMutationCreatecamera"""
+        CreateViewCollectionMutationCreateviewcollection"""
     return (
-        await aexecute(
-            CreateCameraMutation,
-            {
-                "serialNumber": serial_number,
-                "name": name,
-                "pixelSizeX": pixel_size_x,
-                "pixelSizeY": pixel_size_y,
-                "sensorSizeX": sensor_size_x,
-                "sensorSizeY": sensor_size_y,
-            },
-            rath=rath,
-        )
-    ).create_camera
+        await aexecute(CreateViewCollectionMutation, {"name": name}, rath=rath)
+    ).create_view_collection
 
 
-def create_camera(
-    serial_number: str,
-    name: Optional[str] = None,
-    pixel_size_x: Optional[Micrometers] = None,
-    pixel_size_y: Optional[Micrometers] = None,
-    sensor_size_x: Optional[int] = None,
-    sensor_size_y: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> CreateCameraMutationCreatecamera:
-    """CreateCamera
+def create_view_collection(
+    name: str, rath: Optional[MikroNextRath] = None
+) -> CreateViewCollectionMutationCreateviewcollection:
+    """CreateViewCollection
 
 
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
-        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
-        sensor_size_x (Optional[int], optional): sensorSizeX.
-        sensor_size_y (Optional[int], optional): sensorSizeY.
+        name (str): name
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateCameraMutationCreatecamera"""
+        CreateViewCollectionMutationCreateviewcollection"""
     return execute(
-        CreateCameraMutation,
-        {
-            "serialNumber": serial_number,
-            "name": name,
-            "pixelSizeX": pixel_size_x,
-            "pixelSizeY": pixel_size_y,
-            "sensorSizeX": sensor_size_x,
-            "sensorSizeY": sensor_size_y,
-        },
-        rath=rath,
-    ).create_camera
+        CreateViewCollectionMutation, {"name": name}, rath=rath
+    ).create_view_collection
 
 
-async def aensure_camera(
-    serial_number: str,
-    name: Optional[str] = None,
-    pixel_size_x: Optional[Micrometers] = None,
-    pixel_size_y: Optional[Micrometers] = None,
-    sensor_size_x: Optional[int] = None,
-    sensor_size_y: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> EnsureCameraMutationEnsurecamera:
-    """EnsureCamera
+async def acreate_channel(
+    name: str, rath: Optional[MikroNextRath] = None
+) -> CreateChannelMutationCreatechannel:
+    """CreateChannel
 
 
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
-        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
-        sensor_size_x (Optional[int], optional): sensorSizeX.
-        sensor_size_y (Optional[int], optional): sensorSizeY.
+        name (str): name
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureCameraMutationEnsurecamera"""
+        CreateChannelMutationCreatechannel"""
     return (
-        await aexecute(
-            EnsureCameraMutation,
-            {
-                "serialNumber": serial_number,
-                "name": name,
-                "pixelSizeX": pixel_size_x,
-                "pixelSizeY": pixel_size_y,
-                "sensorSizeX": sensor_size_x,
-                "sensorSizeY": sensor_size_y,
-            },
-            rath=rath,
-        )
-    ).ensure_camera
+        await aexecute(CreateChannelMutation, {"name": name}, rath=rath)
+    ).create_channel
 
 
-def ensure_camera(
-    serial_number: str,
-    name: Optional[str] = None,
-    pixel_size_x: Optional[Micrometers] = None,
-    pixel_size_y: Optional[Micrometers] = None,
-    sensor_size_x: Optional[int] = None,
-    sensor_size_y: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> EnsureCameraMutationEnsurecamera:
-    """EnsureCamera
+def create_channel(
+    name: str, rath: Optional[MikroNextRath] = None
+) -> CreateChannelMutationCreatechannel:
+    """CreateChannel
 
 
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
-        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
-        sensor_size_x (Optional[int], optional): sensorSizeX.
-        sensor_size_y (Optional[int], optional): sensorSizeY.
+        name (str): name
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureCameraMutationEnsurecamera"""
-    return execute(
-        EnsureCameraMutation,
-        {
-            "serialNumber": serial_number,
-            "name": name,
-            "pixelSizeX": pixel_size_x,
-            "pixelSizeY": pixel_size_y,
-            "sensorSizeX": sensor_size_x,
-            "sensorSizeY": sensor_size_y,
-        },
-        rath=rath,
-    ).ensure_camera
+        CreateChannelMutationCreatechannel"""
+    return execute(CreateChannelMutation, {"name": name}, rath=rath).create_channel
+
+
+async def aensure_channel(
+    name: str, rath: Optional[MikroNextRath] = None
+) -> EnsureChannelMutationEnsurechannel:
+    """EnsureChannel
+
+
+
+    Arguments:
+        name (str): name
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EnsureChannelMutationEnsurechannel"""
+    return (
+        await aexecute(EnsureChannelMutation, {"name": name}, rath=rath)
+    ).ensure_channel
+
+
+def ensure_channel(
+    name: str, rath: Optional[MikroNextRath] = None
+) -> EnsureChannelMutationEnsurechannel:
+    """EnsureChannel
+
+
+
+    Arguments:
+        name (str): name
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EnsureChannelMutationEnsurechannel"""
+    return execute(EnsureChannelMutation, {"name": name}, rath=rath).ensure_channel
+
+
+async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFragment:
+    """GetCamera
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CameraFragment"""
+    return (await aexecute(GetCameraQuery, {"id": id}, rath=rath)).camera
+
+
+def get_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFragment:
+    """GetCamera
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CameraFragment"""
+    return execute(GetCameraQuery, {"id": id}, rath=rath).camera
 
 
 async def aget_table(id: ID, rath: Optional[MikroNextRath] = None) -> TableFragment:
@@ -3253,10 +3556,10 @@ def get_file(id: ID, rath: Optional[MikroNextRath] = None) -> FileFragment:
     return execute(GetFileQuery, {"id": id}, rath=rath).file
 
 
-async def aget_instrument(
+async def aget_objective(
     id: ID, rath: Optional[MikroNextRath] = None
-) -> InstrumentFragment:
-    """GetInstrument
+) -> ObjectiveFragment:
+    """GetObjective
 
 
 
@@ -3265,28 +3568,12 @@ async def aget_instrument(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        InstrumentFragment"""
-    return (await aexecute(GetInstrumentQuery, {"id": id}, rath=rath)).instrument
+        ObjectiveFragment"""
+    return (await aexecute(GetObjectiveQuery, {"id": id}, rath=rath)).objective
 
 
-def get_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> InstrumentFragment:
-    """GetInstrument
-
-
-
-    Arguments:
-        id (ID): id
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        InstrumentFragment"""
-    return execute(GetInstrumentQuery, {"id": id}, rath=rath).instrument
-
-
-async def aget_snapshot(
-    id: ID, rath: Optional[MikroNextRath] = None
-) -> SnapshotFragment:
-    """GetSnapshot
+def get_objective(id: ID, rath: Optional[MikroNextRath] = None) -> ObjectiveFragment:
+    """GetObjective
 
 
 
@@ -3295,66 +3582,8 @@ async def aget_snapshot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        SnapshotFragment"""
-    return (await aexecute(GetSnapshotQuery, {"id": id}, rath=rath)).snapshot
-
-
-def get_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> SnapshotFragment:
-    """GetSnapshot
-
-
-
-    Arguments:
-        id (ID): id
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        SnapshotFragment"""
-    return execute(GetSnapshotQuery, {"id": id}, rath=rath).snapshot
-
-
-async def asearch_snapshots(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> List[SearchSnapshotsQueryOptions]:
-    """SearchSnapshots
-
-
-
-    Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[SearchSnapshotsQuerySnapshots]"""
-    return (
-        await aexecute(
-            SearchSnapshotsQuery, {"search": search, "values": values}, rath=rath
-        )
-    ).options
-
-
-def search_snapshots(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> List[SearchSnapshotsQueryOptions]:
-    """SearchSnapshots
-
-
-
-    Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[SearchSnapshotsQuerySnapshots]"""
-    return execute(
-        SearchSnapshotsQuery, {"search": search, "values": values}, rath=rath
-    ).options
+        ObjectiveFragment"""
+    return execute(GetObjectiveQuery, {"id": id}, rath=rath).objective
 
 
 async def aget_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> DatasetFragment:
@@ -3385,30 +3614,34 @@ def get_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> DatasetFragment
     return execute(GetDatasetQuery, {"id": id}, rath=rath).dataset
 
 
-async def aimages(rath: Optional[MikroNextRath] = None) -> List[ImagesQueryImages]:
-    """Images
+async def aget_instrument(
+    id: ID, rath: Optional[MikroNextRath] = None
+) -> InstrumentFragment:
+    """GetInstrument
 
 
 
     Arguments:
+        id (ID): id
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ImagesQueryImages]"""
-    return (await aexecute(ImagesQuery, {}, rath=rath)).images
+        InstrumentFragment"""
+    return (await aexecute(GetInstrumentQuery, {"id": id}, rath=rath)).instrument
 
 
-def images(rath: Optional[MikroNextRath] = None) -> List[ImagesQueryImages]:
-    """Images
+def get_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> InstrumentFragment:
+    """GetInstrument
 
 
 
     Arguments:
+        id (ID): id
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ImagesQueryImages]"""
-    return execute(ImagesQuery, {}, rath=rath).images
+        InstrumentFragment"""
+    return execute(GetInstrumentQuery, {"id": id}, rath=rath).instrument
 
 
 async def aget_image(id: ID, rath: Optional[MikroNextRath] = None) -> ImageFragment:
@@ -3509,10 +3742,54 @@ def search_images(
     ).options
 
 
-async def aget_objective(
+async def aimages(
+    filter: Optional[ImageFilter] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[ImageFragment]:
+    """Images
+
+
+
+    Arguments:
+        filter (Optional[ImageFilter], optional): filter.
+        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[ImageFragment]"""
+    return (
+        await aexecute(
+            ImagesQuery, {"filter": filter, "pagination": pagination}, rath=rath
+        )
+    ).images
+
+
+def images(
+    filter: Optional[ImageFilter] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[ImageFragment]:
+    """Images
+
+
+
+    Arguments:
+        filter (Optional[ImageFilter], optional): filter.
+        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[ImageFragment]"""
+    return execute(
+        ImagesQuery, {"filter": filter, "pagination": pagination}, rath=rath
+    ).images
+
+
+async def aget_snapshot(
     id: ID, rath: Optional[MikroNextRath] = None
-) -> ObjectiveFragment:
-    """GetObjective
+) -> SnapshotFragment:
+    """GetSnapshot
 
 
 
@@ -3521,26 +3798,12 @@ async def aget_objective(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ObjectiveFragment"""
-    return (await aexecute(GetObjectiveQuery, {"id": id}, rath=rath)).objective
+        SnapshotFragment"""
+    return (await aexecute(GetSnapshotQuery, {"id": id}, rath=rath)).snapshot
 
 
-def get_objective(id: ID, rath: Optional[MikroNextRath] = None) -> ObjectiveFragment:
-    """GetObjective
-
-
-
-    Arguments:
-        id (ID): id
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        ObjectiveFragment"""
-    return execute(GetObjectiveQuery, {"id": id}, rath=rath).objective
-
-
-async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFragment:
-    """GetCamera
+def get_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> SnapshotFragment:
+    """GetSnapshot
 
 
 
@@ -3549,28 +3812,67 @@ async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFra
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CameraFragment"""
-    return (await aexecute(GetCameraQuery, {"id": id}, rath=rath)).camera
+        SnapshotFragment"""
+    return execute(GetSnapshotQuery, {"id": id}, rath=rath).snapshot
 
 
-def get_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFragment:
-    """GetCamera
+async def asearch_snapshots(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchSnapshotsQueryOptions]:
+    """SearchSnapshots
 
 
 
     Arguments:
-        id (ID): id
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CameraFragment"""
-    return execute(GetCameraQuery, {"id": id}, rath=rath).camera
+        List[SearchSnapshotsQuerySnapshots]"""
+    return (
+        await aexecute(
+            SearchSnapshotsQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
 
 
+def search_snapshots(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchSnapshotsQueryOptions]:
+    """SearchSnapshots
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchSnapshotsQuerySnapshots]"""
+    return execute(
+        SearchSnapshotsQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
+AffineTransformationViewFilter.update_forward_refs()
 ChannelViewFragment.update_forward_refs()
+DatasetFilter.update_forward_refs()
+EraFilter.update_forward_refs()
 FileFragment.update_forward_refs()
+ImageFilter.update_forward_refs()
+ImageFragment.update_forward_refs()
 LabelViewFragment.update_forward_refs()
+ProvenanceFilter.update_forward_refs()
+StageFilter.update_forward_refs()
 TableFragment.update_forward_refs()
+TimepointViewFilter.update_forward_refs()
 TimepointViewFragment.update_forward_refs()
 TreeInput.update_forward_refs()
 TreeNodeInput.update_forward_refs()
+ZarrStoreFilter.update_forward_refs()
