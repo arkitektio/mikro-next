@@ -4,14 +4,15 @@ from rath.links.dictinglink import DictingLink
 from rath.links.auth import AuthTokenLink
 
 
-try:
+
+def init_services(service_builder_registry):
     from rath.contrib.fakts.links.aiohttp import FaktsAIOHttpLink
     from rath.links.split import SplitLink
     from rath.contrib.fakts.links.graphql_ws import FaktsGraphQLWSLink
     from rath.contrib.herre.links.auth import HerreAuthLink
     from fakts import Fakts
     from herre import Herre
-    from arkitekt_next.service_registry import get_default_service_builder_registry, Params
+    from arkitekt_next.service_registry import Params
     from arkitekt_next.model import Requirement
 
 
@@ -80,7 +81,6 @@ try:
     def fake_builder(fakts,herre, params):
         return  FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
         
-    service_builder_registry = get_default_service_builder_registry()
     service_builder_registry.register("mikro", builder_mikro,Requirement(
             service="live.arkitekt.mikro",
             description="An instance of ArkitektNext Mikro to make requests to the user's data",
@@ -154,7 +154,3 @@ try:
 
 
 
-
-except ImportError as e:
-
-    imported = False
