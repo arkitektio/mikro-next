@@ -1,15 +1,12 @@
 from typing import TYPE_CHECKING
 from mikro_next.scalars import ArrayLike, ParquetLike, FileLike
-
-
 import asyncio
 import s3fs
 from aiobotocore.session import get_session
 import botocore
 from concurrent.futures import ThreadPoolExecutor
 from .errors import PermissionsError, UploadError
-import pyarrow.parquet as pq
-from pyarrow import Table
+
 
 if TYPE_CHECKING:
     from mikro_next.api.schema import CredentialsFragment
@@ -53,7 +50,8 @@ def _store_parquet_input(
     endpoint_url: str,
 ) -> str:
     """Stores an xarray in the DataLayer"""
-
+    import pyarrow.parquet as pq
+    from pyarrow import Table
     filesystem = s3fs.S3FileSystem(
         secret=credentials.secret_key,
         key=credentials.access_key,
@@ -111,7 +109,7 @@ async def aupload_xarray(
     array: ArrayLike,
     credentials: "CredentialsFragment",
     datalayer: "DataLayer",
-    executor: ThreadPoolExecutor = None,
+    executor: ThreadPoolExecutor,
 ) -> str:
     """Store a DataFrame in the DataLayer"""
     co_future = executor.submit(
@@ -124,7 +122,7 @@ async def aupload_parquet(
     parquet: ParquetLike,
     credentials: "CredentialsFragment",
     datalayer: "DataLayer",
-    executor: ThreadPoolExecutor = None,
+    executor: ThreadPoolExecutor,
 ) -> str:
     """Store a DataFrame in the DataLayer"""
     co_future = executor.submit(

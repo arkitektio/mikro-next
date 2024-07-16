@@ -21,12 +21,11 @@ from .scalars import FiveDVector
 from .utils import rechunk
 from rath.scalars import ID
 from typing import Any
-import pyarrow.parquet as pq
 from rath.turms.utils import get_attributes_or_error
 
 
 if TYPE_CHECKING:
-    pass
+    from pyarrow.parquet import ParquetDataset
 
 
 class Image(BaseModel):
@@ -297,7 +296,9 @@ class ParquetStore(BaseModel):
     _dataset: Any = None
 
     @property
-    def parquet_dataset(self) -> pq.ParquetDataset:
+    def parquet_dataset(self) -> "ParquetDataset":
+
+        import pyarrow.parquet as pq
         from mikro_next.io.download import open_parquet_filesystem
 
         if self._dataset is None:
@@ -312,7 +313,7 @@ class ParquetStore(BaseModel):
 class BigFileStore(BaseModel):
     _dataset: Any = None
 
-    def download(self, file_name: str = None) -> pq.ParquetDataset:
+    def download(self, file_name: str = None) -> "ParquetDataset":
         from mikro_next.io.download import download_bigfile
 
         id = get_attributes_or_error(self, "id")
@@ -325,7 +326,7 @@ class BigFileStore(BaseModel):
 class MediaStore(BaseModel):
     _dataset: Any = None
 
-    def download(self, file_name: str = None) -> pq.ParquetDataset:
+    def download(self, file_name: str = None) -> str:
         from mikro_next.io.download import download_file
 
         url, key = get_attributes_or_error(self, "presigned_url", "key")

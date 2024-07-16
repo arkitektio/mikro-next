@@ -29,6 +29,8 @@ def init_services(service_builder_registry):
     from herre import Herre
     from fakts import Fakts
 
+    from arkitekt_next.model import Manifest
+
     try:
         from rekuest_next.links.context import ContextLink
         from rath.links.compose import TypedComposedLink
@@ -58,7 +60,7 @@ def init_services(service_builder_registry):
         datalayer: DataLayer
 
 
-    def builder_mikro(fakts: Fakts, herre: Herre,  params: Params):
+    def builder_mikro(fakts: Fakts, herre: Herre,  params: Params, manifest: Manifest):
         datalayer = FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
 
         return ArkitektNextMikroNext(
@@ -78,7 +80,7 @@ def init_services(service_builder_registry):
             datalayer=datalayer
         )
     
-    def fake_builder(fakts,herre, params):
+    def fake_builder(fakts,herre, params, manifest):
         return  FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
         
     service_builder_registry.register("mikro", builder_mikro,Requirement(

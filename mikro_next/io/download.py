@@ -6,11 +6,15 @@ from mikro_next.api.schema import (
 )
 from mikro_next.datalayer import current_next_datalayer
 import s3fs
-import pyarrow.parquet as pq
 from koil import unkoil
 import zarr
 import aiohttp
 from typing import Tuple, Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+
+    import pyarrow.parquet as pq
 
 
 async def aget_zarr_credentials_and_endpoint(
@@ -66,6 +70,10 @@ def open_zarr_store(store_id: str, cache: int = 2**30):
 
 
 async def aopen_parquet_filesytem(store_id: str):
+    try:
+        import pyarrow.parquet as pq
+    except ImportError as e:
+        raise ImportError("You need to install pyarrow to use this function") from e
     credentials, endpoint_url = await aget_table_credentials_and_endpoint(store_id)
 
     _s3fs = s3fs.S3FileSystem(
