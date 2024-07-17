@@ -2,7 +2,7 @@ from mikro_next.api.schema import (
     arequest_access,
     arequest_table_access,
     arequest_file_access,
-    AccessCredentialsFragment,
+    AccessCredentials,
 )
 from mikro_next.datalayer import current_next_datalayer
 import s3fs
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 async def aget_zarr_credentials_and_endpoint(
     store: str,
-) -> Tuple[AccessCredentialsFragment, str]:
+) -> Tuple[AccessCredentials, str]:
     credentials = await arequest_access(store)
     endpoint_url = await current_next_datalayer.get().get_endpoint_url()
     return credentials, endpoint_url

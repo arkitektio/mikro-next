@@ -33,6 +33,7 @@ def _store_xarray_input(
     # s3_path = f"zarr/{random_uuid}.zarr"
     dataset = xarray.value.to_dataset(name="data")
     dataset.attrs["fileversion"] = "v1"
+    dataset.attrs["data_array"] = "data"
 
     s3_path = f"{credentials.bucket}/{credentials.key}"
 

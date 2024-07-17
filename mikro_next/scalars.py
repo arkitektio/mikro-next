@@ -5,7 +5,7 @@ Custom scalars for mikro_next
 """
 
 import os
-from typing import Any, IO
+from typing import Any, IO, List, Optional
 import xarray as xr
 import pandas as pd
 import numpy as np
@@ -25,6 +25,20 @@ class AssignationID(str):
     def validate(cls, v):
         """Validate the input array and convert it to a xr.DataArray."""
         return cls(v)
+    
+
+class RGBAColor(list):
+    """A custom scalar to represent an affine matrix."""
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        """Validate the input array and convert it to a xr.DataArray."""
+        return cls(v)
+
 
 
 class XArrayConversionException(Exception):
@@ -167,11 +181,14 @@ class FiveDVector(list):
 
     @classmethod
     def __get_validators__(cls):
+        print("VALIDATORS")
         yield cls.validate
 
     @classmethod
     def validate(cls, v):
         """Validate the input array and convert it to a xr.DataArray."""
+
+        print(v)
         if isinstance(v, np.ndarray):
             if not v.ndim == 1:
                 raise ValueError("The input array must be a 1D array")
@@ -183,9 +200,13 @@ class FiveDVector(list):
         if not isinstance(v, list):
             v = list(v)
 
+
+        print(v)
+
         for i in v:
             if not isinstance(i, (int, float)):
-                raise ValueError("The input must be a list of integers or floats.")
+                
+                raise ValueError(f"The input must be a list of integers or floats. You provided a list of {type(i)}")
 
         if len(v) < 2 or len(v) > 5:
             raise ValueError(
@@ -196,7 +217,35 @@ class FiveDVector(list):
         if len(v) < 5:
             v = [0] * (5 - len(v)) + v
 
-        return cls(v)
+        return v
+    
+    @classmethod
+    def list_from_numpyarray(
+        cls: "FiveDVector",
+        x: np.ndarray,
+        t: Optional[int] = None,
+        c: Optional[int] = None,
+        z: Optional[int] = None,
+    ) -> List["FiveDVector"]:
+        """Creates a list of FiveDVectors from a numpy array
+
+        Args:
+            vector_list (List[List[float]]): A list of lists of floats
+
+        Returns:
+            List[Vectorizable]: A list of InputVector
+        """
+        assert x.ndim == 2, "Needs to be a List array of vectors"
+        if x.shape[1] == 4:
+            return [FiveDVector([c]+ i) for i in x.tolist()]
+        elif x.shape[1] == 3:
+            return [FiveDVector([c, t] + i) for i in x.tolist()]
+        elif x.shape[1] == 2:
+            return [FiveDVector([c,t, z] + i) for i in x.tolist()]
+        else:
+            raise NotImplementedError(
+                f"Incompatible shape {x.shape} of {x}. List dimension needs to either be of size 2 or 3"
+            )
 
     def as_vector(self):
         return np.array(self).reshape(-1)

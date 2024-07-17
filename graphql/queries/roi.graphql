@@ -1,0 +1,11 @@
+query GetRois($image: ID!) {
+  rois(filters: { image: $image }) {
+    ...ROI
+  }
+}
+
+query GetRoi($id: ID!) {
+  roi(id: $id) {
+    ...ROI
+  }
+}

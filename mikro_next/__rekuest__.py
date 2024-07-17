@@ -9,20 +9,28 @@ def register_structures(structure_reg):
     )
     from rekuest_next.widgets import SearchWidget
     from mikro_next.api.schema import (
-        ImageFragment,
+        Image,
         aget_image,
         SearchImagesQuery,
-        DatasetFragment,
+        Dataset,
+        Stage,
+        aget_stage,
+        File,
+        aget_file,
+        SearchStagesQuery,
+        SearchFilesQuery,
+        aget_rgb_context,
+        RGBContext,
         aget_dataset,
     )
     from mikro_next.api.schema import (
-        SnapshotFragment,
+        Snapshot,
         aget_snapshot,
         SearchSnapshotsQuery,
     )
 
     structure_reg.register_as_structure(
-        ImageFragment,
+        Image,
         identifier="@mikro/image",
         aexpand=aget_image,
         ashrink=id_shrink,
@@ -32,7 +40,7 @@ def register_structures(structure_reg):
         ),
     )
     structure_reg.register_as_structure(
-        SnapshotFragment,
+        Snapshot,
         identifier="@mikro/snapshot",
         aexpand=aget_snapshot,
         ashrink=id_shrink,
@@ -42,7 +50,17 @@ def register_structures(structure_reg):
         ),
     )
     structure_reg.register_as_structure(
-        DatasetFragment,
+        Stage,
+        identifier="@mikro/stage",
+        aexpand=aget_stage,
+        ashrink=id_shrink,
+        scope=PortScope.GLOBAL,
+        default_widget=SearchWidget(
+            query=SearchStagesQuery.Meta.document, ward="mikro"
+        ),
+    )
+    structure_reg.register_as_structure(
+        Dataset,
         identifier="@mikro/dataset",
         aexpand=aget_dataset,
         ashrink=id_shrink,
@@ -50,4 +68,21 @@ def register_structures(structure_reg):
         default_widget=SearchWidget(
             query=SearchImagesQuery.Meta.document, ward="mikro"
         ),
+    )
+    structure_reg.register_as_structure(
+        File,
+        identifier="@mikro/file",
+        aexpand=aget_file,
+        ashrink=id_shrink,
+        scope=PortScope.GLOBAL,
+        default_widget=SearchWidget(
+            query=SearchFilesQuery.Meta.document, ward="mikro"
+        ),
+    )
+    structure_reg.register_as_structure(
+        RGBContext,
+        identifier="@mikro/rbgcontext",
+        aexpand=aget_rgb_context,
+        ashrink=id_shrink,
+        scope=PortScope.GLOBAL,
     )

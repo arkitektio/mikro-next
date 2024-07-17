@@ -1,6 +1,5 @@
 mutation CreateStage($name: String!) {
-  createStage(input: {name: $name}) {
-    id
-    name
+  createStage(input: { name: $name }) {
+    ...Stage
   }
 }

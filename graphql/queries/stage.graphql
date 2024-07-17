@@ -1,15 +1,15 @@
-query GetFile($id: ID!) {
-  file(id: $id) {
-    ...File
+query GetStage($id: ID!) {
+  stage(id: $id) {
+    ...Stage
   }
 }
 
-query SearchFiles(
+query SearchStages(
   $search: String
   $values: [ID!]
   $pagination: OffsetPaginationInput
 ) {
-  options: files(
+  options: stages(
     filters: { search: $search, ids: $values }
     pagination: $pagination
   ) {

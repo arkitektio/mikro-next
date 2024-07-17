@@ -1,32 +1,29 @@
+from typing import List, AsyncIterator, Tuple, Union, Optional, Iterator, Literal
 from mikro_next.scalars import (
-    Micrometers,
-    Upload,
-    FiveDVector,
-    FileLike,
-    Milliseconds,
     FourByFourMatrix,
-    ParquetLike,
+    Milliseconds,
+    FileLike,
     ArrayLike,
+    Upload,
+    ParquetLike,
+    FiveDVector,
+    Micrometers,
 )
-from pydantic import BaseModel, Field
+from mikro_next.funcs import aexecute, execute, subscribe, asubscribe
 from datetime import datetime
-from mikro_next.traits import (
-    ParquetStore,
-    MediaStore,
-    Table,
-    Objective,
-    ZarrStore,
-    BigFileStore,
-    Stage,
-    Image,
-    File,
-    ROI,
-)
-from mikro_next.funcs import execute, aexecute
-from typing import List, Tuple, Optional, Union, Literal
 from enum import Enum
-from rath.scalars import ID
+from mikro_next.traits import (
+    HasZarrStoreTrait,
+    IsVectorizableTrait,
+    HasDownloadAccessor,
+    HasPresignedDownloadAccessor,
+    HasParquetStoreAccesor,
+    HasParquestStoreTrait,
+    HasZarrStoreAccessor,
+)
+from pydantic import Field, BaseModel
 from mikro_next.rath import MikroNextRath
+from rath.scalars import ID
 
 
 class RoiKind(str, Enum):
@@ -42,10 +39,25 @@ class RoiKind(str, Enum):
     HYPERCUBE = "HYPERCUBE"
     SPECTRAL_HYPERCUBE = "SPECTRAL_HYPERCUBE"
     PATH = "PATH"
-    UNKNOWN = "UNKNOWN"
     FRAME = "FRAME"
     SLICE = "SLICE"
     POINT = "POINT"
+
+
+class ColorMap(str, Enum):
+    VIRIDIS = "VIRIDIS"
+    PLASMA = "PLASMA"
+    INFERNO = "INFERNO"
+    MAGMA = "MAGMA"
+    RED = "RED"
+    GREEN = "GREEN"
+    BLUE = "BLUE"
+    INTENSITY = "INTENSITY"
+
+
+class Blending(str, Enum):
+    ADDITIVE = "ADDITIVE"
+    MULTIPLICATIVE = "MULTIPLICATIVE"
 
 
 class RenderNodeKind(str, Enum):
@@ -449,9 +461,14 @@ class PartialRGBViewInput(BaseModel):
     c_min: Optional[int] = Field(alias="cMin")
     c_max: Optional[int] = Field(alias="cMax")
     context: Optional[ID]
-    r_scale: float = Field(alias="rScale")
-    g_scale: float = Field(alias="gScale")
-    b_scale: float = Field(alias="bScale")
+    gamma: Optional[float]
+    contrast_limit_min: Optional[float] = Field(alias="contrastLimitMin")
+    contrast_limit_max: Optional[float] = Field(alias="contrastLimitMax")
+    rescale: Optional[bool]
+    scale: Optional[float]
+    active: Optional[bool]
+    color_map: Optional[ColorMap] = Field(alias="colorMap")
+    base_color: Optional[Tuple[float, ...]] = Field(alias="baseColor")
 
     class Config:
         """A config class"""
@@ -541,15 +558,51 @@ class TreeNodeInput(BaseModel):
         use_enum_values = True
 
 
-class ViewFragmentBase(BaseModel):
+class CreateRGBContextInput(BaseModel):
+    name: Optional[str]
+    thumbnail: Optional[ID]
+    image: ID
+    views: Optional[Tuple[PartialRGBViewInput, ...]]
+    z: Optional[int]
+    t: Optional[int]
+    c: Optional[int]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class UpdateRGBContextInput(BaseModel):
+    id: ID
+    name: Optional[str]
+    thumbnail: Optional[ID]
+    views: Optional[Tuple[PartialRGBViewInput, ...]]
+    z: Optional[int]
+    t: Optional[int]
+    c: Optional[int]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class ViewBase(BaseModel):
     z_min: Optional[int] = Field(alias="zMin")
     z_max: Optional[int] = Field(alias="zMax")
 
 
-class ChannelViewFragment(ViewFragmentBase, BaseModel):
+class ChannelView(ViewBase, BaseModel):
     typename: Optional[Literal["ChannelView"]] = Field(alias="__typename", exclude=True)
     id: ID
-    channel: "ChannelFragment"
+    channel: "Channel"
 
     class Config:
         """A config class"""
@@ -557,7 +610,7 @@ class ChannelViewFragment(ViewFragmentBase, BaseModel):
         frozen = True
 
 
-class AffineTransformationViewFragmentStage(Stage, BaseModel):
+class AffineTransformationViewStage(BaseModel):
     typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
     id: ID
 
@@ -567,13 +620,13 @@ class AffineTransformationViewFragmentStage(Stage, BaseModel):
         frozen = True
 
 
-class AffineTransformationViewFragment(ViewFragmentBase, BaseModel):
+class AffineTransformationView(ViewBase, BaseModel):
     typename: Optional[Literal["AffineTransformationView"]] = Field(
         alias="__typename", exclude=True
     )
     id: ID
     affine_matrix: FourByFourMatrix = Field(alias="affineMatrix")
-    stage: AffineTransformationViewFragmentStage
+    stage: AffineTransformationViewStage
 
     class Config:
         """A config class"""
@@ -581,14 +634,14 @@ class AffineTransformationViewFragment(ViewFragmentBase, BaseModel):
         frozen = True
 
 
-class TimepointViewFragment(ViewFragmentBase, BaseModel):
+class TimepointView(ViewBase, BaseModel):
     typename: Optional[Literal["TimepointView"]] = Field(
         alias="__typename", exclude=True
     )
     id: ID
     ms_since_start: Optional[Milliseconds] = Field(alias="msSinceStart")
     index_since_start: Optional[int] = Field(alias="indexSinceStart")
-    era: "EraFragment"
+    era: "Era"
 
     class Config:
         """A config class"""
@@ -596,7 +649,7 @@ class TimepointViewFragment(ViewFragmentBase, BaseModel):
         frozen = True
 
 
-class OpticsViewFragmentObjective(Objective, BaseModel):
+class OpticsViewObjective(BaseModel):
     typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -608,7 +661,7 @@ class OpticsViewFragmentObjective(Objective, BaseModel):
         frozen = True
 
 
-class OpticsViewFragmentCamera(BaseModel):
+class OpticsViewCamera(BaseModel):
     typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -620,7 +673,7 @@ class OpticsViewFragmentCamera(BaseModel):
         frozen = True
 
 
-class OpticsViewFragmentInstrument(BaseModel):
+class OpticsViewInstrument(BaseModel):
     typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -632,11 +685,11 @@ class OpticsViewFragmentInstrument(BaseModel):
         frozen = True
 
 
-class OpticsViewFragment(ViewFragmentBase, BaseModel):
+class OpticsView(ViewBase, BaseModel):
     typename: Optional[Literal["OpticsView"]] = Field(alias="__typename", exclude=True)
-    objective: Optional[OpticsViewFragmentObjective]
-    camera: Optional[OpticsViewFragmentCamera]
-    instrument: Optional[OpticsViewFragmentInstrument]
+    objective: Optional[OpticsViewObjective]
+    camera: Optional[OpticsViewCamera]
+    instrument: Optional[OpticsViewInstrument]
 
     class Config:
         """A config class"""
@@ -644,12 +697,12 @@ class OpticsViewFragment(ViewFragmentBase, BaseModel):
         frozen = True
 
 
-class LabelViewFragment(ViewFragmentBase, BaseModel):
+class LabelView(ViewBase, BaseModel):
     typename: Optional[Literal["LabelView"]] = Field(alias="__typename", exclude=True)
     id: ID
-    fluorophore: Optional["FluorophoreFragment"]
-    primary_antibody: Optional["AntibodyFragment"] = Field(alias="primaryAntibody")
-    secondary_antibody: Optional["AntibodyFragment"] = Field(alias="secondaryAntibody")
+    fluorophore: Optional["Fluorophore"]
+    primary_antibody: Optional["Antibody"] = Field(alias="primaryAntibody")
+    secondary_antibody: Optional["Antibody"] = Field(alias="secondaryAntibody")
 
     class Config:
         """A config class"""
@@ -657,7 +710,27 @@ class LabelViewFragment(ViewFragmentBase, BaseModel):
         frozen = True
 
 
-class CameraFragment(BaseModel):
+class RGBView(ViewBase, BaseModel):
+    typename: Optional[Literal["RGBView"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    color_map: ColorMap = Field(alias="colorMap")
+    contrast_limit_min: Optional[float] = Field(alias="contrastLimitMin")
+    contrast_limit_max: Optional[float] = Field(alias="contrastLimitMax")
+    gamma: Optional[float]
+    rescale: bool
+    active: bool
+    c_min: Optional[int] = Field(alias="cMin")
+    c_max: Optional[int] = Field(alias="cMax")
+    full_colour: str = Field(alias="fullColour")
+    base_color: Optional[Tuple[int, ...]] = Field(alias="baseColor")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class Camera(BaseModel):
     typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
     sensor_size_x: Optional[int] = Field(alias="sensorSizeX")
     sensor_size_y: Optional[int] = Field(alias="sensorSizeY")
@@ -672,7 +745,7 @@ class CameraFragment(BaseModel):
         frozen = True
 
 
-class TableFragmentOrigins(Image, BaseModel):
+class TableOrigins(HasZarrStoreTrait, BaseModel):
     typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
     id: ID
 
@@ -682,12 +755,12 @@ class TableFragmentOrigins(Image, BaseModel):
         frozen = True
 
 
-class TableFragment(Table, BaseModel):
+class Table(HasParquestStoreTrait, BaseModel):
     typename: Optional[Literal["Table"]] = Field(alias="__typename", exclude=True)
-    origins: Tuple[TableFragmentOrigins, ...]
+    origins: Tuple[TableOrigins, ...]
     id: ID
     name: str
-    store: "ParquetStoreFragment"
+    store: "ParquetStore"
 
     class Config:
         """A config class"""
@@ -695,7 +768,7 @@ class TableFragment(Table, BaseModel):
         frozen = True
 
 
-class CredentialsFragment(BaseModel):
+class Credentials(BaseModel):
     typename: Optional[Literal["Credentials"]] = Field(alias="__typename", exclude=True)
     access_key: str = Field(alias="accessKey")
     status: str
@@ -711,7 +784,7 @@ class CredentialsFragment(BaseModel):
         frozen = True
 
 
-class AccessCredentialsFragment(BaseModel):
+class AccessCredentials(BaseModel):
     typename: Optional[Literal["AccessCredentials"]] = Field(
         alias="__typename", exclude=True
     )
@@ -728,7 +801,7 @@ class AccessCredentialsFragment(BaseModel):
         frozen = True
 
 
-class FileFragmentOrigins(Image, BaseModel):
+class FileOrigins(HasZarrStoreTrait, BaseModel):
     typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
     id: ID
 
@@ -738,12 +811,12 @@ class FileFragmentOrigins(Image, BaseModel):
         frozen = True
 
 
-class FileFragment(File, BaseModel):
+class File(BaseModel):
     typename: Optional[Literal["File"]] = Field(alias="__typename", exclude=True)
-    origins: Tuple[FileFragmentOrigins, ...]
+    origins: Tuple[FileOrigins, ...]
     id: ID
     name: str
-    store: "BigFileStoreFragment"
+    store: "BigFileStore"
 
     class Config:
         """A config class"""
@@ -751,7 +824,18 @@ class FileFragment(File, BaseModel):
         frozen = True
 
 
-class BaseRoiFragmentBaseImage(Image, BaseModel):
+class Stage(BaseModel):
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ROIImage(HasZarrStoreTrait, BaseModel):
     typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
     id: ID
 
@@ -761,24 +845,20 @@ class BaseRoiFragmentBaseImage(Image, BaseModel):
         frozen = True
 
 
-class BaseRoiFragmentBase(BaseModel, ROI):
+class ROI(IsVectorizableTrait, BaseModel):
+    typename: Optional[Literal["ROI"]] = Field(alias="__typename", exclude=True)
     id: ID
-    image: BaseRoiFragmentBaseImage
-    vectors: FiveDVector
+    image: ROIImage
+    vectors: Tuple[FiveDVector, ...]
+    kind: RoiKind
+
+    class Config:
+        """A config class"""
+
+        frozen = True
 
 
-class ROIFragmentBase(BaseModel, ROI):
-    id: ID
-
-
-class ROIFragmentBaseBaseRoi(BaseRoiFragmentBase, ROIFragmentBase):
-    pass
-
-
-ROIFragment = Union[ROIFragmentBaseBaseRoi, ROIFragmentBase]
-
-
-class ObjectiveFragment(Objective, BaseModel):
+class Objective(BaseModel):
     typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
     id: ID
     na: Optional[float]
@@ -791,7 +871,37 @@ class ObjectiveFragment(Objective, BaseModel):
         frozen = True
 
 
-class HistoryStuffFragmentApp(BaseModel):
+class RGBContextImage(HasZarrStoreTrait, BaseModel):
+    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    store: "ZarrStore"
+    "The store where the image data is stored."
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class RGBContext(BaseModel):
+    typename: Optional[Literal["RGBContext"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    views: Tuple[RGBView, ...]
+    image: RGBContextImage
+    pinned: bool
+    name: str
+    z: int
+    t: int
+    c: int
+    blending: Blending
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class HistoryStuffApp(BaseModel):
     """An app."""
 
     typename: Optional[Literal["App"]] = Field(alias="__typename", exclude=True)
@@ -803,10 +913,10 @@ class HistoryStuffFragmentApp(BaseModel):
         frozen = True
 
 
-class HistoryStuffFragment(BaseModel):
+class HistoryStuff(BaseModel):
     typename: Optional[Literal["History"]] = Field(alias="__typename", exclude=True)
     id: ID
-    app: Optional[HistoryStuffFragmentApp]
+    app: Optional[HistoryStuffApp]
 
     class Config:
         """A config class"""
@@ -814,11 +924,11 @@ class HistoryStuffFragment(BaseModel):
         frozen = True
 
 
-class DatasetFragment(BaseModel):
+class Dataset(BaseModel):
     typename: Optional[Literal["Dataset"]] = Field(alias="__typename", exclude=True)
     name: str
     description: Optional[str]
-    history: Tuple[HistoryStuffFragment, ...]
+    history: Tuple[HistoryStuff, ...]
 
     class Config:
         """A config class"""
@@ -826,7 +936,7 @@ class DatasetFragment(BaseModel):
         frozen = True
 
 
-class InstrumentFragment(BaseModel):
+class Instrument(BaseModel):
     typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
     id: ID
     model: Optional[str]
@@ -839,7 +949,7 @@ class InstrumentFragment(BaseModel):
         frozen = True
 
 
-class AntibodyFragment(BaseModel):
+class Antibody(BaseModel):
     typename: Optional[Literal["Antibody"]] = Field(alias="__typename", exclude=True)
     name: str
     epitope: Optional[str]
@@ -850,7 +960,7 @@ class AntibodyFragment(BaseModel):
         frozen = True
 
 
-class FluorophoreFragment(BaseModel):
+class Fluorophore(BaseModel):
     typename: Optional[Literal["Fluorophore"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -863,7 +973,7 @@ class FluorophoreFragment(BaseModel):
         frozen = True
 
 
-class ImageFragmentOrigins(Image, BaseModel):
+class ImageOrigins(HasZarrStoreTrait, BaseModel):
     typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
     id: ID
 
@@ -873,7 +983,7 @@ class ImageFragmentOrigins(Image, BaseModel):
         frozen = True
 
 
-class ImageFragmentViewsBase(BaseModel):
+class ImageViewsBase(BaseModel):
     pass
 
     class Config:
@@ -882,7 +992,7 @@ class ImageFragmentViewsBase(BaseModel):
         frozen = True
 
 
-class ImageFragmentViewsChannelView(ImageFragmentViewsBase, ChannelViewFragment):
+class ImageViewsChannelView(ImageViewsBase, ChannelView):
     pass
 
     class Config:
@@ -891,9 +1001,7 @@ class ImageFragmentViewsChannelView(ImageFragmentViewsBase, ChannelViewFragment)
         frozen = True
 
 
-class ImageFragmentViewsAffineTransformationView(
-    ImageFragmentViewsBase, AffineTransformationViewFragment
-):
+class ImageViewsAffineTransformationView(ImageViewsBase, AffineTransformationView):
     pass
 
     class Config:
@@ -902,7 +1010,7 @@ class ImageFragmentViewsAffineTransformationView(
         frozen = True
 
 
-class ImageFragmentViewsLabelView(ImageFragmentViewsBase, LabelViewFragment):
+class ImageViewsLabelView(ImageViewsBase, LabelView):
     pass
 
     class Config:
@@ -911,7 +1019,7 @@ class ImageFragmentViewsLabelView(ImageFragmentViewsBase, LabelViewFragment):
         frozen = True
 
 
-class ImageFragmentViewsTimepointView(ImageFragmentViewsBase, TimepointViewFragment):
+class ImageViewsTimepointView(ImageViewsBase, TimepointView):
     pass
 
     class Config:
@@ -920,7 +1028,7 @@ class ImageFragmentViewsTimepointView(ImageFragmentViewsBase, TimepointViewFragm
         frozen = True
 
 
-class ImageFragmentViewsOpticsView(ImageFragmentViewsBase, OpticsViewFragment):
+class ImageViewsOpticsView(ImageViewsBase, OpticsView):
     pass
 
     class Config:
@@ -929,10 +1037,11 @@ class ImageFragmentViewsOpticsView(ImageFragmentViewsBase, OpticsViewFragment):
         frozen = True
 
 
-class ImageFragmentRgbcontexts(BaseModel):
+class ImageRgbcontexts(BaseModel):
     typename: Optional[Literal["RGBContext"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
+    views: Tuple[RGBView, ...]
 
     class Config:
         """A config class"""
@@ -940,24 +1049,24 @@ class ImageFragmentRgbcontexts(BaseModel):
         frozen = True
 
 
-class ImageFragment(Image, BaseModel):
+class Image(HasZarrStoreTrait, BaseModel):
     typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
-    origins: Tuple[ImageFragmentOrigins, ...]
+    origins: Tuple[ImageOrigins, ...]
     id: ID
     name: str
-    store: "ZarrStoreFragment"
+    store: "ZarrStore"
     "The store where the image data is stored."
     views: Tuple[
         Union[
-            ImageFragmentViewsChannelView,
-            ImageFragmentViewsAffineTransformationView,
-            ImageFragmentViewsLabelView,
-            ImageFragmentViewsTimepointView,
-            ImageFragmentViewsOpticsView,
+            ImageViewsChannelView,
+            ImageViewsAffineTransformationView,
+            ImageViewsLabelView,
+            ImageViewsTimepointView,
+            ImageViewsOpticsView,
         ],
         ...,
     ]
-    rgb_contexts: Tuple[ImageFragmentRgbcontexts, ...] = Field(alias="rgbContexts")
+    rgb_contexts: Tuple[ImageRgbcontexts, ...] = Field(alias="rgbContexts")
 
     class Config:
         """A config class"""
@@ -965,7 +1074,7 @@ class ImageFragment(Image, BaseModel):
         frozen = True
 
 
-class EraFragment(BaseModel):
+class Era(BaseModel):
     typename: Optional[Literal["Era"]] = Field(alias="__typename", exclude=True)
     id: ID
     begin: Optional[datetime]
@@ -977,7 +1086,7 @@ class EraFragment(BaseModel):
         frozen = True
 
 
-class SnapshotFragmentStore(MediaStore, BaseModel):
+class SnapshotStore(HasPresignedDownloadAccessor, BaseModel):
     typename: Optional[Literal["MediaStore"]] = Field(alias="__typename", exclude=True)
     key: str
     presigned_url: str = Field(alias="presignedUrl")
@@ -988,10 +1097,10 @@ class SnapshotFragmentStore(MediaStore, BaseModel):
         frozen = True
 
 
-class SnapshotFragment(BaseModel):
+class Snapshot(BaseModel):
     typename: Optional[Literal["Snapshot"]] = Field(alias="__typename", exclude=True)
     id: ID
-    store: SnapshotFragmentStore
+    store: SnapshotStore
     name: str
 
     class Config:
@@ -1000,7 +1109,7 @@ class SnapshotFragment(BaseModel):
         frozen = True
 
 
-class ZarrStoreFragment(ZarrStore, BaseModel):
+class ZarrStore(HasZarrStoreAccessor, BaseModel):
     typename: Optional[Literal["ZarrStore"]] = Field(alias="__typename", exclude=True)
     id: ID
     key: str
@@ -1016,7 +1125,7 @@ class ZarrStoreFragment(ZarrStore, BaseModel):
         frozen = True
 
 
-class ParquetStoreFragment(ParquetStore, BaseModel):
+class ParquetStore(HasParquetStoreAccesor, BaseModel):
     typename: Optional[Literal["ParquetStore"]] = Field(
         alias="__typename", exclude=True
     )
@@ -1031,7 +1140,7 @@ class ParquetStoreFragment(ParquetStore, BaseModel):
         frozen = True
 
 
-class BigFileStoreFragment(BigFileStore, BaseModel):
+class BigFileStore(HasDownloadAccessor, BaseModel):
     typename: Optional[Literal["BigFileStore"]] = Field(
         alias="__typename", exclude=True
     )
@@ -1039,6 +1148,7 @@ class BigFileStoreFragment(BigFileStore, BaseModel):
     key: str
     bucket: str
     path: str
+    presigned_url: str = Field(alias="presignedUrl")
 
     class Config:
         """A config class"""
@@ -1046,7 +1156,7 @@ class BigFileStoreFragment(BigFileStore, BaseModel):
         frozen = True
 
 
-class ChannelFragment(BaseModel):
+class Channel(BaseModel):
     typename: Optional[Literal["Channel"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -1134,7 +1244,7 @@ class CreateRenderTreeMutation(BaseModel):
 
 
 class From_parquet_likeMutation(BaseModel):
-    from_parquet_like: TableFragment = Field(alias="fromParquetLike")
+    from_parquet_like: Table = Field(alias="fromParquetLike")
 
     class Arguments(BaseModel):
         dataframe: ParquetLike
@@ -1147,7 +1257,7 @@ class From_parquet_likeMutation(BaseModel):
 
 
 class RequestTableUploadMutation(BaseModel):
-    request_table_upload: CredentialsFragment = Field(alias="requestTableUpload")
+    request_table_upload: Credentials = Field(alias="requestTableUpload")
 
     class Arguments(BaseModel):
         key: str
@@ -1158,7 +1268,7 @@ class RequestTableUploadMutation(BaseModel):
 
 
 class RequestTableAccessMutation(BaseModel):
-    request_table_access: AccessCredentialsFragment = Field(alias="requestTableAccess")
+    request_table_access: AccessCredentials = Field(alias="requestTableAccess")
 
     class Arguments(BaseModel):
         store: ID
@@ -1169,7 +1279,7 @@ class RequestTableAccessMutation(BaseModel):
 
 
 class From_file_likeMutation(BaseModel):
-    from_file_like: FileFragment = Field(alias="fromFileLike")
+    from_file_like: File = Field(alias="fromFileLike")
 
     class Arguments(BaseModel):
         file: FileLike
@@ -1178,11 +1288,11 @@ class From_file_likeMutation(BaseModel):
         dataset: Optional[ID] = Field(default=None)
 
     class Meta:
-        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment File on File {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n  }\n}\n\nmutation from_file_like($file: FileLike!, $name: String!, $origins: [ID!], $dataset: ID) {\n  fromFileLike(\n    input: {file: $file, name: $name, origins: $origins, dataset: $dataset}\n  ) {\n    ...File\n  }\n}"
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n}\n\nfragment File on File {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n  }\n}\n\nmutation from_file_like($file: FileLike!, $name: String!, $origins: [ID!], $dataset: ID) {\n  fromFileLike(\n    input: {file: $file, name: $name, origins: $origins, dataset: $dataset}\n  ) {\n    ...File\n  }\n}"
 
 
 class RequestFileUploadMutation(BaseModel):
-    request_file_upload: CredentialsFragment = Field(alias="requestFileUpload")
+    request_file_upload: Credentials = Field(alias="requestFileUpload")
 
     class Arguments(BaseModel):
         key: str
@@ -1193,7 +1303,7 @@ class RequestFileUploadMutation(BaseModel):
 
 
 class RequestFileAccessMutation(BaseModel):
-    request_file_access: AccessCredentialsFragment = Field(alias="requestFileAccess")
+    request_file_access: AccessCredentials = Field(alias="requestFileAccess")
 
     class Arguments(BaseModel):
         store: ID
@@ -1203,29 +1313,18 @@ class RequestFileAccessMutation(BaseModel):
         document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestFileAccess($store: ID!, $duration: Int) {\n  requestFileAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
 
 
-class CreateStageMutationCreatestage(Stage, BaseModel):
-    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
 class CreateStageMutation(BaseModel):
-    create_stage: CreateStageMutationCreatestage = Field(alias="createStage")
+    create_stage: Stage = Field(alias="createStage")
 
     class Arguments(BaseModel):
         name: str
 
     class Meta:
-        document = "mutation CreateStage($name: String!) {\n  createStage(input: {name: $name}) {\n    id\n    name\n  }\n}"
+        document = "fragment Stage on Stage {\n  id\n  name\n}\n\nmutation CreateStage($name: String!) {\n  createStage(input: {name: $name}) {\n    ...Stage\n  }\n}"
 
 
-class Create_roiMutation(BaseModel):
-    create_roi: ROIFragment = Field(alias="createRoi")
+class CreateRoiMutation(BaseModel):
+    create_roi: ROI = Field(alias="createRoi")
 
     class Arguments(BaseModel):
         image: ID
@@ -1233,10 +1332,20 @@ class Create_roiMutation(BaseModel):
         kind: RoiKind
 
     class Meta:
-        document = "fragment BaseRoi on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n}\n\nfragment ROI on ROI {\n  ...BaseRoi\n  id\n}\n\nmutation create_roi($image: ID!, $vectors: [FiveDVector!]!, $kind: RoiKind!) {\n  createRoi(input: {image: $image, vectors: $vectors, kind: $kind}) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nmutation CreateRoi($image: ID!, $vectors: [FiveDVector!]!, $kind: RoiKind!) {\n  createRoi(input: {image: $image, vectors: $vectors, kind: $kind}) {\n    ...ROI\n  }\n}"
 
 
-class CreateObjectiveMutationCreateobjective(Objective, BaseModel):
+class DeleteRoiMutation(BaseModel):
+    delete_roi: ID = Field(alias="deleteRoi")
+
+    class Arguments(BaseModel):
+        roi: ID
+
+    class Meta:
+        document = "mutation DeleteRoi($roi: ID!) {\n  deleteRoi(input: {id: $roi})\n}"
+
+
+class CreateObjectiveMutationCreateobjective(BaseModel):
     typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -1262,7 +1371,7 @@ class CreateObjectiveMutation(BaseModel):
         document = "mutation CreateObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  createObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n  }\n}"
 
 
-class EnsureObjectiveMutationEnsureobjective(Objective, BaseModel):
+class EnsureObjectiveMutationEnsureobjective(BaseModel):
     typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -1511,7 +1620,7 @@ class EnsureFluorophoreMutation(BaseModel):
 
 
 class From_array_likeMutation(BaseModel):
-    from_array_like: ImageFragment = Field(alias="fromArrayLike")
+    from_array_like: Image = Field(alias="fromArrayLike")
 
     class Arguments(BaseModel):
         array: ArrayLike
@@ -1520,9 +1629,9 @@ class From_array_likeMutation(BaseModel):
         channel_views: Optional[List[PartialChannelViewInput]] = Field(
             alias="channelViews", default=None
         )
-        transformation_views: Optional[List[PartialAffineTransformationViewInput]] = (
-            Field(alias="transformationViews", default=None)
-        )
+        transformation_views: Optional[
+            List[PartialAffineTransformationViewInput]
+        ] = Field(alias="transformationViews", default=None)
         label_views: Optional[List[PartialLabelViewInput]] = Field(
             alias="labelViews", default=None
         )
@@ -1539,13 +1648,15 @@ class From_array_likeMutation(BaseModel):
             alias="opticsViews", default=None
         )
         tags: Optional[List[str]] = Field(default=None)
+        file_origins: Optional[List[ID]] = Field(alias="fileOrigins", default=None)
+        roi_origins: Optional[List[ID]] = Field(alias="roiOrigins", default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $labelViews: [PartialLabelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, labelViews: $labelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, tags: $tags}\n  ) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $labelViews: [PartialLabelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $tags: [String!], $fileOrigins: [ID!], $roiOrigins: [ID!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, labelViews: $labelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, tags: $tags, fileOrigins: $fileOrigins, roiOrigins: $roiOrigins}\n  ) {\n    ...Image\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
-    request_upload: CredentialsFragment = Field(alias="requestUpload")
+    request_upload: Credentials = Field(alias="requestUpload")
 
     class Arguments(BaseModel):
         key: str
@@ -1556,7 +1667,7 @@ class RequestUploadMutation(BaseModel):
 
 
 class RequestAccessMutation(BaseModel):
-    request_access: AccessCredentialsFragment = Field(alias="requestAccess")
+    request_access: AccessCredentials = Field(alias="requestAccess")
     "Request upload credentials for a given key"
 
     class Arguments(BaseModel):
@@ -1590,7 +1701,7 @@ class CreateEraMutation(BaseModel):
 
 
 class CreateSnapshotMutation(BaseModel):
-    create_snapshot: SnapshotFragment = Field(alias="createSnapshot")
+    create_snapshot: Snapshot = Field(alias="createSnapshot")
 
     class Arguments(BaseModel):
         image: ID
@@ -1615,36 +1726,42 @@ class CreateRgbViewMutation(BaseModel):
 
     class Arguments(BaseModel):
         image: ID
-        r_scale: float = Field(alias="rScale")
-        b_scale: float = Field(alias="bScale")
-        g_scale: float = Field(alias="gScale")
-        context: Optional[ID] = Field(default=None)
+        context: ID
+        gamma: Optional[float] = Field(default=None)
+        contrast_limit_max: Optional[float] = Field(
+            alias="contrastLimitMax", default=None
+        )
+        contrast_limit_min: Optional[float] = Field(
+            alias="contrastLimitMin", default=None
+        )
+        rescale: Optional[bool] = Field(default=None)
+        active: Optional[bool] = Field(default=None)
+        color_map: Optional[ColorMap] = Field(alias="colorMap", default=None)
+        base_color: Optional[List[float]] = Field(alias="baseColor", default=None)
 
     class Meta:
-        document = "mutation CreateRgbView($image: ID!, $rScale: Float!, $bScale: Float!, $gScale: Float!, $context: ID) {\n  createRgbView(\n    input: {rScale: $rScale, bScale: $bScale, gScale: $gScale, context: $context, image: $image}\n  ) {\n    id\n  }\n}"
-
-
-class CreateRGBContextMutationCreatergbcontext(BaseModel):
-    typename: Optional[Literal["RGBContext"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+        document = "mutation CreateRgbView($image: ID!, $context: ID!, $gamma: Float, $contrastLimitMax: Float, $contrastLimitMin: Float, $rescale: Boolean, $active: Boolean, $colorMap: ColorMap, $baseColor: [Float!]) {\n  createRgbView(\n    input: {image: $image, context: $context, gamma: $gamma, contrastLimitMax: $contrastLimitMax, contrastLimitMin: $contrastLimitMin, rescale: $rescale, active: $active, colorMap: $colorMap, baseColor: $baseColor}\n  ) {\n    id\n  }\n}"
 
 
 class CreateRGBContextMutation(BaseModel):
-    create_rgb_context: CreateRGBContextMutationCreatergbcontext = Field(
-        alias="createRgbContext"
-    )
+    create_rgb_context: RGBContext = Field(alias="createRgbContext")
 
     class Arguments(BaseModel):
-        name: str
-        image: ID
+        input: CreateRGBContextInput
 
     class Meta:
-        document = "mutation CreateRGBContext($name: String!, $image: ID!) {\n  createRgbContext(input: {name: $name, image: $image}) {\n    id\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
+
+
+class UpdateRGBContextMutation(BaseModel):
+    update_rgb_context: RGBContext = Field(alias="updateRgbContext")
+    "Update RGB Context"
+
+    class Arguments(BaseModel):
+        input: UpdateRGBContextInput
+
+    class Meta:
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
 
 
 class CreateViewCollectionMutationCreateviewcollection(BaseModel):
@@ -1715,7 +1832,7 @@ class EnsureChannelMutation(BaseModel):
 
 
 class GetCameraQuery(BaseModel):
-    camera: CameraFragment
+    camera: Camera
 
     class Arguments(BaseModel):
         id: ID
@@ -1725,7 +1842,7 @@ class GetCameraQuery(BaseModel):
 
 
 class GetTableQuery(BaseModel):
-    table: TableFragment
+    table: Table
 
     class Arguments(BaseModel):
         id: ID
@@ -1735,17 +1852,93 @@ class GetTableQuery(BaseModel):
 
 
 class GetFileQuery(BaseModel):
-    file: FileFragment
+    file: File
 
     class Arguments(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment File on File {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n  }\n}\n\nquery GetFile($id: ID!) {\n  file(id: $id) {\n    ...File\n  }\n}"
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n}\n\nfragment File on File {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n  }\n}\n\nquery GetFile($id: ID!) {\n  file(id: $id) {\n    ...File\n  }\n}"
+
+
+class SearchFilesQueryOptions(BaseModel):
+    typename: Optional[Literal["File"]] = Field(alias="__typename", exclude=True)
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchFilesQuery(BaseModel):
+    options: Tuple[SearchFilesQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+
+    class Meta:
+        document = "query SearchFiles($search: String, $values: [ID!], $pagination: OffsetPaginationInput) {\n  options: files(\n    filters: {search: $search, ids: $values}\n    pagination: $pagination\n  ) {\n    value: id\n    label: name\n  }\n}"
+
+
+class GetStageQuery(BaseModel):
+    stage: Stage
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Stage on Stage {\n  id\n  name\n}\n\nquery GetStage($id: ID!) {\n  stage(id: $id) {\n    ...Stage\n  }\n}"
+
+
+class SearchStagesQueryOptions(BaseModel):
+    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchStagesQuery(BaseModel):
+    options: Tuple[SearchStagesQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+
+    class Meta:
+        document = "query SearchStages($search: String, $values: [ID!], $pagination: OffsetPaginationInput) {\n  options: stages(\n    filters: {search: $search, ids: $values}\n    pagination: $pagination\n  ) {\n    value: id\n    label: name\n  }\n}"
+
+
+class GetRoisQuery(BaseModel):
+    rois: Tuple[ROI, ...]
+
+    class Arguments(BaseModel):
+        image: ID
+
+    class Meta:
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nquery GetRois($image: ID!) {\n  rois(filters: {image: $image}) {\n    ...ROI\n  }\n}"
+
+
+class GetRoiQuery(BaseModel):
+    roi: ROI
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nquery GetRoi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
 
 
 class GetObjectiveQuery(BaseModel):
-    objective: ObjectiveFragment
+    objective: Objective
 
     class Arguments(BaseModel):
         id: ID
@@ -1755,7 +1948,7 @@ class GetObjectiveQuery(BaseModel):
 
 
 class GetDatasetQuery(BaseModel):
-    dataset: DatasetFragment
+    dataset: Dataset
 
     class Arguments(BaseModel):
         id: ID
@@ -1765,7 +1958,7 @@ class GetDatasetQuery(BaseModel):
 
 
 class GetInstrumentQuery(BaseModel):
-    instrument: InstrumentFragment
+    instrument: Instrument
 
     class Arguments(BaseModel):
         id: ID
@@ -1775,26 +1968,26 @@ class GetInstrumentQuery(BaseModel):
 
 
 class GetImageQuery(BaseModel):
-    image: ImageFragment
+    image: Image
 
     class Arguments(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
-    random_image: ImageFragment = Field(alias="randomImage")
+    random_image: Image = Field(alias="randomImage")
 
     class Arguments(BaseModel):
         pass
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
 
 
-class SearchImagesQueryOptions(Image, BaseModel):
+class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
     typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
@@ -1817,18 +2010,18 @@ class SearchImagesQuery(BaseModel):
 
 
 class ImagesQuery(BaseModel):
-    images: Tuple[ImageFragment, ...]
+    images: Tuple[Image, ...]
 
     class Arguments(BaseModel):
         filter: Optional[ImageFilter] = Field(default=None)
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
 
 
 class GetSnapshotQuery(BaseModel):
-    snapshot: SnapshotFragment
+    snapshot: Snapshot
 
     class Arguments(BaseModel):
         id: ID
@@ -1857,6 +2050,82 @@ class SearchSnapshotsQuery(BaseModel):
 
     class Meta:
         document = "query SearchSnapshots($search: String, $values: [ID!]) {\n  options: snapshots(\n    filters: {name: {contains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
+
+
+class GetRGBContextQuery(BaseModel):
+    rgbcontext: RGBContext
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n  }\n}"
+
+
+class WatchFilesSubscriptionFiles(BaseModel):
+    typename: Optional[Literal["FileEvent"]] = Field(alias="__typename", exclude=True)
+    create: Optional[File]
+    delete: Optional[ID]
+    update: Optional[File]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class WatchFilesSubscription(BaseModel):
+    files: WatchFilesSubscriptionFiles
+
+    class Arguments(BaseModel):
+        dataset: Optional[ID] = Field(default=None)
+
+    class Meta:
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n}\n\nfragment File on File {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n  }\n}\n\nsubscription WatchFiles($dataset: ID) {\n  files(dataset: $dataset) {\n    create {\n      ...File\n    }\n    delete\n    update {\n      ...File\n    }\n  }\n}"
+
+
+class WatchImagesSubscriptionImages(BaseModel):
+    typename: Optional[Literal["ImageEvent"]] = Field(alias="__typename", exclude=True)
+    create: Optional[Image]
+    delete: Optional[ID]
+    update: Optional[Image]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class WatchImagesSubscription(BaseModel):
+    images: WatchImagesSubscriptionImages
+
+    class Arguments(BaseModel):
+        dataset: Optional[ID] = Field(default=None)
+
+    class Meta:
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
+
+
+class WatchRoisSubscriptionRois(BaseModel):
+    typename: Optional[Literal["RoiEvent"]] = Field(alias="__typename", exclude=True)
+    create: Optional[ROI]
+    delete: Optional[ID]
+    update: Optional[ROI]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class WatchRoisSubscription(BaseModel):
+    rois: WatchRoisSubscriptionRois
+
+    class Arguments(BaseModel):
+        image: ID
+
+    class Meta:
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nsubscription WatchRois($image: ID!) {\n  rois(image: $image) {\n    create {\n      ...ROI\n    }\n    delete\n    update {\n      ...ROI\n    }\n  }\n}"
 
 
 async def acreate_camera(
@@ -2061,7 +2330,7 @@ async def afrom_parquet_like(
     origins: Optional[List[ID]] = None,
     dataset: Optional[ID] = None,
     rath: Optional[MikroNextRath] = None,
-) -> TableFragment:
+) -> Table:
     """from_parquet_like
 
 
@@ -2074,7 +2343,7 @@ async def afrom_parquet_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        TableFragment"""
+        Table"""
     return (
         await aexecute(
             From_parquet_likeMutation,
@@ -2095,7 +2364,7 @@ def from_parquet_like(
     origins: Optional[List[ID]] = None,
     dataset: Optional[ID] = None,
     rath: Optional[MikroNextRath] = None,
-) -> TableFragment:
+) -> Table:
     """from_parquet_like
 
 
@@ -2108,7 +2377,7 @@ def from_parquet_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        TableFragment"""
+        Table"""
     return execute(
         From_parquet_likeMutation,
         {"dataframe": dataframe, "name": name, "origins": origins, "dataset": dataset},
@@ -2118,7 +2387,7 @@ def from_parquet_like(
 
 async def arequest_table_upload(
     key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> CredentialsFragment:
+) -> Credentials:
     """RequestTableUpload
 
 
@@ -2131,7 +2400,7 @@ async def arequest_table_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CredentialsFragment"""
+        Credentials"""
     return (
         await aexecute(
             RequestTableUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
@@ -2141,7 +2410,7 @@ async def arequest_table_upload(
 
 def request_table_upload(
     key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> CredentialsFragment:
+) -> Credentials:
     """RequestTableUpload
 
 
@@ -2154,7 +2423,7 @@ def request_table_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CredentialsFragment"""
+        Credentials"""
     return execute(
         RequestTableUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
     ).request_table_upload
@@ -2162,7 +2431,7 @@ def request_table_upload(
 
 async def arequest_table_access(
     store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
-) -> AccessCredentialsFragment:
+) -> AccessCredentials:
     """RequestTableAccess
 
 
@@ -2175,7 +2444,7 @@ async def arequest_table_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentialsFragment"""
+        AccessCredentials"""
     return (
         await aexecute(
             RequestTableAccessMutation,
@@ -2187,7 +2456,7 @@ async def arequest_table_access(
 
 def request_table_access(
     store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
-) -> AccessCredentialsFragment:
+) -> AccessCredentials:
     """RequestTableAccess
 
 
@@ -2200,7 +2469,7 @@ def request_table_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentialsFragment"""
+        AccessCredentials"""
     return execute(
         RequestTableAccessMutation, {"store": store, "duration": duration}, rath=rath
     ).request_table_access
@@ -2212,7 +2481,7 @@ async def afrom_file_like(
     origins: Optional[List[ID]] = None,
     dataset: Optional[ID] = None,
     rath: Optional[MikroNextRath] = None,
-) -> FileFragment:
+) -> File:
     """from_file_like
 
 
@@ -2225,7 +2494,7 @@ async def afrom_file_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        FileFragment"""
+        File"""
     return (
         await aexecute(
             From_file_likeMutation,
@@ -2241,7 +2510,7 @@ def from_file_like(
     origins: Optional[List[ID]] = None,
     dataset: Optional[ID] = None,
     rath: Optional[MikroNextRath] = None,
-) -> FileFragment:
+) -> File:
     """from_file_like
 
 
@@ -2254,7 +2523,7 @@ def from_file_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        FileFragment"""
+        File"""
     return execute(
         From_file_likeMutation,
         {"file": file, "name": name, "origins": origins, "dataset": dataset},
@@ -2264,7 +2533,7 @@ def from_file_like(
 
 async def arequest_file_upload(
     key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> CredentialsFragment:
+) -> Credentials:
     """RequestFileUpload
 
 
@@ -2277,7 +2546,7 @@ async def arequest_file_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CredentialsFragment"""
+        Credentials"""
     return (
         await aexecute(
             RequestFileUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
@@ -2287,7 +2556,7 @@ async def arequest_file_upload(
 
 def request_file_upload(
     key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> CredentialsFragment:
+) -> Credentials:
     """RequestFileUpload
 
 
@@ -2300,7 +2569,7 @@ def request_file_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CredentialsFragment"""
+        Credentials"""
     return execute(
         RequestFileUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
     ).request_file_upload
@@ -2308,7 +2577,7 @@ def request_file_upload(
 
 async def arequest_file_access(
     store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
-) -> AccessCredentialsFragment:
+) -> AccessCredentials:
     """RequestFileAccess
 
 
@@ -2321,7 +2590,7 @@ async def arequest_file_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentialsFragment"""
+        AccessCredentials"""
     return (
         await aexecute(
             RequestFileAccessMutation, {"store": store, "duration": duration}, rath=rath
@@ -2331,7 +2600,7 @@ async def arequest_file_access(
 
 def request_file_access(
     store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
-) -> AccessCredentialsFragment:
+) -> AccessCredentials:
     """RequestFileAccess
 
 
@@ -2344,15 +2613,13 @@ def request_file_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentialsFragment"""
+        AccessCredentials"""
     return execute(
         RequestFileAccessMutation, {"store": store, "duration": duration}, rath=rath
     ).request_file_access
 
 
-async def acreate_stage(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> CreateStageMutationCreatestage:
+async def acreate_stage(name: str, rath: Optional[MikroNextRath] = None) -> Stage:
     """CreateStage
 
 
@@ -2362,13 +2629,11 @@ async def acreate_stage(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateStageMutationCreatestage"""
+        Stage"""
     return (await aexecute(CreateStageMutation, {"name": name}, rath=rath)).create_stage
 
 
-def create_stage(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> CreateStageMutationCreatestage:
+def create_stage(name: str, rath: Optional[MikroNextRath] = None) -> Stage:
     """CreateStage
 
 
@@ -2378,7 +2643,7 @@ def create_stage(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateStageMutationCreatestage"""
+        Stage"""
     return execute(CreateStageMutation, {"name": name}, rath=rath).create_stage
 
 
@@ -2387,8 +2652,8 @@ async def acreate_roi(
     vectors: List[FiveDVector],
     kind: RoiKind,
     rath: Optional[MikroNextRath] = None,
-) -> ROIFragment:
-    """create_roi
+) -> ROI:
+    """CreateRoi
 
 
 
@@ -2399,10 +2664,10 @@ async def acreate_roi(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROIFragment"""
+        ROI"""
     return (
         await aexecute(
-            Create_roiMutation,
+            CreateRoiMutation,
             {"image": image, "vectors": vectors, "kind": kind},
             rath=rath,
         )
@@ -2414,8 +2679,8 @@ def create_roi(
     vectors: List[FiveDVector],
     kind: RoiKind,
     rath: Optional[MikroNextRath] = None,
-) -> ROIFragment:
-    """create_roi
+) -> ROI:
+    """CreateRoi
 
 
 
@@ -2426,12 +2691,42 @@ def create_roi(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROIFragment"""
+        ROI"""
     return execute(
-        Create_roiMutation,
-        {"image": image, "vectors": vectors, "kind": kind},
-        rath=rath,
+        CreateRoiMutation, {"image": image, "vectors": vectors, "kind": kind}, rath=rath
     ).create_roi
+
+
+async def adelete_roi(roi: ID, rath: Optional[MikroNextRath] = None) -> ID:
+    """DeleteRoi
+
+
+     deleteRoi: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+
+
+    Arguments:
+        roi (ID): roi
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ID"""
+    return (await aexecute(DeleteRoiMutation, {"roi": roi}, rath=rath)).delete_roi
+
+
+def delete_roi(roi: ID, rath: Optional[MikroNextRath] = None) -> ID:
+    """DeleteRoi
+
+
+     deleteRoi: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+
+
+    Arguments:
+        roi (ID): roi
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ID"""
+    return execute(DeleteRoiMutation, {"roi": roi}, rath=rath).delete_roi
 
 
 async def acreate_objective(
@@ -2994,8 +3289,10 @@ async def afrom_array_like(
     timepoint_views: Optional[List[PartialTimepointViewInput]] = None,
     optics_views: Optional[List[PartialOpticsViewInput]] = None,
     tags: Optional[List[str]] = None,
+    file_origins: Optional[List[ID]] = None,
+    roi_origins: Optional[List[ID]] = None,
     rath: Optional[MikroNextRath] = None,
-) -> ImageFragment:
+) -> Image:
     """from_array_like
 
 
@@ -3012,10 +3309,12 @@ async def afrom_array_like(
         timepoint_views (Optional[List[PartialTimepointViewInput]], optional): timepointViews.
         optics_views (Optional[List[PartialOpticsViewInput]], optional): opticsViews.
         tags (Optional[List[str]], optional): tags.
+        file_origins (Optional[List[ID]], optional): fileOrigins.
+        roi_origins (Optional[List[ID]], optional): roiOrigins.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ImageFragment"""
+        Image"""
     return (
         await aexecute(
             From_array_likeMutation,
@@ -3031,6 +3330,8 @@ async def afrom_array_like(
                 "timepointViews": timepoint_views,
                 "opticsViews": optics_views,
                 "tags": tags,
+                "fileOrigins": file_origins,
+                "roiOrigins": roi_origins,
             },
             rath=rath,
         )
@@ -3049,8 +3350,10 @@ def from_array_like(
     timepoint_views: Optional[List[PartialTimepointViewInput]] = None,
     optics_views: Optional[List[PartialOpticsViewInput]] = None,
     tags: Optional[List[str]] = None,
+    file_origins: Optional[List[ID]] = None,
+    roi_origins: Optional[List[ID]] = None,
     rath: Optional[MikroNextRath] = None,
-) -> ImageFragment:
+) -> Image:
     """from_array_like
 
 
@@ -3067,10 +3370,12 @@ def from_array_like(
         timepoint_views (Optional[List[PartialTimepointViewInput]], optional): timepointViews.
         optics_views (Optional[List[PartialOpticsViewInput]], optional): opticsViews.
         tags (Optional[List[str]], optional): tags.
+        file_origins (Optional[List[ID]], optional): fileOrigins.
+        roi_origins (Optional[List[ID]], optional): roiOrigins.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ImageFragment"""
+        Image"""
     return execute(
         From_array_likeMutation,
         {
@@ -3085,6 +3390,8 @@ def from_array_like(
             "timepointViews": timepoint_views,
             "opticsViews": optics_views,
             "tags": tags,
+            "fileOrigins": file_origins,
+            "roiOrigins": roi_origins,
         },
         rath=rath,
     ).from_array_like
@@ -3092,7 +3399,7 @@ def from_array_like(
 
 async def arequest_upload(
     key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> CredentialsFragment:
+) -> Credentials:
     """RequestUpload
 
 
@@ -3105,7 +3412,7 @@ async def arequest_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CredentialsFragment"""
+        Credentials"""
     return (
         await aexecute(
             RequestUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
@@ -3115,7 +3422,7 @@ async def arequest_upload(
 
 def request_upload(
     key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> CredentialsFragment:
+) -> Credentials:
     """RequestUpload
 
 
@@ -3128,7 +3435,7 @@ def request_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CredentialsFragment"""
+        Credentials"""
     return execute(
         RequestUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
     ).request_upload
@@ -3136,7 +3443,7 @@ def request_upload(
 
 async def arequest_access(
     store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
-) -> AccessCredentialsFragment:
+) -> AccessCredentials:
     """RequestAccess
 
 
@@ -3149,7 +3456,7 @@ async def arequest_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentialsFragment"""
+        AccessCredentials"""
     return (
         await aexecute(
             RequestAccessMutation, {"store": store, "duration": duration}, rath=rath
@@ -3159,7 +3466,7 @@ async def arequest_access(
 
 def request_access(
     store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
-) -> AccessCredentialsFragment:
+) -> AccessCredentials:
     """RequestAccess
 
 
@@ -3172,7 +3479,7 @@ def request_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentialsFragment"""
+        AccessCredentials"""
     return execute(
         RequestAccessMutation, {"store": store, "duration": duration}, rath=rath
     ).request_access
@@ -3218,7 +3525,7 @@ def create_era(
 
 async def acreate_snapshot(
     image: ID, file: Upload, rath: Optional[MikroNextRath] = None
-) -> SnapshotFragment:
+) -> Snapshot:
     """CreateSnapshot
 
 
@@ -3229,7 +3536,7 @@ async def acreate_snapshot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        SnapshotFragment"""
+        Snapshot"""
     return (
         await aexecute(
             CreateSnapshotMutation, {"image": image, "file": file}, rath=rath
@@ -3239,7 +3546,7 @@ async def acreate_snapshot(
 
 def create_snapshot(
     image: ID, file: Upload, rath: Optional[MikroNextRath] = None
-) -> SnapshotFragment:
+) -> Snapshot:
     """CreateSnapshot
 
 
@@ -3250,7 +3557,7 @@ def create_snapshot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        SnapshotFragment"""
+        Snapshot"""
     return execute(
         CreateSnapshotMutation, {"image": image, "file": file}, rath=rath
     ).create_snapshot
@@ -3258,10 +3565,14 @@ def create_snapshot(
 
 async def acreate_rgb_view(
     image: ID,
-    r_scale: float,
-    b_scale: float,
-    g_scale: float,
-    context: Optional[ID] = None,
+    context: ID,
+    gamma: Optional[float] = None,
+    contrast_limit_max: Optional[float] = None,
+    contrast_limit_min: Optional[float] = None,
+    rescale: Optional[bool] = None,
+    active: Optional[bool] = None,
+    color_map: Optional[ColorMap] = None,
+    base_color: Optional[List[float]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> CreateRgbViewMutationCreatergbview:
     """CreateRgbView
@@ -3270,10 +3581,14 @@ async def acreate_rgb_view(
 
     Arguments:
         image (ID): image
-        r_scale (float): rScale
-        b_scale (float): bScale
-        g_scale (float): gScale
-        context (Optional[ID], optional): context.
+        context (ID): context
+        gamma (Optional[float], optional): gamma.
+        contrast_limit_max (Optional[float], optional): contrastLimitMax.
+        contrast_limit_min (Optional[float], optional): contrastLimitMin.
+        rescale (Optional[bool], optional): rescale.
+        active (Optional[bool], optional): active.
+        color_map (Optional[ColorMap], optional): colorMap.
+        base_color (Optional[List[float]], optional): baseColor.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -3283,10 +3598,14 @@ async def acreate_rgb_view(
             CreateRgbViewMutation,
             {
                 "image": image,
-                "rScale": r_scale,
-                "bScale": b_scale,
-                "gScale": g_scale,
                 "context": context,
+                "gamma": gamma,
+                "contrastLimitMax": contrast_limit_max,
+                "contrastLimitMin": contrast_limit_min,
+                "rescale": rescale,
+                "active": active,
+                "colorMap": color_map,
+                "baseColor": base_color,
             },
             rath=rath,
         )
@@ -3295,10 +3614,14 @@ async def acreate_rgb_view(
 
 def create_rgb_view(
     image: ID,
-    r_scale: float,
-    b_scale: float,
-    g_scale: float,
-    context: Optional[ID] = None,
+    context: ID,
+    gamma: Optional[float] = None,
+    contrast_limit_max: Optional[float] = None,
+    contrast_limit_min: Optional[float] = None,
+    rescale: Optional[bool] = None,
+    active: Optional[bool] = None,
+    color_map: Optional[ColorMap] = None,
+    base_color: Optional[List[float]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> CreateRgbViewMutationCreatergbview:
     """CreateRgbView
@@ -3307,10 +3630,14 @@ def create_rgb_view(
 
     Arguments:
         image (ID): image
-        r_scale (float): rScale
-        b_scale (float): bScale
-        g_scale (float): gScale
-        context (Optional[ID], optional): context.
+        context (ID): context
+        gamma (Optional[float], optional): gamma.
+        contrast_limit_max (Optional[float], optional): contrastLimitMax.
+        contrast_limit_min (Optional[float], optional): contrastLimitMin.
+        rescale (Optional[bool], optional): rescale.
+        active (Optional[bool], optional): active.
+        color_map (Optional[ColorMap], optional): colorMap.
+        base_color (Optional[List[float]], optional): baseColor.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -3319,53 +3646,89 @@ def create_rgb_view(
         CreateRgbViewMutation,
         {
             "image": image,
-            "rScale": r_scale,
-            "bScale": b_scale,
-            "gScale": g_scale,
             "context": context,
+            "gamma": gamma,
+            "contrastLimitMax": contrast_limit_max,
+            "contrastLimitMin": contrast_limit_min,
+            "rescale": rescale,
+            "active": active,
+            "colorMap": color_map,
+            "baseColor": base_color,
         },
         rath=rath,
     ).create_rgb_view
 
 
 async def acreate_rgb_context(
-    name: str, image: ID, rath: Optional[MikroNextRath] = None
-) -> CreateRGBContextMutationCreatergbcontext:
+    input: CreateRGBContextInput, rath: Optional[MikroNextRath] = None
+) -> RGBContext:
     """CreateRGBContext
 
 
 
     Arguments:
-        name (str): name
-        image (ID): image
+        input (CreateRGBContextInput): input
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRGBContextMutationCreatergbcontext"""
+        RGBContext"""
     return (
-        await aexecute(
-            CreateRGBContextMutation, {"name": name, "image": image}, rath=rath
-        )
+        await aexecute(CreateRGBContextMutation, {"input": input}, rath=rath)
     ).create_rgb_context
 
 
 def create_rgb_context(
-    name: str, image: ID, rath: Optional[MikroNextRath] = None
-) -> CreateRGBContextMutationCreatergbcontext:
+    input: CreateRGBContextInput, rath: Optional[MikroNextRath] = None
+) -> RGBContext:
     """CreateRGBContext
 
 
 
     Arguments:
-        name (str): name
-        image (ID): image
+        input (CreateRGBContextInput): input
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRGBContextMutationCreatergbcontext"""
+        RGBContext"""
     return execute(
-        CreateRGBContextMutation, {"name": name, "image": image}, rath=rath
+        CreateRGBContextMutation, {"input": input}, rath=rath
     ).create_rgb_context
+
+
+async def aupdate_rgb_context(
+    input: UpdateRGBContextInput, rath: Optional[MikroNextRath] = None
+) -> RGBContext:
+    """UpdateRGBContext
+
+
+
+    Arguments:
+        input (UpdateRGBContextInput): input
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RGBContext"""
+    return (
+        await aexecute(UpdateRGBContextMutation, {"input": input}, rath=rath)
+    ).update_rgb_context
+
+
+def update_rgb_context(
+    input: UpdateRGBContextInput, rath: Optional[MikroNextRath] = None
+) -> RGBContext:
+    """UpdateRGBContext
+
+
+
+    Arguments:
+        input (UpdateRGBContextInput): input
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RGBContext"""
+    return execute(
+        UpdateRGBContextMutation, {"input": input}, rath=rath
+    ).update_rgb_context
 
 
 async def acreate_view_collection(
@@ -3472,7 +3835,7 @@ def ensure_channel(
     return execute(EnsureChannelMutation, {"name": name}, rath=rath).ensure_channel
 
 
-async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFragment:
+async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
     """GetCamera
 
 
@@ -3482,11 +3845,11 @@ async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFra
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CameraFragment"""
+        Camera"""
     return (await aexecute(GetCameraQuery, {"id": id}, rath=rath)).camera
 
 
-def get_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFragment:
+def get_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
     """GetCamera
 
 
@@ -3496,11 +3859,11 @@ def get_camera(id: ID, rath: Optional[MikroNextRath] = None) -> CameraFragment:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CameraFragment"""
+        Camera"""
     return execute(GetCameraQuery, {"id": id}, rath=rath).camera
 
 
-async def aget_table(id: ID, rath: Optional[MikroNextRath] = None) -> TableFragment:
+async def aget_table(id: ID, rath: Optional[MikroNextRath] = None) -> Table:
     """GetTable
 
 
@@ -3510,11 +3873,11 @@ async def aget_table(id: ID, rath: Optional[MikroNextRath] = None) -> TableFragm
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        TableFragment"""
+        Table"""
     return (await aexecute(GetTableQuery, {"id": id}, rath=rath)).table
 
 
-def get_table(id: ID, rath: Optional[MikroNextRath] = None) -> TableFragment:
+def get_table(id: ID, rath: Optional[MikroNextRath] = None) -> Table:
     """GetTable
 
 
@@ -3524,11 +3887,11 @@ def get_table(id: ID, rath: Optional[MikroNextRath] = None) -> TableFragment:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        TableFragment"""
+        Table"""
     return execute(GetTableQuery, {"id": id}, rath=rath).table
 
 
-async def aget_file(id: ID, rath: Optional[MikroNextRath] = None) -> FileFragment:
+async def aget_file(id: ID, rath: Optional[MikroNextRath] = None) -> File:
     """GetFile
 
 
@@ -3538,11 +3901,11 @@ async def aget_file(id: ID, rath: Optional[MikroNextRath] = None) -> FileFragmen
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        FileFragment"""
+        File"""
     return (await aexecute(GetFileQuery, {"id": id}, rath=rath)).file
 
 
-def get_file(id: ID, rath: Optional[MikroNextRath] = None) -> FileFragment:
+def get_file(id: ID, rath: Optional[MikroNextRath] = None) -> File:
     """GetFile
 
 
@@ -3552,13 +3915,199 @@ def get_file(id: ID, rath: Optional[MikroNextRath] = None) -> FileFragment:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        FileFragment"""
+        File"""
     return execute(GetFileQuery, {"id": id}, rath=rath).file
 
 
-async def aget_objective(
-    id: ID, rath: Optional[MikroNextRath] = None
-) -> ObjectiveFragment:
+async def asearch_files(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchFilesQueryOptions]:
+    """SearchFiles
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchFilesQueryFiles]"""
+    return (
+        await aexecute(
+            SearchFilesQuery,
+            {"search": search, "values": values, "pagination": pagination},
+            rath=rath,
+        )
+    ).options
+
+
+def search_files(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchFilesQueryOptions]:
+    """SearchFiles
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchFilesQueryFiles]"""
+    return execute(
+        SearchFilesQuery,
+        {"search": search, "values": values, "pagination": pagination},
+        rath=rath,
+    ).options
+
+
+async def aget_stage(id: ID, rath: Optional[MikroNextRath] = None) -> Stage:
+    """GetStage
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Stage"""
+    return (await aexecute(GetStageQuery, {"id": id}, rath=rath)).stage
+
+
+def get_stage(id: ID, rath: Optional[MikroNextRath] = None) -> Stage:
+    """GetStage
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Stage"""
+    return execute(GetStageQuery, {"id": id}, rath=rath).stage
+
+
+async def asearch_stages(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchStagesQueryOptions]:
+    """SearchStages
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchStagesQueryStages]"""
+    return (
+        await aexecute(
+            SearchStagesQuery,
+            {"search": search, "values": values, "pagination": pagination},
+            rath=rath,
+        )
+    ).options
+
+
+def search_stages(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchStagesQueryOptions]:
+    """SearchStages
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchStagesQueryStages]"""
+    return execute(
+        SearchStagesQuery,
+        {"search": search, "values": values, "pagination": pagination},
+        rath=rath,
+    ).options
+
+
+async def aget_rois(image: ID, rath: Optional[MikroNextRath] = None) -> List[ROI]:
+    """GetRois
+
+
+
+    Arguments:
+        image (ID): image
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[ROI]"""
+    return (await aexecute(GetRoisQuery, {"image": image}, rath=rath)).rois
+
+
+def get_rois(image: ID, rath: Optional[MikroNextRath] = None) -> List[ROI]:
+    """GetRois
+
+
+
+    Arguments:
+        image (ID): image
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[ROI]"""
+    return execute(GetRoisQuery, {"image": image}, rath=rath).rois
+
+
+async def aget_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ROI:
+    """GetRoi
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ROI"""
+    return (await aexecute(GetRoiQuery, {"id": id}, rath=rath)).roi
+
+
+def get_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ROI:
+    """GetRoi
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ROI"""
+    return execute(GetRoiQuery, {"id": id}, rath=rath).roi
+
+
+async def aget_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Objective:
     """GetObjective
 
 
@@ -3568,11 +4117,11 @@ async def aget_objective(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ObjectiveFragment"""
+        Objective"""
     return (await aexecute(GetObjectiveQuery, {"id": id}, rath=rath)).objective
 
 
-def get_objective(id: ID, rath: Optional[MikroNextRath] = None) -> ObjectiveFragment:
+def get_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Objective:
     """GetObjective
 
 
@@ -3582,11 +4131,11 @@ def get_objective(id: ID, rath: Optional[MikroNextRath] = None) -> ObjectiveFrag
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ObjectiveFragment"""
+        Objective"""
     return execute(GetObjectiveQuery, {"id": id}, rath=rath).objective
 
 
-async def aget_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> DatasetFragment:
+async def aget_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
     """GetDataset
 
 
@@ -3596,11 +4145,11 @@ async def aget_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> DatasetF
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        DatasetFragment"""
+        Dataset"""
     return (await aexecute(GetDatasetQuery, {"id": id}, rath=rath)).dataset
 
 
-def get_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> DatasetFragment:
+def get_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
     """GetDataset
 
 
@@ -3610,13 +4159,11 @@ def get_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> DatasetFragment
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        DatasetFragment"""
+        Dataset"""
     return execute(GetDatasetQuery, {"id": id}, rath=rath).dataset
 
 
-async def aget_instrument(
-    id: ID, rath: Optional[MikroNextRath] = None
-) -> InstrumentFragment:
+async def aget_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instrument:
     """GetInstrument
 
 
@@ -3626,11 +4173,11 @@ async def aget_instrument(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        InstrumentFragment"""
+        Instrument"""
     return (await aexecute(GetInstrumentQuery, {"id": id}, rath=rath)).instrument
 
 
-def get_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> InstrumentFragment:
+def get_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instrument:
     """GetInstrument
 
 
@@ -3640,11 +4187,11 @@ def get_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> InstrumentFr
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        InstrumentFragment"""
+        Instrument"""
     return execute(GetInstrumentQuery, {"id": id}, rath=rath).instrument
 
 
-async def aget_image(id: ID, rath: Optional[MikroNextRath] = None) -> ImageFragment:
+async def aget_image(id: ID, rath: Optional[MikroNextRath] = None) -> Image:
     """GetImage
 
 
@@ -3654,11 +4201,11 @@ async def aget_image(id: ID, rath: Optional[MikroNextRath] = None) -> ImageFragm
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ImageFragment"""
+        Image"""
     return (await aexecute(GetImageQuery, {"id": id}, rath=rath)).image
 
 
-def get_image(id: ID, rath: Optional[MikroNextRath] = None) -> ImageFragment:
+def get_image(id: ID, rath: Optional[MikroNextRath] = None) -> Image:
     """GetImage
 
 
@@ -3668,11 +4215,11 @@ def get_image(id: ID, rath: Optional[MikroNextRath] = None) -> ImageFragment:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ImageFragment"""
+        Image"""
     return execute(GetImageQuery, {"id": id}, rath=rath).image
 
 
-async def aget_random_image(rath: Optional[MikroNextRath] = None) -> ImageFragment:
+async def aget_random_image(rath: Optional[MikroNextRath] = None) -> Image:
     """GetRandomImage
 
 
@@ -3681,11 +4228,11 @@ async def aget_random_image(rath: Optional[MikroNextRath] = None) -> ImageFragme
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ImageFragment"""
+        Image"""
     return (await aexecute(GetRandomImageQuery, {}, rath=rath)).random_image
 
 
-def get_random_image(rath: Optional[MikroNextRath] = None) -> ImageFragment:
+def get_random_image(rath: Optional[MikroNextRath] = None) -> Image:
     """GetRandomImage
 
 
@@ -3694,7 +4241,7 @@ def get_random_image(rath: Optional[MikroNextRath] = None) -> ImageFragment:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ImageFragment"""
+        Image"""
     return execute(GetRandomImageQuery, {}, rath=rath).random_image
 
 
@@ -3746,7 +4293,7 @@ async def aimages(
     filter: Optional[ImageFilter] = None,
     pagination: Optional[OffsetPaginationInput] = None,
     rath: Optional[MikroNextRath] = None,
-) -> List[ImageFragment]:
+) -> List[Image]:
     """Images
 
 
@@ -3757,7 +4304,7 @@ async def aimages(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ImageFragment]"""
+        List[Image]"""
     return (
         await aexecute(
             ImagesQuery, {"filter": filter, "pagination": pagination}, rath=rath
@@ -3769,7 +4316,7 @@ def images(
     filter: Optional[ImageFilter] = None,
     pagination: Optional[OffsetPaginationInput] = None,
     rath: Optional[MikroNextRath] = None,
-) -> List[ImageFragment]:
+) -> List[Image]:
     """Images
 
 
@@ -3780,15 +4327,13 @@ def images(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ImageFragment]"""
+        List[Image]"""
     return execute(
         ImagesQuery, {"filter": filter, "pagination": pagination}, rath=rath
     ).images
 
 
-async def aget_snapshot(
-    id: ID, rath: Optional[MikroNextRath] = None
-) -> SnapshotFragment:
+async def aget_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> Snapshot:
     """GetSnapshot
 
 
@@ -3798,11 +4343,11 @@ async def aget_snapshot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        SnapshotFragment"""
+        Snapshot"""
     return (await aexecute(GetSnapshotQuery, {"id": id}, rath=rath)).snapshot
 
 
-def get_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> SnapshotFragment:
+def get_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> Snapshot:
     """GetSnapshot
 
 
@@ -3812,7 +4357,7 @@ def get_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> SnapshotFragme
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        SnapshotFragment"""
+        Snapshot"""
     return execute(GetSnapshotQuery, {"id": id}, rath=rath).snapshot
 
 
@@ -3860,19 +4405,154 @@ def search_snapshots(
     ).options
 
 
+async def aget_rgb_context(id: ID, rath: Optional[MikroNextRath] = None) -> RGBContext:
+    """GetRGBContext
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RGBContext"""
+    return (await aexecute(GetRGBContextQuery, {"id": id}, rath=rath)).rgbcontext
+
+
+def get_rgb_context(id: ID, rath: Optional[MikroNextRath] = None) -> RGBContext:
+    """GetRGBContext
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RGBContext"""
+    return execute(GetRGBContextQuery, {"id": id}, rath=rath).rgbcontext
+
+
+async def awatch_files(
+    dataset: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+) -> AsyncIterator[WatchFilesSubscriptionFiles]:
+    """WatchFiles
+
+
+
+    Arguments:
+        dataset (Optional[ID], optional): dataset.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        WatchFilesSubscriptionFiles"""
+    async for event in asubscribe(
+        WatchFilesSubscription, {"dataset": dataset}, rath=rath
+    ):
+        yield event.files
+
+
+def watch_files(
+    dataset: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+) -> Iterator[WatchFilesSubscriptionFiles]:
+    """WatchFiles
+
+
+
+    Arguments:
+        dataset (Optional[ID], optional): dataset.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        WatchFilesSubscriptionFiles"""
+    for event in subscribe(WatchFilesSubscription, {"dataset": dataset}, rath=rath):
+        yield event.files
+
+
+async def awatch_images(
+    dataset: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+) -> AsyncIterator[WatchImagesSubscriptionImages]:
+    """WatchImages
+
+
+
+    Arguments:
+        dataset (Optional[ID], optional): dataset.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        WatchImagesSubscriptionImages"""
+    async for event in asubscribe(
+        WatchImagesSubscription, {"dataset": dataset}, rath=rath
+    ):
+        yield event.images
+
+
+def watch_images(
+    dataset: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+) -> Iterator[WatchImagesSubscriptionImages]:
+    """WatchImages
+
+
+
+    Arguments:
+        dataset (Optional[ID], optional): dataset.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        WatchImagesSubscriptionImages"""
+    for event in subscribe(WatchImagesSubscription, {"dataset": dataset}, rath=rath):
+        yield event.images
+
+
+async def awatch_rois(
+    image: ID, rath: Optional[MikroNextRath] = None
+) -> AsyncIterator[WatchRoisSubscriptionRois]:
+    """WatchRois
+
+
+
+    Arguments:
+        image (ID): image
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        WatchRoisSubscriptionRois"""
+    async for event in asubscribe(WatchRoisSubscription, {"image": image}, rath=rath):
+        yield event.rois
+
+
+def watch_rois(
+    image: ID, rath: Optional[MikroNextRath] = None
+) -> Iterator[WatchRoisSubscriptionRois]:
+    """WatchRois
+
+
+
+    Arguments:
+        image (ID): image
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        WatchRoisSubscriptionRois"""
+    for event in subscribe(WatchRoisSubscription, {"image": image}, rath=rath):
+        yield event.rois
+
+
 AffineTransformationViewFilter.update_forward_refs()
-ChannelViewFragment.update_forward_refs()
+ChannelView.update_forward_refs()
 DatasetFilter.update_forward_refs()
 EraFilter.update_forward_refs()
-FileFragment.update_forward_refs()
+File.update_forward_refs()
+Image.update_forward_refs()
 ImageFilter.update_forward_refs()
-ImageFragment.update_forward_refs()
-LabelViewFragment.update_forward_refs()
+LabelView.update_forward_refs()
 ProvenanceFilter.update_forward_refs()
+RGBContextImage.update_forward_refs()
 StageFilter.update_forward_refs()
-TableFragment.update_forward_refs()
+Table.update_forward_refs()
+TimepointView.update_forward_refs()
 TimepointViewFilter.update_forward_refs()
-TimepointViewFragment.update_forward_refs()
 TreeInput.update_forward_refs()
 TreeNodeInput.update_forward_refs()
 ZarrStoreFilter.update_forward_refs()

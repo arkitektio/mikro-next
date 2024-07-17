@@ -1,65 +1,79 @@
 fragment View on View {
-    zMin
-    zMax
+  zMin
+  zMax
 }
 
 fragment ChannelView on ChannelView {
-    ...View
-    id
-    channel {
-        ...Channel
-    }
+  ...View
+  id
+  channel {
+    ...Channel
+  }
 }
 
 fragment AffineTransformationView on AffineTransformationView {
-    ...View
+  ...View
+  id
+  affineMatrix
+  stage {
     id
-    affineMatrix
-    stage {
-        id
-    }
+  }
 }
 
-
 fragment TimepointView on TimepointView {
-    ...View
-    id
-    msSinceStart
-    indexSinceStart
-    era {
-        ...Era
-    }
+  ...View
+  id
+  msSinceStart
+  indexSinceStart
+  era {
+    ...Era
+  }
 }
 
 fragment OpticsView on OpticsView {
-    ...View
-    objective {
-        id
-        name
-        serialNumber
-    }
-    camera {
-        id
-        name
-        serialNumber
-    }
-    instrument {
-        id
-        name
-        serialNumber
-    }
+  ...View
+  objective {
+    id
+    name
+    serialNumber
+  }
+  camera {
+    id
+    name
+    serialNumber
+  }
+  instrument {
+    id
+    name
+    serialNumber
+  }
 }
 
 fragment LabelView on LabelView {
-    ...View
-    id
-    fluorophore {
-        ...Fluorophore
-    }
-    primaryAntibody {
-        ...Antibody
-    }
-    secondaryAntibody {
-        ...Antibody
-    }
+  ...View
+  id
+  fluorophore {
+    ...Fluorophore
+  }
+  primaryAntibody {
+    ...Antibody
+  }
+  secondaryAntibody {
+    ...Antibody
+  }
+}
+
+fragment RGBView on RGBView {
+  ...View
+  id
+  colorMap
+  contrastLimitMin
+  contrastLimitMax
+  gamma
+  rescale
+  active
+  cMin
+  cMax
+  fullColour
+  baseColor
 }

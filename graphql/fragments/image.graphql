@@ -18,5 +18,8 @@ fragment Image on Image {
   rgbContexts {
     id
     name
+    views {
+      ...RGBView
+    }
   }
 }

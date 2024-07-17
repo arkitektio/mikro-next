@@ -1,5 +1,11 @@
-mutation CreateRGBContext($name: String!, $image: ID!) {
-  createRgbContext(input: {name: $name, image: $image}) {
-    id
+mutation CreateRGBContext($input: CreateRGBContextInput!) {
+  createRgbContext(input: $input) {
+    ...RGBContext
+  }
+}
+
+mutation UpdateRGBContext($input: UpdateRGBContextInput!) {
+  updateRgbContext(input: $input) {
+    ...RGBContext
   }
 }

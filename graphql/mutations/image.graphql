@@ -10,6 +10,8 @@ mutation from_array_like(
   $timepointViews: [PartialTimepointViewInput!]
   $opticsViews: [PartialOpticsViewInput!]
   $tags: [String!]
+  $fileOrigins: [ID!]
+  $roiOrigins: [ID!]
 ) {
   fromArrayLike(
     input: {
@@ -24,6 +26,8 @@ mutation from_array_like(
       opticsViews: $opticsViews
       rgbViews: $rgbViews
       tags: $tags
+      fileOrigins: $fileOrigins
+      roiOrigins: $roiOrigins
     }
   ) {
     ...Image

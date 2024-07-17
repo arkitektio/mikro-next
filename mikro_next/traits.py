@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from pyarrow.parquet import ParquetDataset
 
 
-class Image(BaseModel):
+class HasZarrStoreTrait(BaseModel):
     """Representation Trait
 
     Implements both identifier and shrinking methods.
@@ -77,15 +77,6 @@ class Image(BaseModel):
         )
 
 
-class Stage:
-    pass
-
-
-class Objective:
-    """Additional Methods for ROI"""
-
-    pass
-
 
 class PhysicalSizeProtocol(Protocol):
     """A Protocol for Vectorizable data
@@ -114,7 +105,7 @@ class PhysicalSizeProtocol(Protocol):
     ): ...
 
 
-class PhysicalSize:
+class PhysicalSizeTrait:
     """Additional Methods for PhysicalSize"""
 
     def is_similar(
@@ -171,7 +162,7 @@ class PhysicalSize:
         ]
 
 
-class ROI:
+class IsVectorizableTrait:
     """Additional Methods for ROI"""
 
     @property
@@ -189,8 +180,16 @@ class ROI:
             vector_list
         ), "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
         vector_list: list
-        accesors = list(dims)
-        return np.array([[getattr(v, ac) for ac in accesors] for v in vector_list])
+
+        mapper = {
+            "y": 4,
+            "x": 3,
+            "z": 2,
+            "t": 1,
+            "c": 0,
+        }
+
+        return np.array([[v[mapper[ac]] for ac in dims] for v in vector_list])
 
     def center(self) -> FiveDVector:
         """The center of the ROI
@@ -239,7 +238,7 @@ class ROI:
         )
 
 
-class Table(BaseModel):
+class HasParquestStoreTrait(BaseModel):
     """Table Trait
 
     Implements both identifier and shrinking methods.
@@ -261,22 +260,11 @@ class Table(BaseModel):
         return store.parquet_dataset.read_pandas().to_pandas()
 
 
-class File(BaseModel):
-    """Table Trait
-
-    Implements both identifier and shrinking methods.
-    Also Implements the data attribute
-
-    Attributes:
-        data (pd.DataFrame): The data of the table.
-
-    """
-
 
 V = TypeVar("V")
 
 
-class ZarrStore(BaseModel):
+class HasZarrStoreAccessor(BaseModel):
     _openstore: Any = None
 
     @property
@@ -292,7 +280,7 @@ class ZarrStore(BaseModel):
         underscore_attrs_are_private = True
 
 
-class ParquetStore(BaseModel):
+class HasParquetStoreAccesor(BaseModel):
     _dataset: Any = None
 
     @property
@@ -310,20 +298,20 @@ class ParquetStore(BaseModel):
         underscore_attrs_are_private = True
 
 
-class BigFileStore(BaseModel):
+class HasDownloadAccessor(BaseModel):
     _dataset: Any = None
 
-    def download(self, file_name: str = None) -> "ParquetDataset":
-        from mikro_next.io.download import download_bigfile
+    def download(self, file_name: str = None) -> "str":
+        from mikro_next.io.download import download_file
 
-        id = get_attributes_or_error(self, "id")
-        return download_bigfile(id, file_name=file_name)
+        url, key = get_attributes_or_error(self, "presigned_url", "key")
+        return download_file(url, file_name=file_name or key)
 
     class Config:
         underscore_attrs_are_private = True
 
 
-class MediaStore(BaseModel):
+class HasPresignedDownloadAccessor(BaseModel):
     _dataset: Any = None
 
     def download(self, file_name: str = None) -> str:
@@ -366,7 +354,7 @@ class Vector(Protocol):
 T = TypeVar("T", bound=Vector)
 
 
-class PixelTranslatable:
+class HasPixelSizeTrait:
     """Mixin for PixelTranslatable data"""
 
     @property
@@ -398,7 +386,7 @@ class PixelTranslatable:
         raise NotImplementedError(f"Pixel size not implemented for this kind {kind}")
 
 
-class Vectorizable:
+class HasFromNumpyArrayTrait:
     """Mixin for Vectorizable data
     adds functionality to convert a numpy array to a list of vectors
     """

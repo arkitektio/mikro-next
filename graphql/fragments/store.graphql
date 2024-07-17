@@ -17,4 +17,5 @@ fragment BigFileStore on BigFileStore {
   key
   bucket
   path
+  presignedUrl
 }
