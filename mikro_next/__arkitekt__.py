@@ -4,7 +4,6 @@ from rath.links.dictinglink import DictingLink
 from rath.links.auth import AuthTokenLink
 
 
-
 def init_services(service_builder_registry):
     from rath.contrib.fakts.links.aiohttp import FaktsAIOHttpLink
     from rath.links.split import SplitLink
@@ -14,7 +13,6 @@ def init_services(service_builder_registry):
     from herre import Herre
     from arkitekt_next.service_registry import Params
     from arkitekt_next.model import Requirement
-
 
     from mikro_next.mikro_next import MikroNext
     from mikro_next.rath import MikroNextLinkComposition, MikroNextRath
@@ -34,6 +32,7 @@ def init_services(service_builder_registry):
     try:
         from rekuest_next.links.context import ContextLink
         from rath.links.compose import TypedComposedLink
+
         class ArkitektMikroNextLinkComposition(TypedComposedLink):
             fileextraction: FileExtraction = Field(default_factory=FileExtraction)
             """ A link that extracts files from the request and follows the graphql multipart request spec"""
@@ -46,21 +45,17 @@ def init_services(service_builder_registry):
             """ A link that splits the request into a http and a websocket request"""
             assignation: ContextLink = Field(default_factory=ContextLink)
             split: SplitLink
-    except ImportError: 
-    
+    except ImportError:
         ArkitektMikroNextLinkComposition = MikroNextLinkComposition
-
 
     class ArkitektMikroNextRath(MikroNextRath):
         link: ArkitektMikroNextLinkComposition
-
 
     class ArkitektNextMikroNext(MikroNext):
         rath: ArkitektMikroNextRath
         datalayer: DataLayer
 
-
-    def builder_mikro(fakts: Fakts, herre: Herre,  params: Params, manifest: Manifest):
+    def builder_mikro(fakts: Fakts, herre: Herre, params: Params, manifest: Manifest):
         datalayer = FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
 
         return ArkitektNextMikroNext(
@@ -77,24 +72,27 @@ def init_services(service_builder_registry):
                     ),
                 )
             ),
-            datalayer=datalayer
+            datalayer=datalayer,
         )
-    
-    def fake_builder(fakts,herre, params, manifest):
-        return  FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
-        
-    service_builder_registry.register("mikro", builder_mikro,Requirement(
+
+    def fake_builder(fakts, herre, params, manifest):
+        return FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
+
+    service_builder_registry.register(
+        "mikro",
+        builder_mikro,
+        Requirement(
             service="live.arkitekt.mikro",
             description="An instance of ArkitektNext Mikro to make requests to the user's data",
             optional=True,
-        ),)
-    service_builder_registry.register("datalayer", fake_builder, Requirement(
-            service="live.arkitekt.datalayer",
+        ),
+    )
+    service_builder_registry.register(
+        "datalayer",
+        fake_builder,
+        Requirement(
+            service="live.arkitekt.s3",
             description="An instance of ArkitektNext Datalayer to make requests to the user's data",
             optional=True,
-        ),)
-    
-
-
-
-
+        ),
+    )
