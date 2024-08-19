@@ -1,0 +1,5 @@
+mutation CreateRenderedPlot($plot: Upload!, $name: String! $overlays: [OverlayInput!]) {
+  createRenderedPlot(input: {plot: $plot, overlays: $overlays, name: $name}) {
+    ...RenderedPlot
+  }
+}

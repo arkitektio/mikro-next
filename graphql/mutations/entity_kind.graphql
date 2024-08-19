@@ -1,0 +1,20 @@
+mutation CreateEntityKind(
+  $label: String!
+  $ontology: ID
+  $purl: String
+  $description: String
+  $color: [Int!]
+) {
+  createEntityKind(
+    input: {
+      label: $label
+      ontology: $ontology
+      description: $description
+      purl: $purl
+      color: $color
+    }
+  ) {
+    id
+    label
+  }
+}

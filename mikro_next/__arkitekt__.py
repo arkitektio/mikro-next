@@ -45,6 +45,7 @@ def init_services(service_builder_registry):
             """ A link that splits the request into a http and a websocket request"""
             assignation: ContextLink = Field(default_factory=ContextLink)
             split: SplitLink
+
     except ImportError:
         ArkitektMikroNextLinkComposition = MikroNextLinkComposition
 

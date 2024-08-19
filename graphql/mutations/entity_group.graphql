@@ -1,0 +1,6 @@
+mutation CreateEntityGroup($name: String!, $image: ID) {
+  createEntityGroup(input: { name: $name, image: $image }) {
+    id
+    name
+  }
+}

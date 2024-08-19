@@ -1,0 +1,15 @@
+query GetProtocolStep($id: ID!) {
+  protocolStep(id: $id) {
+    ...ProtocolStep
+  }
+}
+
+query SearchProtocolSteps($search: String, $values: [ID!]) {
+  options: protocolSteps(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: 10 }
+  ) {
+    value: id
+    label: name
+  }
+}

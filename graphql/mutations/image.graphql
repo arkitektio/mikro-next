@@ -4,11 +4,13 @@ mutation from_array_like(
   $origins: [ID!]
   $channelViews: [PartialChannelViewInput!]
   $transformationViews: [PartialAffineTransformationViewInput!]
-  $labelViews: [PartialLabelViewInput!]
+  $pixelViews: [PartialPixelViewInput!]
   $rgbViews: [PartialRGBViewInput!]
   $acquisitionViews: [PartialAcquisitionViewInput!]
   $timepointViews: [PartialTimepointViewInput!]
   $opticsViews: [PartialOpticsViewInput!]
+  $specimenViews: [PartialSpecimenViewInput!]
+  $scaleViews: [PartialScaleViewInput!]
   $tags: [String!]
   $fileOrigins: [ID!]
   $roiOrigins: [ID!]
@@ -21,13 +23,15 @@ mutation from_array_like(
       channelViews: $channelViews
       transformationViews: $transformationViews
       acquisitionViews: $acquisitionViews
-      labelViews: $labelViews
+      pixelViews: $pixelViews
       timepointViews: $timepointViews
       opticsViews: $opticsViews
       rgbViews: $rgbViews
+      scaleViews: $scaleViews
       tags: $tags
       fileOrigins: $fileOrigins
       roiOrigins: $roiOrigins
+      specimenViews: $specimenViews
     }
   ) {
     ...Image

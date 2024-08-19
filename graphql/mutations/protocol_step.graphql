@@ -1,0 +1,6 @@
+mutation CreateProtocolStep( $name: String!, $kind: ID! $reagents: [ID!], $description: String,) {
+  
+  createProtocolStep(input: {reagents: $reagents, description: $description, kind: $kind, name: $name }) {
+    ...ProtocolStep
+  }
+}

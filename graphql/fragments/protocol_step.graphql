@@ -1,0 +1,24 @@
+fragment ProtocolStep on ProtocolStep {
+  id
+  mappings {
+    id
+    protocol {
+      id 
+      name
+    }
+  }
+  description
+  reagents {
+    id
+    name
+  }
+  views {
+    id 
+    specimen {
+      id
+    }
+    image {
+      id
+    }
+  }
+}

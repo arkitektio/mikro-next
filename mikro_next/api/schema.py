@@ -1,29 +1,30 @@
-from typing import List, AsyncIterator, Tuple, Union, Optional, Iterator, Literal
 from mikro_next.scalars import (
+    Micrometers,
+    ArrayLike,
+    ParquetLike,
     FourByFourMatrix,
     Milliseconds,
     FileLike,
-    ArrayLike,
     Upload,
-    ParquetLike,
     FiveDVector,
-    Micrometers,
 )
-from mikro_next.funcs import aexecute, execute, subscribe, asubscribe
-from datetime import datetime
-from enum import Enum
 from mikro_next.traits import (
-    HasZarrStoreTrait,
-    IsVectorizableTrait,
-    HasDownloadAccessor,
-    HasPresignedDownloadAccessor,
-    HasParquetStoreAccesor,
     HasParquestStoreTrait,
     HasZarrStoreAccessor,
+    HasZarrStoreTrait,
+    IsVectorizableTrait,
+    CanSpawnEntityTrait,
+    HasParquetStoreAccesor,
+    HasPresignedDownloadAccessor,
+    HasDownloadAccessor,
 )
-from pydantic import Field, BaseModel
+from typing import Literal, Optional, Iterator, Union, AsyncIterator, Any, Tuple, List
 from mikro_next.rath import MikroNextRath
+from pydantic import BaseModel, Field
 from rath.scalars import ID
+from mikro_next.funcs import subscribe, asubscribe, execute, aexecute
+from enum import Enum
+from datetime import datetime
 
 
 class RoiKind(str, Enum):
@@ -42,6 +43,13 @@ class RoiKind(str, Enum):
     FRAME = "FRAME"
     SLICE = "SLICE"
     POINT = "POINT"
+
+
+class MetricDataType(str, Enum):
+    INT = "INT"
+    FLOAT = "FLOAT"
+    DATETIME = "DATETIME"
+    STRING = "STRING"
 
 
 class ColorMap(str, Enum):
@@ -68,9 +76,9 @@ class RenderNodeKind(str, Enum):
 
 
 class ProvenanceFilter(BaseModel):
-    during: Optional[str]
-    and_: Optional["ProvenanceFilter"] = Field(alias="AND")
-    or_: Optional["ProvenanceFilter"] = Field(alias="OR")
+    during: Optional[str] = None
+    and_: Optional["ProvenanceFilter"] = Field(alias="AND", default=None)
+    or_: Optional["ProvenanceFilter"] = Field(alias="OR", default=None)
 
     class Config:
         """A config class"""
@@ -82,40 +90,40 @@ class ProvenanceFilter(BaseModel):
 
 
 class StrFilterLookup(BaseModel):
-    exact: Optional[str]
-    i_exact: Optional[str] = Field(alias="iExact")
-    contains: Optional[str]
-    i_contains: Optional[str] = Field(alias="iContains")
-    in_list: Optional[Tuple[str, ...]] = Field(alias="inList")
-    gt: Optional[str]
-    gte: Optional[str]
-    lt: Optional[str]
-    lte: Optional[str]
-    starts_with: Optional[str] = Field(alias="startsWith")
-    i_starts_with: Optional[str] = Field(alias="iStartsWith")
-    ends_with: Optional[str] = Field(alias="endsWith")
-    i_ends_with: Optional[str] = Field(alias="iEndsWith")
-    range: Optional[Tuple[str, ...]]
-    is_null: Optional[bool] = Field(alias="isNull")
-    regex: Optional[str]
-    i_regex: Optional[str] = Field(alias="iRegex")
-    n_exact: Optional[str] = Field(alias="nExact")
-    n_i_exact: Optional[str] = Field(alias="nIExact")
-    n_contains: Optional[str] = Field(alias="nContains")
-    n_i_contains: Optional[str] = Field(alias="nIContains")
-    n_in_list: Optional[Tuple[str, ...]] = Field(alias="nInList")
-    n_gt: Optional[str] = Field(alias="nGt")
-    n_gte: Optional[str] = Field(alias="nGte")
-    n_lt: Optional[str] = Field(alias="nLt")
-    n_lte: Optional[str] = Field(alias="nLte")
-    n_starts_with: Optional[str] = Field(alias="nStartsWith")
-    n_i_starts_with: Optional[str] = Field(alias="nIStartsWith")
-    n_ends_with: Optional[str] = Field(alias="nEndsWith")
-    n_i_ends_with: Optional[str] = Field(alias="nIEndsWith")
-    n_range: Optional[Tuple[str, ...]] = Field(alias="nRange")
-    n_is_null: Optional[bool] = Field(alias="nIsNull")
-    n_regex: Optional[str] = Field(alias="nRegex")
-    n_i_regex: Optional[str] = Field(alias="nIRegex")
+    exact: Optional[str] = None
+    i_exact: Optional[str] = Field(alias="iExact", default=None)
+    contains: Optional[str] = None
+    i_contains: Optional[str] = Field(alias="iContains", default=None)
+    in_list: Optional[Tuple[str, ...]] = Field(alias="inList", default=None)
+    gt: Optional[str] = None
+    gte: Optional[str] = None
+    lt: Optional[str] = None
+    lte: Optional[str] = None
+    starts_with: Optional[str] = Field(alias="startsWith", default=None)
+    i_starts_with: Optional[str] = Field(alias="iStartsWith", default=None)
+    ends_with: Optional[str] = Field(alias="endsWith", default=None)
+    i_ends_with: Optional[str] = Field(alias="iEndsWith", default=None)
+    range: Optional[Tuple[str, ...]] = None
+    is_null: Optional[bool] = Field(alias="isNull", default=None)
+    regex: Optional[str] = None
+    i_regex: Optional[str] = Field(alias="iRegex", default=None)
+    n_exact: Optional[str] = Field(alias="nExact", default=None)
+    n_i_exact: Optional[str] = Field(alias="nIExact", default=None)
+    n_contains: Optional[str] = Field(alias="nContains", default=None)
+    n_i_contains: Optional[str] = Field(alias="nIContains", default=None)
+    n_in_list: Optional[Tuple[str, ...]] = Field(alias="nInList", default=None)
+    n_gt: Optional[str] = Field(alias="nGt", default=None)
+    n_gte: Optional[str] = Field(alias="nGte", default=None)
+    n_lt: Optional[str] = Field(alias="nLt", default=None)
+    n_lte: Optional[str] = Field(alias="nLte", default=None)
+    n_starts_with: Optional[str] = Field(alias="nStartsWith", default=None)
+    n_i_starts_with: Optional[str] = Field(alias="nIStartsWith", default=None)
+    n_ends_with: Optional[str] = Field(alias="nEndsWith", default=None)
+    n_i_ends_with: Optional[str] = Field(alias="nIEndsWith", default=None)
+    n_range: Optional[Tuple[str, ...]] = Field(alias="nRange", default=None)
+    n_is_null: Optional[bool] = Field(alias="nIsNull", default=None)
+    n_regex: Optional[str] = Field(alias="nRegex", default=None)
+    n_i_regex: Optional[str] = Field(alias="nIRegex", default=None)
 
     class Config:
         """A config class"""
@@ -140,17 +148,20 @@ class OffsetPaginationInput(BaseModel):
 
 
 class ImageFilter(BaseModel):
-    name: Optional[StrFilterLookup]
-    ids: Optional[Tuple[ID, ...]]
-    store: Optional["ZarrStoreFilter"]
-    dataset: Optional["DatasetFilter"]
+    name: Optional[StrFilterLookup] = None
+    ids: Optional[Tuple[ID, ...]] = None
+    store: Optional["ZarrStoreFilter"] = None
+    dataset: Optional["DatasetFilter"] = None
     transformation_views: Optional["AffineTransformationViewFilter"] = Field(
-        alias="transformationViews"
+        alias="transformationViews", default=None
     )
-    timepoint_views: Optional["TimepointViewFilter"] = Field(alias="timepointViews")
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["ImageFilter"] = Field(alias="AND")
-    or_: Optional["ImageFilter"] = Field(alias="OR")
+    timepoint_views: Optional["TimepointViewFilter"] = Field(
+        alias="timepointViews", default=None
+    )
+    not_derived: Optional[bool] = Field(alias="notDerived", default=None)
+    provenance: Optional[ProvenanceFilter] = None
+    and_: Optional["ImageFilter"] = Field(alias="AND", default=None)
+    or_: Optional["ImageFilter"] = Field(alias="OR", default=None)
 
     class Config:
         """A config class"""
@@ -162,9 +173,9 @@ class ImageFilter(BaseModel):
 
 
 class ZarrStoreFilter(BaseModel):
-    shape: Optional["IntFilterLookup"]
-    and_: Optional["ZarrStoreFilter"] = Field(alias="AND")
-    or_: Optional["ZarrStoreFilter"] = Field(alias="OR")
+    shape: Optional["IntFilterLookup"] = None
+    and_: Optional["ZarrStoreFilter"] = Field(alias="AND", default=None)
+    or_: Optional["ZarrStoreFilter"] = Field(alias="OR", default=None)
 
     class Config:
         """A config class"""
@@ -176,40 +187,40 @@ class ZarrStoreFilter(BaseModel):
 
 
 class IntFilterLookup(BaseModel):
-    exact: Optional[int]
-    i_exact: Optional[int] = Field(alias="iExact")
-    contains: Optional[int]
-    i_contains: Optional[int] = Field(alias="iContains")
-    in_list: Optional[Tuple[int, ...]] = Field(alias="inList")
-    gt: Optional[int]
-    gte: Optional[int]
-    lt: Optional[int]
-    lte: Optional[int]
-    starts_with: Optional[int] = Field(alias="startsWith")
-    i_starts_with: Optional[int] = Field(alias="iStartsWith")
-    ends_with: Optional[int] = Field(alias="endsWith")
-    i_ends_with: Optional[int] = Field(alias="iEndsWith")
-    range: Optional[Tuple[int, ...]]
-    is_null: Optional[bool] = Field(alias="isNull")
-    regex: Optional[str]
-    i_regex: Optional[str] = Field(alias="iRegex")
-    n_exact: Optional[int] = Field(alias="nExact")
-    n_i_exact: Optional[int] = Field(alias="nIExact")
-    n_contains: Optional[int] = Field(alias="nContains")
-    n_i_contains: Optional[int] = Field(alias="nIContains")
-    n_in_list: Optional[Tuple[int, ...]] = Field(alias="nInList")
-    n_gt: Optional[int] = Field(alias="nGt")
-    n_gte: Optional[int] = Field(alias="nGte")
-    n_lt: Optional[int] = Field(alias="nLt")
-    n_lte: Optional[int] = Field(alias="nLte")
-    n_starts_with: Optional[int] = Field(alias="nStartsWith")
-    n_i_starts_with: Optional[int] = Field(alias="nIStartsWith")
-    n_ends_with: Optional[int] = Field(alias="nEndsWith")
-    n_i_ends_with: Optional[int] = Field(alias="nIEndsWith")
-    n_range: Optional[Tuple[int, ...]] = Field(alias="nRange")
-    n_is_null: Optional[bool] = Field(alias="nIsNull")
-    n_regex: Optional[str] = Field(alias="nRegex")
-    n_i_regex: Optional[str] = Field(alias="nIRegex")
+    exact: Optional[int] = None
+    i_exact: Optional[int] = Field(alias="iExact", default=None)
+    contains: Optional[int] = None
+    i_contains: Optional[int] = Field(alias="iContains", default=None)
+    in_list: Optional[Tuple[int, ...]] = Field(alias="inList", default=None)
+    gt: Optional[int] = None
+    gte: Optional[int] = None
+    lt: Optional[int] = None
+    lte: Optional[int] = None
+    starts_with: Optional[int] = Field(alias="startsWith", default=None)
+    i_starts_with: Optional[int] = Field(alias="iStartsWith", default=None)
+    ends_with: Optional[int] = Field(alias="endsWith", default=None)
+    i_ends_with: Optional[int] = Field(alias="iEndsWith", default=None)
+    range: Optional[Tuple[int, ...]] = None
+    is_null: Optional[bool] = Field(alias="isNull", default=None)
+    regex: Optional[str] = None
+    i_regex: Optional[str] = Field(alias="iRegex", default=None)
+    n_exact: Optional[int] = Field(alias="nExact", default=None)
+    n_i_exact: Optional[int] = Field(alias="nIExact", default=None)
+    n_contains: Optional[int] = Field(alias="nContains", default=None)
+    n_i_contains: Optional[int] = Field(alias="nIContains", default=None)
+    n_in_list: Optional[Tuple[int, ...]] = Field(alias="nInList", default=None)
+    n_gt: Optional[int] = Field(alias="nGt", default=None)
+    n_gte: Optional[int] = Field(alias="nGte", default=None)
+    n_lt: Optional[int] = Field(alias="nLt", default=None)
+    n_lte: Optional[int] = Field(alias="nLte", default=None)
+    n_starts_with: Optional[int] = Field(alias="nStartsWith", default=None)
+    n_i_starts_with: Optional[int] = Field(alias="nIStartsWith", default=None)
+    n_ends_with: Optional[int] = Field(alias="nEndsWith", default=None)
+    n_i_ends_with: Optional[int] = Field(alias="nIEndsWith", default=None)
+    n_range: Optional[Tuple[int, ...]] = Field(alias="nRange", default=None)
+    n_is_null: Optional[bool] = Field(alias="nIsNull", default=None)
+    n_regex: Optional[str] = Field(alias="nRegex", default=None)
+    n_i_regex: Optional[str] = Field(alias="nIRegex", default=None)
 
     class Config:
         """A config class"""
@@ -221,11 +232,11 @@ class IntFilterLookup(BaseModel):
 
 
 class DatasetFilter(BaseModel):
-    id: Optional[ID]
-    name: Optional[StrFilterLookup]
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["DatasetFilter"] = Field(alias="AND")
-    or_: Optional["DatasetFilter"] = Field(alias="OR")
+    id: Optional[ID] = None
+    name: Optional[StrFilterLookup] = None
+    provenance: Optional[ProvenanceFilter] = None
+    and_: Optional["DatasetFilter"] = Field(alias="AND", default=None)
+    or_: Optional["DatasetFilter"] = Field(alias="OR", default=None)
 
     class Config:
         """A config class"""
@@ -237,12 +248,12 @@ class DatasetFilter(BaseModel):
 
 
 class AffineTransformationViewFilter(BaseModel):
-    is_global: Optional[bool] = Field(alias="isGlobal")
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["AffineTransformationViewFilter"] = Field(alias="AND")
-    or_: Optional["AffineTransformationViewFilter"] = Field(alias="OR")
-    stage: Optional["StageFilter"]
-    pixel_size: Optional["FloatFilterLookup"] = Field(alias="pixelSize")
+    is_global: Optional[bool] = Field(alias="isGlobal", default=None)
+    provenance: Optional[ProvenanceFilter] = None
+    and_: Optional["AffineTransformationViewFilter"] = Field(alias="AND", default=None)
+    or_: Optional["AffineTransformationViewFilter"] = Field(alias="OR", default=None)
+    stage: Optional["StageFilter"] = None
+    pixel_size: Optional["FloatFilterLookup"] = Field(alias="pixelSize", default=None)
 
     class Config:
         """A config class"""
@@ -254,14 +265,14 @@ class AffineTransformationViewFilter(BaseModel):
 
 
 class StageFilter(BaseModel):
-    ids: Optional[Tuple[ID, ...]]
-    search: Optional[str]
-    id: Optional[ID]
-    kind: Optional[str]
-    name: Optional[StrFilterLookup]
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["StageFilter"] = Field(alias="AND")
-    or_: Optional["StageFilter"] = Field(alias="OR")
+    ids: Optional[Tuple[ID, ...]] = None
+    search: Optional[str] = None
+    id: Optional[ID] = None
+    kind: Optional[str] = None
+    name: Optional[StrFilterLookup] = None
+    provenance: Optional[ProvenanceFilter] = None
+    and_: Optional["StageFilter"] = Field(alias="AND", default=None)
+    or_: Optional["StageFilter"] = Field(alias="OR", default=None)
 
     class Config:
         """A config class"""
@@ -273,40 +284,40 @@ class StageFilter(BaseModel):
 
 
 class FloatFilterLookup(BaseModel):
-    exact: Optional[float]
-    i_exact: Optional[float] = Field(alias="iExact")
-    contains: Optional[float]
-    i_contains: Optional[float] = Field(alias="iContains")
-    in_list: Optional[Tuple[float, ...]] = Field(alias="inList")
-    gt: Optional[float]
-    gte: Optional[float]
-    lt: Optional[float]
-    lte: Optional[float]
-    starts_with: Optional[float] = Field(alias="startsWith")
-    i_starts_with: Optional[float] = Field(alias="iStartsWith")
-    ends_with: Optional[float] = Field(alias="endsWith")
-    i_ends_with: Optional[float] = Field(alias="iEndsWith")
-    range: Optional[Tuple[float, ...]]
-    is_null: Optional[bool] = Field(alias="isNull")
-    regex: Optional[str]
-    i_regex: Optional[str] = Field(alias="iRegex")
-    n_exact: Optional[float] = Field(alias="nExact")
-    n_i_exact: Optional[float] = Field(alias="nIExact")
-    n_contains: Optional[float] = Field(alias="nContains")
-    n_i_contains: Optional[float] = Field(alias="nIContains")
-    n_in_list: Optional[Tuple[float, ...]] = Field(alias="nInList")
-    n_gt: Optional[float] = Field(alias="nGt")
-    n_gte: Optional[float] = Field(alias="nGte")
-    n_lt: Optional[float] = Field(alias="nLt")
-    n_lte: Optional[float] = Field(alias="nLte")
-    n_starts_with: Optional[float] = Field(alias="nStartsWith")
-    n_i_starts_with: Optional[float] = Field(alias="nIStartsWith")
-    n_ends_with: Optional[float] = Field(alias="nEndsWith")
-    n_i_ends_with: Optional[float] = Field(alias="nIEndsWith")
-    n_range: Optional[Tuple[float, ...]] = Field(alias="nRange")
-    n_is_null: Optional[bool] = Field(alias="nIsNull")
-    n_regex: Optional[str] = Field(alias="nRegex")
-    n_i_regex: Optional[str] = Field(alias="nIRegex")
+    exact: Optional[float] = None
+    i_exact: Optional[float] = Field(alias="iExact", default=None)
+    contains: Optional[float] = None
+    i_contains: Optional[float] = Field(alias="iContains", default=None)
+    in_list: Optional[Tuple[float, ...]] = Field(alias="inList", default=None)
+    gt: Optional[float] = None
+    gte: Optional[float] = None
+    lt: Optional[float] = None
+    lte: Optional[float] = None
+    starts_with: Optional[float] = Field(alias="startsWith", default=None)
+    i_starts_with: Optional[float] = Field(alias="iStartsWith", default=None)
+    ends_with: Optional[float] = Field(alias="endsWith", default=None)
+    i_ends_with: Optional[float] = Field(alias="iEndsWith", default=None)
+    range: Optional[Tuple[float, ...]] = None
+    is_null: Optional[bool] = Field(alias="isNull", default=None)
+    regex: Optional[str] = None
+    i_regex: Optional[str] = Field(alias="iRegex", default=None)
+    n_exact: Optional[float] = Field(alias="nExact", default=None)
+    n_i_exact: Optional[float] = Field(alias="nIExact", default=None)
+    n_contains: Optional[float] = Field(alias="nContains", default=None)
+    n_i_contains: Optional[float] = Field(alias="nIContains", default=None)
+    n_in_list: Optional[Tuple[float, ...]] = Field(alias="nInList", default=None)
+    n_gt: Optional[float] = Field(alias="nGt", default=None)
+    n_gte: Optional[float] = Field(alias="nGte", default=None)
+    n_lt: Optional[float] = Field(alias="nLt", default=None)
+    n_lte: Optional[float] = Field(alias="nLte", default=None)
+    n_starts_with: Optional[float] = Field(alias="nStartsWith", default=None)
+    n_i_starts_with: Optional[float] = Field(alias="nIStartsWith", default=None)
+    n_ends_with: Optional[float] = Field(alias="nEndsWith", default=None)
+    n_i_ends_with: Optional[float] = Field(alias="nIEndsWith", default=None)
+    n_range: Optional[Tuple[float, ...]] = Field(alias="nRange", default=None)
+    n_is_null: Optional[bool] = Field(alias="nIsNull", default=None)
+    n_regex: Optional[str] = Field(alias="nRegex", default=None)
+    n_i_regex: Optional[str] = Field(alias="nIRegex", default=None)
 
     class Config:
         """A config class"""
@@ -318,13 +329,13 @@ class FloatFilterLookup(BaseModel):
 
 
 class TimepointViewFilter(BaseModel):
-    is_global: Optional[bool] = Field(alias="isGlobal")
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["TimepointViewFilter"] = Field(alias="AND")
-    or_: Optional["TimepointViewFilter"] = Field(alias="OR")
-    era: Optional["EraFilter"]
-    ms_since_start: Optional[float] = Field(alias="msSinceStart")
-    index_since_start: Optional[int] = Field(alias="indexSinceStart")
+    is_global: Optional[bool] = Field(alias="isGlobal", default=None)
+    provenance: Optional[ProvenanceFilter] = None
+    and_: Optional["TimepointViewFilter"] = Field(alias="AND", default=None)
+    or_: Optional["TimepointViewFilter"] = Field(alias="OR", default=None)
+    era: Optional["EraFilter"] = None
+    ms_since_start: Optional[float] = Field(alias="msSinceStart", default=None)
+    index_since_start: Optional[int] = Field(alias="indexSinceStart", default=None)
 
     class Config:
         """A config class"""
@@ -336,11 +347,11 @@ class TimepointViewFilter(BaseModel):
 
 
 class EraFilter(BaseModel):
-    id: Optional[ID]
-    begin: Optional[datetime]
-    provenance: Optional[ProvenanceFilter]
-    and_: Optional["EraFilter"] = Field(alias="AND")
-    or_: Optional["EraFilter"] = Field(alias="OR")
+    id: Optional[ID] = None
+    begin: Optional[datetime] = None
+    provenance: Optional[ProvenanceFilter] = None
+    and_: Optional["EraFilter"] = Field(alias="AND", default=None)
+    or_: Optional["EraFilter"] = Field(alias="OR", default=None)
 
     class Config:
         """A config class"""
@@ -352,17 +363,17 @@ class EraFilter(BaseModel):
 
 
 class PartialChannelViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
+    collection: Optional[ID] = None
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    c_max: Optional[int] = Field(alias="cMax", default=None)
     channel: ID
 
     class Config:
@@ -375,18 +386,18 @@ class PartialChannelViewInput(BaseModel):
 
 
 class PartialAffineTransformationViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    stage: Optional[ID]
+    collection: Optional[ID] = None
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    stage: Optional[ID] = None
     affine_matrix: FourByFourMatrix = Field(alias="affineMatrix")
 
     class Config:
@@ -399,20 +410,20 @@ class PartialAffineTransformationViewInput(BaseModel):
 
 
 class PartialAcquisitionViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    description: Optional[str]
-    acquired_at: Optional[datetime] = Field(alias="acquiredAt")
-    operator: Optional[ID]
+    collection: Optional[ID] = None
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    description: Optional[str] = None
+    acquired_at: Optional[datetime] = Field(alias="acquiredAt", default=None)
+    operator: Optional[ID] = None
 
     class Config:
         """A config class"""
@@ -423,21 +434,61 @@ class PartialAcquisitionViewInput(BaseModel):
         use_enum_values = True
 
 
-class PartialLabelViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    fluorophore: Optional[ID]
-    primary_antibody: Optional[ID] = Field(alias="primaryAntibody")
-    secondary_antibody: Optional[ID] = Field(alias="secondaryAntibody")
+class PartialPixelViewInput(BaseModel):
+    collection: Optional[ID] = None
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    linked_view: Optional[ID] = Field(alias="linkedView", default=None)
+    range_labels: Optional[Tuple["RangePixelLabel", ...]] = Field(
+        alias="rangeLabels", default=None
+    )
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class RangePixelLabel(BaseModel):
+    group: Optional[ID] = None
+    entity_kind: ID = Field(alias="entityKind")
+    min: int
+    max: int
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class PartialSpecimenViewInput(BaseModel):
+    collection: Optional[ID] = None
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    specimen: Optional[ID] = None
+    step: Optional[ID] = None
 
     class Config:
         """A config class"""
@@ -449,26 +500,26 @@ class PartialLabelViewInput(BaseModel):
 
 
 class PartialRGBViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    context: Optional[ID]
-    gamma: Optional[float]
-    contrast_limit_min: Optional[float] = Field(alias="contrastLimitMin")
-    contrast_limit_max: Optional[float] = Field(alias="contrastLimitMax")
-    rescale: Optional[bool]
-    scale: Optional[float]
-    active: Optional[bool]
-    color_map: Optional[ColorMap] = Field(alias="colorMap")
-    base_color: Optional[Tuple[float, ...]] = Field(alias="baseColor")
+    collection: Optional[ID] = None
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    context: Optional[ID] = None
+    gamma: Optional[float] = None
+    contrast_limit_min: Optional[float] = Field(alias="contrastLimitMin", default=None)
+    contrast_limit_max: Optional[float] = Field(alias="contrastLimitMax", default=None)
+    rescale: Optional[bool] = None
+    scale: Optional[float] = None
+    active: Optional[bool] = None
+    color_map: Optional[ColorMap] = Field(alias="colorMap", default=None)
+    base_color: Optional[Tuple[float, ...]] = Field(alias="baseColor", default=None)
 
     class Config:
         """A config class"""
@@ -480,20 +531,20 @@ class PartialRGBViewInput(BaseModel):
 
 
 class PartialTimepointViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    era: Optional[ID]
-    ms_since_start: Optional[Milliseconds] = Field(alias="msSinceStart")
-    index_since_start: Optional[int] = Field(alias="indexSinceStart")
+    collection: Optional[ID] = None
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    era: Optional[ID] = None
+    ms_since_start: Optional[Milliseconds] = Field(alias="msSinceStart", default=None)
+    index_since_start: Optional[int] = Field(alias="indexSinceStart", default=None)
 
     class Config:
         """A config class"""
@@ -505,20 +556,48 @@ class PartialTimepointViewInput(BaseModel):
 
 
 class PartialOpticsViewInput(BaseModel):
-    collection: Optional[ID]
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
-    x_min: Optional[int] = Field(alias="xMin")
-    x_max: Optional[int] = Field(alias="xMax")
-    y_min: Optional[int] = Field(alias="yMin")
-    y_max: Optional[int] = Field(alias="yMax")
-    t_min: Optional[int] = Field(alias="tMin")
-    t_max: Optional[int] = Field(alias="tMax")
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
-    instrument: Optional[ID]
-    objective: Optional[ID]
-    camera: Optional[ID]
+    collection: Optional[ID] = None
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    instrument: Optional[ID] = None
+    objective: Optional[ID] = None
+    camera: Optional[ID] = None
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class PartialScaleViewInput(BaseModel):
+    collection: Optional[ID] = None
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    parent: Optional[ID] = None
+    scale_x: Optional[float] = Field(alias="scaleX", default=None)
+    scale_y: Optional[float] = Field(alias="scaleY", default=None)
+    scale_z: Optional[float] = Field(alias="scaleZ", default=None)
+    scale_t: Optional[float] = Field(alias="scaleT", default=None)
+    scale_c: Optional[float] = Field(alias="scaleC", default=None)
 
     class Config:
         """A config class"""
@@ -530,7 +609,7 @@ class PartialOpticsViewInput(BaseModel):
 
 
 class TreeInput(BaseModel):
-    id: Optional[str]
+    id: Optional[str] = None
     children: Tuple["TreeNodeInput", ...]
 
     class Config:
@@ -544,10 +623,39 @@ class TreeInput(BaseModel):
 
 class TreeNodeInput(BaseModel):
     kind: RenderNodeKind
-    label: Optional[str]
-    context: Optional[str]
-    gap: Optional[int]
-    children: Optional[Tuple["TreeNodeInput", ...]]
+    label: Optional[str] = None
+    context: Optional[str] = None
+    gap: Optional[int] = None
+    children: Optional[Tuple["TreeNodeInput", ...]] = None
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class EntityValuePairInput(BaseModel):
+    entity: ID
+    value: Any
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class OverlayInput(BaseModel):
+    object: str
+    identifier: str
+    color: str
+    x: int
+    y: int
 
     class Config:
         """A config class"""
@@ -559,13 +667,13 @@ class TreeNodeInput(BaseModel):
 
 
 class CreateRGBContextInput(BaseModel):
-    name: Optional[str]
-    thumbnail: Optional[ID]
+    name: Optional[str] = None
+    thumbnail: Optional[ID] = None
     image: ID
-    views: Optional[Tuple[PartialRGBViewInput, ...]]
-    z: Optional[int]
-    t: Optional[int]
-    c: Optional[int]
+    views: Optional[Tuple[PartialRGBViewInput, ...]] = None
+    z: Optional[int] = None
+    t: Optional[int] = None
+    c: Optional[int] = None
 
     class Config:
         """A config class"""
@@ -578,12 +686,12 @@ class CreateRGBContextInput(BaseModel):
 
 class UpdateRGBContextInput(BaseModel):
     id: ID
-    name: Optional[str]
-    thumbnail: Optional[ID]
-    views: Optional[Tuple[PartialRGBViewInput, ...]]
-    z: Optional[int]
-    t: Optional[int]
-    c: Optional[int]
+    name: Optional[str] = None
+    thumbnail: Optional[ID] = None
+    views: Optional[Tuple[PartialRGBViewInput, ...]] = None
+    z: Optional[int] = None
+    t: Optional[int] = None
+    c: Optional[int] = None
 
     class Config:
         """A config class"""
@@ -697,12 +805,100 @@ class OpticsView(ViewBase, BaseModel):
         frozen = True
 
 
+class LabelViewFluorophoreKind(CanSpawnEntityTrait, BaseModel):
+    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class LabelViewFluorophore(BaseModel):
+    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    kind: LabelViewFluorophoreKind
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class LabelViewPrimaryantibodyKind(CanSpawnEntityTrait, BaseModel):
+    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class LabelViewPrimaryantibody(BaseModel):
+    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    kind: LabelViewPrimaryantibodyKind
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class LabelViewSecondaryantibodyKind(CanSpawnEntityTrait, BaseModel):
+    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class LabelViewSecondaryantibody(BaseModel):
+    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    kind: LabelViewSecondaryantibodyKind
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
 class LabelView(ViewBase, BaseModel):
     typename: Optional[Literal["LabelView"]] = Field(alias="__typename", exclude=True)
     id: ID
-    fluorophore: Optional["Fluorophore"]
-    primary_antibody: Optional["Antibody"] = Field(alias="primaryAntibody")
-    secondary_antibody: Optional["Antibody"] = Field(alias="secondaryAntibody")
+    fluorophore: Optional[LabelViewFluorophore]
+    primary_antibody: Optional[LabelViewPrimaryantibody] = Field(
+        alias="primaryAntibody"
+    )
+    secondary_antibody: Optional[LabelViewSecondaryantibody] = Field(
+        alias="secondaryAntibody"
+    )
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ScaleView(ViewBase, BaseModel):
+    typename: Optional[Literal["ScaleView"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    scale_x: float = Field(alias="scaleX")
+    scale_y: float = Field(alias="scaleY")
+    scale_z: float = Field(alias="scaleZ")
+    scale_t: float = Field(alias="scaleT")
+    scale_c: float = Field(alias="scaleC")
 
     class Config:
         """A config class"""
@@ -745,6 +941,58 @@ class Camera(BaseModel):
         frozen = True
 
 
+class ProtocolStepMappingProtocolExperiment(BaseModel):
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+    description: Optional[str]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ProtocolStepMappingProtocol(BaseModel):
+    typename: Optional[Literal["Protocol"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+    experiment: ProtocolStepMappingProtocolExperiment
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ProtocolStepMappingStep(BaseModel):
+    typename: Optional[Literal["ProtocolStep"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ProtocolStepMapping(BaseModel):
+    typename: Optional[Literal["ProtocolStepMapping"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    t: Optional[int]
+    protocol: ProtocolStepMappingProtocol
+    step: ProtocolStepMappingStep
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
 class TableOrigins(HasZarrStoreTrait, BaseModel):
     typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -761,6 +1009,54 @@ class Table(HasParquestStoreTrait, BaseModel):
     id: ID
     name: str
     store: "ParquetStore"
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class RenderedPlotStore(HasPresignedDownloadAccessor, BaseModel):
+    typename: Optional[Literal["MediaStore"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    key: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class RenderedPlot(BaseModel):
+    typename: Optional[Literal["RenderedPlot"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    store: RenderedPlotStore
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ListRenderedPlotStore(HasPresignedDownloadAccessor, BaseModel):
+    typename: Optional[Literal["MediaStore"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    key: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ListRenderedPlot(BaseModel):
+    typename: Optional[Literal["RenderedPlot"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    store: ListRenderedPlotStore
 
     class Config:
         """A config class"""
@@ -817,6 +1113,29 @@ class File(BaseModel):
     id: ID
     name: str
     store: "BigFileStore"
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityKindOntology(BaseModel):
+    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityKind(CanSpawnEntityTrait, BaseModel):
+    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    label: str
+    ontology: EntityKindOntology
 
     class Config:
         """A config class"""
@@ -901,6 +1220,105 @@ class RGBContext(BaseModel):
         frozen = True
 
 
+class RelationMetric(BaseModel):
+    typename: Optional[Literal["RelationMetric"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    kind: EntityKind
+    data_kind: MetricDataType = Field(alias="dataKind")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ProtocolStepMappingsProtocol(BaseModel):
+    typename: Optional[Literal["Protocol"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ProtocolStepMappings(BaseModel):
+    typename: Optional[Literal["ProtocolStepMapping"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    protocol: ProtocolStepMappingsProtocol
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ProtocolStepReagents(BaseModel):
+    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ProtocolStepViewsSpecimen(BaseModel):
+    typename: Optional[Literal["Specimen"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ProtocolStepViewsImage(HasZarrStoreTrait, BaseModel):
+    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ProtocolStepViews(BaseModel):
+    typename: Optional[Literal["SpecimenView"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    specimen: ProtocolStepViewsSpecimen
+    image: ProtocolStepViewsImage
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ProtocolStep(BaseModel):
+    typename: Optional[Literal["ProtocolStep"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    mappings: Tuple[ProtocolStepMappings, ...]
+    description: Optional[str]
+    reagents: Tuple[ProtocolStepReagents, ...]
+    views: Tuple[ProtocolStepViews, ...]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
 class HistoryStuffApp(BaseModel):
     """An app."""
 
@@ -936,6 +1354,62 @@ class Dataset(BaseModel):
         frozen = True
 
 
+class SpecimenEntityKind(CanSpawnEntityTrait, BaseModel):
+    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SpecimenEntityGroup(BaseModel):
+    typename: Optional[Literal["EntityGroup"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SpecimenEntity(BaseModel):
+    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    kind: SpecimenEntityKind
+    name: str
+    group: SpecimenEntityGroup
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SpecimenProtocol(BaseModel):
+    typename: Optional[Literal["Protocol"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class Specimen(BaseModel):
+    typename: Optional[Literal["Specimen"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    entity: SpecimenEntity
+    protocol: SpecimenProtocol
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
 class Instrument(BaseModel):
     typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -949,10 +1423,9 @@ class Instrument(BaseModel):
         frozen = True
 
 
-class Antibody(BaseModel):
-    typename: Optional[Literal["Antibody"]] = Field(alias="__typename", exclude=True)
-    name: str
-    epitope: Optional[str]
+class EntityRelationLeft(BaseModel):
+    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    id: ID
 
     class Config:
         """A config class"""
@@ -960,12 +1433,95 @@ class Antibody(BaseModel):
         frozen = True
 
 
-class Fluorophore(BaseModel):
-    typename: Optional[Literal["Fluorophore"]] = Field(alias="__typename", exclude=True)
+class EntityRelationRight(BaseModel):
+    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
-    name: str
-    emission_wavelength: Optional[Micrometers] = Field(alias="emissionWavelength")
-    excitation_wavelength: Optional[Micrometers] = Field(alias="excitationWavelength")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityRelationKind(BaseModel):
+    typename: Optional[Literal["EntityRelationKind"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityRelation(BaseModel):
+    typename: Optional[Literal["EntityRelation"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    left: EntityRelationLeft
+    right: EntityRelationRight
+    kind: EntityRelationKind
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityRelationKindLeftkind(CanSpawnEntityTrait, BaseModel):
+    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityRelationKindRightkind(CanSpawnEntityTrait, BaseModel):
+    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityRelationKindKind(CanSpawnEntityTrait, BaseModel):
+    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityRelationKind(BaseModel):
+    typename: Optional[Literal["EntityRelationKind"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    left_kind: EntityRelationKindLeftkind = Field(alias="leftKind")
+    right_kind: EntityRelationKindRightkind = Field(alias="rightKind")
+    kind: EntityRelationKindKind
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityMetric(BaseModel):
+    typename: Optional[Literal["EntityMetric"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    kind: EntityKind
+    data_kind: MetricDataType = Field(alias="dataKind")
 
     class Config:
         """A config class"""
@@ -1037,6 +1593,37 @@ class ImageViewsOpticsView(ImageViewsBase, OpticsView):
         frozen = True
 
 
+class ImageViewsScaleView(ImageViewsBase, ScaleView):
+    pass
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ImageDerivedscaleviewsImage(HasZarrStoreTrait, BaseModel):
+    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    name: str
+    store: "ZarrStore"
+    "The store where the image data is stored."
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ImageDerivedscaleviews(ScaleView, BaseModel):
+    typename: Optional[Literal["ScaleView"]] = Field(alias="__typename", exclude=True)
+    image: ImageDerivedscaleviewsImage
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
 class ImageRgbcontexts(BaseModel):
     typename: Optional[Literal["RGBContext"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -1063,10 +1650,61 @@ class Image(HasZarrStoreTrait, BaseModel):
             ImageViewsLabelView,
             ImageViewsTimepointView,
             ImageViewsOpticsView,
+            ImageViewsScaleView,
         ],
         ...,
     ]
+    derived_scale_views: Tuple[ImageDerivedscaleviews, ...] = Field(
+        alias="derivedScaleViews"
+    )
     rgb_contexts: Tuple[ImageRgbcontexts, ...] = Field(alias="rgbContexts")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityKindOntology(BaseModel):
+    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityKind(CanSpawnEntityTrait, BaseModel):
+    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    label: str
+    ontology: EntityKindOntology
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class EntityGroup(BaseModel):
+    typename: Optional[Literal["EntityGroup"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class Entity(BaseModel):
+    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+    kind: EntityKind
+    group: EntityGroup
 
     class Config:
         """A config class"""
@@ -1079,6 +1717,30 @@ class Era(BaseModel):
     id: ID
     begin: Optional[datetime]
     name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ProtocolExperiment(BaseModel):
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+    description: Optional[str]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class Protocol(BaseModel):
+    typename: Optional[Literal["Protocol"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+    experiment: ProtocolExperiment
 
     class Config:
         """A config class"""
@@ -1101,6 +1763,17 @@ class Snapshot(BaseModel):
     typename: Optional[Literal["Snapshot"]] = Field(alias="__typename", exclude=True)
     id: ID
     store: SnapshotStore
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class Ontology(BaseModel):
+    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    id: ID
     name: str
 
     class Config:
@@ -1168,6 +1841,18 @@ class Channel(BaseModel):
         frozen = True
 
 
+class Experiment(BaseModel):
+    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+    description: Optional[str]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
 class CreateCameraMutationCreatecamera(BaseModel):
     typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -1218,6 +1903,18 @@ class EnsureCameraMutation(BaseModel):
 
     class Meta:
         document = "mutation EnsureCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int) {\n  ensureCamera(\n    input: {name: $name, pixelSizeX: $pixelSizeX, serialNumber: $serialNumber, pixelSizeY: $pixelSizeY, sensorSizeX: $sensorSizeX, sensorSizeY: $sensorSizeY}\n  ) {\n    id\n    name\n  }\n}"
+
+
+class MapProtocolStepMutation(BaseModel):
+    map_protocol_step: ProtocolStepMapping = Field(alias="mapProtocolStep")
+
+    class Arguments(BaseModel):
+        step: ID
+        protocol: ID
+        t: int
+
+    class Meta:
+        document = "fragment ProtocolStepMapping on ProtocolStepMapping {\n  id\n  t\n  protocol {\n    id\n    name\n    experiment {\n      id\n      name\n      description\n    }\n  }\n  step {\n    id\n    name\n  }\n}\n\nmutation MapProtocolStep($step: ID!, $protocol: ID!, $t: Int!) {\n  mapProtocolStep(input: {protocol: $protocol, t: $t, step: $step}) {\n    ...ProtocolStepMapping\n  }\n}"
 
 
 class CreateRenderTreeMutationCreaterendertree(BaseModel):
@@ -1278,6 +1975,18 @@ class RequestTableAccessMutation(BaseModel):
         document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestTableAccess($store: ID!, $duration: Int) {\n  requestTableAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
 
 
+class CreateRenderedPlotMutation(BaseModel):
+    create_rendered_plot: RenderedPlot = Field(alias="createRenderedPlot")
+
+    class Arguments(BaseModel):
+        plot: Upload
+        name: str
+        overlays: Optional[List[OverlayInput]] = Field(default=None)
+
+    class Meta:
+        document = "fragment RenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n  }\n}\n\nmutation CreateRenderedPlot($plot: Upload!, $name: String!, $overlays: [OverlayInput!]) {\n  createRenderedPlot(input: {plot: $plot, overlays: $overlays, name: $name}) {\n    ...RenderedPlot\n  }\n}"
+
+
 class From_file_likeMutation(BaseModel):
     from_file_like: File = Field(alias="fromFileLike")
 
@@ -1313,6 +2022,33 @@ class RequestFileAccessMutation(BaseModel):
         document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestFileAccess($store: ID!, $duration: Int) {\n  requestFileAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
 
 
+class CreateEntityKindMutationCreateentitykind(CanSpawnEntityTrait, BaseModel):
+    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateEntityKindMutation(BaseModel):
+    create_entity_kind: CreateEntityKindMutationCreateentitykind = Field(
+        alias="createEntityKind"
+    )
+
+    class Arguments(BaseModel):
+        label: str
+        ontology: Optional[ID] = Field(default=None)
+        purl: Optional[str] = Field(default=None)
+        description: Optional[str] = Field(default=None)
+        color: Optional[List[int]] = Field(default=None)
+
+    class Meta:
+        document = "mutation CreateEntityKind($label: String!, $ontology: ID, $purl: String, $description: String, $color: [Int!]) {\n  createEntityKind(\n    input: {label: $label, ontology: $ontology, description: $description, purl: $purl, color: $color}\n  ) {\n    id\n    label\n  }\n}"
+
+
 class CreateStageMutation(BaseModel):
     create_stage: Stage = Field(alias="createStage")
 
@@ -1330,9 +2066,12 @@ class CreateRoiMutation(BaseModel):
         image: ID
         vectors: List[FiveDVector]
         kind: RoiKind
+        entity: Optional[ID] = Field(default=None)
+        entity_kind: Optional[ID] = Field(alias="entityKind", default=None)
+        entity_parent: Optional[ID] = Field(alias="entityParent", default=None)
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nmutation CreateRoi($image: ID!, $vectors: [FiveDVector!]!, $kind: RoiKind!) {\n  createRoi(input: {image: $image, vectors: $vectors, kind: $kind}) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nmutation CreateRoi($image: ID!, $vectors: [FiveDVector!]!, $kind: RoiKind!, $entity: ID, $entityKind: ID, $entityParent: ID) {\n  createRoi(\n    input: {image: $image, vectors: $vectors, kind: $kind, entity: $entity, entityKind: $entityKind, entityParent: $entityParent}\n  ) {\n    ...ROI\n  }\n}"
 
 
 class DeleteRoiMutation(BaseModel):
@@ -1395,6 +2134,42 @@ class EnsureObjectiveMutation(BaseModel):
 
     class Meta:
         document = "mutation EnsureObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  ensureObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n  }\n}"
+
+
+class CreateRelationMetricMutation(BaseModel):
+    create_relation_metric: RelationMetric = Field(alias="createRelationMetric")
+
+    class Arguments(BaseModel):
+        kind: ID
+        data_kind: MetricDataType = Field(alias="dataKind")
+
+    class Meta:
+        document = "fragment EntityKind on EntityKind {\n  id\n  label\n  ontology {\n    id\n    name\n  }\n}\n\nfragment RelationMetric on RelationMetric {\n  id\n  kind {\n    ...EntityKind\n  }\n  dataKind\n}\n\nmutation CreateRelationMetric($kind: ID!, $dataKind: MetricDataType!) {\n  createRelationMetric(input: {kind: $kind, dataKind: $dataKind}) {\n    ...RelationMetric\n  }\n}"
+
+
+class AttachRelationMetricToRelationMutation(BaseModel):
+    attach_relation_metric: EntityRelation = Field(alias="attachRelationMetric")
+
+    class Arguments(BaseModel):
+        relation: ID
+        metric: ID
+        value: Any
+
+    class Meta:
+        document = "fragment EntityRelation on EntityRelation {\n  id\n  left {\n    id\n  }\n  right {\n    id\n  }\n  kind {\n    id\n  }\n}\n\nmutation AttachRelationMetricToRelation($relation: ID!, $metric: ID!, $value: Metric!) {\n  attachRelationMetric(\n    input: {relation: $relation, metric: $metric, value: $value}\n  ) {\n    ...EntityRelation\n  }\n}"
+
+
+class CreateProtocolStepMutation(BaseModel):
+    create_protocol_step: ProtocolStep = Field(alias="createProtocolStep")
+
+    class Arguments(BaseModel):
+        name: str
+        kind: ID
+        reagents: Optional[List[ID]] = Field(default=None)
+        description: Optional[str] = Field(default=None)
+
+    class Meta:
+        document = "fragment ProtocolStep on ProtocolStep {\n  id\n  mappings {\n    id\n    protocol {\n      id\n      name\n    }\n  }\n  description\n  reagents {\n    id\n    name\n  }\n  views {\n    id\n    specimen {\n      id\n    }\n    image {\n      id\n    }\n  }\n}\n\nmutation CreateProtocolStep($name: String!, $kind: ID!, $reagents: [ID!], $description: String) {\n  createProtocolStep(\n    input: {reagents: $reagents, description: $description, kind: $kind, name: $name}\n  ) {\n    ...ProtocolStep\n  }\n}"
 
 
 class CreateDatasetMutationCreatedataset(BaseModel):
@@ -1463,6 +2238,41 @@ class RevertDatasetMutation(BaseModel):
         document = "mutation RevertDataset($dataset: ID!, $history: ID!) {\n  revertDataset(input: {id: $dataset, historyId: $history}) {\n    id\n    name\n    description\n  }\n}"
 
 
+class CreateEntityGroupMutationCreateentitygroup(BaseModel):
+    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateEntityGroupMutation(BaseModel):
+    create_entity_group: CreateEntityGroupMutationCreateentitygroup = Field(
+        alias="createEntityGroup"
+    )
+
+    class Arguments(BaseModel):
+        name: str
+        image: Optional[ID] = Field(default=None)
+
+    class Meta:
+        document = "mutation CreateEntityGroup($name: String!, $image: ID) {\n  createEntityGroup(input: {name: $name, image: $image}) {\n    id\n    name\n  }\n}"
+
+
+class CreateSpecimenMutation(BaseModel):
+    create_specimen: Specimen = Field(alias="createSpecimen")
+
+    class Arguments(BaseModel):
+        entity: ID
+        protocol: ID
+
+    class Meta:
+        document = "fragment Specimen on Specimen {\n  id\n  entity {\n    id\n    kind {\n      id\n      label\n    }\n    name\n    group {\n      id\n    }\n  }\n  protocol {\n    id\n  }\n}\n\nmutation CreateSpecimen($entity: ID!, $protocol: ID!) {\n  createSpecimen(input: {entity: $entity, protocol: $protocol}) {\n    ...Specimen\n  }\n}"
+
+
 class CreateInstrumentMutationCreateinstrument(BaseModel):
     typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -1513,110 +2323,66 @@ class EnsureInstrumentMutation(BaseModel):
         document = "mutation EnsureInstrument($serialNumber: String!, $name: String, $model: String) {\n  ensureInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n  }\n}"
 
 
-class CreateAntibodyMutationCreateantibody(BaseModel):
-    typename: Optional[Literal["Antibody"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
+class CreateEntityRelationMutation(BaseModel):
+    create_entity_relation: EntityRelation = Field(alias="createEntityRelation")
 
-    class Config:
-        """A config class"""
+    class Arguments(BaseModel):
+        left: ID
+        right: ID
+        kind: ID
 
-        frozen = True
+    class Meta:
+        document = "fragment EntityRelation on EntityRelation {\n  id\n  left {\n    id\n  }\n  right {\n    id\n  }\n  kind {\n    id\n  }\n}\n\nmutation CreateEntityRelation($left: ID!, $right: ID!, $kind: ID!) {\n  createEntityRelation(input: {left: $left, right: $right, kind: $kind}) {\n    ...EntityRelation\n  }\n}"
 
 
-class CreateAntibodyMutation(BaseModel):
-    create_antibody: CreateAntibodyMutationCreateantibody = Field(
-        alias="createAntibody"
+class CreateEntityRelationKindMutation(BaseModel):
+    create_entity_relation_kind: EntityRelationKind = Field(
+        alias="createEntityRelationKind"
     )
 
     class Arguments(BaseModel):
-        name: str
-        epitope: Optional[str] = Field(default=None)
+        left_kind: ID = Field(alias="leftKind")
+        right_kind: ID = Field(alias="rightKind")
+        kind: ID
 
     class Meta:
-        document = "mutation CreateAntibody($name: String!, $epitope: String) {\n  createAntibody(input: {name: $name, epitope: $epitope}) {\n    id\n    name\n  }\n}"
+        document = "fragment EntityRelationKind on EntityRelationKind {\n  id\n  leftKind {\n    id\n  }\n  rightKind {\n    id\n  }\n  kind {\n    id\n  }\n}\n\nmutation CreateEntityRelationKind($leftKind: ID!, $rightKind: ID!, $kind: ID!) {\n  createEntityRelationKind(\n    input: {leftKind: $leftKind, rightKind: $rightKind, kind: $kind}\n  ) {\n    ...EntityRelationKind\n  }\n}"
 
 
-class EnsureAntibodyMutationEnsureantibody(BaseModel):
-    typename: Optional[Literal["Antibody"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
+class CreateEntityMetricMutation(BaseModel):
+    create_entity_metric: EntityMetric = Field(alias="createEntityMetric")
 
-    class Config:
-        """A config class"""
+    class Arguments(BaseModel):
+        kind: ID
+        data_kind: MetricDataType = Field(alias="dataKind")
 
-        frozen = True
+    class Meta:
+        document = "fragment EntityKind on EntityKind {\n  id\n  label\n  ontology {\n    id\n    name\n  }\n}\n\nfragment EntityMetric on EntityMetric {\n  id\n  kind {\n    ...EntityKind\n  }\n  dataKind\n}\n\nmutation CreateEntityMetric($kind: ID!, $dataKind: MetricDataType!) {\n  createEntityMetric(input: {kind: $kind, dataKind: $dataKind}) {\n    ...EntityMetric\n  }\n}"
 
 
-class EnsureAntibodyMutation(BaseModel):
-    ensure_antibody: EnsureAntibodyMutationEnsureantibody = Field(
-        alias="ensureAntibody"
+class AttachEntityMetricToEntityMutation(BaseModel):
+    attach_entity_metric: Entity = Field(alias="attachEntityMetric")
+
+    class Arguments(BaseModel):
+        entity: ID
+        metric: ID
+        value: Any
+
+    class Meta:
+        document = "fragment Entity on Entity {\n  id\n  name\n  kind {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n  group {\n    id\n    name\n  }\n}\n\nmutation AttachEntityMetricToEntity($entity: ID!, $metric: ID!, $value: Metric!) {\n  attachEntityMetric(input: {entity: $entity, metric: $metric, value: $value}) {\n    ...Entity\n  }\n}"
+
+
+class AttachMetricToEntitiesMutation(BaseModel):
+    attach_metrics_to_entities: Tuple[Entity, ...] = Field(
+        alias="attachMetricsToEntities"
     )
 
     class Arguments(BaseModel):
-        name: str
-        epitope: Optional[str] = Field(default=None)
+        metric: ID
+        pairs: List[EntityValuePairInput]
 
     class Meta:
-        document = "mutation EnsureAntibody($name: String!, $epitope: String) {\n  ensureAntibody(input: {name: $name, epitope: $epitope}) {\n    id\n    name\n  }\n}"
-
-
-class CreateFluorophoreMutationCreatefluorophore(BaseModel):
-    typename: Optional[Literal["Fluorophore"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class CreateFluorophoreMutation(BaseModel):
-    create_fluorophore: CreateFluorophoreMutationCreatefluorophore = Field(
-        alias="createFluorophore"
-    )
-
-    class Arguments(BaseModel):
-        name: str
-        excitation_wavelength: Optional[Micrometers] = Field(
-            alias="excitationWavelength", default=None
-        )
-        emission_wavelength: Optional[Micrometers] = Field(
-            alias="emissionWavelength", default=None
-        )
-
-    class Meta:
-        document = "mutation CreateFluorophore($name: String!, $excitationWavelength: Micrometers, $emissionWavelength: Micrometers) {\n  createFluorophore(\n    input: {name: $name, excitationWavelength: $excitationWavelength, emissionWavelength: $emissionWavelength}\n  ) {\n    id\n    name\n  }\n}"
-
-
-class EnsureFluorophoreMutationEnsurefluorophore(BaseModel):
-    typename: Optional[Literal["Fluorophore"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class EnsureFluorophoreMutation(BaseModel):
-    ensure_fluorophore: EnsureFluorophoreMutationEnsurefluorophore = Field(
-        alias="ensureFluorophore"
-    )
-
-    class Arguments(BaseModel):
-        name: str
-        excitation_wavelength: Optional[Micrometers] = Field(
-            alias="excitationWavelength", default=None
-        )
-        emission_wavelength: Optional[Micrometers] = Field(
-            alias="emissionWavelength", default=None
-        )
-
-    class Meta:
-        document = "mutation EnsureFluorophore($name: String!, $excitationWavelength: Micrometers, $emissionWavelength: Micrometers) {\n  ensureFluorophore(\n    input: {name: $name, excitationWavelength: $excitationWavelength, emissionWavelength: $emissionWavelength}\n  ) {\n    id\n    name\n  }\n}"
+        document = "fragment Entity on Entity {\n  id\n  name\n  kind {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n  group {\n    id\n    name\n  }\n}\n\nmutation AttachMetricToEntities($metric: ID!, $pairs: [EntityValuePairInput!]!) {\n  attachMetricsToEntities(input: {metric: $metric, pairs: $pairs}) {\n    ...Entity\n  }\n}"
 
 
 class From_array_likeMutation(BaseModel):
@@ -1632,8 +2398,8 @@ class From_array_likeMutation(BaseModel):
         transformation_views: Optional[
             List[PartialAffineTransformationViewInput]
         ] = Field(alias="transformationViews", default=None)
-        label_views: Optional[List[PartialLabelViewInput]] = Field(
-            alias="labelViews", default=None
+        pixel_views: Optional[List[PartialPixelViewInput]] = Field(
+            alias="pixelViews", default=None
         )
         rgb_views: Optional[List[PartialRGBViewInput]] = Field(
             alias="rgbViews", default=None
@@ -1647,12 +2413,18 @@ class From_array_likeMutation(BaseModel):
         optics_views: Optional[List[PartialOpticsViewInput]] = Field(
             alias="opticsViews", default=None
         )
+        specimen_views: Optional[List[PartialSpecimenViewInput]] = Field(
+            alias="specimenViews", default=None
+        )
+        scale_views: Optional[List[PartialScaleViewInput]] = Field(
+            alias="scaleViews", default=None
+        )
         tags: Optional[List[str]] = Field(default=None)
         file_origins: Optional[List[ID]] = Field(alias="fileOrigins", default=None)
         roi_origins: Optional[List[ID]] = Field(alias="roiOrigins", default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $labelViews: [PartialLabelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $tags: [String!], $fileOrigins: [ID!], $roiOrigins: [ID!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, labelViews: $labelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, tags: $tags, fileOrigins: $fileOrigins, roiOrigins: $roiOrigins}\n  ) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $specimenViews: [PartialSpecimenViewInput!], $scaleViews: [PartialScaleViewInput!], $tags: [String!], $fileOrigins: [ID!], $roiOrigins: [ID!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, fileOrigins: $fileOrigins, roiOrigins: $roiOrigins, specimenViews: $specimenViews}\n  ) {\n    ...Image\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -1678,6 +2450,20 @@ class RequestAccessMutation(BaseModel):
         document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestAccess($store: ID!, $duration: Int) {\n  requestAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
 
 
+class CreateEntityMutation(BaseModel):
+    create_entity: Entity = Field(alias="createEntity")
+
+    class Arguments(BaseModel):
+        kind: ID
+        group: Optional[ID] = Field(default=None)
+        name: Optional[str] = Field(default=None)
+        parent: Optional[ID] = Field(default=None)
+        instance_kind: Optional[str] = Field(default=None)
+
+    class Meta:
+        document = "fragment Entity on Entity {\n  id\n  name\n  kind {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n  group {\n    id\n    name\n  }\n}\n\nmutation CreateEntity($kind: ID!, $group: ID, $name: String, $parent: ID, $instance_kind: String) {\n  createEntity(\n    input: {group: $group, kind: $kind, name: $name, parent: $parent, instanceKind: $instance_kind}\n  ) {\n    ...Entity\n  }\n}"
+
+
 class CreateEraMutationCreateera(BaseModel):
     typename: Optional[Literal["Era"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -1698,6 +2484,18 @@ class CreateEraMutation(BaseModel):
 
     class Meta:
         document = "mutation CreateEra($name: String!, $begin: DateTime) {\n  createEra(input: {name: $name, begin: $begin}) {\n    id\n    begin\n  }\n}"
+
+
+class CreateProtocolMutation(BaseModel):
+    create_protocol: Protocol = Field(alias="createProtocol")
+
+    class Arguments(BaseModel):
+        name: str
+        experiment: ID
+        description: Optional[str] = Field(default=None)
+
+    class Meta:
+        document = "fragment Protocol on Protocol {\n  id\n  name\n  experiment {\n    id\n    name\n    description\n  }\n}\n\nmutation CreateProtocol($name: String!, $experiment: ID!, $description: String) {\n  createProtocol(\n    input: {name: $name, experiment: $experiment, description: $description}\n  ) {\n    ...Protocol\n  }\n}"
 
 
 class CreateSnapshotMutation(BaseModel):
@@ -1743,6 +2541,18 @@ class CreateRgbViewMutation(BaseModel):
         document = "mutation CreateRgbView($image: ID!, $context: ID!, $gamma: Float, $contrastLimitMax: Float, $contrastLimitMin: Float, $rescale: Boolean, $active: Boolean, $colorMap: ColorMap, $baseColor: [Float!]) {\n  createRgbView(\n    input: {image: $image, context: $context, gamma: $gamma, contrastLimitMax: $contrastLimitMax, contrastLimitMin: $contrastLimitMin, rescale: $rescale, active: $active, colorMap: $colorMap, baseColor: $baseColor}\n  ) {\n    id\n  }\n}"
 
 
+class CreateOntologyMutation(BaseModel):
+    create_ontology: Ontology = Field(alias="createOntology")
+
+    class Arguments(BaseModel):
+        name: str
+        purl: Optional[str] = Field(default=None)
+        description: Optional[str] = Field(default=None)
+
+    class Meta:
+        document = "fragment Ontology on Ontology {\n  id\n  name\n}\n\nmutation CreateOntology($name: String!, $purl: String, $description: String) {\n  createOntology(input: {name: $name, purl: $purl, description: $description}) {\n    ...Ontology\n  }\n}"
+
+
 class CreateRGBContextMutation(BaseModel):
     create_rgb_context: RGBContext = Field(alias="createRgbContext")
 
@@ -1750,7 +2560,7 @@ class CreateRGBContextMutation(BaseModel):
         input: CreateRGBContextInput
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
 
 
 class UpdateRGBContextMutation(BaseModel):
@@ -1761,7 +2571,7 @@ class UpdateRGBContextMutation(BaseModel):
         input: UpdateRGBContextInput
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
 
 
 class CreateViewCollectionMutationCreateviewcollection(BaseModel):
@@ -1831,6 +2641,17 @@ class EnsureChannelMutation(BaseModel):
         document = "mutation EnsureChannel($name: String!) {\n  ensureChannel(input: {name: $name}) {\n    id\n    name\n  }\n}"
 
 
+class CreateExperimentMutation(BaseModel):
+    create_experiment: Experiment = Field(alias="createExperiment")
+
+    class Arguments(BaseModel):
+        name: str
+        description: Optional[str] = Field(default=None)
+
+    class Meta:
+        document = "fragment Experiment on Experiment {\n  id\n  name\n  description\n}\n\nmutation CreateExperiment($name: String!, $description: String) {\n  createExperiment(input: {name: $name, description: $description}) {\n    ...Experiment\n  }\n}"
+
+
 class GetCameraQuery(BaseModel):
     camera: Camera
 
@@ -1849,6 +2670,50 @@ class GetTableQuery(BaseModel):
 
     class Meta:
         document = "fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment Table on Table {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n  }\n}\n\nquery GetTable($id: ID!) {\n  table(id: $id) {\n    ...Table\n  }\n}"
+
+
+class GetRenderedPlotQuery(BaseModel):
+    rendered_plot: RenderedPlot = Field(alias="renderedPlot")
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment RenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n  }\n}\n\nquery GetRenderedPlot($id: ID!) {\n  renderedPlot(id: $id) {\n    ...RenderedPlot\n  }\n}"
+
+
+class ListRenderedPlotsQuery(BaseModel):
+    rendered_plots: Tuple[ListRenderedPlot, ...] = Field(alias="renderedPlots")
+
+    class Arguments(BaseModel):
+        pass
+
+    class Meta:
+        document = "fragment ListRenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n  }\n}\n\nquery ListRenderedPlots {\n  renderedPlots {\n    ...ListRenderedPlot\n  }\n}"
+
+
+class SearchRenderedPlotsQueryOptions(BaseModel):
+    typename: Optional[Literal["RenderedPlot"]] = Field(
+        alias="__typename", exclude=True
+    )
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchRenderedPlotsQuery(BaseModel):
+    options: Tuple[SearchRenderedPlotsQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchRenderedPlots($search: String, $values: [ID!]) {\n  options: renderedPlots(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
 
 
 class GetFileQuery(BaseModel):
@@ -1882,6 +2747,38 @@ class SearchFilesQuery(BaseModel):
 
     class Meta:
         document = "query SearchFiles($search: String, $values: [ID!], $pagination: OffsetPaginationInput) {\n  options: files(\n    filters: {search: $search, ids: $values}\n    pagination: $pagination\n  ) {\n    value: id\n    label: name\n  }\n}"
+
+
+class GetEntityKindQuery(BaseModel):
+    entity_kind: EntityKind = Field(alias="entityKind")
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment EntityKind on EntityKind {\n  id\n  label\n  ontology {\n    id\n    name\n  }\n}\n\nquery GetEntityKind($id: ID!) {\n  entityKind(id: $id) {\n    ...EntityKind\n  }\n}"
+
+
+class SearchEntityKindQueryOptions(CanSpawnEntityTrait, BaseModel):
+    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchEntityKindQuery(BaseModel):
+    options: Tuple[SearchEntityKindQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchEntityKind($search: String, $values: [ID!]) {\n  options: entityKinds(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: label\n  }\n}"
 
 
 class GetStageQuery(BaseModel):
@@ -1947,6 +2844,40 @@ class GetObjectiveQuery(BaseModel):
         document = "fragment Objective on Objective {\n  id\n  na\n  name\n  serialNumber\n}\n\nquery GetObjective($id: ID!) {\n  objective(id: $id) {\n    ...Objective\n  }\n}"
 
 
+class GetProtocolStepQuery(BaseModel):
+    protocol_step: ProtocolStep = Field(alias="protocolStep")
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment ProtocolStep on ProtocolStep {\n  id\n  mappings {\n    id\n    protocol {\n      id\n      name\n    }\n  }\n  description\n  reagents {\n    id\n    name\n  }\n  views {\n    id\n    specimen {\n      id\n    }\n    image {\n      id\n    }\n  }\n}\n\nquery GetProtocolStep($id: ID!) {\n  protocolStep(id: $id) {\n    ...ProtocolStep\n  }\n}"
+
+
+class SearchProtocolStepsQueryOptions(BaseModel):
+    typename: Optional[Literal["ProtocolStep"]] = Field(
+        alias="__typename", exclude=True
+    )
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchProtocolStepsQuery(BaseModel):
+    options: Tuple[SearchProtocolStepsQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchProtocolSteps($search: String, $values: [ID!]) {\n  options: protocolSteps(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
+
+
 class GetDatasetQuery(BaseModel):
     dataset: Dataset
 
@@ -1955,6 +2886,38 @@ class GetDatasetQuery(BaseModel):
 
     class Meta:
         document = "fragment HistoryStuff on History {\n  id\n  app {\n    id\n  }\n}\n\nfragment Dataset on Dataset {\n  name\n  description\n  history {\n    ...HistoryStuff\n  }\n}\n\nquery GetDataset($id: ID!) {\n  dataset(id: $id) {\n    ...Dataset\n  }\n}"
+
+
+class GetSpecimenQuery(BaseModel):
+    specimen: Specimen
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Specimen on Specimen {\n  id\n  entity {\n    id\n    kind {\n      id\n      label\n    }\n    name\n    group {\n      id\n    }\n  }\n  protocol {\n    id\n  }\n}\n\nquery GetSpecimen($id: ID!) {\n  specimen(id: $id) {\n    ...Specimen\n  }\n}"
+
+
+class SearchSpecimensQueryOptions(BaseModel):
+    typename: Optional[Literal["Specimen"]] = Field(alias="__typename", exclude=True)
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchSpecimensQuery(BaseModel):
+    options: Tuple[SearchSpecimensQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchSpecimens($search: String, $values: [ID!]) {\n  options: specimens(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: label\n  }\n}"
 
 
 class GetInstrumentQuery(BaseModel):
@@ -1967,6 +2930,40 @@ class GetInstrumentQuery(BaseModel):
         document = "fragment Instrument on Instrument {\n  id\n  model\n  name\n  serialNumber\n}\n\nquery GetInstrument($id: ID!) {\n  instrument(id: $id) {\n    ...Instrument\n  }\n}"
 
 
+class GetEntityRelationQuery(BaseModel):
+    entity_relation: EntityRelation = Field(alias="entityRelation")
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment EntityRelation on EntityRelation {\n  id\n  left {\n    id\n  }\n  right {\n    id\n  }\n  kind {\n    id\n  }\n}\n\nquery GetEntityRelation($id: ID!) {\n  entityRelation(id: $id) {\n    ...EntityRelation\n  }\n}"
+
+
+class SearchEntityRelationsQueryOptions(BaseModel):
+    typename: Optional[Literal["EntityRelation"]] = Field(
+        alias="__typename", exclude=True
+    )
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchEntityRelationsQuery(BaseModel):
+    options: Tuple[SearchEntityRelationsQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchEntityRelations($search: String, $values: [ID!]) {\n  options: entityRelations(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: label\n  }\n}"
+
+
 class GetImageQuery(BaseModel):
     image: Image
 
@@ -1974,7 +2971,7 @@ class GetImageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -1984,7 +2981,7 @@ class GetRandomImageQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
@@ -2017,7 +3014,71 @@ class ImagesQuery(BaseModel):
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
+
+
+class GetEntityQuery(BaseModel):
+    entity: Entity
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Entity on Entity {\n  id\n  name\n  kind {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n  group {\n    id\n    name\n  }\n}\n\nquery GetEntity($id: ID!) {\n  entity(id: $id) {\n    ...Entity\n  }\n}"
+
+
+class SearchEntitiesQueryOptions(BaseModel):
+    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchEntitiesQuery(BaseModel):
+    options: Tuple[SearchEntitiesQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchEntities($search: String, $values: [ID!]) {\n  options: entities(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
+
+
+class GetProtocolQuery(BaseModel):
+    protocol: Protocol
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Protocol on Protocol {\n  id\n  name\n  experiment {\n    id\n    name\n    description\n  }\n}\n\nquery GetProtocol($id: ID!) {\n  protocol(id: $id) {\n    ...Protocol\n  }\n}"
+
+
+class SearchProtocolsQueryOptions(BaseModel):
+    typename: Optional[Literal["Protocol"]] = Field(alias="__typename", exclude=True)
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchProtocolsQuery(BaseModel):
+    options: Tuple[SearchProtocolsQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchProtocols($search: String, $values: [ID!]) {\n  options: protocols(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
 
 
 class GetSnapshotQuery(BaseModel):
@@ -2052,6 +3113,72 @@ class SearchSnapshotsQuery(BaseModel):
         document = "query SearchSnapshots($search: String, $values: [ID!]) {\n  options: snapshots(\n    filters: {name: {contains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
 
 
+class GetEntityRelationKindQuery(BaseModel):
+    entity_relation_kind: EntityRelationKind = Field(alias="entityRelationKind")
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment EntityRelationKind on EntityRelationKind {\n  id\n  leftKind {\n    id\n  }\n  rightKind {\n    id\n  }\n  kind {\n    id\n  }\n}\n\nquery GetEntityRelationKind($id: ID!) {\n  entityRelationKind(id: $id) {\n    ...EntityRelationKind\n  }\n}"
+
+
+class SearchEntityRelationKindsQueryOptions(BaseModel):
+    typename: Optional[Literal["EntityRelationKind"]] = Field(
+        alias="__typename", exclude=True
+    )
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchEntityRelationKindsQuery(BaseModel):
+    options: Tuple[SearchEntityRelationKindsQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchEntityRelationKinds($search: String, $values: [ID!]) {\n  options: entityRelationKinds(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: label\n  }\n}"
+
+
+class GetOntologyQuery(BaseModel):
+    ontology: Ontology
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Ontology on Ontology {\n  id\n  name\n}\n\nquery GetOntology($id: ID!) {\n  ontology(id: $id) {\n    ...Ontology\n  }\n}"
+
+
+class SearchOntologiesQueryOptions(BaseModel):
+    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchOntologiesQuery(BaseModel):
+    options: Tuple[SearchOntologiesQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchOntologies($search: String, $values: [ID!]) {\n  options: ontologies(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
+
+
 class GetRGBContextQuery(BaseModel):
     rgbcontext: RGBContext
 
@@ -2059,7 +3186,7 @@ class GetRGBContextQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n  }\n}"
 
 
 class WatchFilesSubscriptionFiles(BaseModel):
@@ -2103,7 +3230,7 @@ class WatchImagesSubscription(BaseModel):
         dataset: Optional[ID] = Field(default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Antibody on Antibody {\n  name\n  epitope\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Fluorophore on Fluorophore {\n  id\n  name\n  emissionWavelength\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    ...Fluorophore\n  }\n  primaryAntibody {\n    ...Antibody\n  }\n  secondaryAntibody {\n    ...Antibody\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):
@@ -2282,6 +3409,50 @@ def ensure_camera(
         },
         rath=rath,
     ).ensure_camera
+
+
+async def amap_protocol_step(
+    step: ID, protocol: ID, t: int, rath: Optional[MikroNextRath] = None
+) -> ProtocolStepMapping:
+    """MapProtocolStep
+
+
+
+    Arguments:
+        step (ID): step
+        protocol (ID): protocol
+        t (int): t
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ProtocolStepMapping"""
+    return (
+        await aexecute(
+            MapProtocolStepMutation,
+            {"step": step, "protocol": protocol, "t": t},
+            rath=rath,
+        )
+    ).map_protocol_step
+
+
+def map_protocol_step(
+    step: ID, protocol: ID, t: int, rath: Optional[MikroNextRath] = None
+) -> ProtocolStepMapping:
+    """MapProtocolStep
+
+
+
+    Arguments:
+        step (ID): step
+        protocol (ID): protocol
+        t (int): t
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ProtocolStepMapping"""
+    return execute(
+        MapProtocolStepMutation, {"step": step, "protocol": protocol, "t": t}, rath=rath
+    ).map_protocol_step
 
 
 async def acreate_render_tree(
@@ -2475,6 +3646,58 @@ def request_table_access(
     ).request_table_access
 
 
+async def acreate_rendered_plot(
+    plot: Upload,
+    name: str,
+    overlays: Optional[List[OverlayInput]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> RenderedPlot:
+    """CreateRenderedPlot
+
+
+
+    Arguments:
+        plot (Upload): plot
+        name (str): name
+        overlays (Optional[List[OverlayInput]], optional): overlays.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RenderedPlot"""
+    return (
+        await aexecute(
+            CreateRenderedPlotMutation,
+            {"plot": plot, "name": name, "overlays": overlays},
+            rath=rath,
+        )
+    ).create_rendered_plot
+
+
+def create_rendered_plot(
+    plot: Upload,
+    name: str,
+    overlays: Optional[List[OverlayInput]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> RenderedPlot:
+    """CreateRenderedPlot
+
+
+
+    Arguments:
+        plot (Upload): plot
+        name (str): name
+        overlays (Optional[List[OverlayInput]], optional): overlays.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RenderedPlot"""
+    return execute(
+        CreateRenderedPlotMutation,
+        {"plot": plot, "name": name, "overlays": overlays},
+        rath=rath,
+    ).create_rendered_plot
+
+
 async def afrom_file_like(
     file: FileLike,
     name: str,
@@ -2619,6 +3842,78 @@ def request_file_access(
     ).request_file_access
 
 
+async def acreate_entity_kind(
+    label: str,
+    ontology: Optional[ID] = None,
+    purl: Optional[str] = None,
+    description: Optional[str] = None,
+    color: Optional[List[int]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> CreateEntityKindMutationCreateentitykind:
+    """CreateEntityKind
+
+
+
+    Arguments:
+        label (str): label
+        ontology (Optional[ID], optional): ontology.
+        purl (Optional[str], optional): purl.
+        description (Optional[str], optional): description.
+        color (Optional[List[int]], optional): color.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateEntityKindMutationCreateentitykind"""
+    return (
+        await aexecute(
+            CreateEntityKindMutation,
+            {
+                "label": label,
+                "ontology": ontology,
+                "purl": purl,
+                "description": description,
+                "color": color,
+            },
+            rath=rath,
+        )
+    ).create_entity_kind
+
+
+def create_entity_kind(
+    label: str,
+    ontology: Optional[ID] = None,
+    purl: Optional[str] = None,
+    description: Optional[str] = None,
+    color: Optional[List[int]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> CreateEntityKindMutationCreateentitykind:
+    """CreateEntityKind
+
+
+
+    Arguments:
+        label (str): label
+        ontology (Optional[ID], optional): ontology.
+        purl (Optional[str], optional): purl.
+        description (Optional[str], optional): description.
+        color (Optional[List[int]], optional): color.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateEntityKindMutationCreateentitykind"""
+    return execute(
+        CreateEntityKindMutation,
+        {
+            "label": label,
+            "ontology": ontology,
+            "purl": purl,
+            "description": description,
+            "color": color,
+        },
+        rath=rath,
+    ).create_entity_kind
+
+
 async def acreate_stage(name: str, rath: Optional[MikroNextRath] = None) -> Stage:
     """CreateStage
 
@@ -2651,6 +3946,9 @@ async def acreate_roi(
     image: ID,
     vectors: List[FiveDVector],
     kind: RoiKind,
+    entity: Optional[ID] = None,
+    entity_kind: Optional[ID] = None,
+    entity_parent: Optional[ID] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> ROI:
     """CreateRoi
@@ -2661,6 +3959,9 @@ async def acreate_roi(
         image (ID): image
         vectors (List[FiveDVector]): vectors
         kind (RoiKind): kind
+        entity (Optional[ID], optional): entity.
+        entity_kind (Optional[ID], optional): entityKind.
+        entity_parent (Optional[ID], optional): entityParent.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -2668,7 +3969,14 @@ async def acreate_roi(
     return (
         await aexecute(
             CreateRoiMutation,
-            {"image": image, "vectors": vectors, "kind": kind},
+            {
+                "image": image,
+                "vectors": vectors,
+                "kind": kind,
+                "entity": entity,
+                "entityKind": entity_kind,
+                "entityParent": entity_parent,
+            },
             rath=rath,
         )
     ).create_roi
@@ -2678,6 +3986,9 @@ def create_roi(
     image: ID,
     vectors: List[FiveDVector],
     kind: RoiKind,
+    entity: Optional[ID] = None,
+    entity_kind: Optional[ID] = None,
+    entity_parent: Optional[ID] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> ROI:
     """CreateRoi
@@ -2688,12 +3999,24 @@ def create_roi(
         image (ID): image
         vectors (List[FiveDVector]): vectors
         kind (RoiKind): kind
+        entity (Optional[ID], optional): entity.
+        entity_kind (Optional[ID], optional): entityKind.
+        entity_parent (Optional[ID], optional): entityParent.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         ROI"""
     return execute(
-        CreateRoiMutation, {"image": image, "vectors": vectors, "kind": kind}, rath=rath
+        CreateRoiMutation,
+        {
+            "image": image,
+            "vectors": vectors,
+            "kind": kind,
+            "entity": entity,
+            "entityKind": entity_kind,
+            "entityParent": entity_parent,
+        },
+        rath=rath,
     ).create_roi
 
 
@@ -2861,6 +4184,155 @@ def ensure_objective(
     ).ensure_objective
 
 
+async def acreate_relation_metric(
+    kind: ID, data_kind: MetricDataType, rath: Optional[MikroNextRath] = None
+) -> RelationMetric:
+    """CreateRelationMetric
+
+
+
+    Arguments:
+        kind (ID): kind
+        data_kind (MetricDataType): dataKind
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RelationMetric"""
+    return (
+        await aexecute(
+            CreateRelationMetricMutation,
+            {"kind": kind, "dataKind": data_kind},
+            rath=rath,
+        )
+    ).create_relation_metric
+
+
+def create_relation_metric(
+    kind: ID, data_kind: MetricDataType, rath: Optional[MikroNextRath] = None
+) -> RelationMetric:
+    """CreateRelationMetric
+
+
+
+    Arguments:
+        kind (ID): kind
+        data_kind (MetricDataType): dataKind
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RelationMetric"""
+    return execute(
+        CreateRelationMetricMutation, {"kind": kind, "dataKind": data_kind}, rath=rath
+    ).create_relation_metric
+
+
+async def aattach_relation_metric_to_relation(
+    relation: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
+) -> EntityRelation:
+    """AttachRelationMetricToRelation
+
+
+
+    Arguments:
+        relation (ID): relation
+        metric (ID): metric
+        value (Any): value
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EntityRelation"""
+    return (
+        await aexecute(
+            AttachRelationMetricToRelationMutation,
+            {"relation": relation, "metric": metric, "value": value},
+            rath=rath,
+        )
+    ).attach_relation_metric
+
+
+def attach_relation_metric_to_relation(
+    relation: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
+) -> EntityRelation:
+    """AttachRelationMetricToRelation
+
+
+
+    Arguments:
+        relation (ID): relation
+        metric (ID): metric
+        value (Any): value
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EntityRelation"""
+    return execute(
+        AttachRelationMetricToRelationMutation,
+        {"relation": relation, "metric": metric, "value": value},
+        rath=rath,
+    ).attach_relation_metric
+
+
+async def acreate_protocol_step(
+    name: str,
+    kind: ID,
+    reagents: Optional[List[ID]] = None,
+    description: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> ProtocolStep:
+    """CreateProtocolStep
+
+
+
+    Arguments:
+        name (str): name
+        kind (ID): kind
+        reagents (Optional[List[ID]], optional): reagents.
+        description (Optional[str], optional): description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ProtocolStep"""
+    return (
+        await aexecute(
+            CreateProtocolStepMutation,
+            {
+                "name": name,
+                "kind": kind,
+                "reagents": reagents,
+                "description": description,
+            },
+            rath=rath,
+        )
+    ).create_protocol_step
+
+
+def create_protocol_step(
+    name: str,
+    kind: ID,
+    reagents: Optional[List[ID]] = None,
+    description: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> ProtocolStep:
+    """CreateProtocolStep
+
+
+
+    Arguments:
+        name (str): name
+        kind (ID): kind
+        reagents (Optional[List[ID]], optional): reagents.
+        description (Optional[str], optional): description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ProtocolStep"""
+    return execute(
+        CreateProtocolStepMutation,
+        {"name": name, "kind": kind, "reagents": reagents, "description": description},
+        rath=rath,
+    ).create_protocol_step
+
+
 async def acreate_dataset(
     name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateDatasetMutationCreatedataset:
@@ -2973,6 +4445,86 @@ def revert_dataset(
     ).revert_dataset
 
 
+async def acreate_entity_group(
+    name: str, image: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+) -> CreateEntityGroupMutationCreateentitygroup:
+    """CreateEntityGroup
+
+
+
+    Arguments:
+        name (str): name
+        image (Optional[ID], optional): image.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateEntityGroupMutationCreateentitygroup"""
+    return (
+        await aexecute(
+            CreateEntityGroupMutation, {"name": name, "image": image}, rath=rath
+        )
+    ).create_entity_group
+
+
+def create_entity_group(
+    name: str, image: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+) -> CreateEntityGroupMutationCreateentitygroup:
+    """CreateEntityGroup
+
+
+
+    Arguments:
+        name (str): name
+        image (Optional[ID], optional): image.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        CreateEntityGroupMutationCreateentitygroup"""
+    return execute(
+        CreateEntityGroupMutation, {"name": name, "image": image}, rath=rath
+    ).create_entity_group
+
+
+async def acreate_specimen(
+    entity: ID, protocol: ID, rath: Optional[MikroNextRath] = None
+) -> Specimen:
+    """CreateSpecimen
+
+
+
+    Arguments:
+        entity (ID): entity
+        protocol (ID): protocol
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Specimen"""
+    return (
+        await aexecute(
+            CreateSpecimenMutation, {"entity": entity, "protocol": protocol}, rath=rath
+        )
+    ).create_specimen
+
+
+def create_specimen(
+    entity: ID, protocol: ID, rath: Optional[MikroNextRath] = None
+) -> Specimen:
+    """CreateSpecimen
+
+
+
+    Arguments:
+        entity (ID): entity
+        protocol (ID): protocol
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Specimen"""
+    return execute(
+        CreateSpecimenMutation, {"entity": entity, "protocol": protocol}, rath=rath
+    ).create_specimen
+
+
 async def acreate_instrument(
     serial_number: str,
     name: Optional[str] = None,
@@ -3077,204 +4629,224 @@ def ensure_instrument(
     ).ensure_instrument
 
 
-async def acreate_antibody(
-    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
-) -> CreateAntibodyMutationCreateantibody:
-    """CreateAntibody
+async def acreate_entity_relation(
+    left: ID, right: ID, kind: ID, rath: Optional[MikroNextRath] = None
+) -> EntityRelation:
+    """CreateEntityRelation
 
 
 
     Arguments:
-        name (str): name
-        epitope (Optional[str], optional): epitope.
+        left (ID): left
+        right (ID): right
+        kind (ID): kind
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateAntibodyMutationCreateantibody"""
+        EntityRelation"""
     return (
         await aexecute(
-            CreateAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
-        )
-    ).create_antibody
-
-
-def create_antibody(
-    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
-) -> CreateAntibodyMutationCreateantibody:
-    """CreateAntibody
-
-
-
-    Arguments:
-        name (str): name
-        epitope (Optional[str], optional): epitope.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateAntibodyMutationCreateantibody"""
-    return execute(
-        CreateAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
-    ).create_antibody
-
-
-async def aensure_antibody(
-    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
-) -> EnsureAntibodyMutationEnsureantibody:
-    """EnsureAntibody
-
-
-
-    Arguments:
-        name (str): name
-        epitope (Optional[str], optional): epitope.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EnsureAntibodyMutationEnsureantibody"""
-    return (
-        await aexecute(
-            EnsureAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
-        )
-    ).ensure_antibody
-
-
-def ensure_antibody(
-    name: str, epitope: Optional[str] = None, rath: Optional[MikroNextRath] = None
-) -> EnsureAntibodyMutationEnsureantibody:
-    """EnsureAntibody
-
-
-
-    Arguments:
-        name (str): name
-        epitope (Optional[str], optional): epitope.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EnsureAntibodyMutationEnsureantibody"""
-    return execute(
-        EnsureAntibodyMutation, {"name": name, "epitope": epitope}, rath=rath
-    ).ensure_antibody
-
-
-async def acreate_fluorophore(
-    name: str,
-    excitation_wavelength: Optional[Micrometers] = None,
-    emission_wavelength: Optional[Micrometers] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> CreateFluorophoreMutationCreatefluorophore:
-    """CreateFluorophore
-
-
-
-    Arguments:
-        name (str): name
-        excitation_wavelength (Optional[Micrometers], optional): excitationWavelength.
-        emission_wavelength (Optional[Micrometers], optional): emissionWavelength.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateFluorophoreMutationCreatefluorophore"""
-    return (
-        await aexecute(
-            CreateFluorophoreMutation,
-            {
-                "name": name,
-                "excitationWavelength": excitation_wavelength,
-                "emissionWavelength": emission_wavelength,
-            },
+            CreateEntityRelationMutation,
+            {"left": left, "right": right, "kind": kind},
             rath=rath,
         )
-    ).create_fluorophore
+    ).create_entity_relation
 
 
-def create_fluorophore(
-    name: str,
-    excitation_wavelength: Optional[Micrometers] = None,
-    emission_wavelength: Optional[Micrometers] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> CreateFluorophoreMutationCreatefluorophore:
-    """CreateFluorophore
+def create_entity_relation(
+    left: ID, right: ID, kind: ID, rath: Optional[MikroNextRath] = None
+) -> EntityRelation:
+    """CreateEntityRelation
 
 
 
     Arguments:
-        name (str): name
-        excitation_wavelength (Optional[Micrometers], optional): excitationWavelength.
-        emission_wavelength (Optional[Micrometers], optional): emissionWavelength.
+        left (ID): left
+        right (ID): right
+        kind (ID): kind
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateFluorophoreMutationCreatefluorophore"""
+        EntityRelation"""
     return execute(
-        CreateFluorophoreMutation,
-        {
-            "name": name,
-            "excitationWavelength": excitation_wavelength,
-            "emissionWavelength": emission_wavelength,
-        },
+        CreateEntityRelationMutation,
+        {"left": left, "right": right, "kind": kind},
         rath=rath,
-    ).create_fluorophore
+    ).create_entity_relation
 
 
-async def aensure_fluorophore(
-    name: str,
-    excitation_wavelength: Optional[Micrometers] = None,
-    emission_wavelength: Optional[Micrometers] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> EnsureFluorophoreMutationEnsurefluorophore:
-    """EnsureFluorophore
+async def acreate_entity_relation_kind(
+    left_kind: ID, right_kind: ID, kind: ID, rath: Optional[MikroNextRath] = None
+) -> EntityRelationKind:
+    """CreateEntityRelationKind
 
 
 
     Arguments:
-        name (str): name
-        excitation_wavelength (Optional[Micrometers], optional): excitationWavelength.
-        emission_wavelength (Optional[Micrometers], optional): emissionWavelength.
+        left_kind (ID): leftKind
+        right_kind (ID): rightKind
+        kind (ID): kind
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureFluorophoreMutationEnsurefluorophore"""
+        EntityRelationKind"""
     return (
         await aexecute(
-            EnsureFluorophoreMutation,
-            {
-                "name": name,
-                "excitationWavelength": excitation_wavelength,
-                "emissionWavelength": emission_wavelength,
-            },
+            CreateEntityRelationKindMutation,
+            {"leftKind": left_kind, "rightKind": right_kind, "kind": kind},
             rath=rath,
         )
-    ).ensure_fluorophore
+    ).create_entity_relation_kind
 
 
-def ensure_fluorophore(
-    name: str,
-    excitation_wavelength: Optional[Micrometers] = None,
-    emission_wavelength: Optional[Micrometers] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> EnsureFluorophoreMutationEnsurefluorophore:
-    """EnsureFluorophore
+def create_entity_relation_kind(
+    left_kind: ID, right_kind: ID, kind: ID, rath: Optional[MikroNextRath] = None
+) -> EntityRelationKind:
+    """CreateEntityRelationKind
 
 
 
     Arguments:
-        name (str): name
-        excitation_wavelength (Optional[Micrometers], optional): excitationWavelength.
-        emission_wavelength (Optional[Micrometers], optional): emissionWavelength.
+        left_kind (ID): leftKind
+        right_kind (ID): rightKind
+        kind (ID): kind
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureFluorophoreMutationEnsurefluorophore"""
+        EntityRelationKind"""
     return execute(
-        EnsureFluorophoreMutation,
-        {
-            "name": name,
-            "excitationWavelength": excitation_wavelength,
-            "emissionWavelength": emission_wavelength,
-        },
+        CreateEntityRelationKindMutation,
+        {"leftKind": left_kind, "rightKind": right_kind, "kind": kind},
         rath=rath,
-    ).ensure_fluorophore
+    ).create_entity_relation_kind
+
+
+async def acreate_entity_metric(
+    kind: ID, data_kind: MetricDataType, rath: Optional[MikroNextRath] = None
+) -> EntityMetric:
+    """CreateEntityMetric
+
+
+
+    Arguments:
+        kind (ID): kind
+        data_kind (MetricDataType): dataKind
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EntityMetric"""
+    return (
+        await aexecute(
+            CreateEntityMetricMutation, {"kind": kind, "dataKind": data_kind}, rath=rath
+        )
+    ).create_entity_metric
+
+
+def create_entity_metric(
+    kind: ID, data_kind: MetricDataType, rath: Optional[MikroNextRath] = None
+) -> EntityMetric:
+    """CreateEntityMetric
+
+
+
+    Arguments:
+        kind (ID): kind
+        data_kind (MetricDataType): dataKind
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EntityMetric"""
+    return execute(
+        CreateEntityMetricMutation, {"kind": kind, "dataKind": data_kind}, rath=rath
+    ).create_entity_metric
+
+
+async def aattach_entity_metric_to_entity(
+    entity: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
+) -> Entity:
+    """AttachEntityMetricToEntity
+
+
+
+    Arguments:
+        entity (ID): entity
+        metric (ID): metric
+        value (Any): value
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Entity"""
+    return (
+        await aexecute(
+            AttachEntityMetricToEntityMutation,
+            {"entity": entity, "metric": metric, "value": value},
+            rath=rath,
+        )
+    ).attach_entity_metric
+
+
+def attach_entity_metric_to_entity(
+    entity: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
+) -> Entity:
+    """AttachEntityMetricToEntity
+
+
+
+    Arguments:
+        entity (ID): entity
+        metric (ID): metric
+        value (Any): value
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Entity"""
+    return execute(
+        AttachEntityMetricToEntityMutation,
+        {"entity": entity, "metric": metric, "value": value},
+        rath=rath,
+    ).attach_entity_metric
+
+
+async def aattach_metric_to_entities(
+    metric: ID, pairs: List[EntityValuePairInput], rath: Optional[MikroNextRath] = None
+) -> List[Entity]:
+    """AttachMetricToEntities
+
+
+
+    Arguments:
+        metric (ID): metric
+        pairs (List[EntityValuePairInput]): pairs
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[Entity]"""
+    return (
+        await aexecute(
+            AttachMetricToEntitiesMutation,
+            {"metric": metric, "pairs": pairs},
+            rath=rath,
+        )
+    ).attach_metrics_to_entities
+
+
+def attach_metric_to_entities(
+    metric: ID, pairs: List[EntityValuePairInput], rath: Optional[MikroNextRath] = None
+) -> List[Entity]:
+    """AttachMetricToEntities
+
+
+
+    Arguments:
+        metric (ID): metric
+        pairs (List[EntityValuePairInput]): pairs
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[Entity]"""
+    return execute(
+        AttachMetricToEntitiesMutation, {"metric": metric, "pairs": pairs}, rath=rath
+    ).attach_metrics_to_entities
 
 
 async def afrom_array_like(
@@ -3283,11 +4855,13 @@ async def afrom_array_like(
     origins: Optional[List[ID]] = None,
     channel_views: Optional[List[PartialChannelViewInput]] = None,
     transformation_views: Optional[List[PartialAffineTransformationViewInput]] = None,
-    label_views: Optional[List[PartialLabelViewInput]] = None,
+    pixel_views: Optional[List[PartialPixelViewInput]] = None,
     rgb_views: Optional[List[PartialRGBViewInput]] = None,
     acquisition_views: Optional[List[PartialAcquisitionViewInput]] = None,
     timepoint_views: Optional[List[PartialTimepointViewInput]] = None,
     optics_views: Optional[List[PartialOpticsViewInput]] = None,
+    specimen_views: Optional[List[PartialSpecimenViewInput]] = None,
+    scale_views: Optional[List[PartialScaleViewInput]] = None,
     tags: Optional[List[str]] = None,
     file_origins: Optional[List[ID]] = None,
     roi_origins: Optional[List[ID]] = None,
@@ -3303,11 +4877,13 @@ async def afrom_array_like(
         origins (Optional[List[ID]], optional): origins.
         channel_views (Optional[List[PartialChannelViewInput]], optional): channelViews.
         transformation_views (Optional[List[PartialAffineTransformationViewInput]], optional): transformationViews.
-        label_views (Optional[List[PartialLabelViewInput]], optional): labelViews.
+        pixel_views (Optional[List[PartialPixelViewInput]], optional): pixelViews.
         rgb_views (Optional[List[PartialRGBViewInput]], optional): rgbViews.
         acquisition_views (Optional[List[PartialAcquisitionViewInput]], optional): acquisitionViews.
         timepoint_views (Optional[List[PartialTimepointViewInput]], optional): timepointViews.
         optics_views (Optional[List[PartialOpticsViewInput]], optional): opticsViews.
+        specimen_views (Optional[List[PartialSpecimenViewInput]], optional): specimenViews.
+        scale_views (Optional[List[PartialScaleViewInput]], optional): scaleViews.
         tags (Optional[List[str]], optional): tags.
         file_origins (Optional[List[ID]], optional): fileOrigins.
         roi_origins (Optional[List[ID]], optional): roiOrigins.
@@ -3324,11 +4900,13 @@ async def afrom_array_like(
                 "origins": origins,
                 "channelViews": channel_views,
                 "transformationViews": transformation_views,
-                "labelViews": label_views,
+                "pixelViews": pixel_views,
                 "rgbViews": rgb_views,
                 "acquisitionViews": acquisition_views,
                 "timepointViews": timepoint_views,
                 "opticsViews": optics_views,
+                "specimenViews": specimen_views,
+                "scaleViews": scale_views,
                 "tags": tags,
                 "fileOrigins": file_origins,
                 "roiOrigins": roi_origins,
@@ -3344,11 +4922,13 @@ def from_array_like(
     origins: Optional[List[ID]] = None,
     channel_views: Optional[List[PartialChannelViewInput]] = None,
     transformation_views: Optional[List[PartialAffineTransformationViewInput]] = None,
-    label_views: Optional[List[PartialLabelViewInput]] = None,
+    pixel_views: Optional[List[PartialPixelViewInput]] = None,
     rgb_views: Optional[List[PartialRGBViewInput]] = None,
     acquisition_views: Optional[List[PartialAcquisitionViewInput]] = None,
     timepoint_views: Optional[List[PartialTimepointViewInput]] = None,
     optics_views: Optional[List[PartialOpticsViewInput]] = None,
+    specimen_views: Optional[List[PartialSpecimenViewInput]] = None,
+    scale_views: Optional[List[PartialScaleViewInput]] = None,
     tags: Optional[List[str]] = None,
     file_origins: Optional[List[ID]] = None,
     roi_origins: Optional[List[ID]] = None,
@@ -3364,11 +4944,13 @@ def from_array_like(
         origins (Optional[List[ID]], optional): origins.
         channel_views (Optional[List[PartialChannelViewInput]], optional): channelViews.
         transformation_views (Optional[List[PartialAffineTransformationViewInput]], optional): transformationViews.
-        label_views (Optional[List[PartialLabelViewInput]], optional): labelViews.
+        pixel_views (Optional[List[PartialPixelViewInput]], optional): pixelViews.
         rgb_views (Optional[List[PartialRGBViewInput]], optional): rgbViews.
         acquisition_views (Optional[List[PartialAcquisitionViewInput]], optional): acquisitionViews.
         timepoint_views (Optional[List[PartialTimepointViewInput]], optional): timepointViews.
         optics_views (Optional[List[PartialOpticsViewInput]], optional): opticsViews.
+        specimen_views (Optional[List[PartialSpecimenViewInput]], optional): specimenViews.
+        scale_views (Optional[List[PartialScaleViewInput]], optional): scaleViews.
         tags (Optional[List[str]], optional): tags.
         file_origins (Optional[List[ID]], optional): fileOrigins.
         roi_origins (Optional[List[ID]], optional): roiOrigins.
@@ -3384,11 +4966,13 @@ def from_array_like(
             "origins": origins,
             "channelViews": channel_views,
             "transformationViews": transformation_views,
-            "labelViews": label_views,
+            "pixelViews": pixel_views,
             "rgbViews": rgb_views,
             "acquisitionViews": acquisition_views,
             "timepointViews": timepoint_views,
             "opticsViews": optics_views,
+            "specimenViews": specimen_views,
+            "scaleViews": scale_views,
             "tags": tags,
             "fileOrigins": file_origins,
             "roiOrigins": roi_origins,
@@ -3485,6 +5069,78 @@ def request_access(
     ).request_access
 
 
+async def acreate_entity(
+    kind: ID,
+    group: Optional[ID] = None,
+    name: Optional[str] = None,
+    parent: Optional[ID] = None,
+    instance_kind: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Entity:
+    """CreateEntity
+
+
+
+    Arguments:
+        kind (ID): kind
+        group (Optional[ID], optional): group.
+        name (Optional[str], optional): name.
+        parent (Optional[ID], optional): parent.
+        instance_kind (Optional[str], optional): instance_kind.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Entity"""
+    return (
+        await aexecute(
+            CreateEntityMutation,
+            {
+                "kind": kind,
+                "group": group,
+                "name": name,
+                "parent": parent,
+                "instance_kind": instance_kind,
+            },
+            rath=rath,
+        )
+    ).create_entity
+
+
+def create_entity(
+    kind: ID,
+    group: Optional[ID] = None,
+    name: Optional[str] = None,
+    parent: Optional[ID] = None,
+    instance_kind: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Entity:
+    """CreateEntity
+
+
+
+    Arguments:
+        kind (ID): kind
+        group (Optional[ID], optional): group.
+        name (Optional[str], optional): name.
+        parent (Optional[ID], optional): parent.
+        instance_kind (Optional[str], optional): instance_kind.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Entity"""
+    return execute(
+        CreateEntityMutation,
+        {
+            "kind": kind,
+            "group": group,
+            "name": name,
+            "parent": parent,
+            "instance_kind": instance_kind,
+        },
+        rath=rath,
+    ).create_entity
+
+
 async def acreate_era(
     name: str, begin: Optional[datetime] = None, rath: Optional[MikroNextRath] = None
 ) -> CreateEraMutationCreateera:
@@ -3521,6 +5177,58 @@ def create_era(
     return execute(
         CreateEraMutation, {"name": name, "begin": begin}, rath=rath
     ).create_era
+
+
+async def acreate_protocol(
+    name: str,
+    experiment: ID,
+    description: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Protocol:
+    """CreateProtocol
+
+
+
+    Arguments:
+        name (str): name
+        experiment (ID): experiment
+        description (Optional[str], optional): description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Protocol"""
+    return (
+        await aexecute(
+            CreateProtocolMutation,
+            {"name": name, "experiment": experiment, "description": description},
+            rath=rath,
+        )
+    ).create_protocol
+
+
+def create_protocol(
+    name: str,
+    experiment: ID,
+    description: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Protocol:
+    """CreateProtocol
+
+
+
+    Arguments:
+        name (str): name
+        experiment (ID): experiment
+        description (Optional[str], optional): description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Protocol"""
+    return execute(
+        CreateProtocolMutation,
+        {"name": name, "experiment": experiment, "description": description},
+        rath=rath,
+    ).create_protocol
 
 
 async def acreate_snapshot(
@@ -3657,6 +5365,58 @@ def create_rgb_view(
         },
         rath=rath,
     ).create_rgb_view
+
+
+async def acreate_ontology(
+    name: str,
+    purl: Optional[str] = None,
+    description: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Ontology:
+    """CreateOntology
+
+
+
+    Arguments:
+        name (str): name
+        purl (Optional[str], optional): purl.
+        description (Optional[str], optional): description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Ontology"""
+    return (
+        await aexecute(
+            CreateOntologyMutation,
+            {"name": name, "purl": purl, "description": description},
+            rath=rath,
+        )
+    ).create_ontology
+
+
+def create_ontology(
+    name: str,
+    purl: Optional[str] = None,
+    description: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Ontology:
+    """CreateOntology
+
+
+
+    Arguments:
+        name (str): name
+        purl (Optional[str], optional): purl.
+        description (Optional[str], optional): description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Ontology"""
+    return execute(
+        CreateOntologyMutation,
+        {"name": name, "purl": purl, "description": description},
+        rath=rath,
+    ).create_ontology
 
 
 async def acreate_rgb_context(
@@ -3835,6 +5595,48 @@ def ensure_channel(
     return execute(EnsureChannelMutation, {"name": name}, rath=rath).ensure_channel
 
 
+async def acreate_experiment(
+    name: str, description: Optional[str] = None, rath: Optional[MikroNextRath] = None
+) -> Experiment:
+    """CreateExperiment
+
+
+
+    Arguments:
+        name (str): name
+        description (Optional[str], optional): description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Experiment"""
+    return (
+        await aexecute(
+            CreateExperimentMutation,
+            {"name": name, "description": description},
+            rath=rath,
+        )
+    ).create_experiment
+
+
+def create_experiment(
+    name: str, description: Optional[str] = None, rath: Optional[MikroNextRath] = None
+) -> Experiment:
+    """CreateExperiment
+
+
+
+    Arguments:
+        name (str): name
+        description (Optional[str], optional): description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Experiment"""
+    return execute(
+        CreateExperimentMutation, {"name": name, "description": description}, rath=rath
+    ).create_experiment
+
+
 async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
     """GetCamera
 
@@ -3889,6 +5691,108 @@ def get_table(id: ID, rath: Optional[MikroNextRath] = None) -> Table:
     Returns:
         Table"""
     return execute(GetTableQuery, {"id": id}, rath=rath).table
+
+
+async def aget_rendered_plot(
+    id: ID, rath: Optional[MikroNextRath] = None
+) -> RenderedPlot:
+    """GetRenderedPlot
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RenderedPlot"""
+    return (await aexecute(GetRenderedPlotQuery, {"id": id}, rath=rath)).rendered_plot
+
+
+def get_rendered_plot(id: ID, rath: Optional[MikroNextRath] = None) -> RenderedPlot:
+    """GetRenderedPlot
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RenderedPlot"""
+    return execute(GetRenderedPlotQuery, {"id": id}, rath=rath).rendered_plot
+
+
+async def alist_rendered_plots(
+    rath: Optional[MikroNextRath] = None,
+) -> List[ListRenderedPlot]:
+    """ListRenderedPlots
+
+
+
+    Arguments:
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[ListRenderedPlot]"""
+    return (await aexecute(ListRenderedPlotsQuery, {}, rath=rath)).rendered_plots
+
+
+def list_rendered_plots(rath: Optional[MikroNextRath] = None) -> List[ListRenderedPlot]:
+    """ListRenderedPlots
+
+
+
+    Arguments:
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[ListRenderedPlot]"""
+    return execute(ListRenderedPlotsQuery, {}, rath=rath).rendered_plots
+
+
+async def asearch_rendered_plots(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchRenderedPlotsQueryOptions]:
+    """SearchRenderedPlots
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchRenderedPlotsQueryRenderedplots]"""
+    return (
+        await aexecute(
+            SearchRenderedPlotsQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
+
+
+def search_rendered_plots(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchRenderedPlotsQueryOptions]:
+    """SearchRenderedPlots
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchRenderedPlotsQueryRenderedplots]"""
+    return execute(
+        SearchRenderedPlotsQuery, {"search": search, "values": values}, rath=rath
+    ).options
 
 
 async def aget_file(id: ID, rath: Optional[MikroNextRath] = None) -> File:
@@ -3968,6 +5872,78 @@ def search_files(
         SearchFilesQuery,
         {"search": search, "values": values, "pagination": pagination},
         rath=rath,
+    ).options
+
+
+async def aget_entity_kind(id: ID, rath: Optional[MikroNextRath] = None) -> EntityKind:
+    """GetEntityKind
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EntityKind"""
+    return (await aexecute(GetEntityKindQuery, {"id": id}, rath=rath)).entity_kind
+
+
+def get_entity_kind(id: ID, rath: Optional[MikroNextRath] = None) -> EntityKind:
+    """GetEntityKind
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EntityKind"""
+    return execute(GetEntityKindQuery, {"id": id}, rath=rath).entity_kind
+
+
+async def asearch_entity_kind(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchEntityKindQueryOptions]:
+    """SearchEntityKind
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchEntityKindQueryEntitykinds]"""
+    return (
+        await aexecute(
+            SearchEntityKindQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
+
+
+def search_entity_kind(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchEntityKindQueryOptions]:
+    """SearchEntityKind
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchEntityKindQueryEntitykinds]"""
+    return execute(
+        SearchEntityKindQuery, {"search": search, "values": values}, rath=rath
     ).options
 
 
@@ -4135,6 +6111,80 @@ def get_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Objective:
     return execute(GetObjectiveQuery, {"id": id}, rath=rath).objective
 
 
+async def aget_protocol_step(
+    id: ID, rath: Optional[MikroNextRath] = None
+) -> ProtocolStep:
+    """GetProtocolStep
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ProtocolStep"""
+    return (await aexecute(GetProtocolStepQuery, {"id": id}, rath=rath)).protocol_step
+
+
+def get_protocol_step(id: ID, rath: Optional[MikroNextRath] = None) -> ProtocolStep:
+    """GetProtocolStep
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ProtocolStep"""
+    return execute(GetProtocolStepQuery, {"id": id}, rath=rath).protocol_step
+
+
+async def asearch_protocol_steps(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchProtocolStepsQueryOptions]:
+    """SearchProtocolSteps
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchProtocolStepsQueryProtocolsteps]"""
+    return (
+        await aexecute(
+            SearchProtocolStepsQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
+
+
+def search_protocol_steps(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchProtocolStepsQueryOptions]:
+    """SearchProtocolSteps
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchProtocolStepsQueryProtocolsteps]"""
+    return execute(
+        SearchProtocolStepsQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
 async def aget_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
     """GetDataset
 
@@ -4163,6 +6213,78 @@ def get_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
     return execute(GetDatasetQuery, {"id": id}, rath=rath).dataset
 
 
+async def aget_specimen(id: ID, rath: Optional[MikroNextRath] = None) -> Specimen:
+    """GetSpecimen
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Specimen"""
+    return (await aexecute(GetSpecimenQuery, {"id": id}, rath=rath)).specimen
+
+
+def get_specimen(id: ID, rath: Optional[MikroNextRath] = None) -> Specimen:
+    """GetSpecimen
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Specimen"""
+    return execute(GetSpecimenQuery, {"id": id}, rath=rath).specimen
+
+
+async def asearch_specimens(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchSpecimensQueryOptions]:
+    """SearchSpecimens
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchSpecimensQuerySpecimens]"""
+    return (
+        await aexecute(
+            SearchSpecimensQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
+
+
+def search_specimens(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchSpecimensQueryOptions]:
+    """SearchSpecimens
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchSpecimensQuerySpecimens]"""
+    return execute(
+        SearchSpecimensQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
 async def aget_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instrument:
     """GetInstrument
 
@@ -4189,6 +6311,82 @@ def get_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instrument:
     Returns:
         Instrument"""
     return execute(GetInstrumentQuery, {"id": id}, rath=rath).instrument
+
+
+async def aget_entity_relation(
+    id: ID, rath: Optional[MikroNextRath] = None
+) -> EntityRelation:
+    """GetEntityRelation
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EntityRelation"""
+    return (
+        await aexecute(GetEntityRelationQuery, {"id": id}, rath=rath)
+    ).entity_relation
+
+
+def get_entity_relation(id: ID, rath: Optional[MikroNextRath] = None) -> EntityRelation:
+    """GetEntityRelation
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EntityRelation"""
+    return execute(GetEntityRelationQuery, {"id": id}, rath=rath).entity_relation
+
+
+async def asearch_entity_relations(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchEntityRelationsQueryOptions]:
+    """SearchEntityRelations
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchEntityRelationsQueryEntityrelations]"""
+    return (
+        await aexecute(
+            SearchEntityRelationsQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
+
+
+def search_entity_relations(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchEntityRelationsQueryOptions]:
+    """SearchEntityRelations
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchEntityRelationsQueryEntityrelations]"""
+    return execute(
+        SearchEntityRelationsQuery, {"search": search, "values": values}, rath=rath
+    ).options
 
 
 async def aget_image(id: ID, rath: Optional[MikroNextRath] = None) -> Image:
@@ -4333,6 +6531,150 @@ def images(
     ).images
 
 
+async def aget_entity(id: ID, rath: Optional[MikroNextRath] = None) -> Entity:
+    """GetEntity
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Entity"""
+    return (await aexecute(GetEntityQuery, {"id": id}, rath=rath)).entity
+
+
+def get_entity(id: ID, rath: Optional[MikroNextRath] = None) -> Entity:
+    """GetEntity
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Entity"""
+    return execute(GetEntityQuery, {"id": id}, rath=rath).entity
+
+
+async def asearch_entities(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchEntitiesQueryOptions]:
+    """SearchEntities
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchEntitiesQueryEntities]"""
+    return (
+        await aexecute(
+            SearchEntitiesQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
+
+
+def search_entities(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchEntitiesQueryOptions]:
+    """SearchEntities
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchEntitiesQueryEntities]"""
+    return execute(
+        SearchEntitiesQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
+async def aget_protocol(id: ID, rath: Optional[MikroNextRath] = None) -> Protocol:
+    """GetProtocol
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Protocol"""
+    return (await aexecute(GetProtocolQuery, {"id": id}, rath=rath)).protocol
+
+
+def get_protocol(id: ID, rath: Optional[MikroNextRath] = None) -> Protocol:
+    """GetProtocol
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Protocol"""
+    return execute(GetProtocolQuery, {"id": id}, rath=rath).protocol
+
+
+async def asearch_protocols(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchProtocolsQueryOptions]:
+    """SearchProtocols
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchProtocolsQueryProtocols]"""
+    return (
+        await aexecute(
+            SearchProtocolsQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
+
+
+def search_protocols(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchProtocolsQueryOptions]:
+    """SearchProtocols
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchProtocolsQueryProtocols]"""
+    return execute(
+        SearchProtocolsQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
 async def aget_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> Snapshot:
     """GetSnapshot
 
@@ -4402,6 +6744,160 @@ def search_snapshots(
         List[SearchSnapshotsQuerySnapshots]"""
     return execute(
         SearchSnapshotsQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
+async def aget_entity_relation_kind(
+    id: ID, rath: Optional[MikroNextRath] = None
+) -> EntityRelationKind:
+    """GetEntityRelationKind
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EntityRelationKind"""
+    return (
+        await aexecute(GetEntityRelationKindQuery, {"id": id}, rath=rath)
+    ).entity_relation_kind
+
+
+def get_entity_relation_kind(
+    id: ID, rath: Optional[MikroNextRath] = None
+) -> EntityRelationKind:
+    """GetEntityRelationKind
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        EntityRelationKind"""
+    return execute(
+        GetEntityRelationKindQuery, {"id": id}, rath=rath
+    ).entity_relation_kind
+
+
+async def asearch_entity_relation_kinds(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchEntityRelationKindsQueryOptions]:
+    """SearchEntityRelationKinds
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchEntityRelationKindsQueryEntityrelationkinds]"""
+    return (
+        await aexecute(
+            SearchEntityRelationKindsQuery,
+            {"search": search, "values": values},
+            rath=rath,
+        )
+    ).options
+
+
+def search_entity_relation_kinds(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchEntityRelationKindsQueryOptions]:
+    """SearchEntityRelationKinds
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchEntityRelationKindsQueryEntityrelationkinds]"""
+    return execute(
+        SearchEntityRelationKindsQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
+async def aget_ontology(id: ID, rath: Optional[MikroNextRath] = None) -> Ontology:
+    """GetOntology
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Ontology"""
+    return (await aexecute(GetOntologyQuery, {"id": id}, rath=rath)).ontology
+
+
+def get_ontology(id: ID, rath: Optional[MikroNextRath] = None) -> Ontology:
+    """GetOntology
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Ontology"""
+    return execute(GetOntologyQuery, {"id": id}, rath=rath).ontology
+
+
+async def asearch_ontologies(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchOntologiesQueryOptions]:
+    """SearchOntologies
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchOntologiesQueryOntologies]"""
+    return (
+        await aexecute(
+            SearchOntologiesQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
+
+
+def search_ontologies(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchOntologiesQueryOptions]:
+    """SearchOntologies
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchOntologiesQueryOntologies]"""
+    return execute(
+        SearchOntologiesQuery, {"search": search, "values": values}, rath=rath
     ).options
 
 
@@ -4545,8 +7041,9 @@ DatasetFilter.update_forward_refs()
 EraFilter.update_forward_refs()
 File.update_forward_refs()
 Image.update_forward_refs()
+ImageDerivedscaleviewsImage.update_forward_refs()
 ImageFilter.update_forward_refs()
-LabelView.update_forward_refs()
+PartialPixelViewInput.update_forward_refs()
 ProvenanceFilter.update_forward_refs()
 RGBContextImage.update_forward_refs()
 StageFilter.update_forward_refs()

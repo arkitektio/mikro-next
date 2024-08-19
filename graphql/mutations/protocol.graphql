@@ -1,0 +1,5 @@
+mutation CreateProtocol($name: String!, $experiment: ID!, $description: String) {
+  createProtocol(input: { name: $name, experiment: $experiment, description: $description }) {
+    ...Protocol
+  }
+}

@@ -1,0 +1,5 @@
+mutation MapProtocolStep( $step: ID!, $protocol: ID!, $t: Int!) {
+  mapProtocolStep(input: { protocol: $protocol, t: $t, step: $step }) {
+    ...ProtocolStepMapping
+  }
+}

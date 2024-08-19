@@ -1,0 +1,31 @@
+mutation CreateEntityRelation(
+  $left: ID!
+  $right: ID!
+  $kind: ID!
+) {
+  createEntityRelation(
+    input: {
+      left: $left
+      right: $right
+      kind: $kind
+    }
+  ) {
+    ...EntityRelation
+  }
+}
+
+mutation CreateEntityRelationKind(
+  $leftKind: ID!
+  $rightKind: ID!
+  $kind: ID!
+) {
+  createEntityRelationKind(
+    input: {
+      leftKind: $leftKind
+      rightKind: $rightKind
+      kind: $kind
+    }
+  ) {
+    ...EntityRelationKind
+  }
+}

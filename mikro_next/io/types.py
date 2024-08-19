@@ -28,8 +28,7 @@ class Namer(Protocol):
     def __call__(
         self,
         file: Any,
-    ) -> Awaitable[Tuple[str, str]]:
-        ...
+    ) -> Awaitable[Tuple[str, str]]: ...
 
 
 @runtime_checkable
@@ -42,8 +41,7 @@ class Downloader(Protocol):
         key: str,
         credentials: "Credentials",
         executor: Optional[ThreadPoolExecutor] = None,
-    ) -> Any:
-        ...
+    ) -> Any: ...
 
 
 @runtime_checkable
@@ -61,5 +59,4 @@ class Uploader(Protocol):
         credentials: "Credentials",
         endpoint_url: str,
         executor: Optional[ThreadPoolExecutor] = None,
-    ) -> str:
-        ...
+    ) -> str: ...

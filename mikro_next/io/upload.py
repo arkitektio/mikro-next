@@ -53,6 +53,7 @@ def _store_parquet_input(
     """Stores an xarray in the DataLayer"""
     import pyarrow.parquet as pq
     from pyarrow import Table
+
     filesystem = s3fs.S3FileSystem(
         secret=credentials.secret_key,
         key=credentials.access_key,

@@ -105,7 +105,9 @@ def open_parquet_filesystem(store_id: str):
     return pq.ParquetDataset(credentials.path, filesystem=_s3fs)
 
 
-async def adownload_file(presigned_url: str, file_name: Optional[str] = None, datalayer=None):
+async def adownload_file(
+    presigned_url: str, file_name: Optional[str] = None, datalayer=None
+):
     datalayer = datalayer or current_next_datalayer.get()
     endpoint_url = await datalayer.get_endpoint_url()
 

@@ -1,0 +1,26 @@
+fragment EntityRelation on EntityRelation {
+  id
+  left {
+    id
+  }
+  right {
+    id
+  }
+  kind {
+    id
+  }
+}
+
+
+fragment EntityRelationKind on EntityRelationKind {
+  id
+  leftKind {
+    id
+  }
+  rightKind {
+    id
+  }
+  kind {
+    id
+  }
+}

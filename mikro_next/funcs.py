@@ -1,5 +1,6 @@
 """ This module provides helpers for the mikro rath api
 they are wrapped functions for the turms generated api"""
+
 from .rath import MikroNextRath, current_mikro_next_rath
 from koil.helpers import unkoil, unkoil_gen
 from typing import Optional, Protocol, Type, Dict, Any, TypeVar, Iterator, AsyncIterator
@@ -28,7 +29,7 @@ async def aexecute(
     x = await rath.aquery(
         operation.Meta.document,  # type: ignore
         operation.Arguments(**variables).dict(by_alias=True),  # type: ignore
-    ) # type: ignore
+    )  # type: ignore
     return operation(**x.data)
 
 
@@ -55,6 +56,7 @@ async def asubscribe(
 ) -> AsyncIterator[T]:
     rath = rath or current_mikro_next_rath.get()
     async for event in rath.asubscribe(
-        operation.Meta.document, operation.Arguments(**variables).dict(by_alias=True), # type: ignore
+        operation.Meta.document,
+        operation.Arguments(**variables).dict(by_alias=True),  # type: ignore
     ):
         yield operation(**event.data)

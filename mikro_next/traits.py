@@ -28,6 +28,26 @@ if TYPE_CHECKING:
     from pyarrow.parquet import ParquetDataset
 
 
+
+class CanSpawnEntityTrait(BaseModel):
+
+
+    def create_entity(self):
+    
+        from mikro_next.api.schema import create_entity
+        """Creates an entity with a name
+
+
+        """
+        id = get_attributes_or_error(self, "id")
+        return create_entity(id)
+    
+
+    def __call__(self, *args, **kwargs):
+        return self.create_entity(*args, **kwargs)
+
+
+
 class HasZarrStoreTrait(BaseModel):
     """Representation Trait
 
@@ -43,6 +63,18 @@ class HasZarrStoreTrait(BaseModel):
     def data(self) -> xr.DataArray:
         store = get_attributes_or_error(self, "store")
         return xr.open_zarr(store=store.zarr_store, consolidated=True)["data"]
+
+    @property
+    def multi_scale_data(self) -> List[xr.DataArray]:
+        scale_views = get_attributes_or_error(self, "derived_scale_views")
+
+        if len(scale_views) == 0:
+            raise ValueError(
+                "No ScaleView found in views. Please create a ScaleView first."
+            )
+
+        sorted_views = sorted(scale_views, key=lambda image: image.scale_x)
+        return [x.image.data for x in sorted_views]
 
     async def adata(self) -> Awaitable[xr.DataArray]:
         """The Data of the Representation as an xr.DataArray. Accessible from asyncio.
@@ -75,7 +107,6 @@ class HasZarrStoreTrait(BaseModel):
         raise NotImplementedError(
             f"No pixel size found for this representation {self}. Have you attached any views?"
         )
-
 
 
 class PhysicalSizeProtocol(Protocol):
@@ -258,7 +289,6 @@ class HasParquestStoreTrait(BaseModel):
         """
         store: "ParquetStore" = get_attributes_or_error(self, "store")
         return store.parquet_dataset.read_pandas().to_pandas()
-
 
 
 V = TypeVar("V")

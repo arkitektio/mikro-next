@@ -1,0 +1,7 @@
+fragment EntityMetric on EntityMetric {
+  id
+  kind {
+    ...EntityKind
+  }
+  dataKind
+}

@@ -31,7 +31,6 @@ Example:
  
 """
 
-
 import contextvars
 
 from koil.composition import KoiledModel

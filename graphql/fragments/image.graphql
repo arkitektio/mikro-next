@@ -13,7 +13,18 @@ fragment Image on Image {
     ...LabelView
     ...TimepointView
     ...OpticsView
+    ...ScaleView
   }
+  derivedScaleViews {
+    ...ScaleView
+    image {
+      name
+      store {
+        ...ZarrStore
+      }
+    }
+  }
+
 
   rgbContexts {
     id

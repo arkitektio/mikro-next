@@ -1,0 +1,19 @@
+mutation CreateEntity(
+  $kind: ID!
+  $group: ID
+  $name: String
+  $parent: ID
+  $instance_kind: String
+) {
+  createEntity(
+    input: {
+      group: $group
+      kind: $kind
+      name: $name
+      parent: $parent
+      instanceKind: $instance_kind
+    }
+  ) {
+    ...Entity
+  }
+}

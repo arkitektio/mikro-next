@@ -1,0 +1,43 @@
+mutation CreateEntityMetric(
+  $kind: ID!
+  $dataKind: MetricDataType!
+) {
+  createEntityMetric(
+    input: {
+      kind: $kind
+      dataKind: $dataKind
+    }
+  ) {
+    ...EntityMetric
+  }
+}
+
+mutation AttachEntityMetricToEntity(
+  $entity: ID!
+  $metric: ID!
+  $value: Metric!
+) {
+  attachEntityMetric(
+    input: {
+      entity: $entity
+      metric: $metric
+      value: $value
+    }
+  ) {
+    ...Entity
+  }
+}
+
+mutation AttachMetricToEntities(
+  $metric: ID!
+  $pairs: [EntityValuePairInput!]!
+) {
+  attachMetricsToEntities(
+    input: {
+      metric: $metric
+      pairs: $pairs
+    }
+  ) {
+    ...Entity
+  }
+}

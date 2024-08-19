@@ -53,14 +53,39 @@ fragment LabelView on LabelView {
   ...View
   id
   fluorophore {
-    ...Fluorophore
+    id
+    kind {
+      id
+      label
+    }
+    name
   }
   primaryAntibody {
-    ...Antibody
+    id
+    kind {
+      id
+      label
+    }
+    name
   }
   secondaryAntibody {
-    ...Antibody
+    id
+    kind {
+      id
+      label
+    }
+    name
   }
+}
+
+fragment ScaleView on ScaleView {
+  ...View
+  id
+  scaleX
+  scaleY
+  scaleZ
+  scaleT 
+  scaleC
 }
 
 fragment RGBView on RGBView {

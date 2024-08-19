@@ -47,5 +47,3 @@ def rechunk(
     }
 
     return chunk
-
-

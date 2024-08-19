@@ -4,6 +4,7 @@ from fakts.fakts import Fakts
 from mikro_next.datalayer import DataLayer
 from pydantic import BaseModel
 
+
 class DataLayerFakt(BaseModel):
     endpoint_url: str
 

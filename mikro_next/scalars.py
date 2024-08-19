@@ -25,7 +25,7 @@ class AssignationID(str):
     def validate(cls, v):
         """Validate the input array and convert it to a xr.DataArray."""
         return cls(v)
-    
+
 
 class RGBAColor(list):
     """A custom scalar to represent an affine matrix."""
@@ -38,7 +38,6 @@ class RGBAColor(list):
     def validate(cls, v):
         """Validate the input array and convert it to a xr.DataArray."""
         return cls(v)
-
 
 
 class XArrayConversionException(Exception):
@@ -200,13 +199,14 @@ class FiveDVector(list):
         if not isinstance(v, list):
             v = list(v)
 
-
         print(v)
 
         for i in v:
             if not isinstance(i, (int, float)):
-                
-                raise ValueError(f"The input must be a list of integers or floats. You provided a list of {type(i)}")
+
+                raise ValueError(
+                    f"The input must be a list of integers or floats. You provided a list of {type(i)}"
+                )
 
         if len(v) < 2 or len(v) > 5:
             raise ValueError(
@@ -218,7 +218,7 @@ class FiveDVector(list):
             v = [0] * (5 - len(v)) + v
 
         return v
-    
+
     @classmethod
     def list_from_numpyarray(
         cls: "FiveDVector",
@@ -237,11 +237,11 @@ class FiveDVector(list):
         """
         assert x.ndim == 2, "Needs to be a List array of vectors"
         if x.shape[1] == 4:
-            return [FiveDVector([c]+ i) for i in x.tolist()]
+            return [FiveDVector([c] + i) for i in x.tolist()]
         elif x.shape[1] == 3:
             return [FiveDVector([c, t] + i) for i in x.tolist()]
         elif x.shape[1] == 2:
-            return [FiveDVector([c,t, z] + i) for i in x.tolist()]
+            return [FiveDVector([c, t, z] + i) for i in x.tolist()]
         else:
             raise NotImplementedError(
                 f"Incompatible shape {x.shape} of {x}. List dimension needs to either be of size 2 or 3"
