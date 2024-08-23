@@ -1,5 +1,11 @@
 from typing import Dict, Any, List
 import math
+from .vars import current_ontology
+
+def v(name):
+    from mikro_next.api.schema import create_entity_kind
+    return create_entity_kind(name, ontology=current_ontology.get())
+
 
 
 def rechunk(

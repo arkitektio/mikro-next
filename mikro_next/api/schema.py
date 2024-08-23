@@ -1,30 +1,33 @@
-from mikro_next.scalars import (
-    Micrometers,
-    ArrayLike,
-    ParquetLike,
-    FourByFourMatrix,
-    Milliseconds,
-    FileLike,
-    Upload,
-    FiveDVector,
-)
+from mikro_next.funcs import execute, asubscribe, aexecute, subscribe
+from mikro_next.rath import MikroNextRath
 from mikro_next.traits import (
-    HasParquestStoreTrait,
-    HasZarrStoreAccessor,
-    HasZarrStoreTrait,
-    IsVectorizableTrait,
-    CanSpawnEntityTrait,
+    EntityTrait,
     HasParquetStoreAccesor,
+    HasZarrStoreAccessor,
+    IsVectorizableTrait,
+    HasZarrStoreTrait,
+    OntologyTrait,
     HasPresignedDownloadAccessor,
     HasDownloadAccessor,
+    EntityRelationKindTrait,
+    HasParquestStoreTrait,
+    EntityKindTrait,
 )
-from typing import Literal, Optional, Iterator, Union, AsyncIterator, Any, Tuple, List
-from mikro_next.rath import MikroNextRath
-from pydantic import BaseModel, Field
-from rath.scalars import ID
-from mikro_next.funcs import subscribe, asubscribe, execute, aexecute
-from enum import Enum
+from mikro_next.scalars import (
+    Upload,
+    ParquetLike,
+    Milliseconds,
+    FourByFourMatrix,
+    ArrayLike,
+    FiveDVector,
+    FileLike,
+    Micrometers,
+)
+from typing import List, Union, Literal, AsyncIterator, Tuple, Optional, Iterator, Any
+from pydantic import Field, BaseModel
 from datetime import datetime
+from enum import Enum
+from rath.scalars import ID
 
 
 class RoiKind(str, Enum):
@@ -805,7 +808,7 @@ class OpticsView(ViewBase, BaseModel):
         frozen = True
 
 
-class LabelViewFluorophoreKind(CanSpawnEntityTrait, BaseModel):
+class LabelViewFluorophoreKind(EntityKindTrait, BaseModel):
     typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
     id: ID
     label: str
@@ -816,7 +819,7 @@ class LabelViewFluorophoreKind(CanSpawnEntityTrait, BaseModel):
         frozen = True
 
 
-class LabelViewFluorophore(BaseModel):
+class LabelViewFluorophore(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
     kind: LabelViewFluorophoreKind
@@ -828,7 +831,7 @@ class LabelViewFluorophore(BaseModel):
         frozen = True
 
 
-class LabelViewPrimaryantibodyKind(CanSpawnEntityTrait, BaseModel):
+class LabelViewPrimaryantibodyKind(EntityKindTrait, BaseModel):
     typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
     id: ID
     label: str
@@ -839,7 +842,7 @@ class LabelViewPrimaryantibodyKind(CanSpawnEntityTrait, BaseModel):
         frozen = True
 
 
-class LabelViewPrimaryantibody(BaseModel):
+class LabelViewPrimaryantibody(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
     kind: LabelViewPrimaryantibodyKind
@@ -851,7 +854,7 @@ class LabelViewPrimaryantibody(BaseModel):
         frozen = True
 
 
-class LabelViewSecondaryantibodyKind(CanSpawnEntityTrait, BaseModel):
+class LabelViewSecondaryantibodyKind(EntityKindTrait, BaseModel):
     typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
     id: ID
     label: str
@@ -862,7 +865,7 @@ class LabelViewSecondaryantibodyKind(CanSpawnEntityTrait, BaseModel):
         frozen = True
 
 
-class LabelViewSecondaryantibody(BaseModel):
+class LabelViewSecondaryantibody(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
     kind: LabelViewSecondaryantibodyKind
@@ -1120,7 +1123,7 @@ class File(BaseModel):
         frozen = True
 
 
-class EntityKindOntology(BaseModel):
+class EntityKindOntology(OntologyTrait, BaseModel):
     typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -1131,7 +1134,7 @@ class EntityKindOntology(BaseModel):
         frozen = True
 
 
-class EntityKind(CanSpawnEntityTrait, BaseModel):
+class EntityKind(EntityKindTrait, BaseModel):
     typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
     id: ID
     label: str
@@ -1258,7 +1261,7 @@ class ProtocolStepMappings(BaseModel):
         frozen = True
 
 
-class ProtocolStepReagents(BaseModel):
+class ProtocolStepReagents(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -1354,7 +1357,7 @@ class Dataset(BaseModel):
         frozen = True
 
 
-class SpecimenEntityKind(CanSpawnEntityTrait, BaseModel):
+class SpecimenEntityKind(EntityKindTrait, BaseModel):
     typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
     id: ID
     label: str
@@ -1375,7 +1378,7 @@ class SpecimenEntityGroup(BaseModel):
         frozen = True
 
 
-class SpecimenEntity(BaseModel):
+class SpecimenEntity(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
     kind: SpecimenEntityKind
@@ -1423,7 +1426,7 @@ class Instrument(BaseModel):
         frozen = True
 
 
-class EntityRelationLeft(BaseModel):
+class EntityRelationLeft(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
 
@@ -1433,7 +1436,7 @@ class EntityRelationLeft(BaseModel):
         frozen = True
 
 
-class EntityRelationRight(BaseModel):
+class EntityRelationRight(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
 
@@ -1443,7 +1446,7 @@ class EntityRelationRight(BaseModel):
         frozen = True
 
 
-class EntityRelationKind(BaseModel):
+class EntityRelationKind(EntityRelationKindTrait, BaseModel):
     typename: Optional[Literal["EntityRelationKind"]] = Field(
         alias="__typename", exclude=True
     )
@@ -1470,7 +1473,7 @@ class EntityRelation(BaseModel):
         frozen = True
 
 
-class EntityRelationKindLeftkind(CanSpawnEntityTrait, BaseModel):
+class EntityRelationKindLeftkind(EntityKindTrait, BaseModel):
     typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
     id: ID
 
@@ -1480,7 +1483,7 @@ class EntityRelationKindLeftkind(CanSpawnEntityTrait, BaseModel):
         frozen = True
 
 
-class EntityRelationKindRightkind(CanSpawnEntityTrait, BaseModel):
+class EntityRelationKindRightkind(EntityKindTrait, BaseModel):
     typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
     id: ID
 
@@ -1490,7 +1493,7 @@ class EntityRelationKindRightkind(CanSpawnEntityTrait, BaseModel):
         frozen = True
 
 
-class EntityRelationKindKind(CanSpawnEntityTrait, BaseModel):
+class EntityRelationKindKind(EntityKindTrait, BaseModel):
     typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
     id: ID
 
@@ -1500,7 +1503,7 @@ class EntityRelationKindKind(CanSpawnEntityTrait, BaseModel):
         frozen = True
 
 
-class EntityRelationKind(BaseModel):
+class EntityRelationKind(EntityRelationKindTrait, BaseModel):
     typename: Optional[Literal["EntityRelationKind"]] = Field(
         alias="__typename", exclude=True
     )
@@ -1665,7 +1668,7 @@ class Image(HasZarrStoreTrait, BaseModel):
         frozen = True
 
 
-class EntityKindOntology(BaseModel):
+class EntityKindOntology(OntologyTrait, BaseModel):
     typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -1676,7 +1679,7 @@ class EntityKindOntology(BaseModel):
         frozen = True
 
 
-class EntityKind(CanSpawnEntityTrait, BaseModel):
+class EntityKind(EntityKindTrait, BaseModel):
     typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
     id: ID
     label: str
@@ -1699,7 +1702,7 @@ class EntityGroup(BaseModel):
         frozen = True
 
 
-class Entity(BaseModel):
+class Entity(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -1771,7 +1774,7 @@ class Snapshot(BaseModel):
         frozen = True
 
 
-class Ontology(BaseModel):
+class Ontology(OntologyTrait, BaseModel):
     typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -2022,7 +2025,7 @@ class RequestFileAccessMutation(BaseModel):
         document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestFileAccess($store: ID!, $duration: Int) {\n  requestFileAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
 
 
-class CreateEntityKindMutationCreateentitykind(CanSpawnEntityTrait, BaseModel):
+class CreateEntityKindMutationCreateentitykind(EntityKindTrait, BaseModel):
     typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
     id: ID
     label: str
@@ -2238,7 +2241,7 @@ class RevertDatasetMutation(BaseModel):
         document = "mutation RevertDataset($dataset: ID!, $history: ID!) {\n  revertDataset(input: {id: $dataset, historyId: $history}) {\n    id\n    name\n    description\n  }\n}"
 
 
-class CreateEntityGroupMutationCreateentitygroup(BaseModel):
+class CreateEntityGroupMutationCreateentitygroup(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
@@ -2395,9 +2398,9 @@ class From_array_likeMutation(BaseModel):
         channel_views: Optional[List[PartialChannelViewInput]] = Field(
             alias="channelViews", default=None
         )
-        transformation_views: Optional[
-            List[PartialAffineTransformationViewInput]
-        ] = Field(alias="transformationViews", default=None)
+        transformation_views: Optional[List[PartialAffineTransformationViewInput]] = (
+            Field(alias="transformationViews", default=None)
+        )
         pixel_views: Optional[List[PartialPixelViewInput]] = Field(
             alias="pixelViews", default=None
         )
@@ -2424,7 +2427,7 @@ class From_array_likeMutation(BaseModel):
         roi_origins: Optional[List[ID]] = Field(alias="roiOrigins", default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $specimenViews: [PartialSpecimenViewInput!], $scaleViews: [PartialScaleViewInput!], $tags: [String!], $fileOrigins: [ID!], $roiOrigins: [ID!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, fileOrigins: $fileOrigins, roiOrigins: $roiOrigins, specimenViews: $specimenViews}\n  ) {\n    ...Image\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $specimenViews: [PartialSpecimenViewInput!], $scaleViews: [PartialScaleViewInput!], $tags: [String!], $fileOrigins: [ID!], $roiOrigins: [ID!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, fileOrigins: $fileOrigins, roiOrigins: $roiOrigins, specimenViews: $specimenViews}\n  ) {\n    ...Image\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -2560,7 +2563,7 @@ class CreateRGBContextMutation(BaseModel):
         input: CreateRGBContextInput
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
 
 
 class UpdateRGBContextMutation(BaseModel):
@@ -2571,7 +2574,7 @@ class UpdateRGBContextMutation(BaseModel):
         input: UpdateRGBContextInput
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
 
 
 class CreateViewCollectionMutationCreateviewcollection(BaseModel):
@@ -2759,7 +2762,7 @@ class GetEntityKindQuery(BaseModel):
         document = "fragment EntityKind on EntityKind {\n  id\n  label\n  ontology {\n    id\n    name\n  }\n}\n\nquery GetEntityKind($id: ID!) {\n  entityKind(id: $id) {\n    ...EntityKind\n  }\n}"
 
 
-class SearchEntityKindQueryOptions(CanSpawnEntityTrait, BaseModel):
+class SearchEntityKindQueryOptions(EntityKindTrait, BaseModel):
     typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
@@ -2971,7 +2974,7 @@ class GetImageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -2981,7 +2984,7 @@ class GetRandomImageQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
@@ -3014,7 +3017,7 @@ class ImagesQuery(BaseModel):
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
 
 
 class GetEntityQuery(BaseModel):
@@ -3027,7 +3030,7 @@ class GetEntityQuery(BaseModel):
         document = "fragment Entity on Entity {\n  id\n  name\n  kind {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n  group {\n    id\n    name\n  }\n}\n\nquery GetEntity($id: ID!) {\n  entity(id: $id) {\n    ...Entity\n  }\n}"
 
 
-class SearchEntitiesQueryOptions(BaseModel):
+class SearchEntitiesQueryOptions(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
@@ -3123,7 +3126,7 @@ class GetEntityRelationKindQuery(BaseModel):
         document = "fragment EntityRelationKind on EntityRelationKind {\n  id\n  leftKind {\n    id\n  }\n  rightKind {\n    id\n  }\n  kind {\n    id\n  }\n}\n\nquery GetEntityRelationKind($id: ID!) {\n  entityRelationKind(id: $id) {\n    ...EntityRelationKind\n  }\n}"
 
 
-class SearchEntityRelationKindsQueryOptions(BaseModel):
+class SearchEntityRelationKindsQueryOptions(EntityRelationKindTrait, BaseModel):
     typename: Optional[Literal["EntityRelationKind"]] = Field(
         alias="__typename", exclude=True
     )
@@ -3157,7 +3160,7 @@ class GetOntologyQuery(BaseModel):
         document = "fragment Ontology on Ontology {\n  id\n  name\n}\n\nquery GetOntology($id: ID!) {\n  ontology(id: $id) {\n    ...Ontology\n  }\n}"
 
 
-class SearchOntologiesQueryOptions(BaseModel):
+class SearchOntologiesQueryOptions(OntologyTrait, BaseModel):
     typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
     value: ID
     label: str
@@ -3186,7 +3189,7 @@ class GetRGBContextQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n  }\n}"
 
 
 class WatchFilesSubscriptionFiles(BaseModel):
@@ -3230,7 +3233,7 @@ class WatchImagesSubscription(BaseModel):
         dataset: Optional[ID] = Field(default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):

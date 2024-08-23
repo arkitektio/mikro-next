@@ -22,31 +22,97 @@ from .utils import rechunk
 from rath.scalars import ID
 from typing import Any
 from rath.turms.utils import get_attributes_or_error
-
+import dataclasses
+from mikro_next.vars import current_ontology
 
 if TYPE_CHECKING:
     from pyarrow.parquet import ParquetDataset
+    from mikro_next.api.schema import Entity
 
 
+@dataclasses.dataclass
+class IntermediateKindRelation:
+    left: "EntityKindTrait"
+    kind: "EntityKindTrait"
 
-class CanSpawnEntityTrait(BaseModel):
+    def __or__(self, other):
+        from mikro_next.api.schema import create_entity_relation_kind
+
+        if isinstance(other, EntityKindTrait):
+            relation_kind = create_entity_relation_kind(
+                left_kind=self.left, right_kind=other, kind=self.kind
+            )
+            return relation_kind
+
+        raise NotImplementedError
 
 
-    def create_entity(self):
-    
+@dataclasses.dataclass
+class IntermediateInstanceRelation:
+    left: "EntityTrait"
+    kind: "EntityRelationKindTrait"
+
+    def __or__(self, other):
+        from mikro_next.api.schema import create_entity_relation
+
+        if isinstance(other, EntityTrait):
+            return create_entity_relation(
+                left=self.left, right=other, kind=self.kind
+            )
+        raise NotImplementedError
+
+
+class EntityKindTrait(BaseModel):
+    def create_entity(self) -> "Entity":
         from mikro_next.api.schema import create_entity
+
         """Creates an entity with a name
 
 
         """
         id = get_attributes_or_error(self, "id")
         return create_entity(id)
-    
 
     def __call__(self, *args, **kwargs):
         return self.create_entity(*args, **kwargs)
 
+    def __or__(self, other):
+        if isinstance(other, EntityKindTrait):
+            return IntermediateKindRelation(self, other)
+        raise NotImplementedError
 
+    def __str__(self):
+        return self.name
+
+
+class EntityRelationKindTrait(BaseModel):
+    def __or__(self, other):
+        if isinstance(other, EntityTrait):
+            return IntermediateInstanceRelation(self, other)
+        
+    
+        raise NotImplementedError("Only EntityTrait is supported got {other}")
+
+
+class EntityTrait(BaseModel):
+    def __or__(self, other):
+        if isinstance(other, EntityRelationKindTrait):
+            return IntermediateInstanceRelation(self, other)
+        raise NotImplementedError
+
+
+class OntologyTrait(BaseModel):
+    _token = None
+
+    def __enter__(self):
+        self._token = current_ontology.set(self)
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        current_ontology.reset(self._token)
+
+    class Config:
+        underscore_attrs_are_private = True
 
 class HasZarrStoreTrait(BaseModel):
     """Representation Trait
@@ -207,9 +273,7 @@ class IsVectorizableTrait:
 
     def get_vector_data(self, dims="yx") -> np.ndarray:
         vector_list = getattr(self, "vectors", None)
-        assert (
-            vector_list
-        ), "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
+        assert vector_list, "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
         vector_list: list
 
         mapper = {
@@ -315,7 +379,6 @@ class HasParquetStoreAccesor(BaseModel):
 
     @property
     def parquet_dataset(self) -> "ParquetDataset":
-
         import pyarrow.parquet as pq
         from mikro_next.io.download import open_parquet_filesystem
 
