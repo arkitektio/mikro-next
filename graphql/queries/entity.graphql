@@ -13,3 +13,9 @@ query SearchEntities($search: String, $values: [ID!]) {
     label: name
   }
 }
+
+query Entities($filters: EntityFilter, $pagination: GraphPaginationInput) {
+  entities(filters: $filters, pagination: $pagination) {
+    ...Entity
+  }
+}

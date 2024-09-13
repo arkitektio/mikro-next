@@ -6,21 +6,7 @@ fragment EntityRelation on EntityRelation {
   right {
     id
   }
-  kind {
-    id
-  }
-}
-
-
-fragment EntityRelationKind on EntityRelationKind {
-  id
-  leftKind {
-    id
-  }
-  rightKind {
-    id
-  }
-  kind {
+  linkedExpression {
     id
   }
 }

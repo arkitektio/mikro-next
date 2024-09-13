@@ -1,0 +1,5 @@
+mutation LinkExpression($expression: ID!, $graph: ID!) {
+  linkExpression(input: { expression: $expression, graph: $graph }) {
+    ...LinkedExpression
+  }
+}

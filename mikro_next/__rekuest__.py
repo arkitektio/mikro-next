@@ -1,4 +1,8 @@
-from mikro_next.api.schema import EntityRelation
+from mikro_next.api.schema import (
+    EntityRelation,
+    SearchEntityRelationsQuery,
+    aget_entity_relation,
+)
 
 
 def register_structures(structure_reg):
@@ -32,24 +36,24 @@ def register_structures(structure_reg):
         Ontology,
         aget_ontology,
         Entity,
-        EntityRelationKind,
+        ROI,
+        aget_roi,
         aget_entity,
         SearchOntologiesQuery,
         SearchEntitiesQuery,
-        EntityKind,
-        aget_entity_kind,
         aget_rendered_plot,
-        aget_entity_relation_kind,
-        SearchEntityRelationKindsQuery,
         RenderedPlot,
         Protocol,
         aget_protocol,
         Specimen,
         aget_specimen,
         SearchSpecimensQuery,
+        SearchRoisQuery,
         SearchProtocolsQuery,
         SearchRenderedPlotsQuery,
-        SearchEntityKindQuery,
+        LinkedExpression,
+        aget_linked_expression,
+        SearchLinkedExpressionsQuery,
     )
 
     structure_reg.register_as_structure(
@@ -72,6 +76,16 @@ def register_structures(structure_reg):
             query=SearchSnapshotsQuery.Meta.document, ward="mikro"
         ),
     )
+
+    structure_reg.register_as_structure(
+        ROI,
+        identifier="@mikro/roi",
+        aexpand=aget_roi,
+        ashrink=id_shrink,
+        scope=PortScope.GLOBAL,
+        default_widget=SearchWidget(query=SearchRoisQuery.Meta.document, ward="mikro"),
+    )
+
     structure_reg.register_as_structure(
         Specimen,
         identifier="@mikro/specimen",
@@ -119,6 +133,17 @@ def register_structures(structure_reg):
     )
 
     structure_reg.register_as_structure(
+        LinkedExpression,
+        identifier="@mikro/linked_expression",
+        aexpand=aget_linked_expression,
+        ashrink=id_shrink,
+        scope=PortScope.GLOBAL,
+        default_widget=SearchWidget(
+            query=SearchLinkedExpressionsQuery.Meta.document, ward="mikro"
+        ),
+    )
+
+    structure_reg.register_as_structure(
         Ontology,
         identifier="@mikro/ontology",
         aexpand=aget_ontology,
@@ -128,6 +153,7 @@ def register_structures(structure_reg):
             query=SearchOntologiesQuery.Meta.document, ward="mikro"
         ),
     )
+
     structure_reg.register_as_structure(
         RenderedPlot,
         identifier="@mikro/renderedplot",
@@ -151,35 +177,13 @@ def register_structures(structure_reg):
     )
 
     structure_reg.register_as_structure(
-        EntityKind,
-        identifier="@mikro/entity_kind",
-        aexpand=aget_entity_kind,
-        ashrink=id_shrink,
-        scope=PortScope.GLOBAL,
-        default_widget=SearchWidget(
-            query=SearchEntityKindQuery.Meta.document, ward="mikro"
-        ),
-    )
-
-    structure_reg.register_as_structure(
-        EntityRelationKind,
-        identifier="@mikro/entity_relation_kind",
-        aexpand=aget_entity_relation_kind,
-        ashrink=id_shrink,
-        scope=PortScope.GLOBAL,
-        default_widget=SearchWidget(
-            query=SearchEntityRelationKindsQuery.Meta.document, ward="mikro"
-        ),
-    )
-
-    structure_reg.register_as_structure(
         EntityRelation,
         identifier="@mikro/entity_relation",
-        aexpand=aget_entity_kind,
+        aexpand=aget_entity_relation,
         ashrink=id_shrink,
         scope=PortScope.GLOBAL,
         default_widget=SearchWidget(
-            query=SearchEntityKindQuery.Meta.document, ward="mikro"
+            query=SearchEntityRelationsQuery.Meta.document, ward="mikro"
         ),
     )
 
@@ -204,5 +208,3 @@ def register_structures(structure_reg):
             query=SearchProtocolStepsQuery.Meta.document, ward="mikro"
         ),
     )
-
-

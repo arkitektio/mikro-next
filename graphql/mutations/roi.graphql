@@ -2,7 +2,7 @@ mutation CreateRoi(
   $image: ID!
   $vectors: [FiveDVector!]!
   $kind: RoiKind!
-  $entity: ID 
+  $entity: ID
   $entityKind: ID
   $entityParent: ID
 ) {
@@ -22,4 +22,10 @@ mutation CreateRoi(
 
 mutation DeleteRoi($roi: ID!) {
   deleteRoi(input: { id: $roi })
+}
+
+mutation UpdateRoi($input: UpdateRoiInput!) {
+  updateRoi(input: $input) {
+    ...ROI
+  }
 }

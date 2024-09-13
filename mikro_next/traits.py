@@ -23,7 +23,7 @@ from rath.scalars import ID
 from typing import Any
 from rath.turms.utils import get_attributes_or_error
 import dataclasses
-from mikro_next.vars import current_ontology
+from mikro_next.vars import current_ontology, current_graph
 
 if TYPE_CHECKING:
     from pyarrow.parquet import ParquetDataset
@@ -31,38 +31,19 @@ if TYPE_CHECKING:
 
 
 @dataclasses.dataclass
-class IntermediateKindRelation:
-    left: "EntityKindTrait"
-    kind: "EntityKindTrait"
-
-    def __or__(self, other):
-        from mikro_next.api.schema import create_entity_relation_kind
-
-        if isinstance(other, EntityKindTrait):
-            relation_kind = create_entity_relation_kind(
-                left_kind=self.left, right_kind=other, kind=self.kind
-            )
-            return relation_kind
-
-        raise NotImplementedError
-
-
-@dataclasses.dataclass
 class IntermediateInstanceRelation:
     left: "EntityTrait"
-    kind: "EntityRelationKindTrait"
+    kind: "LinkedExpressionTrait"
 
     def __or__(self, other):
         from mikro_next.api.schema import create_entity_relation
 
         if isinstance(other, EntityTrait):
-            return create_entity_relation(
-                left=self.left, right=other, kind=self.kind
-            )
+            return create_entity_relation(left=self.left, right=other, kind=self.kind)
         raise NotImplementedError
 
 
-class EntityKindTrait(BaseModel):
+class LinkedExpressionTrait(BaseModel):
     def create_entity(self) -> "Entity":
         from mikro_next.api.schema import create_entity
 
@@ -77,28 +58,58 @@ class EntityKindTrait(BaseModel):
         return self.create_entity(*args, **kwargs)
 
     def __or__(self, other):
-        if isinstance(other, EntityKindTrait):
-            return IntermediateKindRelation(self, other)
         raise NotImplementedError
 
     def __str__(self):
         return self.name
 
 
-class EntityRelationKindTrait(BaseModel):
+class ExpressionTrait(BaseModel):
     def __or__(self, other):
-        if isinstance(other, EntityTrait):
-            return IntermediateInstanceRelation(self, other)
-        
-    
-        raise NotImplementedError("Only EntityTrait is supported got {other}")
+        raise NotImplementedError
+
+    def __str__(self):
+        return self.name
 
 
 class EntityTrait(BaseModel):
     def __or__(self, other):
-        if isinstance(other, EntityRelationKindTrait):
+        if isinstance(other, LinkedExpressionTrait):
             return IntermediateInstanceRelation(self, other)
         raise NotImplementedError
+
+    def set(self, metric: "LinkedExpressionTrait", value: float):
+        from mikro_next.api.schema import create_entity_metric, ExpressionKind
+
+        assert isinstance(
+            metric, LinkedExpressionTrait
+        ), "Metric must be a LinkedExpressionTrait"
+        (
+            get_attributes_or_error(metric, "kind") == ExpressionKind.METRIC,
+            "Expression must be a METRIC",
+        )
+
+        return create_entity_metric(entity=self, metric=metric, value=value)
+
+
+class EntityRelationTrait(BaseModel):
+    def __or__(self, other):
+        if isinstance(other, LinkedExpressionTrait):
+            return IntermediateInstanceRelation(self.right, other)
+        raise NotImplementedError
+
+    def set(self, metric: "LinkedExpressionTrait", value: float):
+        from mikro_next.api.schema import create_relation_metric, ExpressionKind
+
+        assert isinstance(
+            metric, LinkedExpressionTrait
+        ), "Metric must be a LinkedExpressionTrait"
+        (
+            get_attributes_or_error(metric, "kind") == ExpressionKind.RELATION_METRIC,
+            "Expression must be a RELATION_METRIC",
+        )
+
+        return create_relation_metric(relation=self, metric=metric, value=value)
 
 
 class OntologyTrait(BaseModel):
@@ -107,12 +118,27 @@ class OntologyTrait(BaseModel):
     def __enter__(self):
         self._token = current_ontology.set(self)
         return self
-    
+
     def __exit__(self, exc_type, exc_value, traceback):
         current_ontology.reset(self._token)
 
     class Config:
         underscore_attrs_are_private = True
+
+
+class GraphTrait(BaseModel):
+    _token = None
+
+    def __enter__(self):
+        self._token = current_graph.set(self)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        current_graph.reset(self._token)
+
+    class Config:
+        underscore_attrs_are_private = True
+
 
 class HasZarrStoreTrait(BaseModel):
     """Representation Trait

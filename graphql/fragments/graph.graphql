@@ -1,0 +1,4 @@
+fragment Graph on Graph {
+  id
+  name
+}

@@ -1,33 +1,35 @@
-from mikro_next.funcs import execute, asubscribe, aexecute, subscribe
-from mikro_next.rath import MikroNextRath
+from mikro_next.scalars import (
+    ParquetLike,
+    ArrayLike,
+    FourByFourMatrix,
+    Micrometers,
+    FileLike,
+    Upload,
+    FiveDVector,
+    Milliseconds,
+)
 from mikro_next.traits import (
-    EntityTrait,
     HasParquetStoreAccesor,
-    HasZarrStoreAccessor,
+    EntityRelationTrait,
     IsVectorizableTrait,
-    HasZarrStoreTrait,
     OntologyTrait,
     HasPresignedDownloadAccessor,
-    HasDownloadAccessor,
-    EntityRelationKindTrait,
+    ExpressionTrait,
+    EntityTrait,
+    HasZarrStoreTrait,
     HasParquestStoreTrait,
-    EntityKindTrait,
+    GraphTrait,
+    HasZarrStoreAccessor,
+    HasDownloadAccessor,
+    LinkedExpressionTrait,
 )
-from mikro_next.scalars import (
-    Upload,
-    ParquetLike,
-    Milliseconds,
-    FourByFourMatrix,
-    ArrayLike,
-    FiveDVector,
-    FileLike,
-    Micrometers,
-)
-from typing import List, Union, Literal, AsyncIterator, Tuple, Optional, Iterator, Any
-from pydantic import Field, BaseModel
+from mikro_next.funcs import asubscribe, aexecute, execute, subscribe
+from typing import Any, Iterator, List, AsyncIterator, Optional, Tuple, Literal, Union
 from datetime import datetime
-from enum import Enum
+from mikro_next.rath import MikroNextRath
+from pydantic import Field, BaseModel
 from rath.scalars import ID
+from enum import Enum
 
 
 class RoiKind(str, Enum):
@@ -48,11 +50,25 @@ class RoiKind(str, Enum):
     POINT = "POINT"
 
 
+class ExpressionKind(str, Enum):
+    RELATION = "RELATION"
+    ENTITY = "ENTITY"
+    METRIC = "METRIC"
+    RELATION_METRIC = "RELATION_METRIC"
+
+
 class MetricDataType(str, Enum):
     INT = "INT"
     FLOAT = "FLOAT"
     DATETIME = "DATETIME"
     STRING = "STRING"
+    CATEGORY = "CATEGORY"
+    BOOLEAN = "BOOLEAN"
+    THREE_D_VECTOR = "THREE_D_VECTOR"
+    TWO_D_VECTOR = "TWO_D_VECTOR"
+    ONE_D_VECTOR = "ONE_D_VECTOR"
+    FOUR_D_VECTOR = "FOUR_D_VECTOR"
+    N_VECTOR = "N_VECTOR"
 
 
 class ColorMap(str, Enum):
@@ -365,6 +381,53 @@ class EraFilter(BaseModel):
         use_enum_values = True
 
 
+class LinkedExpressionFilter(BaseModel):
+    graph: Optional[ID] = None
+    search: Optional[str] = None
+    pinned: Optional[bool] = None
+    kind: Optional[ExpressionKind] = None
+    ids: Optional[Tuple[ID, ...]] = None
+    and_: Optional["LinkedExpressionFilter"] = Field(alias="AND", default=None)
+    or_: Optional["LinkedExpressionFilter"] = Field(alias="OR", default=None)
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class EntityFilter(BaseModel):
+    graph: Optional[ID] = None
+    kind: Optional[ID] = None
+    ids: Optional[Tuple[ID, ...]] = None
+    linked_expression: Optional[ID] = Field(alias="linkedExpression", default=None)
+    search: Optional[str] = None
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class GraphPaginationInput(BaseModel):
+    limit: Optional[int] = None
+    offset: Optional[int] = None
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
 class PartialChannelViewInput(BaseModel):
     collection: Optional[ID] = None
     z_min: Optional[int] = Field(alias="zMin", default=None)
@@ -640,9 +703,12 @@ class TreeNodeInput(BaseModel):
         use_enum_values = True
 
 
-class EntityValuePairInput(BaseModel):
-    entity: ID
-    value: Any
+class OverlayInput(BaseModel):
+    object: str
+    identifier: str
+    color: str
+    x: int
+    y: int
 
     class Config:
         """A config class"""
@@ -653,12 +719,35 @@ class EntityValuePairInput(BaseModel):
         use_enum_values = True
 
 
-class OverlayInput(BaseModel):
-    object: str
-    identifier: str
-    color: str
-    x: int
-    y: int
+class ProtocolStepInput(BaseModel):
+    name: str
+    reagents: Optional[Tuple[ID, ...]] = None
+    description: Optional[str] = None
+    plate_children: Optional[Tuple["PlateChildInput", ...]] = Field(
+        alias="plateChildren", default=None
+    )
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class PlateChildInput(BaseModel):
+    id: Optional[ID] = None
+    type: Optional[str] = None
+    text: Optional[str] = None
+    children: Optional[Tuple["PlateChildInput", ...]] = None
+    value: Optional[str] = None
+    color: Optional[str] = None
+    font_size: Optional[str] = Field(alias="fontSize", default=None)
+    background_color: Optional[str] = Field(alias="backgroundColor", default=None)
+    bold: Optional[bool] = None
+    italic: Optional[bool] = None
+    underline: Optional[bool] = None
 
     class Config:
         """A config class"""
@@ -695,6 +784,38 @@ class UpdateRGBContextInput(BaseModel):
     z: Optional[int] = None
     t: Optional[int] = None
     c: Optional[int] = None
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class UpdateRoiInput(BaseModel):
+    roi: ID
+    vectors: Optional[Tuple[FiveDVector, ...]] = None
+    kind: Optional[RoiKind] = None
+    entity: Optional[ID] = None
+    entity_kind: Optional[ID] = Field(alias="entityKind", default=None)
+    entity_group: Optional[ID] = Field(alias="entityGroup", default=None)
+    entity_parent: Optional[ID] = Field(alias="entityParent", default=None)
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        allow_population_by_field_name = True
+        use_enum_values = True
+
+
+class RoiEntityRelationInput(BaseModel):
+    left_roi: ID = Field(alias="leftRoi")
+    right_roi: ID = Field(alias="rightRoi")
+    kind: ID
 
     class Config:
         """A config class"""
@@ -808,33 +929,9 @@ class OpticsView(ViewBase, BaseModel):
         frozen = True
 
 
-class LabelViewFluorophoreKind(EntityKindTrait, BaseModel):
-    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
 class LabelViewFluorophore(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
-    kind: LabelViewFluorophoreKind
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class LabelViewPrimaryantibodyKind(EntityKindTrait, BaseModel):
-    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    label: str
 
     class Config:
         """A config class"""
@@ -845,19 +942,6 @@ class LabelViewPrimaryantibodyKind(EntityKindTrait, BaseModel):
 class LabelViewPrimaryantibody(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
-    kind: LabelViewPrimaryantibodyKind
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class LabelViewSecondaryantibodyKind(EntityKindTrait, BaseModel):
-    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    label: str
 
     class Config:
         """A config class"""
@@ -868,8 +952,6 @@ class LabelViewSecondaryantibodyKind(EntityKindTrait, BaseModel):
 class LabelViewSecondaryantibody(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
-    kind: LabelViewSecondaryantibodyKind
-    name: str
 
     class Config:
         """A config class"""
@@ -922,6 +1004,102 @@ class RGBView(ViewBase, BaseModel):
     c_max: Optional[int] = Field(alias="cMax")
     full_colour: str = Field(alias="fullColour")
     base_color: Optional[Tuple[int, ...]] = Field(alias="baseColor")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class LinkedExpressionGraph(GraphTrait, BaseModel):
+    typename: Optional[Literal["Graph"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class LinkedExpressionExpressionOntology(OntologyTrait, BaseModel):
+    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class LinkedExpressionExpression(ExpressionTrait, BaseModel):
+    typename: Optional[Literal["Expression"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    label: str
+    ontology: LinkedExpressionExpressionOntology
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class LinkedExpression(LinkedExpressionTrait, BaseModel):
+    typename: Optional[Literal["LinkedExpression"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    graph: LinkedExpressionGraph
+    kind: ExpressionKind
+    expression: LinkedExpressionExpression
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ListLinkedExpressionGraph(GraphTrait, BaseModel):
+    typename: Optional[Literal["Graph"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ListLinkedExpressionExpressionOntology(OntologyTrait, BaseModel):
+    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ListLinkedExpressionExpression(ExpressionTrait, BaseModel):
+    typename: Optional[Literal["Expression"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    label: str
+    ontology: ListLinkedExpressionExpressionOntology
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ListLinkedExpression(LinkedExpressionTrait, BaseModel):
+    typename: Optional[Literal["LinkedExpression"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    graph: ListLinkedExpressionGraph
+    kind: ExpressionKind
+    expression: ListLinkedExpressionExpression
 
     class Config:
         """A config class"""
@@ -1123,29 +1301,6 @@ class File(BaseModel):
         frozen = True
 
 
-class EntityKindOntology(OntologyTrait, BaseModel):
-    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class EntityKind(EntityKindTrait, BaseModel):
-    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    label: str
-    ontology: EntityKindOntology
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
 class Stage(BaseModel):
     typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -1173,6 +1328,17 @@ class ROI(IsVectorizableTrait, BaseModel):
     image: ROIImage
     vectors: Tuple[FiveDVector, ...]
     kind: RoiKind
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class Graph(GraphTrait, BaseModel):
+    typename: Optional[Literal["Graph"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
 
     class Config:
         """A config class"""
@@ -1223,20 +1389,6 @@ class RGBContext(BaseModel):
         frozen = True
 
 
-class RelationMetric(BaseModel):
-    typename: Optional[Literal["RelationMetric"]] = Field(
-        alias="__typename", exclude=True
-    )
-    id: ID
-    kind: EntityKind
-    data_kind: MetricDataType = Field(alias="dataKind")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
 class ProtocolStepMappingsProtocol(BaseModel):
     typename: Optional[Literal["Protocol"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -1254,17 +1406,6 @@ class ProtocolStepMappings(BaseModel):
     )
     id: ID
     protocol: ProtocolStepMappingsProtocol
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class ProtocolStepReagents(EntityTrait, BaseModel):
-    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
 
     class Config:
         """A config class"""
@@ -1313,7 +1454,6 @@ class ProtocolStep(BaseModel):
     id: ID
     mappings: Tuple[ProtocolStepMappings, ...]
     description: Optional[str]
-    reagents: Tuple[ProtocolStepReagents, ...]
     views: Tuple[ProtocolStepViews, ...]
 
     class Config:
@@ -1357,33 +1497,10 @@ class Dataset(BaseModel):
         frozen = True
 
 
-class SpecimenEntityKind(EntityKindTrait, BaseModel):
-    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class SpecimenEntityGroup(BaseModel):
-    typename: Optional[Literal["EntityGroup"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
 class SpecimenEntity(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
-    kind: SpecimenEntityKind
     name: str
-    group: SpecimenEntityGroup
 
     class Config:
         """A config class"""
@@ -1404,7 +1521,7 @@ class SpecimenProtocol(BaseModel):
 class Specimen(BaseModel):
     typename: Optional[Literal["Specimen"]] = Field(alias="__typename", exclude=True)
     id: ID
-    entity: SpecimenEntity
+    entity: Optional[SpecimenEntity]
     protocol: SpecimenProtocol
 
     class Config:
@@ -1419,6 +1536,29 @@ class Instrument(BaseModel):
     model: Optional[str]
     name: str
     serial_number: str = Field(alias="serialNumber")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class ExpressionOntology(OntologyTrait, BaseModel):
+    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class Expression(ExpressionTrait, BaseModel):
+    typename: Optional[Literal["Expression"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    label: str
+    ontology: ExpressionOntology
 
     class Config:
         """A config class"""
@@ -1446,8 +1586,8 @@ class EntityRelationRight(EntityTrait, BaseModel):
         frozen = True
 
 
-class EntityRelationKind(EntityRelationKindTrait, BaseModel):
-    typename: Optional[Literal["EntityRelationKind"]] = Field(
+class EntityRelationLinkedexpression(LinkedExpressionTrait, BaseModel):
+    typename: Optional[Literal["LinkedExpression"]] = Field(
         alias="__typename", exclude=True
     )
     id: ID
@@ -1458,73 +1598,14 @@ class EntityRelationKind(EntityRelationKindTrait, BaseModel):
         frozen = True
 
 
-class EntityRelation(BaseModel):
+class EntityRelation(EntityRelationTrait, BaseModel):
     typename: Optional[Literal["EntityRelation"]] = Field(
         alias="__typename", exclude=True
     )
     id: ID
     left: EntityRelationLeft
     right: EntityRelationRight
-    kind: EntityRelationKind
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class EntityRelationKindLeftkind(EntityKindTrait, BaseModel):
-    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class EntityRelationKindRightkind(EntityKindTrait, BaseModel):
-    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class EntityRelationKindKind(EntityKindTrait, BaseModel):
-    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class EntityRelationKind(EntityRelationKindTrait, BaseModel):
-    typename: Optional[Literal["EntityRelationKind"]] = Field(
-        alias="__typename", exclude=True
-    )
-    id: ID
-    left_kind: EntityRelationKindLeftkind = Field(alias="leftKind")
-    right_kind: EntityRelationKindRightkind = Field(alias="rightKind")
-    kind: EntityRelationKindKind
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class EntityMetric(BaseModel):
-    typename: Optional[Literal["EntityMetric"]] = Field(
-        alias="__typename", exclude=True
-    )
-    id: ID
-    kind: EntityKind
-    data_kind: MetricDataType = Field(alias="dataKind")
+    linked_expression: EntityRelationLinkedexpression = Field(alias="linkedExpression")
 
     class Config:
         """A config class"""
@@ -1668,33 +1749,12 @@ class Image(HasZarrStoreTrait, BaseModel):
         frozen = True
 
 
-class EntityKindOntology(OntologyTrait, BaseModel):
-    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class EntityKind(EntityKindTrait, BaseModel):
-    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
+class EntityLinkedexpression(LinkedExpressionTrait, BaseModel):
+    typename: Optional[Literal["LinkedExpression"]] = Field(
+        alias="__typename", exclude=True
+    )
     id: ID
     label: str
-    ontology: EntityKindOntology
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class EntityGroup(BaseModel):
-    typename: Optional[Literal["EntityGroup"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
 
     class Config:
         """A config class"""
@@ -1706,8 +1766,7 @@ class Entity(EntityTrait, BaseModel):
     typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
-    kind: EntityKind
-    group: EntityGroup
+    linked_expression: EntityLinkedexpression = Field(alias="linkedExpression")
 
     class Config:
         """A config class"""
@@ -1854,6 +1913,17 @@ class Experiment(BaseModel):
         """A config class"""
 
         frozen = True
+
+
+class LinkExpressionMutation(BaseModel):
+    link_expression: LinkedExpression = Field(alias="linkExpression")
+
+    class Arguments(BaseModel):
+        expression: ID
+        graph: ID
+
+    class Meta:
+        document = "fragment LinkedExpression on LinkedExpression {\n  id\n  graph {\n    id\n  }\n  kind\n  expression {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n}\n\nmutation LinkExpression($expression: ID!, $graph: ID!) {\n  linkExpression(input: {expression: $expression, graph: $graph}) {\n    ...LinkedExpression\n  }\n}"
 
 
 class CreateCameraMutationCreatecamera(BaseModel):
@@ -2025,33 +2095,6 @@ class RequestFileAccessMutation(BaseModel):
         document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestFileAccess($store: ID!, $duration: Int) {\n  requestFileAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
 
 
-class CreateEntityKindMutationCreateentitykind(EntityKindTrait, BaseModel):
-    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class CreateEntityKindMutation(BaseModel):
-    create_entity_kind: CreateEntityKindMutationCreateentitykind = Field(
-        alias="createEntityKind"
-    )
-
-    class Arguments(BaseModel):
-        label: str
-        ontology: Optional[ID] = Field(default=None)
-        purl: Optional[str] = Field(default=None)
-        description: Optional[str] = Field(default=None)
-        color: Optional[List[int]] = Field(default=None)
-
-    class Meta:
-        document = "mutation CreateEntityKind($label: String!, $ontology: ID, $purl: String, $description: String, $color: [Int!]) {\n  createEntityKind(\n    input: {label: $label, ontology: $ontology, description: $description, purl: $purl, color: $color}\n  ) {\n    id\n    label\n  }\n}"
-
-
 class CreateStageMutation(BaseModel):
     create_stage: Stage = Field(alias="createStage")
 
@@ -2085,6 +2128,26 @@ class DeleteRoiMutation(BaseModel):
 
     class Meta:
         document = "mutation DeleteRoi($roi: ID!) {\n  deleteRoi(input: {id: $roi})\n}"
+
+
+class UpdateRoiMutation(BaseModel):
+    update_roi: ROI = Field(alias="updateRoi")
+
+    class Arguments(BaseModel):
+        input: UpdateRoiInput
+
+    class Meta:
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nmutation UpdateRoi($input: UpdateRoiInput!) {\n  updateRoi(input: $input) {\n    ...ROI\n  }\n}"
+
+
+class CreateGraphMutation(BaseModel):
+    create_graph: Graph = Field(alias="createGraph")
+
+    class Arguments(BaseModel):
+        name: str
+
+    class Meta:
+        document = "fragment Graph on Graph {\n  id\n  name\n}\n\nmutation CreateGraph($name: String!) {\n  createGraph(input: {name: $name}) {\n    ...Graph\n  }\n}"
 
 
 class CreateObjectiveMutationCreateobjective(BaseModel):
@@ -2139,40 +2202,14 @@ class EnsureObjectiveMutation(BaseModel):
         document = "mutation EnsureObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  ensureObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n  }\n}"
 
 
-class CreateRelationMetricMutation(BaseModel):
-    create_relation_metric: RelationMetric = Field(alias="createRelationMetric")
-
-    class Arguments(BaseModel):
-        kind: ID
-        data_kind: MetricDataType = Field(alias="dataKind")
-
-    class Meta:
-        document = "fragment EntityKind on EntityKind {\n  id\n  label\n  ontology {\n    id\n    name\n  }\n}\n\nfragment RelationMetric on RelationMetric {\n  id\n  kind {\n    ...EntityKind\n  }\n  dataKind\n}\n\nmutation CreateRelationMetric($kind: ID!, $dataKind: MetricDataType!) {\n  createRelationMetric(input: {kind: $kind, dataKind: $dataKind}) {\n    ...RelationMetric\n  }\n}"
-
-
-class AttachRelationMetricToRelationMutation(BaseModel):
-    attach_relation_metric: EntityRelation = Field(alias="attachRelationMetric")
-
-    class Arguments(BaseModel):
-        relation: ID
-        metric: ID
-        value: Any
-
-    class Meta:
-        document = "fragment EntityRelation on EntityRelation {\n  id\n  left {\n    id\n  }\n  right {\n    id\n  }\n  kind {\n    id\n  }\n}\n\nmutation AttachRelationMetricToRelation($relation: ID!, $metric: ID!, $value: Metric!) {\n  attachRelationMetric(\n    input: {relation: $relation, metric: $metric, value: $value}\n  ) {\n    ...EntityRelation\n  }\n}"
-
-
 class CreateProtocolStepMutation(BaseModel):
     create_protocol_step: ProtocolStep = Field(alias="createProtocolStep")
 
     class Arguments(BaseModel):
-        name: str
-        kind: ID
-        reagents: Optional[List[ID]] = Field(default=None)
-        description: Optional[str] = Field(default=None)
+        input: ProtocolStepInput
 
     class Meta:
-        document = "fragment ProtocolStep on ProtocolStep {\n  id\n  mappings {\n    id\n    protocol {\n      id\n      name\n    }\n  }\n  description\n  reagents {\n    id\n    name\n  }\n  views {\n    id\n    specimen {\n      id\n    }\n    image {\n      id\n    }\n  }\n}\n\nmutation CreateProtocolStep($name: String!, $kind: ID!, $reagents: [ID!], $description: String) {\n  createProtocolStep(\n    input: {reagents: $reagents, description: $description, kind: $kind, name: $name}\n  ) {\n    ...ProtocolStep\n  }\n}"
+        document = "fragment ProtocolStep on ProtocolStep {\n  id\n  mappings {\n    id\n    protocol {\n      id\n      name\n    }\n  }\n  description\n  views {\n    id\n    specimen {\n      id\n    }\n    image {\n      id\n    }\n  }\n}\n\nmutation CreateProtocolStep($input: ProtocolStepInput!) {\n  createProtocolStep(input: $input) {\n    ...ProtocolStep\n  }\n}"
 
 
 class CreateDatasetMutationCreatedataset(BaseModel):
@@ -2241,30 +2278,6 @@ class RevertDatasetMutation(BaseModel):
         document = "mutation RevertDataset($dataset: ID!, $history: ID!) {\n  revertDataset(input: {id: $dataset, historyId: $history}) {\n    id\n    name\n    description\n  }\n}"
 
 
-class CreateEntityGroupMutationCreateentitygroup(EntityTrait, BaseModel):
-    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class CreateEntityGroupMutation(BaseModel):
-    create_entity_group: CreateEntityGroupMutationCreateentitygroup = Field(
-        alias="createEntityGroup"
-    )
-
-    class Arguments(BaseModel):
-        name: str
-        image: Optional[ID] = Field(default=None)
-
-    class Meta:
-        document = "mutation CreateEntityGroup($name: String!, $image: ID) {\n  createEntityGroup(input: {name: $name, image: $image}) {\n    id\n    name\n  }\n}"
-
-
 class CreateSpecimenMutation(BaseModel):
     create_specimen: Specimen = Field(alias="createSpecimen")
 
@@ -2273,7 +2286,7 @@ class CreateSpecimenMutation(BaseModel):
         protocol: ID
 
     class Meta:
-        document = "fragment Specimen on Specimen {\n  id\n  entity {\n    id\n    kind {\n      id\n      label\n    }\n    name\n    group {\n      id\n    }\n  }\n  protocol {\n    id\n  }\n}\n\nmutation CreateSpecimen($entity: ID!, $protocol: ID!) {\n  createSpecimen(input: {entity: $entity, protocol: $protocol}) {\n    ...Specimen\n  }\n}"
+        document = "fragment Specimen on Specimen {\n  id\n  entity {\n    id\n    name\n  }\n  protocol {\n    id\n  }\n}\n\nmutation CreateSpecimen($entity: ID!, $protocol: ID!) {\n  createSpecimen(input: {entity: $entity, protocol: $protocol}) {\n    ...Specimen\n  }\n}"
 
 
 class CreateInstrumentMutationCreateinstrument(BaseModel):
@@ -2326,6 +2339,22 @@ class EnsureInstrumentMutation(BaseModel):
         document = "mutation EnsureInstrument($serialNumber: String!, $name: String, $model: String) {\n  ensureInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n  }\n}"
 
 
+class CreateExpressionMutation(BaseModel):
+    create_expression: Expression = Field(alias="createExpression")
+
+    class Arguments(BaseModel):
+        label: str
+        ontology: Optional[ID] = Field(default=None)
+        purl: Optional[str] = Field(default=None)
+        description: Optional[str] = Field(default=None)
+        color: Optional[List[int]] = Field(default=None)
+        metric_kind: Optional[MetricDataType] = Field(alias="metricKind", default=None)
+        kind: ExpressionKind
+
+    class Meta:
+        document = "fragment Expression on Expression {\n  id\n  label\n  ontology {\n    id\n    name\n  }\n}\n\nmutation CreateExpression($label: String!, $ontology: ID, $purl: String, $description: String, $color: [Int!], $metricKind: MetricDataType, $kind: ExpressionKind!) {\n  createExpression(\n    input: {label: $label, ontology: $ontology, description: $description, purl: $purl, color: $color, kind: $kind, metricKind: $metricKind}\n  ) {\n    ...Expression\n  }\n}"
+
+
 class CreateEntityRelationMutation(BaseModel):
     create_entity_relation: EntityRelation = Field(alias="createEntityRelation")
 
@@ -2335,36 +2364,21 @@ class CreateEntityRelationMutation(BaseModel):
         kind: ID
 
     class Meta:
-        document = "fragment EntityRelation on EntityRelation {\n  id\n  left {\n    id\n  }\n  right {\n    id\n  }\n  kind {\n    id\n  }\n}\n\nmutation CreateEntityRelation($left: ID!, $right: ID!, $kind: ID!) {\n  createEntityRelation(input: {left: $left, right: $right, kind: $kind}) {\n    ...EntityRelation\n  }\n}"
+        document = "fragment EntityRelation on EntityRelation {\n  id\n  left {\n    id\n  }\n  right {\n    id\n  }\n  linkedExpression {\n    id\n  }\n}\n\nmutation CreateEntityRelation($left: ID!, $right: ID!, $kind: ID!) {\n  createEntityRelation(input: {left: $left, right: $right, kind: $kind}) {\n    ...EntityRelation\n  }\n}"
 
 
-class CreateEntityRelationKindMutation(BaseModel):
-    create_entity_relation_kind: EntityRelationKind = Field(
-        alias="createEntityRelationKind"
-    )
+class CreateRoiEntityRelationMutation(BaseModel):
+    create_roi_entity_relation: EntityRelation = Field(alias="createRoiEntityRelation")
 
     class Arguments(BaseModel):
-        left_kind: ID = Field(alias="leftKind")
-        right_kind: ID = Field(alias="rightKind")
-        kind: ID
+        input: RoiEntityRelationInput
 
     class Meta:
-        document = "fragment EntityRelationKind on EntityRelationKind {\n  id\n  leftKind {\n    id\n  }\n  rightKind {\n    id\n  }\n  kind {\n    id\n  }\n}\n\nmutation CreateEntityRelationKind($leftKind: ID!, $rightKind: ID!, $kind: ID!) {\n  createEntityRelationKind(\n    input: {leftKind: $leftKind, rightKind: $rightKind, kind: $kind}\n  ) {\n    ...EntityRelationKind\n  }\n}"
+        document = "fragment EntityRelation on EntityRelation {\n  id\n  left {\n    id\n  }\n  right {\n    id\n  }\n  linkedExpression {\n    id\n  }\n}\n\nmutation CreateRoiEntityRelation($input: RoiEntityRelationInput!) {\n  createRoiEntityRelation(input: $input) {\n    ...EntityRelation\n  }\n}"
 
 
 class CreateEntityMetricMutation(BaseModel):
-    create_entity_metric: EntityMetric = Field(alias="createEntityMetric")
-
-    class Arguments(BaseModel):
-        kind: ID
-        data_kind: MetricDataType = Field(alias="dataKind")
-
-    class Meta:
-        document = "fragment EntityKind on EntityKind {\n  id\n  label\n  ontology {\n    id\n    name\n  }\n}\n\nfragment EntityMetric on EntityMetric {\n  id\n  kind {\n    ...EntityKind\n  }\n  dataKind\n}\n\nmutation CreateEntityMetric($kind: ID!, $dataKind: MetricDataType!) {\n  createEntityMetric(input: {kind: $kind, dataKind: $dataKind}) {\n    ...EntityMetric\n  }\n}"
-
-
-class AttachEntityMetricToEntityMutation(BaseModel):
-    attach_entity_metric: Entity = Field(alias="attachEntityMetric")
+    create_entity_metric: Entity = Field(alias="createEntityMetric")
 
     class Arguments(BaseModel):
         entity: ID
@@ -2372,20 +2386,19 @@ class AttachEntityMetricToEntityMutation(BaseModel):
         value: Any
 
     class Meta:
-        document = "fragment Entity on Entity {\n  id\n  name\n  kind {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n  group {\n    id\n    name\n  }\n}\n\nmutation AttachEntityMetricToEntity($entity: ID!, $metric: ID!, $value: Metric!) {\n  attachEntityMetric(input: {entity: $entity, metric: $metric, value: $value}) {\n    ...Entity\n  }\n}"
+        document = "fragment Entity on Entity {\n  id\n  name\n  linkedExpression {\n    id\n    label\n  }\n}\n\nmutation CreateEntityMetric($entity: ID!, $metric: ID!, $value: Metric!) {\n  createEntityMetric(input: {entity: $entity, metric: $metric, value: $value}) {\n    ...Entity\n  }\n}"
 
 
-class AttachMetricToEntitiesMutation(BaseModel):
-    attach_metrics_to_entities: Tuple[Entity, ...] = Field(
-        alias="attachMetricsToEntities"
-    )
+class CreateRelationMetricMutation(BaseModel):
+    create_relation_metric: EntityRelation = Field(alias="createRelationMetric")
 
     class Arguments(BaseModel):
+        relation: ID
         metric: ID
-        pairs: List[EntityValuePairInput]
+        value: Any
 
     class Meta:
-        document = "fragment Entity on Entity {\n  id\n  name\n  kind {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n  group {\n    id\n    name\n  }\n}\n\nmutation AttachMetricToEntities($metric: ID!, $pairs: [EntityValuePairInput!]!) {\n  attachMetricsToEntities(input: {metric: $metric, pairs: $pairs}) {\n    ...Entity\n  }\n}"
+        document = "fragment EntityRelation on EntityRelation {\n  id\n  left {\n    id\n  }\n  right {\n    id\n  }\n  linkedExpression {\n    id\n  }\n}\n\nmutation CreateRelationMetric($relation: ID!, $metric: ID!, $value: Metric!) {\n  createRelationMetric(\n    input: {relation: $relation, metric: $metric, value: $value}\n  ) {\n    ...EntityRelation\n  }\n}"
 
 
 class From_array_likeMutation(BaseModel):
@@ -2398,9 +2411,9 @@ class From_array_likeMutation(BaseModel):
         channel_views: Optional[List[PartialChannelViewInput]] = Field(
             alias="channelViews", default=None
         )
-        transformation_views: Optional[List[PartialAffineTransformationViewInput]] = (
-            Field(alias="transformationViews", default=None)
-        )
+        transformation_views: Optional[
+            List[PartialAffineTransformationViewInput]
+        ] = Field(alias="transformationViews", default=None)
         pixel_views: Optional[List[PartialPixelViewInput]] = Field(
             alias="pixelViews", default=None
         )
@@ -2427,7 +2440,7 @@ class From_array_likeMutation(BaseModel):
         roi_origins: Optional[List[ID]] = Field(alias="roiOrigins", default=None)
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $specimenViews: [PartialSpecimenViewInput!], $scaleViews: [PartialScaleViewInput!], $tags: [String!], $fileOrigins: [ID!], $roiOrigins: [ID!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, fileOrigins: $fileOrigins, roiOrigins: $roiOrigins, specimenViews: $specimenViews}\n  ) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $specimenViews: [PartialSpecimenViewInput!], $scaleViews: [PartialScaleViewInput!], $tags: [String!], $fileOrigins: [ID!], $roiOrigins: [ID!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, fileOrigins: $fileOrigins, roiOrigins: $roiOrigins, specimenViews: $specimenViews}\n  ) {\n    ...Image\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -2464,7 +2477,7 @@ class CreateEntityMutation(BaseModel):
         instance_kind: Optional[str] = Field(default=None)
 
     class Meta:
-        document = "fragment Entity on Entity {\n  id\n  name\n  kind {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n  group {\n    id\n    name\n  }\n}\n\nmutation CreateEntity($kind: ID!, $group: ID, $name: String, $parent: ID, $instance_kind: String) {\n  createEntity(\n    input: {group: $group, kind: $kind, name: $name, parent: $parent, instanceKind: $instance_kind}\n  ) {\n    ...Entity\n  }\n}"
+        document = "fragment Entity on Entity {\n  id\n  name\n  linkedExpression {\n    id\n    label\n  }\n}\n\nmutation CreateEntity($kind: ID!, $group: ID, $name: String, $parent: ID, $instance_kind: String) {\n  createEntity(\n    input: {group: $group, kind: $kind, name: $name, parent: $parent, instanceKind: $instance_kind}\n  ) {\n    ...Entity\n  }\n}"
 
 
 class CreateEraMutationCreateera(BaseModel):
@@ -2563,7 +2576,7 @@ class CreateRGBContextMutation(BaseModel):
         input: CreateRGBContextInput
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
 
 
 class UpdateRGBContextMutation(BaseModel):
@@ -2574,7 +2587,7 @@ class UpdateRGBContextMutation(BaseModel):
         input: UpdateRGBContextInput
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
 
 
 class CreateViewCollectionMutationCreateviewcollection(BaseModel):
@@ -2653,6 +2666,53 @@ class CreateExperimentMutation(BaseModel):
 
     class Meta:
         document = "fragment Experiment on Experiment {\n  id\n  name\n  description\n}\n\nmutation CreateExperiment($name: String!, $description: String) {\n  createExperiment(input: {name: $name, description: $description}) {\n    ...Experiment\n  }\n}"
+
+
+class GetLinkedExpressionQuery(BaseModel):
+    linked_expression: LinkedExpression = Field(alias="linkedExpression")
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment LinkedExpression on LinkedExpression {\n  id\n  graph {\n    id\n  }\n  kind\n  expression {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n}\n\nquery GetLinkedExpression($id: ID!) {\n  linkedExpression(id: $id) {\n    ...LinkedExpression\n  }\n}"
+
+
+class SearchLinkedExpressionsQueryOptions(LinkedExpressionTrait, BaseModel):
+    typename: Optional[Literal["LinkedExpression"]] = Field(
+        alias="__typename", exclude=True
+    )
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchLinkedExpressionsQuery(BaseModel):
+    options: Tuple[SearchLinkedExpressionsQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchLinkedExpressions($search: String, $values: [ID!]) {\n  options: linkedExpressions(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: label\n  }\n}"
+
+
+class ListLinkedExpressionsQuery(BaseModel):
+    linked_expressions: Tuple[ListLinkedExpression, ...] = Field(
+        alias="linkedExpressions"
+    )
+
+    class Arguments(BaseModel):
+        filters: Optional[LinkedExpressionFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+
+    class Meta:
+        document = "fragment ListLinkedExpression on LinkedExpression {\n  id\n  graph {\n    id\n  }\n  kind\n  expression {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n}\n\nquery ListLinkedExpressions($filters: LinkedExpressionFilter, $pagination: OffsetPaginationInput) {\n  linkedExpressions(filters: $filters, pagination: $pagination) {\n    ...ListLinkedExpression\n  }\n}"
 
 
 class GetCameraQuery(BaseModel):
@@ -2752,38 +2812,6 @@ class SearchFilesQuery(BaseModel):
         document = "query SearchFiles($search: String, $values: [ID!], $pagination: OffsetPaginationInput) {\n  options: files(\n    filters: {search: $search, ids: $values}\n    pagination: $pagination\n  ) {\n    value: id\n    label: name\n  }\n}"
 
 
-class GetEntityKindQuery(BaseModel):
-    entity_kind: EntityKind = Field(alias="entityKind")
-
-    class Arguments(BaseModel):
-        id: ID
-
-    class Meta:
-        document = "fragment EntityKind on EntityKind {\n  id\n  label\n  ontology {\n    id\n    name\n  }\n}\n\nquery GetEntityKind($id: ID!) {\n  entityKind(id: $id) {\n    ...EntityKind\n  }\n}"
-
-
-class SearchEntityKindQueryOptions(EntityKindTrait, BaseModel):
-    typename: Optional[Literal["EntityKind"]] = Field(alias="__typename", exclude=True)
-    value: ID
-    label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class SearchEntityKindQuery(BaseModel):
-    options: Tuple[SearchEntityKindQueryOptions, ...]
-
-    class Arguments(BaseModel):
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-
-    class Meta:
-        document = "query SearchEntityKind($search: String, $values: [ID!]) {\n  options: entityKinds(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: label\n  }\n}"
-
-
 class GetStageQuery(BaseModel):
     stage: Stage
 
@@ -2837,6 +2865,28 @@ class GetRoiQuery(BaseModel):
         document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nquery GetRoi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
 
 
+class SearchRoisQueryOptions(IsVectorizableTrait, BaseModel):
+    typename: Optional[Literal["ROI"]] = Field(alias="__typename", exclude=True)
+    value: ID
+    label: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class SearchRoisQuery(BaseModel):
+    options: Tuple[SearchRoisQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query SearchRois($search: String, $values: [ID!]) {\n  options: rois(filters: {search: $search, ids: $values}, pagination: {limit: 10}) {\n    value: id\n    label: name\n  }\n}"
+
+
 class GetObjectiveQuery(BaseModel):
     objective: Objective
 
@@ -2854,7 +2904,7 @@ class GetProtocolStepQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ProtocolStep on ProtocolStep {\n  id\n  mappings {\n    id\n    protocol {\n      id\n      name\n    }\n  }\n  description\n  reagents {\n    id\n    name\n  }\n  views {\n    id\n    specimen {\n      id\n    }\n    image {\n      id\n    }\n  }\n}\n\nquery GetProtocolStep($id: ID!) {\n  protocolStep(id: $id) {\n    ...ProtocolStep\n  }\n}"
+        document = "fragment ProtocolStep on ProtocolStep {\n  id\n  mappings {\n    id\n    protocol {\n      id\n      name\n    }\n  }\n  description\n  views {\n    id\n    specimen {\n      id\n    }\n    image {\n      id\n    }\n  }\n}\n\nquery GetProtocolStep($id: ID!) {\n  protocolStep(id: $id) {\n    ...ProtocolStep\n  }\n}"
 
 
 class SearchProtocolStepsQueryOptions(BaseModel):
@@ -2898,7 +2948,7 @@ class GetSpecimenQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Specimen on Specimen {\n  id\n  entity {\n    id\n    kind {\n      id\n      label\n    }\n    name\n    group {\n      id\n    }\n  }\n  protocol {\n    id\n  }\n}\n\nquery GetSpecimen($id: ID!) {\n  specimen(id: $id) {\n    ...Specimen\n  }\n}"
+        document = "fragment Specimen on Specimen {\n  id\n  entity {\n    id\n    name\n  }\n  protocol {\n    id\n  }\n}\n\nquery GetSpecimen($id: ID!) {\n  specimen(id: $id) {\n    ...Specimen\n  }\n}"
 
 
 class SearchSpecimensQueryOptions(BaseModel):
@@ -2940,10 +2990,10 @@ class GetEntityRelationQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment EntityRelation on EntityRelation {\n  id\n  left {\n    id\n  }\n  right {\n    id\n  }\n  kind {\n    id\n  }\n}\n\nquery GetEntityRelation($id: ID!) {\n  entityRelation(id: $id) {\n    ...EntityRelation\n  }\n}"
+        document = "fragment EntityRelation on EntityRelation {\n  id\n  left {\n    id\n  }\n  right {\n    id\n  }\n  linkedExpression {\n    id\n  }\n}\n\nquery GetEntityRelation($id: ID!) {\n  entityRelation(id: $id) {\n    ...EntityRelation\n  }\n}"
 
 
-class SearchEntityRelationsQueryOptions(BaseModel):
+class SearchEntityRelationsQueryOptions(EntityRelationTrait, BaseModel):
     typename: Optional[Literal["EntityRelation"]] = Field(
         alias="__typename", exclude=True
     )
@@ -2974,7 +3024,7 @@ class GetImageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -2984,7 +3034,7 @@ class GetRandomImageQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
@@ -3017,7 +3067,7 @@ class ImagesQuery(BaseModel):
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
 
 
 class GetEntityQuery(BaseModel):
@@ -3027,7 +3077,7 @@ class GetEntityQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Entity on Entity {\n  id\n  name\n  kind {\n    id\n    label\n    ontology {\n      id\n      name\n    }\n  }\n  group {\n    id\n    name\n  }\n}\n\nquery GetEntity($id: ID!) {\n  entity(id: $id) {\n    ...Entity\n  }\n}"
+        document = "fragment Entity on Entity {\n  id\n  name\n  linkedExpression {\n    id\n    label\n  }\n}\n\nquery GetEntity($id: ID!) {\n  entity(id: $id) {\n    ...Entity\n  }\n}"
 
 
 class SearchEntitiesQueryOptions(EntityTrait, BaseModel):
@@ -3050,6 +3100,17 @@ class SearchEntitiesQuery(BaseModel):
 
     class Meta:
         document = "query SearchEntities($search: String, $values: [ID!]) {\n  options: entities(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
+
+
+class EntitiesQuery(BaseModel):
+    entities: Tuple[Entity, ...]
+
+    class Arguments(BaseModel):
+        filters: Optional[EntityFilter] = Field(default=None)
+        pagination: Optional[GraphPaginationInput] = Field(default=None)
+
+    class Meta:
+        document = "fragment Entity on Entity {\n  id\n  name\n  linkedExpression {\n    id\n    label\n  }\n}\n\nquery Entities($filters: EntityFilter, $pagination: GraphPaginationInput) {\n  entities(filters: $filters, pagination: $pagination) {\n    ...Entity\n  }\n}"
 
 
 class GetProtocolQuery(BaseModel):
@@ -3116,40 +3177,6 @@ class SearchSnapshotsQuery(BaseModel):
         document = "query SearchSnapshots($search: String, $values: [ID!]) {\n  options: snapshots(\n    filters: {name: {contains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
 
 
-class GetEntityRelationKindQuery(BaseModel):
-    entity_relation_kind: EntityRelationKind = Field(alias="entityRelationKind")
-
-    class Arguments(BaseModel):
-        id: ID
-
-    class Meta:
-        document = "fragment EntityRelationKind on EntityRelationKind {\n  id\n  leftKind {\n    id\n  }\n  rightKind {\n    id\n  }\n  kind {\n    id\n  }\n}\n\nquery GetEntityRelationKind($id: ID!) {\n  entityRelationKind(id: $id) {\n    ...EntityRelationKind\n  }\n}"
-
-
-class SearchEntityRelationKindsQueryOptions(EntityRelationKindTrait, BaseModel):
-    typename: Optional[Literal["EntityRelationKind"]] = Field(
-        alias="__typename", exclude=True
-    )
-    value: ID
-    label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class SearchEntityRelationKindsQuery(BaseModel):
-    options: Tuple[SearchEntityRelationKindsQueryOptions, ...]
-
-    class Arguments(BaseModel):
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-
-    class Meta:
-        document = "query SearchEntityRelationKinds($search: String, $values: [ID!]) {\n  options: entityRelationKinds(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: label\n  }\n}"
-
-
 class GetOntologyQuery(BaseModel):
     ontology: Ontology
 
@@ -3189,7 +3216,7 @@ class GetRGBContextQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n  }\n}"
 
 
 class WatchFilesSubscriptionFiles(BaseModel):
@@ -3233,7 +3260,7 @@ class WatchImagesSubscription(BaseModel):
         dataset: Optional[ID] = Field(default=None)
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  primaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n  secondaryAntibody {\n    id\n    kind {\n      id\n      label\n    }\n    name\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):
@@ -3256,6 +3283,48 @@ class WatchRoisSubscription(BaseModel):
 
     class Meta:
         document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nsubscription WatchRois($image: ID!) {\n  rois(image: $image) {\n    create {\n      ...ROI\n    }\n    delete\n    update {\n      ...ROI\n    }\n  }\n}"
+
+
+async def alink_expression(
+    expression: ID, graph: ID, rath: Optional[MikroNextRath] = None
+) -> LinkedExpression:
+    """LinkExpression
+
+
+
+    Arguments:
+        expression (ID): expression
+        graph (ID): graph
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        LinkedExpression"""
+    return (
+        await aexecute(
+            LinkExpressionMutation,
+            {"expression": expression, "graph": graph},
+            rath=rath,
+        )
+    ).link_expression
+
+
+def link_expression(
+    expression: ID, graph: ID, rath: Optional[MikroNextRath] = None
+) -> LinkedExpression:
+    """LinkExpression
+
+
+
+    Arguments:
+        expression (ID): expression
+        graph (ID): graph
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        LinkedExpression"""
+    return execute(
+        LinkExpressionMutation, {"expression": expression, "graph": graph}, rath=rath
+    ).link_expression
 
 
 async def acreate_camera(
@@ -3845,78 +3914,6 @@ def request_file_access(
     ).request_file_access
 
 
-async def acreate_entity_kind(
-    label: str,
-    ontology: Optional[ID] = None,
-    purl: Optional[str] = None,
-    description: Optional[str] = None,
-    color: Optional[List[int]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> CreateEntityKindMutationCreateentitykind:
-    """CreateEntityKind
-
-
-
-    Arguments:
-        label (str): label
-        ontology (Optional[ID], optional): ontology.
-        purl (Optional[str], optional): purl.
-        description (Optional[str], optional): description.
-        color (Optional[List[int]], optional): color.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateEntityKindMutationCreateentitykind"""
-    return (
-        await aexecute(
-            CreateEntityKindMutation,
-            {
-                "label": label,
-                "ontology": ontology,
-                "purl": purl,
-                "description": description,
-                "color": color,
-            },
-            rath=rath,
-        )
-    ).create_entity_kind
-
-
-def create_entity_kind(
-    label: str,
-    ontology: Optional[ID] = None,
-    purl: Optional[str] = None,
-    description: Optional[str] = None,
-    color: Optional[List[int]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> CreateEntityKindMutationCreateentitykind:
-    """CreateEntityKind
-
-
-
-    Arguments:
-        label (str): label
-        ontology (Optional[ID], optional): ontology.
-        purl (Optional[str], optional): purl.
-        description (Optional[str], optional): description.
-        color (Optional[List[int]], optional): color.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateEntityKindMutationCreateentitykind"""
-    return execute(
-        CreateEntityKindMutation,
-        {
-            "label": label,
-            "ontology": ontology,
-            "purl": purl,
-            "description": description,
-            "color": color,
-        },
-        rath=rath,
-    ).create_entity_kind
-
-
 async def acreate_stage(name: str, rath: Optional[MikroNextRath] = None) -> Stage:
     """CreateStage
 
@@ -4055,6 +4052,64 @@ def delete_roi(roi: ID, rath: Optional[MikroNextRath] = None) -> ID:
     return execute(DeleteRoiMutation, {"roi": roi}, rath=rath).delete_roi
 
 
+async def aupdate_roi(
+    input: UpdateRoiInput, rath: Optional[MikroNextRath] = None
+) -> ROI:
+    """UpdateRoi
+
+
+
+    Arguments:
+        input (UpdateRoiInput): input
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ROI"""
+    return (await aexecute(UpdateRoiMutation, {"input": input}, rath=rath)).update_roi
+
+
+def update_roi(input: UpdateRoiInput, rath: Optional[MikroNextRath] = None) -> ROI:
+    """UpdateRoi
+
+
+
+    Arguments:
+        input (UpdateRoiInput): input
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ROI"""
+    return execute(UpdateRoiMutation, {"input": input}, rath=rath).update_roi
+
+
+async def acreate_graph(name: str, rath: Optional[MikroNextRath] = None) -> Graph:
+    """CreateGraph
+
+
+
+    Arguments:
+        name (str): name
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Graph"""
+    return (await aexecute(CreateGraphMutation, {"name": name}, rath=rath)).create_graph
+
+
+def create_graph(name: str, rath: Optional[MikroNextRath] = None) -> Graph:
+    """CreateGraph
+
+
+
+    Arguments:
+        name (str): name
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Graph"""
+    return execute(CreateGraphMutation, {"name": name}, rath=rath).create_graph
+
+
 async def acreate_objective(
     serial_number: str,
     name: Optional[str] = None,
@@ -4187,152 +4242,39 @@ def ensure_objective(
     ).ensure_objective
 
 
-async def acreate_relation_metric(
-    kind: ID, data_kind: MetricDataType, rath: Optional[MikroNextRath] = None
-) -> RelationMetric:
-    """CreateRelationMetric
-
-
-
-    Arguments:
-        kind (ID): kind
-        data_kind (MetricDataType): dataKind
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        RelationMetric"""
-    return (
-        await aexecute(
-            CreateRelationMetricMutation,
-            {"kind": kind, "dataKind": data_kind},
-            rath=rath,
-        )
-    ).create_relation_metric
-
-
-def create_relation_metric(
-    kind: ID, data_kind: MetricDataType, rath: Optional[MikroNextRath] = None
-) -> RelationMetric:
-    """CreateRelationMetric
-
-
-
-    Arguments:
-        kind (ID): kind
-        data_kind (MetricDataType): dataKind
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        RelationMetric"""
-    return execute(
-        CreateRelationMetricMutation, {"kind": kind, "dataKind": data_kind}, rath=rath
-    ).create_relation_metric
-
-
-async def aattach_relation_metric_to_relation(
-    relation: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
-) -> EntityRelation:
-    """AttachRelationMetricToRelation
-
-
-
-    Arguments:
-        relation (ID): relation
-        metric (ID): metric
-        value (Any): value
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EntityRelation"""
-    return (
-        await aexecute(
-            AttachRelationMetricToRelationMutation,
-            {"relation": relation, "metric": metric, "value": value},
-            rath=rath,
-        )
-    ).attach_relation_metric
-
-
-def attach_relation_metric_to_relation(
-    relation: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
-) -> EntityRelation:
-    """AttachRelationMetricToRelation
-
-
-
-    Arguments:
-        relation (ID): relation
-        metric (ID): metric
-        value (Any): value
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EntityRelation"""
-    return execute(
-        AttachRelationMetricToRelationMutation,
-        {"relation": relation, "metric": metric, "value": value},
-        rath=rath,
-    ).attach_relation_metric
-
-
 async def acreate_protocol_step(
-    name: str,
-    kind: ID,
-    reagents: Optional[List[ID]] = None,
-    description: Optional[str] = None,
-    rath: Optional[MikroNextRath] = None,
+    input: ProtocolStepInput, rath: Optional[MikroNextRath] = None
 ) -> ProtocolStep:
     """CreateProtocolStep
 
 
 
     Arguments:
-        name (str): name
-        kind (ID): kind
-        reagents (Optional[List[ID]], optional): reagents.
-        description (Optional[str], optional): description.
+        input (ProtocolStepInput): input
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         ProtocolStep"""
     return (
-        await aexecute(
-            CreateProtocolStepMutation,
-            {
-                "name": name,
-                "kind": kind,
-                "reagents": reagents,
-                "description": description,
-            },
-            rath=rath,
-        )
+        await aexecute(CreateProtocolStepMutation, {"input": input}, rath=rath)
     ).create_protocol_step
 
 
 def create_protocol_step(
-    name: str,
-    kind: ID,
-    reagents: Optional[List[ID]] = None,
-    description: Optional[str] = None,
-    rath: Optional[MikroNextRath] = None,
+    input: ProtocolStepInput, rath: Optional[MikroNextRath] = None
 ) -> ProtocolStep:
     """CreateProtocolStep
 
 
 
     Arguments:
-        name (str): name
-        kind (ID): kind
-        reagents (Optional[List[ID]], optional): reagents.
-        description (Optional[str], optional): description.
+        input (ProtocolStepInput): input
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         ProtocolStep"""
     return execute(
-        CreateProtocolStepMutation,
-        {"name": name, "kind": kind, "reagents": reagents, "description": description},
-        rath=rath,
+        CreateProtocolStepMutation, {"input": input}, rath=rath
     ).create_protocol_step
 
 
@@ -4446,46 +4388,6 @@ def revert_dataset(
     return execute(
         RevertDatasetMutation, {"dataset": dataset, "history": history}, rath=rath
     ).revert_dataset
-
-
-async def acreate_entity_group(
-    name: str, image: Optional[ID] = None, rath: Optional[MikroNextRath] = None
-) -> CreateEntityGroupMutationCreateentitygroup:
-    """CreateEntityGroup
-
-
-
-    Arguments:
-        name (str): name
-        image (Optional[ID], optional): image.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateEntityGroupMutationCreateentitygroup"""
-    return (
-        await aexecute(
-            CreateEntityGroupMutation, {"name": name, "image": image}, rath=rath
-        )
-    ).create_entity_group
-
-
-def create_entity_group(
-    name: str, image: Optional[ID] = None, rath: Optional[MikroNextRath] = None
-) -> CreateEntityGroupMutationCreateentitygroup:
-    """CreateEntityGroup
-
-
-
-    Arguments:
-        name (str): name
-        image (Optional[ID], optional): image.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateEntityGroupMutationCreateentitygroup"""
-    return execute(
-        CreateEntityGroupMutation, {"name": name, "image": image}, rath=rath
-    ).create_entity_group
 
 
 async def acreate_specimen(
@@ -4632,6 +4534,90 @@ def ensure_instrument(
     ).ensure_instrument
 
 
+async def acreate_expression(
+    label: str,
+    kind: ExpressionKind,
+    ontology: Optional[ID] = None,
+    purl: Optional[str] = None,
+    description: Optional[str] = None,
+    color: Optional[List[int]] = None,
+    metric_kind: Optional[MetricDataType] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Expression:
+    """CreateExpression
+
+
+
+    Arguments:
+        label (str): label
+        kind (ExpressionKind): kind
+        ontology (Optional[ID], optional): ontology.
+        purl (Optional[str], optional): purl.
+        description (Optional[str], optional): description.
+        color (Optional[List[int]], optional): color.
+        metric_kind (Optional[MetricDataType], optional): metricKind.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Expression"""
+    return (
+        await aexecute(
+            CreateExpressionMutation,
+            {
+                "label": label,
+                "ontology": ontology,
+                "purl": purl,
+                "description": description,
+                "color": color,
+                "metricKind": metric_kind,
+                "kind": kind,
+            },
+            rath=rath,
+        )
+    ).create_expression
+
+
+def create_expression(
+    label: str,
+    kind: ExpressionKind,
+    ontology: Optional[ID] = None,
+    purl: Optional[str] = None,
+    description: Optional[str] = None,
+    color: Optional[List[int]] = None,
+    metric_kind: Optional[MetricDataType] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Expression:
+    """CreateExpression
+
+
+
+    Arguments:
+        label (str): label
+        kind (ExpressionKind): kind
+        ontology (Optional[ID], optional): ontology.
+        purl (Optional[str], optional): purl.
+        description (Optional[str], optional): description.
+        color (Optional[List[int]], optional): color.
+        metric_kind (Optional[MetricDataType], optional): metricKind.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Expression"""
+    return execute(
+        CreateExpressionMutation,
+        {
+            "label": label,
+            "ontology": ontology,
+            "purl": purl,
+            "description": description,
+            "color": color,
+            "metricKind": metric_kind,
+            "kind": kind,
+        },
+        rath=rath,
+    ).create_expression
+
+
 async def acreate_entity_relation(
     left: ID, right: ID, kind: ID, rath: Optional[MikroNextRath] = None
 ) -> EntityRelation:
@@ -4678,178 +4664,132 @@ def create_entity_relation(
     ).create_entity_relation
 
 
-async def acreate_entity_relation_kind(
-    left_kind: ID, right_kind: ID, kind: ID, rath: Optional[MikroNextRath] = None
-) -> EntityRelationKind:
-    """CreateEntityRelationKind
+async def acreate_roi_entity_relation(
+    input: RoiEntityRelationInput, rath: Optional[MikroNextRath] = None
+) -> EntityRelation:
+    """CreateRoiEntityRelation
 
 
 
     Arguments:
-        left_kind (ID): leftKind
-        right_kind (ID): rightKind
-        kind (ID): kind
+        input (RoiEntityRelationInput): input
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EntityRelationKind"""
+        EntityRelation"""
     return (
-        await aexecute(
-            CreateEntityRelationKindMutation,
-            {"leftKind": left_kind, "rightKind": right_kind, "kind": kind},
-            rath=rath,
-        )
-    ).create_entity_relation_kind
+        await aexecute(CreateRoiEntityRelationMutation, {"input": input}, rath=rath)
+    ).create_roi_entity_relation
 
 
-def create_entity_relation_kind(
-    left_kind: ID, right_kind: ID, kind: ID, rath: Optional[MikroNextRath] = None
-) -> EntityRelationKind:
-    """CreateEntityRelationKind
+def create_roi_entity_relation(
+    input: RoiEntityRelationInput, rath: Optional[MikroNextRath] = None
+) -> EntityRelation:
+    """CreateRoiEntityRelation
 
 
 
     Arguments:
-        left_kind (ID): leftKind
-        right_kind (ID): rightKind
-        kind (ID): kind
+        input (RoiEntityRelationInput): input
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EntityRelationKind"""
+        EntityRelation"""
     return execute(
-        CreateEntityRelationKindMutation,
-        {"leftKind": left_kind, "rightKind": right_kind, "kind": kind},
-        rath=rath,
-    ).create_entity_relation_kind
+        CreateRoiEntityRelationMutation, {"input": input}, rath=rath
+    ).create_roi_entity_relation
 
 
 async def acreate_entity_metric(
-    kind: ID, data_kind: MetricDataType, rath: Optional[MikroNextRath] = None
-) -> EntityMetric:
+    entity: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
+) -> Entity:
     """CreateEntityMetric
 
 
 
     Arguments:
-        kind (ID): kind
-        data_kind (MetricDataType): dataKind
+        entity (ID): entity
+        metric (ID): metric
+        value (Any): value
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EntityMetric"""
+        Entity"""
     return (
         await aexecute(
-            CreateEntityMetricMutation, {"kind": kind, "dataKind": data_kind}, rath=rath
+            CreateEntityMetricMutation,
+            {"entity": entity, "metric": metric, "value": value},
+            rath=rath,
         )
     ).create_entity_metric
 
 
 def create_entity_metric(
-    kind: ID, data_kind: MetricDataType, rath: Optional[MikroNextRath] = None
-) -> EntityMetric:
+    entity: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
+) -> Entity:
     """CreateEntityMetric
 
 
 
     Arguments:
-        kind (ID): kind
-        data_kind (MetricDataType): dataKind
+        entity (ID): entity
+        metric (ID): metric
+        value (Any): value
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EntityMetric"""
+        Entity"""
     return execute(
-        CreateEntityMetricMutation, {"kind": kind, "dataKind": data_kind}, rath=rath
+        CreateEntityMetricMutation,
+        {"entity": entity, "metric": metric, "value": value},
+        rath=rath,
     ).create_entity_metric
 
 
-async def aattach_entity_metric_to_entity(
-    entity: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
-) -> Entity:
-    """AttachEntityMetricToEntity
+async def acreate_relation_metric(
+    relation: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
+) -> EntityRelation:
+    """CreateRelationMetric
 
 
 
     Arguments:
-        entity (ID): entity
+        relation (ID): relation
         metric (ID): metric
         value (Any): value
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Entity"""
+        EntityRelation"""
     return (
         await aexecute(
-            AttachEntityMetricToEntityMutation,
-            {"entity": entity, "metric": metric, "value": value},
+            CreateRelationMetricMutation,
+            {"relation": relation, "metric": metric, "value": value},
             rath=rath,
         )
-    ).attach_entity_metric
+    ).create_relation_metric
 
 
-def attach_entity_metric_to_entity(
-    entity: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
-) -> Entity:
-    """AttachEntityMetricToEntity
+def create_relation_metric(
+    relation: ID, metric: ID, value: Any, rath: Optional[MikroNextRath] = None
+) -> EntityRelation:
+    """CreateRelationMetric
 
 
 
     Arguments:
-        entity (ID): entity
+        relation (ID): relation
         metric (ID): metric
         value (Any): value
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Entity"""
+        EntityRelation"""
     return execute(
-        AttachEntityMetricToEntityMutation,
-        {"entity": entity, "metric": metric, "value": value},
+        CreateRelationMetricMutation,
+        {"relation": relation, "metric": metric, "value": value},
         rath=rath,
-    ).attach_entity_metric
-
-
-async def aattach_metric_to_entities(
-    metric: ID, pairs: List[EntityValuePairInput], rath: Optional[MikroNextRath] = None
-) -> List[Entity]:
-    """AttachMetricToEntities
-
-
-
-    Arguments:
-        metric (ID): metric
-        pairs (List[EntityValuePairInput]): pairs
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[Entity]"""
-    return (
-        await aexecute(
-            AttachMetricToEntitiesMutation,
-            {"metric": metric, "pairs": pairs},
-            rath=rath,
-        )
-    ).attach_metrics_to_entities
-
-
-def attach_metric_to_entities(
-    metric: ID, pairs: List[EntityValuePairInput], rath: Optional[MikroNextRath] = None
-) -> List[Entity]:
-    """AttachMetricToEntities
-
-
-
-    Arguments:
-        metric (ID): metric
-        pairs (List[EntityValuePairInput]): pairs
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[Entity]"""
-    return execute(
-        AttachMetricToEntitiesMutation, {"metric": metric, "pairs": pairs}, rath=rath
-    ).attach_metrics_to_entities
+    ).create_relation_metric
 
 
 async def afrom_array_like(
@@ -5640,6 +5580,134 @@ def create_experiment(
     ).create_experiment
 
 
+async def aget_linked_expression(
+    id: ID, rath: Optional[MikroNextRath] = None
+) -> LinkedExpression:
+    """GetLinkedExpression
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        LinkedExpression"""
+    return (
+        await aexecute(GetLinkedExpressionQuery, {"id": id}, rath=rath)
+    ).linked_expression
+
+
+def get_linked_expression(
+    id: ID, rath: Optional[MikroNextRath] = None
+) -> LinkedExpression:
+    """GetLinkedExpression
+
+
+
+    Arguments:
+        id (ID): id
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        LinkedExpression"""
+    return execute(GetLinkedExpressionQuery, {"id": id}, rath=rath).linked_expression
+
+
+async def asearch_linked_expressions(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchLinkedExpressionsQueryOptions]:
+    """SearchLinkedExpressions
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchLinkedExpressionsQueryLinkedexpressions]"""
+    return (
+        await aexecute(
+            SearchLinkedExpressionsQuery,
+            {"search": search, "values": values},
+            rath=rath,
+        )
+    ).options
+
+
+def search_linked_expressions(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchLinkedExpressionsQueryOptions]:
+    """SearchLinkedExpressions
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchLinkedExpressionsQueryLinkedexpressions]"""
+    return execute(
+        SearchLinkedExpressionsQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
+async def alist_linked_expressions(
+    filters: Optional[LinkedExpressionFilter] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[ListLinkedExpression]:
+    """ListLinkedExpressions
+
+
+
+    Arguments:
+        filters (Optional[LinkedExpressionFilter], optional): filters.
+        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[ListLinkedExpression]"""
+    return (
+        await aexecute(
+            ListLinkedExpressionsQuery,
+            {"filters": filters, "pagination": pagination},
+            rath=rath,
+        )
+    ).linked_expressions
+
+
+def list_linked_expressions(
+    filters: Optional[LinkedExpressionFilter] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[ListLinkedExpression]:
+    """ListLinkedExpressions
+
+
+
+    Arguments:
+        filters (Optional[LinkedExpressionFilter], optional): filters.
+        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[ListLinkedExpression]"""
+    return execute(
+        ListLinkedExpressionsQuery,
+        {"filters": filters, "pagination": pagination},
+        rath=rath,
+    ).linked_expressions
+
+
 async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
     """GetCamera
 
@@ -5878,78 +5946,6 @@ def search_files(
     ).options
 
 
-async def aget_entity_kind(id: ID, rath: Optional[MikroNextRath] = None) -> EntityKind:
-    """GetEntityKind
-
-
-
-    Arguments:
-        id (ID): id
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EntityKind"""
-    return (await aexecute(GetEntityKindQuery, {"id": id}, rath=rath)).entity_kind
-
-
-def get_entity_kind(id: ID, rath: Optional[MikroNextRath] = None) -> EntityKind:
-    """GetEntityKind
-
-
-
-    Arguments:
-        id (ID): id
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EntityKind"""
-    return execute(GetEntityKindQuery, {"id": id}, rath=rath).entity_kind
-
-
-async def asearch_entity_kind(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> List[SearchEntityKindQueryOptions]:
-    """SearchEntityKind
-
-
-
-    Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[SearchEntityKindQueryEntitykinds]"""
-    return (
-        await aexecute(
-            SearchEntityKindQuery, {"search": search, "values": values}, rath=rath
-        )
-    ).options
-
-
-def search_entity_kind(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> List[SearchEntityKindQueryOptions]:
-    """SearchEntityKind
-
-
-
-    Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[SearchEntityKindQueryEntitykinds]"""
-    return execute(
-        SearchEntityKindQuery, {"search": search, "values": values}, rath=rath
-    ).options
-
-
 async def aget_stage(id: ID, rath: Optional[MikroNextRath] = None) -> Stage:
     """GetStage
 
@@ -6084,6 +6080,48 @@ def get_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ROI:
     Returns:
         ROI"""
     return execute(GetRoiQuery, {"id": id}, rath=rath).roi
+
+
+async def asearch_rois(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchRoisQueryOptions]:
+    """SearchRois
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchRoisQueryRois]"""
+    return (
+        await aexecute(SearchRoisQuery, {"search": search, "values": values}, rath=rath)
+    ).options
+
+
+def search_rois(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[SearchRoisQueryOptions]:
+    """SearchRois
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchRoisQueryRois]"""
+    return execute(
+        SearchRoisQuery, {"search": search, "values": values}, rath=rath
+    ).options
 
 
 async def aget_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Objective:
@@ -6606,6 +6644,50 @@ def search_entities(
     ).options
 
 
+async def aentities(
+    filters: Optional[EntityFilter] = None,
+    pagination: Optional[GraphPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[Entity]:
+    """Entities
+
+
+
+    Arguments:
+        filters (Optional[EntityFilter], optional): filters.
+        pagination (Optional[GraphPaginationInput], optional): pagination.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[Entity]"""
+    return (
+        await aexecute(
+            EntitiesQuery, {"filters": filters, "pagination": pagination}, rath=rath
+        )
+    ).entities
+
+
+def entities(
+    filters: Optional[EntityFilter] = None,
+    pagination: Optional[GraphPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> List[Entity]:
+    """Entities
+
+
+
+    Arguments:
+        filters (Optional[EntityFilter], optional): filters.
+        pagination (Optional[GraphPaginationInput], optional): pagination.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[Entity]"""
+    return execute(
+        EntitiesQuery, {"filters": filters, "pagination": pagination}, rath=rath
+    ).entities
+
+
 async def aget_protocol(id: ID, rath: Optional[MikroNextRath] = None) -> Protocol:
     """GetProtocol
 
@@ -6747,88 +6829,6 @@ def search_snapshots(
         List[SearchSnapshotsQuerySnapshots]"""
     return execute(
         SearchSnapshotsQuery, {"search": search, "values": values}, rath=rath
-    ).options
-
-
-async def aget_entity_relation_kind(
-    id: ID, rath: Optional[MikroNextRath] = None
-) -> EntityRelationKind:
-    """GetEntityRelationKind
-
-
-
-    Arguments:
-        id (ID): id
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EntityRelationKind"""
-    return (
-        await aexecute(GetEntityRelationKindQuery, {"id": id}, rath=rath)
-    ).entity_relation_kind
-
-
-def get_entity_relation_kind(
-    id: ID, rath: Optional[MikroNextRath] = None
-) -> EntityRelationKind:
-    """GetEntityRelationKind
-
-
-
-    Arguments:
-        id (ID): id
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EntityRelationKind"""
-    return execute(
-        GetEntityRelationKindQuery, {"id": id}, rath=rath
-    ).entity_relation_kind
-
-
-async def asearch_entity_relation_kinds(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> List[SearchEntityRelationKindsQueryOptions]:
-    """SearchEntityRelationKinds
-
-
-
-    Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[SearchEntityRelationKindsQueryEntityrelationkinds]"""
-    return (
-        await aexecute(
-            SearchEntityRelationKindsQuery,
-            {"search": search, "values": values},
-            rath=rath,
-        )
-    ).options
-
-
-def search_entity_relation_kinds(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> List[SearchEntityRelationKindsQueryOptions]:
-    """SearchEntityRelationKinds
-
-
-
-    Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[SearchEntityRelationKindsQueryEntityrelationkinds]"""
-    return execute(
-        SearchEntityRelationKindsQuery, {"search": search, "values": values}, rath=rath
     ).options
 
 
@@ -7046,7 +7046,10 @@ File.update_forward_refs()
 Image.update_forward_refs()
 ImageDerivedscaleviewsImage.update_forward_refs()
 ImageFilter.update_forward_refs()
+LinkedExpressionFilter.update_forward_refs()
 PartialPixelViewInput.update_forward_refs()
+PlateChildInput.update_forward_refs()
+ProtocolStepInput.update_forward_refs()
 ProvenanceFilter.update_forward_refs()
 RGBContextImage.update_forward_refs()
 StageFilter.update_forward_refs()

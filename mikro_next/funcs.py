@@ -1,4 +1,4 @@
-""" This module provides helpers for the mikro rath api
+"""This module provides helpers for the mikro rath api
 they are wrapped functions for the turms generated api"""
 
 from .rath import MikroNextRath, current_mikro_next_rath
@@ -24,13 +24,26 @@ async def aexecute(
     variables: Dict[str, Any],
     rath: Optional[MikroNextRath] = None,
 ) -> T:
-    rath = rath or current_mikro_next_rath.get()
+    try:
+        rath = rath or current_mikro_next_rath.get()
 
-    x = await rath.aquery(
-        operation.Meta.document,  # type: ignore
-        operation.Arguments(**variables).dict(by_alias=True),  # type: ignore
-    )  # type: ignore
-    return operation(**x.data)
+        print(operation.Arguments(**variables).dict(by_alias=True, exclude_unset=True))
+
+        x = await rath.aquery(
+            operation.Meta.document,  # type: ignore
+            {
+                key: value
+                for key, value in operation.Arguments(**variables)
+                .dict(by_alias=True, exclude_unset=True)
+                .items()
+                if value is not None
+            },  # type: ignore
+        )  # type: ignore
+        print("TRESULT", x)
+        return operation(**x.data)
+    except Exception as e:
+        print("ERR", e)
+        raise e
 
 
 def execute(

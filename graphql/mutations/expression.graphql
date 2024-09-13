@@ -1,20 +1,23 @@
-mutation CreateEntityKind(
+mutation CreateExpression(
   $label: String!
   $ontology: ID
   $purl: String
   $description: String
   $color: [Int!]
+  $metricKind: MetricDataType
+  $kind: ExpressionKind!
 ) {
-  createEntityKind(
+  createExpression(
     input: {
       label: $label
       ontology: $ontology
       description: $description
       purl: $purl
       color: $color
+      kind: $kind
+      metricKind: $metricKind
     }
   ) {
-    id
-    label
+    ...Expression
   }
 }

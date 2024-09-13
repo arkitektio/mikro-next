@@ -54,27 +54,12 @@ fragment LabelView on LabelView {
   id
   fluorophore {
     id
-    kind {
-      id
-      label
-    }
-    name
   }
   primaryAntibody {
     id
-    kind {
-      id
-      label
-    }
-    name
   }
   secondaryAntibody {
     id
-    kind {
-      id
-      label
-    }
-    name
   }
 }
 
@@ -84,7 +69,7 @@ fragment ScaleView on ScaleView {
   scaleX
   scaleY
   scaleZ
-  scaleT 
+  scaleT
   scaleC
 }
 

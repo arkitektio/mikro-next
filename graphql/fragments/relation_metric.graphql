@@ -1,7 +1,0 @@
-fragment RelationMetric on RelationMetric {
-  id
-  kind {
-    ...EntityKind
-  }
-  dataKind
-}

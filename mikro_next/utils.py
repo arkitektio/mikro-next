@@ -1,11 +1,67 @@
 from typing import Dict, Any, List
 import math
-from .vars import current_ontology
+from .vars import current_ontology, current_graph
 
-def v(name):
-    from mikro_next.api.schema import create_entity_kind
-    return create_entity_kind(name, ontology=current_ontology.get())
 
+def create_linked_expression(expression, graph=None):
+    from mikro_next.api.schema import link_expression
+
+    if graph is None:
+        graph = current_graph.get()
+
+    assert graph is not None, "Graph must be set"
+
+    return link_expression(expression=expression, graph=graph)
+
+
+def v(name, description=None):
+    from mikro_next.api.schema import create_expression, ExpressionKind
+
+    exp = create_expression(
+        label=name,
+        ontology=current_ontology.get(),
+        kind=ExpressionKind.ENTITY,
+        description=description,
+    )
+    return create_linked_expression(exp)
+
+
+def e(name, description=None):
+    from mikro_next.api.schema import create_expression, ExpressionKind
+
+    exp = create_expression(
+        label=name,
+        ontology=current_ontology.get(),
+        kind=ExpressionKind.RELATION,
+        description=description,
+    )
+    return create_linked_expression(exp)
+
+
+def m(name, data_type, description=None):
+    from mikro_next.api.schema import create_expression, ExpressionKind, MetricDataType
+
+    exp = create_expression(
+        label=name,
+        ontology=current_ontology.get(),
+        kind=ExpressionKind.METRIC,
+        data_kind=data_type,
+        description=description,
+    )
+    return create_linked_expression(exp)
+
+
+def rm(name, data_type, description=None):
+    from mikro_next.api.schema import create_expression, ExpressionKind, MetricDataType
+
+    exp = create_expression(
+        label=name,
+        ontology=current_ontology.get(),
+        kind=ExpressionKind.RELATION_METRIC,
+        data_kind=data_type,
+        description=description,
+    )
+    return create_linked_expression(exp)
 
 
 def rechunk(

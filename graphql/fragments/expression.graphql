@@ -1,4 +1,4 @@
-fragment EntityKind on EntityKind {
+fragment Expression on Expression {
   id
   label
   ontology {

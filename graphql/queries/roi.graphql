@@ -9,3 +9,13 @@ query GetRoi($id: ID!) {
     ...ROI
   }
 }
+
+query SearchRois($search: String, $values: [ID!]) {
+  options: rois(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: 10 }
+  ) {
+    value: id
+    label: name
+  }
+}

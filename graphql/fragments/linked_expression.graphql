@@ -1,0 +1,31 @@
+fragment LinkedExpression on LinkedExpression {
+  id
+  graph {
+    id
+  }
+  kind
+  expression {
+    id
+    label
+    ontology {
+      id
+      name
+    }
+  }
+}
+
+fragment ListLinkedExpression on LinkedExpression {
+  id
+  graph {
+    id
+  }
+  kind
+  expression {
+    id
+    label
+    ontology {
+      id
+      name
+    }
+  }
+}

@@ -3,17 +3,13 @@ fragment ProtocolStep on ProtocolStep {
   mappings {
     id
     protocol {
-      id 
+      id
       name
     }
   }
   description
-  reagents {
-    id
-    name
-  }
   views {
-    id 
+    id
     specimen {
       id
     }
