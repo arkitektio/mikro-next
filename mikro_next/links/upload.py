@@ -179,8 +179,3 @@ class UploadLink(ParsingLink):
 
     async def adisconnect(self):
         self.executor.__exit__(None, None, None)
-
-    class Config:
-        arbitrary_types_allowed = True
-        underscore_attrs_are_private = True
-        extra = "forbid"

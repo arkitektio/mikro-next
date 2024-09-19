@@ -69,7 +69,7 @@ class ExpressionTrait(BaseModel):
         raise NotImplementedError
 
     def __str__(self):
-        return self.name
+        return self.label
 
 
 class EntityTrait(BaseModel):
@@ -122,8 +122,6 @@ class OntologyTrait(BaseModel):
     def __exit__(self, exc_type, exc_value, traceback):
         current_ontology.reset(self._token)
 
-    class Config:
-        underscore_attrs_are_private = True
 
 
 class GraphTrait(BaseModel):
@@ -136,8 +134,6 @@ class GraphTrait(BaseModel):
     def __exit__(self, exc_type, exc_value, traceback):
         current_graph.reset(self._token)
 
-    class Config:
-        underscore_attrs_are_private = True
 
 
 class HasZarrStoreTrait(BaseModel):
@@ -299,7 +295,9 @@ class IsVectorizableTrait:
 
     def get_vector_data(self, dims="yx") -> np.ndarray:
         vector_list = getattr(self, "vectors", None)
-        assert vector_list, "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
+        assert (
+            vector_list
+        ), "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
         vector_list: list
 
         mapper = {
@@ -396,9 +394,6 @@ class HasZarrStoreAccessor(BaseModel):
             self._openstore = open_zarr_store(id)
         return self._openstore
 
-    class Config:
-        underscore_attrs_are_private = True
-
 
 class HasParquetStoreAccesor(BaseModel):
     _dataset: Any = None
@@ -413,8 +408,6 @@ class HasParquetStoreAccesor(BaseModel):
             self._dataset = open_parquet_filesystem(id)
         return self._dataset
 
-    class Config:
-        underscore_attrs_are_private = True
 
 
 class HasDownloadAccessor(BaseModel):
@@ -426,8 +419,6 @@ class HasDownloadAccessor(BaseModel):
         url, key = get_attributes_or_error(self, "presigned_url", "key")
         return download_file(url, file_name=file_name or key)
 
-    class Config:
-        underscore_attrs_are_private = True
 
 
 class HasPresignedDownloadAccessor(BaseModel):
@@ -439,8 +430,6 @@ class HasPresignedDownloadAccessor(BaseModel):
         url, key = get_attributes_or_error(self, "presigned_url", "key")
         return download_file(url, file_name=file_name or key)
 
-    class Config:
-        underscore_attrs_are_private = True
 
 
 class Vector(Protocol):

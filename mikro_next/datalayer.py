@@ -66,7 +66,3 @@ class DataLayer(KoiledModel):
     async def __aexit__(self, *args, **kwargs):
         current_next_datalayer.set(None)
         return self
-
-    class Config:
-        arbitrary_types_allowed = True
-        underscore_attrs_are_private = True

@@ -67,8 +67,12 @@ def init_services(service_builder_registry):
                         datalayer=datalayer,
                     ),
                     split=SplitLink(
-                        left=FaktsAIOHttpLink(fakts_group="mikro", fakts=fakts),
-                        right=FaktsGraphQLWSLink(fakts_group="mikro", fakts=fakts),
+                        left=FaktsAIOHttpLink(
+                            fakts_group="mikro", fakts=fakts, endpoint_url="FAKE_URL"
+                        ),
+                        right=FaktsGraphQLWSLink(
+                            fakts_group="mikro", fakts=fakts, ws_endpoint_url="FAKE_URL"
+                        ),
                         split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
                     ),
                 )

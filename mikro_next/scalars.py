@@ -22,7 +22,7 @@ class AssignationID(str):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
         return cls(v)
 
@@ -35,7 +35,7 @@ class RGBAColor(list):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
         return cls(v)
 
@@ -72,7 +72,7 @@ class Upload:
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         # you could also return a string here which would mean model.post_code
         # would be a string, pydantic won't care but you could end up with some
         # confusion since the value's type won't match the type annotation
@@ -91,7 +91,7 @@ class Micrometers(float):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
         return cls(v)
 
@@ -104,7 +104,7 @@ class Milliseconds(float):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
         return cls(v)
 
@@ -117,7 +117,7 @@ class TwoDVector(list):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
             assert v.ndim == 1
@@ -139,7 +139,7 @@ class ThreeDVector(list):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
             assert v.ndim == 1
@@ -161,7 +161,7 @@ class FourDVector(list):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
             assert v.ndim == 1
@@ -184,7 +184,7 @@ class FiveDVector(list):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
 
         print(v)
@@ -259,7 +259,7 @@ class Matrix(list):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
             assert v.ndim == 2
@@ -282,7 +282,7 @@ class FourByFourMatrix(list):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v,*info):
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
             assert v.ndim == 2
@@ -320,7 +320,7 @@ class ArrayLike:
         yield cls.validate
 
     @classmethod
-    def validate(cls, v: xr.DataArray):
+    def validate(cls, v: xr.DataArray, *info):
         """Validate the input array and convert it to a xr.DataArray."""
         was_labeled = True
         # initial coercion checks, if a numpy array is passed, we need to convert it to a xarray
@@ -391,7 +391,7 @@ class BigFile:
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
 
         if isinstance(v, str):
@@ -423,7 +423,7 @@ class ParquetLike:
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         if not isinstance(v, pd.DataFrame):
             raise ValueError("This needs to be a instance of pandas DataFrame")
 
@@ -447,7 +447,7 @@ class FileLike:
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
 
         if isinstance(v, str):

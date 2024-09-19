@@ -1,21 +1,21 @@
 [tool.poetry]
 name = "mikro-next"
-version = "0.1.35"
+version = "0.1.36"
 description = "next images for arkitekt"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"
 packages = [{ include = "mikro_next" }]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 zarr = ">=2.14.2"
 xarray = ">=2022.12.0"
 s3fs = ">=2023.1.0"
-pandas = ">=1.5.3"
+pandas = ">=2.2"
 dask = ">=2023.3.0"
-rath = ">=0.5.0"
+rath = ">=1.0.0"
 pyarrow = ">=12.0.1"
-dokker = ">=0.1.19"
+dokker = ">=1.0.0"
 numpy = { version = ">=1.26",  python = "^3.12", optional = true }
 
 [tool.poetry.extras]
@@ -64,7 +64,6 @@ testcontainers = "3.7.0"
 autoflake = "^1.7.7"
 pytest = "^7.2.0"
 pytest-asyncio = "^0.20.2"
-turms = { version = ">=0.3.1", python = "^3.9" }
 aiohttp = "^3.8.3"
 websockets = "^10.4"
 black = "^23.1.0"

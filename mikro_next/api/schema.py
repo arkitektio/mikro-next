@@ -1,35 +1,35 @@
+from mikro_next.funcs import asubscribe, subscribe, execute, aexecute
+from mikro_next.traits import (
+    GraphTrait,
+    IsVectorizableTrait,
+    HasDownloadAccessor,
+    OntologyTrait,
+    LinkedExpressionTrait,
+    HasParquestStoreTrait,
+    HasZarrStoreTrait,
+    ExpressionTrait,
+    HasZarrStoreAccessor,
+    HasPresignedDownloadAccessor,
+    HasParquetStoreAccesor,
+    EntityTrait,
+    EntityRelationTrait,
+)
+from pydantic import BaseModel, Field, ConfigDict
+from rath.scalars import ID
 from mikro_next.scalars import (
+    FiveDVector,
     ParquetLike,
-    ArrayLike,
-    FourByFourMatrix,
+    Upload,
     Micrometers,
     FileLike,
-    Upload,
-    FiveDVector,
     Milliseconds,
+    FourByFourMatrix,
+    ArrayLike,
 )
-from mikro_next.traits import (
-    HasParquetStoreAccesor,
-    EntityRelationTrait,
-    IsVectorizableTrait,
-    OntologyTrait,
-    HasPresignedDownloadAccessor,
-    ExpressionTrait,
-    EntityTrait,
-    HasZarrStoreTrait,
-    HasParquestStoreTrait,
-    GraphTrait,
-    HasZarrStoreAccessor,
-    HasDownloadAccessor,
-    LinkedExpressionTrait,
-)
-from mikro_next.funcs import asubscribe, aexecute, execute, subscribe
-from typing import Any, Iterator, List, AsyncIterator, Optional, Tuple, Literal, Union
 from datetime import datetime
-from mikro_next.rath import MikroNextRath
-from pydantic import Field, BaseModel
-from rath.scalars import ID
+from typing import Optional, AsyncIterator, Tuple, Any, List, Literal, Iterator, Union
 from enum import Enum
+from mikro_next.rath import MikroNextRath
 
 
 class RoiKind(str, Enum):
@@ -98,14 +98,9 @@ class ProvenanceFilter(BaseModel):
     during: Optional[str] = None
     and_: Optional["ProvenanceFilter"] = Field(alias="AND", default=None)
     or_: Optional["ProvenanceFilter"] = Field(alias="OR", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class StrFilterLookup(BaseModel):
@@ -143,27 +138,17 @@ class StrFilterLookup(BaseModel):
     n_is_null: Optional[bool] = Field(alias="nIsNull", default=None)
     n_regex: Optional[str] = Field(alias="nRegex", default=None)
     n_i_regex: Optional[str] = Field(alias="nIRegex", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class OffsetPaginationInput(BaseModel):
     offset: int
     limit: int
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class ImageFilter(BaseModel):
@@ -181,28 +166,18 @@ class ImageFilter(BaseModel):
     provenance: Optional[ProvenanceFilter] = None
     and_: Optional["ImageFilter"] = Field(alias="AND", default=None)
     or_: Optional["ImageFilter"] = Field(alias="OR", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class ZarrStoreFilter(BaseModel):
     shape: Optional["IntFilterLookup"] = None
     and_: Optional["ZarrStoreFilter"] = Field(alias="AND", default=None)
     or_: Optional["ZarrStoreFilter"] = Field(alias="OR", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class IntFilterLookup(BaseModel):
@@ -240,14 +215,9 @@ class IntFilterLookup(BaseModel):
     n_is_null: Optional[bool] = Field(alias="nIsNull", default=None)
     n_regex: Optional[str] = Field(alias="nRegex", default=None)
     n_i_regex: Optional[str] = Field(alias="nIRegex", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class DatasetFilter(BaseModel):
@@ -256,14 +226,9 @@ class DatasetFilter(BaseModel):
     provenance: Optional[ProvenanceFilter] = None
     and_: Optional["DatasetFilter"] = Field(alias="AND", default=None)
     or_: Optional["DatasetFilter"] = Field(alias="OR", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class AffineTransformationViewFilter(BaseModel):
@@ -273,14 +238,9 @@ class AffineTransformationViewFilter(BaseModel):
     or_: Optional["AffineTransformationViewFilter"] = Field(alias="OR", default=None)
     stage: Optional["StageFilter"] = None
     pixel_size: Optional["FloatFilterLookup"] = Field(alias="pixelSize", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class StageFilter(BaseModel):
@@ -292,14 +252,9 @@ class StageFilter(BaseModel):
     provenance: Optional[ProvenanceFilter] = None
     and_: Optional["StageFilter"] = Field(alias="AND", default=None)
     or_: Optional["StageFilter"] = Field(alias="OR", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class FloatFilterLookup(BaseModel):
@@ -337,14 +292,9 @@ class FloatFilterLookup(BaseModel):
     n_is_null: Optional[bool] = Field(alias="nIsNull", default=None)
     n_regex: Optional[str] = Field(alias="nRegex", default=None)
     n_i_regex: Optional[str] = Field(alias="nIRegex", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class TimepointViewFilter(BaseModel):
@@ -355,14 +305,9 @@ class TimepointViewFilter(BaseModel):
     era: Optional["EraFilter"] = None
     ms_since_start: Optional[float] = Field(alias="msSinceStart", default=None)
     index_since_start: Optional[int] = Field(alias="indexSinceStart", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class EraFilter(BaseModel):
@@ -371,14 +316,9 @@ class EraFilter(BaseModel):
     provenance: Optional[ProvenanceFilter] = None
     and_: Optional["EraFilter"] = Field(alias="AND", default=None)
     or_: Optional["EraFilter"] = Field(alias="OR", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class LinkedExpressionFilter(BaseModel):
@@ -389,14 +329,9 @@ class LinkedExpressionFilter(BaseModel):
     ids: Optional[Tuple[ID, ...]] = None
     and_: Optional["LinkedExpressionFilter"] = Field(alias="AND", default=None)
     or_: Optional["LinkedExpressionFilter"] = Field(alias="OR", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class EntityFilter(BaseModel):
@@ -405,27 +340,17 @@ class EntityFilter(BaseModel):
     ids: Optional[Tuple[ID, ...]] = None
     linked_expression: Optional[ID] = Field(alias="linkedExpression", default=None)
     search: Optional[str] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class GraphPaginationInput(BaseModel):
     limit: Optional[int] = None
     offset: Optional[int] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PartialChannelViewInput(BaseModel):
@@ -441,14 +366,9 @@ class PartialChannelViewInput(BaseModel):
     c_min: Optional[int] = Field(alias="cMin", default=None)
     c_max: Optional[int] = Field(alias="cMax", default=None)
     channel: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PartialAffineTransformationViewInput(BaseModel):
@@ -465,14 +385,9 @@ class PartialAffineTransformationViewInput(BaseModel):
     c_max: Optional[int] = Field(alias="cMax", default=None)
     stage: Optional[ID] = None
     affine_matrix: FourByFourMatrix = Field(alias="affineMatrix")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PartialAcquisitionViewInput(BaseModel):
@@ -490,14 +405,9 @@ class PartialAcquisitionViewInput(BaseModel):
     description: Optional[str] = None
     acquired_at: Optional[datetime] = Field(alias="acquiredAt", default=None)
     operator: Optional[ID] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PartialPixelViewInput(BaseModel):
@@ -516,14 +426,9 @@ class PartialPixelViewInput(BaseModel):
     range_labels: Optional[Tuple["RangePixelLabel", ...]] = Field(
         alias="rangeLabels", default=None
     )
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class RangePixelLabel(BaseModel):
@@ -531,14 +436,9 @@ class RangePixelLabel(BaseModel):
     entity_kind: ID = Field(alias="entityKind")
     min: int
     max: int
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PartialSpecimenViewInput(BaseModel):
@@ -555,14 +455,9 @@ class PartialSpecimenViewInput(BaseModel):
     c_max: Optional[int] = Field(alias="cMax", default=None)
     specimen: Optional[ID] = None
     step: Optional[ID] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PartialRGBViewInput(BaseModel):
@@ -586,14 +481,9 @@ class PartialRGBViewInput(BaseModel):
     active: Optional[bool] = None
     color_map: Optional[ColorMap] = Field(alias="colorMap", default=None)
     base_color: Optional[Tuple[float, ...]] = Field(alias="baseColor", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PartialTimepointViewInput(BaseModel):
@@ -611,14 +501,9 @@ class PartialTimepointViewInput(BaseModel):
     era: Optional[ID] = None
     ms_since_start: Optional[Milliseconds] = Field(alias="msSinceStart", default=None)
     index_since_start: Optional[int] = Field(alias="indexSinceStart", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PartialOpticsViewInput(BaseModel):
@@ -636,14 +521,9 @@ class PartialOpticsViewInput(BaseModel):
     instrument: Optional[ID] = None
     objective: Optional[ID] = None
     camera: Optional[ID] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PartialScaleViewInput(BaseModel):
@@ -664,27 +544,17 @@ class PartialScaleViewInput(BaseModel):
     scale_z: Optional[float] = Field(alias="scaleZ", default=None)
     scale_t: Optional[float] = Field(alias="scaleT", default=None)
     scale_c: Optional[float] = Field(alias="scaleC", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class TreeInput(BaseModel):
     id: Optional[str] = None
     children: Tuple["TreeNodeInput", ...]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class TreeNodeInput(BaseModel):
@@ -693,14 +563,9 @@ class TreeNodeInput(BaseModel):
     context: Optional[str] = None
     gap: Optional[int] = None
     children: Optional[Tuple["TreeNodeInput", ...]] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class OverlayInput(BaseModel):
@@ -709,14 +574,9 @@ class OverlayInput(BaseModel):
     color: str
     x: int
     y: int
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class ProtocolStepInput(BaseModel):
@@ -726,14 +586,9 @@ class ProtocolStepInput(BaseModel):
     plate_children: Optional[Tuple["PlateChildInput", ...]] = Field(
         alias="plateChildren", default=None
     )
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PlateChildInput(BaseModel):
@@ -748,14 +603,9 @@ class PlateChildInput(BaseModel):
     bold: Optional[bool] = None
     italic: Optional[bool] = None
     underline: Optional[bool] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class CreateRGBContextInput(BaseModel):
@@ -766,14 +616,9 @@ class CreateRGBContextInput(BaseModel):
     z: Optional[int] = None
     t: Optional[int] = None
     c: Optional[int] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class UpdateRGBContextInput(BaseModel):
@@ -784,14 +629,9 @@ class UpdateRGBContextInput(BaseModel):
     z: Optional[int] = None
     t: Optional[int] = None
     c: Optional[int] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class UpdateRoiInput(BaseModel):
@@ -802,451 +642,361 @@ class UpdateRoiInput(BaseModel):
     entity_kind: Optional[ID] = Field(alias="entityKind", default=None)
     entity_group: Optional[ID] = Field(alias="entityGroup", default=None)
     entity_parent: Optional[ID] = Field(alias="entityParent", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class RoiEntityRelationInput(BaseModel):
     left_roi: ID = Field(alias="leftRoi")
     right_roi: ID = Field(alias="rightRoi")
     kind: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        allow_population_by_field_name = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class ViewBase(BaseModel):
-    z_min: Optional[int] = Field(alias="zMin")
-    z_max: Optional[int] = Field(alias="zMax")
+    z_min: Optional[int] = Field(default=None, alias="zMin")
+    z_max: Optional[int] = Field(default=None, alias="zMax")
 
 
 class ChannelView(ViewBase, BaseModel):
-    typename: Optional[Literal["ChannelView"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["ChannelView"]] = Field(
+        alias="__typename", default="ChannelView", exclude=True
+    )
     id: ID
     channel: "Channel"
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class AffineTransformationViewStage(BaseModel):
-    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Stage"]] = Field(
+        alias="__typename", default="Stage", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class AffineTransformationView(ViewBase, BaseModel):
     typename: Optional[Literal["AffineTransformationView"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="AffineTransformationView", exclude=True
     )
     id: ID
     affine_matrix: FourByFourMatrix = Field(alias="affineMatrix")
     stage: AffineTransformationViewStage
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class TimepointView(ViewBase, BaseModel):
     typename: Optional[Literal["TimepointView"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="TimepointView", exclude=True
     )
     id: ID
-    ms_since_start: Optional[Milliseconds] = Field(alias="msSinceStart")
-    index_since_start: Optional[int] = Field(alias="indexSinceStart")
+    ms_since_start: Optional[Milliseconds] = Field(default=None, alias="msSinceStart")
+    index_since_start: Optional[int] = Field(default=None, alias="indexSinceStart")
     era: "Era"
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class OpticsViewObjective(BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Objective"]] = Field(
+        alias="__typename", default="Objective", exclude=True
+    )
     id: ID
     name: str
     serial_number: str = Field(alias="serialNumber")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class OpticsViewCamera(BaseModel):
-    typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Camera"]] = Field(
+        alias="__typename", default="Camera", exclude=True
+    )
     id: ID
     name: str
     serial_number: str = Field(alias="serialNumber")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class OpticsViewInstrument(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Instrument"]] = Field(
+        alias="__typename", default="Instrument", exclude=True
+    )
     id: ID
     name: str
     serial_number: str = Field(alias="serialNumber")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class OpticsView(ViewBase, BaseModel):
-    typename: Optional[Literal["OpticsView"]] = Field(alias="__typename", exclude=True)
-    objective: Optional[OpticsViewObjective]
-    camera: Optional[OpticsViewCamera]
-    instrument: Optional[OpticsViewInstrument]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    typename: Optional[Literal["OpticsView"]] = Field(
+        alias="__typename", default="OpticsView", exclude=True
+    )
+    objective: Optional[OpticsViewObjective] = Field(default=None)
+    camera: Optional[OpticsViewCamera] = Field(default=None)
+    instrument: Optional[OpticsViewInstrument] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class LabelViewFluorophore(EntityTrait, BaseModel):
-    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Entity"]] = Field(
+        alias="__typename", default="Entity", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class LabelViewPrimaryantibody(EntityTrait, BaseModel):
-    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Entity"]] = Field(
+        alias="__typename", default="Entity", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class LabelViewSecondaryantibody(EntityTrait, BaseModel):
-    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Entity"]] = Field(
+        alias="__typename", default="Entity", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class LabelView(ViewBase, BaseModel):
-    typename: Optional[Literal["LabelView"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["LabelView"]] = Field(
+        alias="__typename", default="LabelView", exclude=True
+    )
     id: ID
-    fluorophore: Optional[LabelViewFluorophore]
+    fluorophore: Optional[LabelViewFluorophore] = Field(default=None)
     primary_antibody: Optional[LabelViewPrimaryantibody] = Field(
-        alias="primaryAntibody"
+        default=None, alias="primaryAntibody"
     )
     secondary_antibody: Optional[LabelViewSecondaryantibody] = Field(
-        alias="secondaryAntibody"
+        default=None, alias="secondaryAntibody"
     )
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ScaleView(ViewBase, BaseModel):
-    typename: Optional[Literal["ScaleView"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["ScaleView"]] = Field(
+        alias="__typename", default="ScaleView", exclude=True
+    )
     id: ID
     scale_x: float = Field(alias="scaleX")
     scale_y: float = Field(alias="scaleY")
     scale_z: float = Field(alias="scaleZ")
     scale_t: float = Field(alias="scaleT")
     scale_c: float = Field(alias="scaleC")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class RGBView(ViewBase, BaseModel):
-    typename: Optional[Literal["RGBView"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["RGBView"]] = Field(
+        alias="__typename", default="RGBView", exclude=True
+    )
     id: ID
     color_map: ColorMap = Field(alias="colorMap")
-    contrast_limit_min: Optional[float] = Field(alias="contrastLimitMin")
-    contrast_limit_max: Optional[float] = Field(alias="contrastLimitMax")
-    gamma: Optional[float]
+    contrast_limit_min: Optional[float] = Field(default=None, alias="contrastLimitMin")
+    contrast_limit_max: Optional[float] = Field(default=None, alias="contrastLimitMax")
+    gamma: Optional[float] = Field(default=None)
     rescale: bool
     active: bool
-    c_min: Optional[int] = Field(alias="cMin")
-    c_max: Optional[int] = Field(alias="cMax")
+    c_min: Optional[int] = Field(default=None, alias="cMin")
+    c_max: Optional[int] = Field(default=None, alias="cMax")
     full_colour: str = Field(alias="fullColour")
-    base_color: Optional[Tuple[int, ...]] = Field(alias="baseColor")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    base_color: Optional[Tuple[int, ...]] = Field(default=None, alias="baseColor")
+    model_config = ConfigDict(frozen=True)
 
 
 class LinkedExpressionGraph(GraphTrait, BaseModel):
-    typename: Optional[Literal["Graph"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Graph"]] = Field(
+        alias="__typename", default="Graph", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class LinkedExpressionExpressionOntology(OntologyTrait, BaseModel):
-    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Ontology"]] = Field(
+        alias="__typename", default="Ontology", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class LinkedExpressionExpression(ExpressionTrait, BaseModel):
-    typename: Optional[Literal["Expression"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Expression"]] = Field(
+        alias="__typename", default="Expression", exclude=True
+    )
     id: ID
     label: str
     ontology: LinkedExpressionExpressionOntology
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class LinkedExpression(LinkedExpressionTrait, BaseModel):
     typename: Optional[Literal["LinkedExpression"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="LinkedExpression", exclude=True
     )
     id: ID
     graph: LinkedExpressionGraph
     kind: ExpressionKind
     expression: LinkedExpressionExpression
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ListLinkedExpressionGraph(GraphTrait, BaseModel):
-    typename: Optional[Literal["Graph"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Graph"]] = Field(
+        alias="__typename", default="Graph", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ListLinkedExpressionExpressionOntology(OntologyTrait, BaseModel):
-    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Ontology"]] = Field(
+        alias="__typename", default="Ontology", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ListLinkedExpressionExpression(ExpressionTrait, BaseModel):
-    typename: Optional[Literal["Expression"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Expression"]] = Field(
+        alias="__typename", default="Expression", exclude=True
+    )
     id: ID
     label: str
     ontology: ListLinkedExpressionExpressionOntology
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ListLinkedExpression(LinkedExpressionTrait, BaseModel):
     typename: Optional[Literal["LinkedExpression"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="LinkedExpression", exclude=True
     )
     id: ID
     graph: ListLinkedExpressionGraph
     kind: ExpressionKind
     expression: ListLinkedExpressionExpression
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Camera(BaseModel):
-    typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
-    sensor_size_x: Optional[int] = Field(alias="sensorSizeX")
-    sensor_size_y: Optional[int] = Field(alias="sensorSizeY")
-    pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX")
-    pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY")
+    typename: Optional[Literal["Camera"]] = Field(
+        alias="__typename", default="Camera", exclude=True
+    )
+    sensor_size_x: Optional[int] = Field(default=None, alias="sensorSizeX")
+    sensor_size_y: Optional[int] = Field(default=None, alias="sensorSizeY")
+    pixel_size_x: Optional[Micrometers] = Field(default=None, alias="pixelSizeX")
+    pixel_size_y: Optional[Micrometers] = Field(default=None, alias="pixelSizeY")
     name: str
     serial_number: str = Field(alias="serialNumber")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProtocolStepMappingProtocolExperiment(BaseModel):
-    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Experiment"]] = Field(
+        alias="__typename", default="Experiment", exclude=True
+    )
     id: ID
     name: str
-    description: Optional[str]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    description: Optional[str] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class ProtocolStepMappingProtocol(BaseModel):
-    typename: Optional[Literal["Protocol"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Protocol"]] = Field(
+        alias="__typename", default="Protocol", exclude=True
+    )
     id: ID
     name: str
     experiment: ProtocolStepMappingProtocolExperiment
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProtocolStepMappingStep(BaseModel):
     typename: Optional[Literal["ProtocolStep"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="ProtocolStep", exclude=True
     )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProtocolStepMapping(BaseModel):
     typename: Optional[Literal["ProtocolStepMapping"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="ProtocolStepMapping", exclude=True
     )
     id: ID
-    t: Optional[int]
+    t: Optional[int] = Field(default=None)
     protocol: ProtocolStepMappingProtocol
     step: ProtocolStepMappingStep
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class TableOrigins(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Image"]] = Field(
+        alias="__typename", default="Image", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Table(HasParquestStoreTrait, BaseModel):
-    typename: Optional[Literal["Table"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Table"]] = Field(
+        alias="__typename", default="Table", exclude=True
+    )
     origins: Tuple[TableOrigins, ...]
     id: ID
     name: str
     store: "ParquetStore"
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class RenderedPlotStore(HasPresignedDownloadAccessor, BaseModel):
-    typename: Optional[Literal["MediaStore"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["MediaStore"]] = Field(
+        alias="__typename", default="MediaStore", exclude=True
+    )
     id: ID
     key: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class RenderedPlot(BaseModel):
     typename: Optional[Literal["RenderedPlot"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="RenderedPlot", exclude=True
     )
     id: ID
     store: RenderedPlotStore
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ListRenderedPlotStore(HasPresignedDownloadAccessor, BaseModel):
-    typename: Optional[Literal["MediaStore"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["MediaStore"]] = Field(
+        alias="__typename", default="MediaStore", exclude=True
+    )
     id: ID
     key: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ListRenderedPlot(BaseModel):
     typename: Optional[Literal["RenderedPlot"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="RenderedPlot", exclude=True
     )
     id: ID
     store: ListRenderedPlotStore
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Credentials(BaseModel):
-    typename: Optional[Literal["Credentials"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Credentials"]] = Field(
+        alias="__typename", default="Credentials", exclude=True
+    )
     access_key: str = Field(alias="accessKey")
     status: str
     secret_key: str = Field(alias="secretKey")
@@ -1254,16 +1004,12 @@ class Credentials(BaseModel):
     key: str
     session_token: str = Field(alias="sessionToken")
     store: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class AccessCredentials(BaseModel):
     typename: Optional[Literal["AccessCredentials"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="AccessCredentials", exclude=True
     )
     access_key: str = Field(alias="accessKey")
     secret_key: str = Field(alias="secretKey")
@@ -1271,108 +1017,90 @@ class AccessCredentials(BaseModel):
     key: str
     session_token: str = Field(alias="sessionToken")
     path: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class FileOrigins(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Image"]] = Field(
+        alias="__typename", default="Image", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class File(BaseModel):
-    typename: Optional[Literal["File"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["File"]] = Field(
+        alias="__typename", default="File", exclude=True
+    )
     origins: Tuple[FileOrigins, ...]
     id: ID
     name: str
     store: "BigFileStore"
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Stage(BaseModel):
-    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Stage"]] = Field(
+        alias="__typename", default="Stage", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ROIImage(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Image"]] = Field(
+        alias="__typename", default="Image", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ROI(IsVectorizableTrait, BaseModel):
-    typename: Optional[Literal["ROI"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["ROI"]] = Field(
+        alias="__typename", default="ROI", exclude=True
+    )
     id: ID
     image: ROIImage
     vectors: Tuple[FiveDVector, ...]
     kind: RoiKind
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Graph(GraphTrait, BaseModel):
-    typename: Optional[Literal["Graph"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Graph"]] = Field(
+        alias="__typename", default="Graph", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Objective(BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Objective"]] = Field(
+        alias="__typename", default="Objective", exclude=True
+    )
     id: ID
-    na: Optional[float]
+    na: Optional[float] = Field(default=None)
     name: str
     serial_number: str = Field(alias="serialNumber")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class RGBContextImage(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Image"]] = Field(
+        alias="__typename", default="Image", exclude=True
+    )
     id: ID
     store: "ZarrStore"
     "The store where the image data is stored."
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class RGBContext(BaseModel):
-    typename: Optional[Literal["RGBContext"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["RGBContext"]] = Field(
+        alias="__typename", default="RGBContext", exclude=True
+    )
     id: ID
     views: Tuple[RGBView, ...]
     image: RGBContextImage
@@ -1382,346 +1110,260 @@ class RGBContext(BaseModel):
     t: int
     c: int
     blending: Blending
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProtocolStepMappingsProtocol(BaseModel):
-    typename: Optional[Literal["Protocol"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Protocol"]] = Field(
+        alias="__typename", default="Protocol", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProtocolStepMappings(BaseModel):
     typename: Optional[Literal["ProtocolStepMapping"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="ProtocolStepMapping", exclude=True
     )
     id: ID
     protocol: ProtocolStepMappingsProtocol
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProtocolStepViewsSpecimen(BaseModel):
-    typename: Optional[Literal["Specimen"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Specimen"]] = Field(
+        alias="__typename", default="Specimen", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProtocolStepViewsImage(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Image"]] = Field(
+        alias="__typename", default="Image", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProtocolStepViews(BaseModel):
     typename: Optional[Literal["SpecimenView"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="SpecimenView", exclude=True
     )
     id: ID
     specimen: ProtocolStepViewsSpecimen
     image: ProtocolStepViewsImage
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProtocolStep(BaseModel):
     typename: Optional[Literal["ProtocolStep"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="ProtocolStep", exclude=True
     )
     id: ID
     mappings: Tuple[ProtocolStepMappings, ...]
-    description: Optional[str]
+    description: Optional[str] = Field(default=None)
     views: Tuple[ProtocolStepViews, ...]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class HistoryStuffApp(BaseModel):
     """An app."""
 
-    typename: Optional[Literal["App"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["App"]] = Field(
+        alias="__typename", default="App", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class HistoryStuff(BaseModel):
-    typename: Optional[Literal["History"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["History"]] = Field(
+        alias="__typename", default="History", exclude=True
+    )
     id: ID
-    app: Optional[HistoryStuffApp]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    app: Optional[HistoryStuffApp] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class Dataset(BaseModel):
-    typename: Optional[Literal["Dataset"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Dataset"]] = Field(
+        alias="__typename", default="Dataset", exclude=True
+    )
     name: str
-    description: Optional[str]
+    description: Optional[str] = Field(default=None)
     history: Tuple[HistoryStuff, ...]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SpecimenEntity(EntityTrait, BaseModel):
-    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Entity"]] = Field(
+        alias="__typename", default="Entity", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SpecimenProtocol(BaseModel):
-    typename: Optional[Literal["Protocol"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Protocol"]] = Field(
+        alias="__typename", default="Protocol", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Specimen(BaseModel):
-    typename: Optional[Literal["Specimen"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Specimen"]] = Field(
+        alias="__typename", default="Specimen", exclude=True
+    )
     id: ID
-    entity: Optional[SpecimenEntity]
+    entity: Optional[SpecimenEntity] = Field(default=None)
     protocol: SpecimenProtocol
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Instrument(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Instrument"]] = Field(
+        alias="__typename", default="Instrument", exclude=True
+    )
     id: ID
-    model: Optional[str]
+    model: Optional[str] = Field(default=None)
     name: str
     serial_number: str = Field(alias="serialNumber")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ExpressionOntology(OntologyTrait, BaseModel):
-    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Ontology"]] = Field(
+        alias="__typename", default="Ontology", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Expression(ExpressionTrait, BaseModel):
-    typename: Optional[Literal["Expression"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Expression"]] = Field(
+        alias="__typename", default="Expression", exclude=True
+    )
     id: ID
     label: str
     ontology: ExpressionOntology
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class EntityRelationLeft(EntityTrait, BaseModel):
-    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Entity"]] = Field(
+        alias="__typename", default="Entity", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class EntityRelationRight(EntityTrait, BaseModel):
-    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Entity"]] = Field(
+        alias="__typename", default="Entity", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class EntityRelationLinkedexpression(LinkedExpressionTrait, BaseModel):
     typename: Optional[Literal["LinkedExpression"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="LinkedExpression", exclude=True
     )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class EntityRelation(EntityRelationTrait, BaseModel):
     typename: Optional[Literal["EntityRelation"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="EntityRelation", exclude=True
     )
     id: ID
     left: EntityRelationLeft
     right: EntityRelationRight
     linked_expression: EntityRelationLinkedexpression = Field(alias="linkedExpression")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ImageOrigins(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Image"]] = Field(
+        alias="__typename", default="Image", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ImageViewsBase(BaseModel):
     pass
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ImageViewsChannelView(ImageViewsBase, ChannelView):
     pass
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ImageViewsAffineTransformationView(ImageViewsBase, AffineTransformationView):
     pass
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ImageViewsLabelView(ImageViewsBase, LabelView):
     pass
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ImageViewsTimepointView(ImageViewsBase, TimepointView):
     pass
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ImageViewsOpticsView(ImageViewsBase, OpticsView):
     pass
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ImageViewsScaleView(ImageViewsBase, ScaleView):
     pass
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ImageDerivedscaleviewsImage(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Image"]] = Field(
+        alias="__typename", default="Image", exclude=True
+    )
     name: str
     store: "ZarrStore"
     "The store where the image data is stored."
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ImageDerivedscaleviews(ScaleView, BaseModel):
-    typename: Optional[Literal["ScaleView"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["ScaleView"]] = Field(
+        alias="__typename", default="ScaleView", exclude=True
+    )
     image: ImageDerivedscaleviewsImage
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ImageRgbcontexts(BaseModel):
-    typename: Optional[Literal["RGBContext"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["RGBContext"]] = Field(
+        alias="__typename", default="RGBContext", exclude=True
+    )
     id: ID
     name: str
     views: Tuple[RGBView, ...]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Image(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Image"]] = Field(
+        alias="__typename", default="Image", exclude=True
+    )
     origins: Tuple[ImageOrigins, ...]
     id: ID
     name: str
@@ -1742,177 +1384,143 @@ class Image(HasZarrStoreTrait, BaseModel):
         alias="derivedScaleViews"
     )
     rgb_contexts: Tuple[ImageRgbcontexts, ...] = Field(alias="rgbContexts")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class EntityLinkedexpression(LinkedExpressionTrait, BaseModel):
     typename: Optional[Literal["LinkedExpression"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="LinkedExpression", exclude=True
     )
     id: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Entity(EntityTrait, BaseModel):
-    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Entity"]] = Field(
+        alias="__typename", default="Entity", exclude=True
+    )
     id: ID
     name: str
     linked_expression: EntityLinkedexpression = Field(alias="linkedExpression")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Era(BaseModel):
-    typename: Optional[Literal["Era"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Era"]] = Field(
+        alias="__typename", default="Era", exclude=True
+    )
     id: ID
-    begin: Optional[datetime]
+    begin: Optional[datetime] = Field(default=None)
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProtocolExperiment(BaseModel):
-    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Experiment"]] = Field(
+        alias="__typename", default="Experiment", exclude=True
+    )
     id: ID
     name: str
-    description: Optional[str]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    description: Optional[str] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class Protocol(BaseModel):
-    typename: Optional[Literal["Protocol"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Protocol"]] = Field(
+        alias="__typename", default="Protocol", exclude=True
+    )
     id: ID
     name: str
     experiment: ProtocolExperiment
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SnapshotStore(HasPresignedDownloadAccessor, BaseModel):
-    typename: Optional[Literal["MediaStore"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["MediaStore"]] = Field(
+        alias="__typename", default="MediaStore", exclude=True
+    )
     key: str
     presigned_url: str = Field(alias="presignedUrl")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Snapshot(BaseModel):
-    typename: Optional[Literal["Snapshot"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Snapshot"]] = Field(
+        alias="__typename", default="Snapshot", exclude=True
+    )
     id: ID
     store: SnapshotStore
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Ontology(OntologyTrait, BaseModel):
-    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Ontology"]] = Field(
+        alias="__typename", default="Ontology", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ZarrStore(HasZarrStoreAccessor, BaseModel):
-    typename: Optional[Literal["ZarrStore"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["ZarrStore"]] = Field(
+        alias="__typename", default="ZarrStore", exclude=True
+    )
     id: ID
     key: str
     "The key where the data is stored."
     bucket: str
     "The bucket where the data is stored."
-    path: Optional[str]
+    path: Optional[str] = Field(default=None)
     "The path to the data. Relative to the bucket."
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ParquetStore(HasParquetStoreAccesor, BaseModel):
     typename: Optional[Literal["ParquetStore"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="ParquetStore", exclude=True
     )
     id: ID
     key: str
     bucket: str
     path: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class BigFileStore(HasDownloadAccessor, BaseModel):
     typename: Optional[Literal["BigFileStore"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="BigFileStore", exclude=True
     )
     id: ID
     key: str
     bucket: str
     path: str
     presigned_url: str = Field(alias="presignedUrl")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Channel(BaseModel):
-    typename: Optional[Literal["Channel"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Channel"]] = Field(
+        alias="__typename", default="Channel", exclude=True
+    )
     id: ID
     name: str
-    excitation_wavelength: Optional[float] = Field(alias="excitationWavelength")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    excitation_wavelength: Optional[float] = Field(
+        default=None, alias="excitationWavelength"
+    )
+    model_config = ConfigDict(frozen=True)
 
 
 class Experiment(BaseModel):
-    typename: Optional[Literal["Experiment"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Experiment"]] = Field(
+        alias="__typename", default="Experiment", exclude=True
+    )
     id: ID
     name: str
-    description: Optional[str]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    description: Optional[str] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class LinkExpressionMutation(BaseModel):
@@ -1927,14 +1535,12 @@ class LinkExpressionMutation(BaseModel):
 
 
 class CreateCameraMutationCreatecamera(BaseModel):
-    typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Camera"]] = Field(
+        alias="__typename", default="Camera", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class CreateCameraMutation(BaseModel):
@@ -1953,14 +1559,12 @@ class CreateCameraMutation(BaseModel):
 
 
 class EnsureCameraMutationEnsurecamera(BaseModel):
-    typename: Optional[Literal["Camera"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Camera"]] = Field(
+        alias="__typename", default="Camera", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class EnsureCameraMutation(BaseModel):
@@ -1991,13 +1595,11 @@ class MapProtocolStepMutation(BaseModel):
 
 
 class CreateRenderTreeMutationCreaterendertree(BaseModel):
-    typename: Optional[Literal["RenderTree"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["RenderTree"]] = Field(
+        alias="__typename", default="RenderTree", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class CreateRenderTreeMutation(BaseModel):
@@ -2151,14 +1753,12 @@ class CreateGraphMutation(BaseModel):
 
 
 class CreateObjectiveMutationCreateobjective(BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Objective"]] = Field(
+        alias="__typename", default="Objective", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class CreateObjectiveMutation(BaseModel):
@@ -2177,14 +1777,12 @@ class CreateObjectiveMutation(BaseModel):
 
 
 class EnsureObjectiveMutationEnsureobjective(BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Objective"]] = Field(
+        alias="__typename", default="Objective", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class EnsureObjectiveMutation(BaseModel):
@@ -2213,14 +1811,12 @@ class CreateProtocolStepMutation(BaseModel):
 
 
 class CreateDatasetMutationCreatedataset(BaseModel):
-    typename: Optional[Literal["Dataset"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Dataset"]] = Field(
+        alias="__typename", default="Dataset", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class CreateDatasetMutation(BaseModel):
@@ -2234,14 +1830,12 @@ class CreateDatasetMutation(BaseModel):
 
 
 class UpdateDatasetMutationUpdatedataset(BaseModel):
-    typename: Optional[Literal["Dataset"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Dataset"]] = Field(
+        alias="__typename", default="Dataset", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class UpdateDatasetMutation(BaseModel):
@@ -2256,15 +1850,13 @@ class UpdateDatasetMutation(BaseModel):
 
 
 class RevertDatasetMutationRevertdataset(BaseModel):
-    typename: Optional[Literal["Dataset"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Dataset"]] = Field(
+        alias="__typename", default="Dataset", exclude=True
+    )
     id: ID
     name: str
-    description: Optional[str]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    description: Optional[str] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class RevertDatasetMutation(BaseModel):
@@ -2290,14 +1882,12 @@ class CreateSpecimenMutation(BaseModel):
 
 
 class CreateInstrumentMutationCreateinstrument(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Instrument"]] = Field(
+        alias="__typename", default="Instrument", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class CreateInstrumentMutation(BaseModel):
@@ -2315,14 +1905,12 @@ class CreateInstrumentMutation(BaseModel):
 
 
 class EnsureInstrumentMutationEnsureinstrument(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Instrument"]] = Field(
+        alias="__typename", default="Instrument", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class EnsureInstrumentMutation(BaseModel):
@@ -2440,7 +2028,7 @@ class From_array_likeMutation(BaseModel):
         roi_origins: Optional[List[ID]] = Field(alias="roiOrigins", default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $specimenViews: [PartialSpecimenViewInput!], $scaleViews: [PartialScaleViewInput!], $tags: [String!], $fileOrigins: [ID!], $roiOrigins: [ID!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, fileOrigins: $fileOrigins, roiOrigins: $roiOrigins, specimenViews: $specimenViews}\n  ) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $origins: [ID!], $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $specimenViews: [PartialSpecimenViewInput!], $scaleViews: [PartialScaleViewInput!], $tags: [String!], $fileOrigins: [ID!], $roiOrigins: [ID!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, origins: $origins, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, fileOrigins: $fileOrigins, roiOrigins: $roiOrigins, specimenViews: $specimenViews}\n  ) {\n    ...Image\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -2481,14 +2069,12 @@ class CreateEntityMutation(BaseModel):
 
 
 class CreateEraMutationCreateera(BaseModel):
-    typename: Optional[Literal["Era"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Era"]] = Field(
+        alias="__typename", default="Era", exclude=True
+    )
     id: ID
-    begin: Optional[datetime]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    begin: Optional[datetime] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class CreateEraMutation(BaseModel):
@@ -2526,13 +2112,11 @@ class CreateSnapshotMutation(BaseModel):
 
 
 class CreateRgbViewMutationCreatergbview(BaseModel):
-    typename: Optional[Literal["RGBView"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["RGBView"]] = Field(
+        alias="__typename", default="RGBView", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class CreateRgbViewMutation(BaseModel):
@@ -2592,15 +2176,11 @@ class UpdateRGBContextMutation(BaseModel):
 
 class CreateViewCollectionMutationCreateviewcollection(BaseModel):
     typename: Optional[Literal["ViewCollection"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="ViewCollection", exclude=True
     )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class CreateViewCollectionMutation(BaseModel):
@@ -2616,14 +2196,12 @@ class CreateViewCollectionMutation(BaseModel):
 
 
 class CreateChannelMutationCreatechannel(BaseModel):
-    typename: Optional[Literal["Channel"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Channel"]] = Field(
+        alias="__typename", default="Channel", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class CreateChannelMutation(BaseModel):
@@ -2637,14 +2215,12 @@ class CreateChannelMutation(BaseModel):
 
 
 class EnsureChannelMutationEnsurechannel(BaseModel):
-    typename: Optional[Literal["Channel"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Channel"]] = Field(
+        alias="__typename", default="Channel", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class EnsureChannelMutation(BaseModel):
@@ -2680,15 +2256,11 @@ class GetLinkedExpressionQuery(BaseModel):
 
 class SearchLinkedExpressionsQueryOptions(LinkedExpressionTrait, BaseModel):
     typename: Optional[Literal["LinkedExpression"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="LinkedExpression", exclude=True
     )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchLinkedExpressionsQuery(BaseModel):
@@ -2757,15 +2329,11 @@ class ListRenderedPlotsQuery(BaseModel):
 
 class SearchRenderedPlotsQueryOptions(BaseModel):
     typename: Optional[Literal["RenderedPlot"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="RenderedPlot", exclude=True
     )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchRenderedPlotsQuery(BaseModel):
@@ -2790,14 +2358,12 @@ class GetFileQuery(BaseModel):
 
 
 class SearchFilesQueryOptions(BaseModel):
-    typename: Optional[Literal["File"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["File"]] = Field(
+        alias="__typename", default="File", exclude=True
+    )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchFilesQuery(BaseModel):
@@ -2823,14 +2389,12 @@ class GetStageQuery(BaseModel):
 
 
 class SearchStagesQueryOptions(BaseModel):
-    typename: Optional[Literal["Stage"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Stage"]] = Field(
+        alias="__typename", default="Stage", exclude=True
+    )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchStagesQuery(BaseModel):
@@ -2866,14 +2430,12 @@ class GetRoiQuery(BaseModel):
 
 
 class SearchRoisQueryOptions(IsVectorizableTrait, BaseModel):
-    typename: Optional[Literal["ROI"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["ROI"]] = Field(
+        alias="__typename", default="ROI", exclude=True
+    )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchRoisQuery(BaseModel):
@@ -2909,15 +2471,11 @@ class GetProtocolStepQuery(BaseModel):
 
 class SearchProtocolStepsQueryOptions(BaseModel):
     typename: Optional[Literal["ProtocolStep"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="ProtocolStep", exclude=True
     )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchProtocolStepsQuery(BaseModel):
@@ -2952,14 +2510,12 @@ class GetSpecimenQuery(BaseModel):
 
 
 class SearchSpecimensQueryOptions(BaseModel):
-    typename: Optional[Literal["Specimen"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Specimen"]] = Field(
+        alias="__typename", default="Specimen", exclude=True
+    )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchSpecimensQuery(BaseModel):
@@ -2995,15 +2551,11 @@ class GetEntityRelationQuery(BaseModel):
 
 class SearchEntityRelationsQueryOptions(EntityRelationTrait, BaseModel):
     typename: Optional[Literal["EntityRelation"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="EntityRelation", exclude=True
     )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchEntityRelationsQuery(BaseModel):
@@ -3024,7 +2576,7 @@ class GetImageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -3034,18 +2586,16 @@ class GetRandomImageQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Image"]] = Field(
+        alias="__typename", default="Image", exclude=True
+    )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchImagesQuery(BaseModel):
@@ -3067,7 +2617,7 @@ class ImagesQuery(BaseModel):
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
 
 
 class GetEntityQuery(BaseModel):
@@ -3081,14 +2631,12 @@ class GetEntityQuery(BaseModel):
 
 
 class SearchEntitiesQueryOptions(EntityTrait, BaseModel):
-    typename: Optional[Literal["Entity"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Entity"]] = Field(
+        alias="__typename", default="Entity", exclude=True
+    )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchEntitiesQuery(BaseModel):
@@ -3124,14 +2672,12 @@ class GetProtocolQuery(BaseModel):
 
 
 class SearchProtocolsQueryOptions(BaseModel):
-    typename: Optional[Literal["Protocol"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Protocol"]] = Field(
+        alias="__typename", default="Protocol", exclude=True
+    )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchProtocolsQuery(BaseModel):
@@ -3156,14 +2702,12 @@ class GetSnapshotQuery(BaseModel):
 
 
 class SearchSnapshotsQueryOptions(BaseModel):
-    typename: Optional[Literal["Snapshot"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Snapshot"]] = Field(
+        alias="__typename", default="Snapshot", exclude=True
+    )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchSnapshotsQuery(BaseModel):
@@ -3188,14 +2732,12 @@ class GetOntologyQuery(BaseModel):
 
 
 class SearchOntologiesQueryOptions(OntologyTrait, BaseModel):
-    typename: Optional[Literal["Ontology"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Ontology"]] = Field(
+        alias="__typename", default="Ontology", exclude=True
+    )
     value: ID
     label: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class SearchOntologiesQuery(BaseModel):
@@ -3220,15 +2762,13 @@ class GetRGBContextQuery(BaseModel):
 
 
 class WatchFilesSubscriptionFiles(BaseModel):
-    typename: Optional[Literal["FileEvent"]] = Field(alias="__typename", exclude=True)
-    create: Optional[File]
-    delete: Optional[ID]
-    update: Optional[File]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    typename: Optional[Literal["FileEvent"]] = Field(
+        alias="__typename", default="FileEvent", exclude=True
+    )
+    create: Optional[File] = Field(default=None)
+    delete: Optional[ID] = Field(default=None)
+    update: Optional[File] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class WatchFilesSubscription(BaseModel):
@@ -3242,15 +2782,13 @@ class WatchFilesSubscription(BaseModel):
 
 
 class WatchImagesSubscriptionImages(BaseModel):
-    typename: Optional[Literal["ImageEvent"]] = Field(alias="__typename", exclude=True)
-    create: Optional[Image]
-    delete: Optional[ID]
-    update: Optional[Image]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    typename: Optional[Literal["ImageEvent"]] = Field(
+        alias="__typename", default="ImageEvent", exclude=True
+    )
+    create: Optional[Image] = Field(default=None)
+    delete: Optional[ID] = Field(default=None)
+    update: Optional[Image] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class WatchImagesSubscription(BaseModel):
@@ -3260,19 +2798,17 @@ class WatchImagesSubscription(BaseModel):
         dataset: Optional[ID] = Field(default=None)
 
     class Meta:
-        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
+        document = "fragment View on View {\n  zMin\n  zMax\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  cMin\n  cMax\n  fullColour\n  baseColor\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n  }\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  fluorophore {\n    id\n  }\n  primaryAntibody {\n    id\n  }\n  secondaryAntibody {\n    id\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment ScaleView on ScaleView {\n  ...View\n  id\n  scaleX\n  scaleY\n  scaleZ\n  scaleT\n  scaleC\n}\n\nfragment Image on Image {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...ScaleView\n  }\n  derivedScaleViews {\n    ...ScaleView\n    image {\n      name\n      store {\n        ...ZarrStore\n      }\n    }\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):
-    typename: Optional[Literal["RoiEvent"]] = Field(alias="__typename", exclude=True)
-    create: Optional[ROI]
-    delete: Optional[ID]
-    update: Optional[ROI]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    typename: Optional[Literal["RoiEvent"]] = Field(
+        alias="__typename", default="RoiEvent", exclude=True
+    )
+    create: Optional[ROI] = Field(default=None)
+    delete: Optional[ID] = Field(default=None)
+    update: Optional[ROI] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class WatchRoisSubscription(BaseModel):
@@ -7038,24 +6574,24 @@ def watch_rois(
         yield event.rois
 
 
-AffineTransformationViewFilter.update_forward_refs()
-ChannelView.update_forward_refs()
-DatasetFilter.update_forward_refs()
-EraFilter.update_forward_refs()
-File.update_forward_refs()
-Image.update_forward_refs()
-ImageDerivedscaleviewsImage.update_forward_refs()
-ImageFilter.update_forward_refs()
-LinkedExpressionFilter.update_forward_refs()
-PartialPixelViewInput.update_forward_refs()
-PlateChildInput.update_forward_refs()
-ProtocolStepInput.update_forward_refs()
-ProvenanceFilter.update_forward_refs()
-RGBContextImage.update_forward_refs()
-StageFilter.update_forward_refs()
-Table.update_forward_refs()
-TimepointView.update_forward_refs()
-TimepointViewFilter.update_forward_refs()
-TreeInput.update_forward_refs()
-TreeNodeInput.update_forward_refs()
-ZarrStoreFilter.update_forward_refs()
+AffineTransformationViewFilter.model_rebuild()
+ChannelView.model_rebuild()
+DatasetFilter.model_rebuild()
+EraFilter.model_rebuild()
+File.model_rebuild()
+Image.model_rebuild()
+ImageDerivedscaleviewsImage.model_rebuild()
+ImageFilter.model_rebuild()
+LinkedExpressionFilter.model_rebuild()
+PartialPixelViewInput.model_rebuild()
+PlateChildInput.model_rebuild()
+ProtocolStepInput.model_rebuild()
+ProvenanceFilter.model_rebuild()
+RGBContextImage.model_rebuild()
+StageFilter.model_rebuild()
+Table.model_rebuild()
+TimepointView.model_rebuild()
+TimepointViewFilter.model_rebuild()
+TreeInput.model_rebuild()
+TreeNodeInput.model_rebuild()
+ZarrStoreFilter.model_rebuild()

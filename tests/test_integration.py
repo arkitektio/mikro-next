@@ -8,7 +8,6 @@ import xarray as xr
 def test_write_random(deployed_app):
     x = from_array_like(
         xr.DataArray(data=np.random.random((1000, 1000, 10)), dims=["x", "y", "z"]),
-        tags=["test"],
         name="test_random_write",
     )
     assert x.id, "Did not get a random rep"
@@ -25,7 +24,6 @@ def test_write_random(deployed_app):
 def test_get_random(deployed_app):
     x = from_array_like(
         xr.DataArray(data=np.random.random((1000, 1000, 10)), dims=["x", "y", "z"]),
-        tags=["test"],
         name="test_random_write",
     )
     x = get_random_image()

@@ -27,7 +27,6 @@ async def aexecute(
     try:
         rath = rath or current_mikro_next_rath.get()
 
-        print(operation.Arguments(**variables).dict(by_alias=True, exclude_unset=True))
 
         x = await rath.aquery(
             operation.Meta.document,  # type: ignore
@@ -39,10 +38,8 @@ async def aexecute(
                 if value is not None
             },  # type: ignore
         )  # type: ignore
-        print("TRESULT", x)
         return operation(**x.data)
     except Exception as e:
-        print("ERR", e)
         raise e
 
 
