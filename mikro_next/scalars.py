@@ -180,14 +180,12 @@ class FiveDVector(list):
 
     @classmethod
     def __get_validators__(cls):
-        print("VALIDATORS")
         yield cls.validate
 
     @classmethod
     def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
 
-        print(v)
         if isinstance(v, np.ndarray):
             if not v.ndim == 1:
                 raise ValueError("The input array must be a 1D array")
@@ -199,7 +197,6 @@ class FiveDVector(list):
         if not isinstance(v, list):
             v = list(v)
 
-        print(v)
 
         for i in v:
             if not isinstance(i, (int, float)):
