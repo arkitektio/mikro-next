@@ -1,14 +1,14 @@
-mutation CreateEntityMetric($entity: ID!, $metric: ID!, $value: Metric!) {
+mutation CreateEntityMetric($entity: ID!, $metric: ID!, $value: Metric!, $timepoint: DateTime) {
   createEntityMetric(
-    input: { entity: $entity, metric: $metric, value: $value }
+    input: { entity: $entity, metric: $metric, value: $value , timepoint: $timepoint}
   ) {
     ...Entity
   }
 }
 
-mutation CreateRelationMetric($relation: ID!, $metric: ID!, $value: Metric!) {
+mutation CreateRelationMetric($relation: ID!, $metric: ID!, $value: Metric!, $timepoint: DateTime) {
   createRelationMetric(
-    input: { relation: $relation, metric: $metric, value: $value }
+    input: { relation: $relation, metric: $metric, value: $value, timepoint: $timepoint }
   ) {
     ...EntityRelation
   }

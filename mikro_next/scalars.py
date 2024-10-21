@@ -96,6 +96,32 @@ class Micrometers(float):
         return cls(v)
 
 
+class Microliters(float):
+    """A custom scalar to represent a a microliter."""
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v, *info):
+        """Validate the input array and convert it to a xr.DataArray."""
+        return cls(v)
+
+
+class Micrograms(float):
+    """A custom scalar to represent a a microgram."""
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v, *info):
+        """Validate the input array and convert it to a xr.DataArray."""
+        return cls(v)
+
+
 class Milliseconds(float):
     """A custom scalar to represent a micrometer."""
 
@@ -197,7 +223,6 @@ class FiveDVector(list):
         if not isinstance(v, list):
             v = list(v)
 
-
         for i in v:
             if not isinstance(i, (int, float)):
 
@@ -279,7 +304,7 @@ class FourByFourMatrix(list):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v,*info):
+    def validate(cls, v, *info):
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
             assert v.ndim == 2

@@ -9,7 +9,7 @@ from rath.contrib.herre.links.auth import HerreAuthLink
 from fakts import Fakts
 from herre import Herre
 from arkitekt_next.service_registry import Params
-from arkitekt_next.model import Requirement
+from arkitekt_next.base_models import Requirement
 
 from mikro_next.mikro_next import MikroNext
 from mikro_next.rath import MikroNextLinkComposition, MikroNextRath
@@ -24,10 +24,10 @@ from graphql import OperationType
 from herre import Herre
 from fakts import Fakts
 
-from arkitekt_next.model import Manifest
+from arkitekt_next.base_models import Manifest
+
 
 def init_services(service_builder_registry):
-    
 
     try:
         from rekuest_next.links.context import ContextLink

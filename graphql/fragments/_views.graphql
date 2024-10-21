@@ -11,6 +11,21 @@ fragment ChannelView on ChannelView {
   }
 }
 
+fragment SpecimenView on SpecimenView {
+  ...View
+  entity {
+    id
+  }
+}
+
+fragment ProtocolStepView on ProtocolStepView {
+  ...View
+  id
+  step {
+    id
+  }
+}
+
 fragment AffineTransformationView on AffineTransformationView {
   ...View
   id
@@ -52,15 +67,7 @@ fragment OpticsView on OpticsView {
 fragment LabelView on LabelView {
   ...View
   id
-  fluorophore {
-    id
-  }
-  primaryAntibody {
-    id
-  }
-  secondaryAntibody {
-    id
-  }
+  label
 }
 
 fragment ScaleView on ScaleView {

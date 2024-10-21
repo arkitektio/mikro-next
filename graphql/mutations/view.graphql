@@ -25,3 +25,15 @@ mutation CreateRgbView(
     id
   }
 }
+
+mutation CreateLabelView($image: ID!, $label: String!) {
+  createLabelView(input: { image: $image, label: $label }) {
+    ...LabelView
+  }
+}
+
+mutation CreateProtocolStepView($input: ProtocolStepViewInput!) {
+  createProtocolStepView(input: $input) {
+    ...ProtocolStepView
+  }
+}

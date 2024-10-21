@@ -1,20 +1,22 @@
 fragment ProtocolStep on ProtocolStep {
   id
-  mappings {
-    id
-    protocol {
-      id
-      name
-    }
+  name
+  kind
+  expression {
+    label
   }
   description
-  views {
+  forReagent {
     id
-    specimen {
-      id
-    }
-    image {
-      id
-    }
+  }
+  forEntity {
+    id
+  }
+  usedEntity {
+    id
+  }
+  usedReagent {
+    id
   }
 }
+

@@ -27,7 +27,6 @@ async def aexecute(
     try:
         rath = rath or current_mikro_next_rath.get()
 
-
         x = await rath.aquery(
             operation.Meta.document,  # type: ignore
             {

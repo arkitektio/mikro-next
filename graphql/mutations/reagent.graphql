@@ -1,0 +1,5 @@
+mutation CreateReagent($expression:  ID!, $lotId: String!) {
+  createReagent(input: { expression: $expression, lotId: $lotId }) {
+    ...Reagent
+  }
+}

@@ -69,7 +69,7 @@ class ExpressionTrait(BaseModel):
         raise NotImplementedError
 
     def __str__(self):
-        return self.label
+        return getattr(self, "label", super().__str__())
 
 
 class EntityTrait(BaseModel):
@@ -78,7 +78,7 @@ class EntityTrait(BaseModel):
             return IntermediateInstanceRelation(self, other)
         raise NotImplementedError
 
-    def set(self, metric: "LinkedExpressionTrait", value: float):
+    def set(self, metric: "LinkedExpressionTrait", value: float, **kwargs):
         from mikro_next.api.schema import create_entity_metric, ExpressionKind
 
         assert isinstance(
@@ -89,7 +89,16 @@ class EntityTrait(BaseModel):
             "Expression must be a METRIC",
         )
 
-        return create_entity_metric(entity=self, metric=metric, value=value)
+        return create_entity_metric(entity=self, metric=metric, value=value, **kwargs)
+
+    def subject_to(self, **kwargs):
+        from mikro_next.api.schema import (
+            create_protocol_step,
+            ProtocolStepInput,
+            ExpressionKind,
+        )
+
+        return create_protocol_step(input=ProtocolStepInput(entity=self, **kwargs))
 
 
 class EntityRelationTrait(BaseModel):
@@ -123,7 +132,6 @@ class OntologyTrait(BaseModel):
         current_ontology.reset(self._token)
 
 
-
 class GraphTrait(BaseModel):
     _token = None
 
@@ -133,7 +141,6 @@ class GraphTrait(BaseModel):
 
     def __exit__(self, exc_type, exc_value, traceback):
         current_graph.reset(self._token)
-
 
 
 class HasZarrStoreTrait(BaseModel):
@@ -409,7 +416,6 @@ class HasParquetStoreAccesor(BaseModel):
         return self._dataset
 
 
-
 class HasDownloadAccessor(BaseModel):
     _dataset: Any = None
 
@@ -420,7 +426,6 @@ class HasDownloadAccessor(BaseModel):
         return download_file(url, file_name=file_name or key)
 
 
-
 class HasPresignedDownloadAccessor(BaseModel):
     _dataset: Any = None
 
@@ -429,7 +434,6 @@ class HasPresignedDownloadAccessor(BaseModel):
 
         url, key = get_attributes_or_error(self, "presigned_url", "key")
         return download_file(url, file_name=file_name or key)
-
 
 
 class Vector(Protocol):

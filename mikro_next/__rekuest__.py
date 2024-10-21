@@ -37,6 +37,9 @@ def register_structures(structure_reg):
         aget_ontology,
         Entity,
         ROI,
+        Reagent,
+        aget_reagent,
+        SearchReagentsQuery,
         aget_roi,
         aget_entity,
         SearchOntologiesQuery,
@@ -45,9 +48,6 @@ def register_structures(structure_reg):
         RenderedPlot,
         Protocol,
         aget_protocol,
-        Specimen,
-        aget_specimen,
-        SearchSpecimensQuery,
         SearchRoisQuery,
         SearchProtocolsQuery,
         SearchRenderedPlotsQuery,
@@ -84,17 +84,6 @@ def register_structures(structure_reg):
         ashrink=id_shrink,
         scope=PortScope.GLOBAL,
         default_widget=SearchWidget(query=SearchRoisQuery.Meta.document, ward="mikro"),
-    )
-
-    structure_reg.register_as_structure(
-        Specimen,
-        identifier="@mikro/specimen",
-        aexpand=aget_specimen,
-        ashrink=id_shrink,
-        scope=PortScope.GLOBAL,
-        default_widget=SearchWidget(
-            query=SearchSpecimensQuery.Meta.document, ward="mikro"
-        ),
     )
     structure_reg.register_as_structure(
         Stage,
@@ -173,6 +162,16 @@ def register_structures(structure_reg):
         scope=PortScope.GLOBAL,
         default_widget=SearchWidget(
             query=SearchEntitiesQuery.Meta.document, ward="mikro"
+        ),
+    )
+    structure_reg.register_as_structure(
+        Reagent,
+        identifier="@mikro/reagent",
+        aexpand=aget_reagent,
+        ashrink=id_shrink,
+        scope=PortScope.GLOBAL,
+        default_widget=SearchWidget(
+            query=SearchReagentsQuery.Meta.document, ward="mikro"
         ),
     )
 

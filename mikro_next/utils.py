@@ -38,27 +38,27 @@ def e(name, description=None):
     return create_linked_expression(exp)
 
 
-def m(name, data_type, description=None):
+def m(name, metric_kind, description=None):
     from mikro_next.api.schema import create_expression, ExpressionKind, MetricDataType
 
     exp = create_expression(
         label=name,
         ontology=current_ontology.get(),
         kind=ExpressionKind.METRIC,
-        data_kind=data_type,
+        metric_kind=metric_kind,
         description=description,
     )
     return create_linked_expression(exp)
 
 
-def rm(name, data_type, description=None):
+def rm(name, metric_kind, description=None):
     from mikro_next.api.schema import create_expression, ExpressionKind, MetricDataType
 
     exp = create_expression(
         label=name,
         ontology=current_ontology.get(),
         kind=ExpressionKind.RELATION_METRIC,
-        data_kind=data_type,
+        metric_kind=metric_kind,
         description=description,
     )
     return create_linked_expression(exp)
