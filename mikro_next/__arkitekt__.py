@@ -87,6 +87,7 @@ def init_services(service_builder_registry):
         "mikro",
         builder_mikro,
         Requirement(
+            key="mikro",
             service="live.arkitekt.mikro",
             description="An instance of ArkitektNext Mikro to make requests to the user's data",
             optional=True,
@@ -96,6 +97,7 @@ def init_services(service_builder_registry):
         "datalayer",
         fake_builder,
         Requirement(
+            key="datalayer",
             service="live.arkitekt.s3",
             description="An instance of ArkitektNext Datalayer to make requests to the user's data",
             optional=True,
