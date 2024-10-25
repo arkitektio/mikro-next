@@ -31,9 +31,3 @@ mutation CreateLabelView($image: ID!, $label: String!) {
     ...LabelView
   }
 }
-
-mutation CreateProtocolStepView($input: ProtocolStepViewInput!) {
-  createProtocolStepView(input: $input) {
-    ...ProtocolStepView
-  }
-}

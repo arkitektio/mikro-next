@@ -1,4 +1,12 @@
 fragment View on View {
+  xMin
+  xMax
+  yMin
+  yMax
+  tMin
+  tMax
+  cMin
+  cMax
   zMin
   zMax
 }
@@ -11,18 +19,31 @@ fragment ChannelView on ChannelView {
   }
 }
 
-fragment SpecimenView on SpecimenView {
+fragment DerivedView on DerivedView {
   ...View
-  entity {
+  id
+  originImage {
     id
+    name
   }
 }
 
-fragment ProtocolStepView on ProtocolStepView {
+fragment ROIView on ROIView {
   ...View
   id
-  step {
+  roi {
     id
+    name
+  }
+}
+
+fragment FileView on FileView {
+  ...View
+  id
+  seriesIdentifier
+  file {
+    id
+    name
   }
 }
 
@@ -32,7 +53,46 @@ fragment AffineTransformationView on AffineTransformationView {
   affineMatrix
   stage {
     id
+    name
   }
+}
+
+fragment RGBView on RGBView {
+  ...View
+  id
+  contexts {
+    id
+    name
+  }
+  name
+  image {
+    id
+    store {
+      ...ZarrStore
+    }
+    derivedScaleViews {
+      id
+      image {
+        id
+        store {
+          ...ZarrStore
+        }
+      }
+      scaleX
+      scaleY
+      scaleZ
+      scaleT
+      scaleC
+    }
+  }
+  colorMap
+  contrastLimitMin
+  contrastLimitMax
+  gamma
+  rescale
+  active
+  fullColour
+  baseColor
 }
 
 fragment TimepointView on TimepointView {
@@ -47,6 +107,7 @@ fragment TimepointView on TimepointView {
 
 fragment OpticsView on OpticsView {
   ...View
+  id
   objective {
     id
     name
@@ -70,27 +131,43 @@ fragment LabelView on LabelView {
   label
 }
 
-fragment ScaleView on ScaleView {
+fragment SpecimenView on SpecimenView {
   ...View
   id
-  scaleX
-  scaleY
-  scaleZ
-  scaleT
-  scaleC
+  entity {
+    id
+    linkedExpression {
+      label
+    }
+    label
+  }
 }
 
-fragment RGBView on RGBView {
+fragment AcquisitionView on AcquisitionView {
   ...View
   id
-  colorMap
-  contrastLimitMin
-  contrastLimitMax
-  gamma
-  rescale
-  active
-  cMin
-  cMax
-  fullColour
-  baseColor
+  description
+  acquiredAt
+  operator {
+    sub
+  }
+}
+
+fragment WellPositionView on WellPositionView {
+  ...View
+  id
+  column
+  row
+  well {
+    id
+    rows
+    columns
+    name
+  }
+}
+
+fragment ContinousScanView on ContinousScanView {
+  ...View
+  id
+  direction
 }

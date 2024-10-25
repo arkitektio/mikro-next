@@ -1,7 +1,6 @@
 mutation from_array_like(
   $array: ArrayLike!
   $name: String!
-  $origins: [ID!]
   $channelViews: [PartialChannelViewInput!]
   $transformationViews: [PartialAffineTransformationViewInput!]
   $pixelViews: [PartialPixelViewInput!]
@@ -11,15 +10,15 @@ mutation from_array_like(
   $opticsViews: [PartialOpticsViewInput!]
   $specimenViews: [PartialSpecimenViewInput!]
   $scaleViews: [PartialScaleViewInput!]
+  $roiViews: [PartialROIViewInput!]
+  $fileViews: [PartialFileViewInput!]
+  $derivedViews: [PartialDerivedViewInput!]
   $tags: [String!]
-  $fileOrigins: [ID!]
-  $roiOrigins: [ID!]
 ) {
   fromArrayLike(
     input: {
       array: $array
       name: $name
-      origins: $origins
       channelViews: $channelViews
       transformationViews: $transformationViews
       acquisitionViews: $acquisitionViews
@@ -29,9 +28,10 @@ mutation from_array_like(
       rgbViews: $rgbViews
       scaleViews: $scaleViews
       tags: $tags
-      fileOrigins: $fileOrigins
-      roiOrigins: $roiOrigins
       specimenViews: $specimenViews
+      derivedViews: $derivedViews
+      roiViews: $roiViews
+      fileViews: $fileViews
     }
   ) {
     ...Image

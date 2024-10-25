@@ -1,7 +1,4 @@
 fragment Image on Image {
-  origins {
-    id
-  }
   id
   name
   store {
@@ -13,26 +10,15 @@ fragment Image on Image {
     ...LabelView
     ...TimepointView
     ...OpticsView
-    ...ScaleView
+    ...AcquisitionView
+    ...RGBView
+    ...WellPositionView
     ...SpecimenView
+    ...DerivedView
+    ...ROIView
+    ...FileView
+    ...ContinousScanView
   }
-  specimenViews {
-    id
-    entity {
-      id
-    }
-  }
-  derivedScaleViews {
-    ...ScaleView
-    image {
-      name
-      store {
-        ...ZarrStore
-      }
-    }
-  }
-
-
   rgbContexts {
     id
     name

@@ -1,22 +1,16 @@
 fragment ProtocolStep on ProtocolStep {
   id
-  name
-  kind
-  expression {
-    label
+  template {
+    id
+    name
   }
-  description
+
+  reagentMappings {
+    reagent {
+      id
+    }
+  }
   forReagent {
     id
   }
-  forEntity {
-    id
-  }
-  usedEntity {
-    id
-  }
-  usedReagent {
-    id
-  }
 }
-
