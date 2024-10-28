@@ -19,6 +19,9 @@ fragment Image on Image {
     ...FileView
     ...ContinousScanView
   }
+  pixelViews {
+    ...PixelView
+  }
   rgbContexts {
     id
     name

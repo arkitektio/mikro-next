@@ -171,3 +171,8 @@ fragment ContinousScanView on ContinousScanView {
   id
   direction
 }
+
+fragment PixelView on PixelView {
+  ...View
+  id
+}

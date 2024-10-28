@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from fakts.fakts import Fakts
+from fakts_next.fakts import Fakts
 from mikro_next.datalayer import DataLayer
 from pydantic import BaseModel
 

@@ -1,35 +1,35 @@
-from typing import Tuple, Literal, List, Union, Any, Iterator, Optional, AsyncIterator
-from mikro_next.funcs import asubscribe, subscribe, aexecute, execute
 from mikro_next.traits import (
-    OntologyTrait,
+    LinkedExpressionTrait,
+    ExpressionTrait,
+    HasPresignedDownloadAccessor,
+    EntityTrait,
+    HasZarrStoreAccessor,
+    HasDownloadAccessor,
     GraphTrait,
+    EntityRelationTrait,
+    HasParquetStoreAccesor,
+    HasParquestStoreTrait,
+    OntologyTrait,
     HasZarrStoreTrait,
     IsVectorizableTrait,
-    HasZarrStoreAccessor,
-    EntityTrait,
-    EntityRelationTrait,
-    LinkedExpressionTrait,
-    HasPresignedDownloadAccessor,
-    HasParquestStoreTrait,
-    HasParquetStoreAccesor,
-    HasDownloadAccessor,
-    ExpressionTrait,
 )
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Union, Iterator, Optional, Literal, AsyncIterator, List, Tuple, Any
+from mikro_next.funcs import execute, aexecute, asubscribe, subscribe
 from mikro_next.scalars import (
-    Upload,
-    FourByFourMatrix,
-    FiveDVector,
     FileLike,
     Milliseconds,
+    FourByFourMatrix,
     ArrayLike,
-    ParquetLike,
+    Upload,
+    FiveDVector,
     Micrometers,
+    ParquetLike,
 )
-from enum import Enum
-from datetime import datetime
 from mikro_next.rath import MikroNextRath
+from enum import Enum
 from rath.scalars import ID
+from datetime import datetime
 
 
 class ExpressionKind(str, Enum):
@@ -632,6 +632,26 @@ class TreeNodeInput(BaseModel):
     )
 
 
+class PartialLabelAccessorInput(BaseModel):
+    keys: Tuple[str, ...]
+    min_index: Optional[int] = Field(alias="minIndex", default=None)
+    max_index: Optional[int] = Field(alias="maxIndex", default=None)
+    pixel_view: ID = Field(alias="pixelView")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class PartialImageAccessorInput(BaseModel):
+    keys: Tuple[str, ...]
+    min_index: Optional[int] = Field(alias="minIndex", default=None)
+    max_index: Optional[int] = Field(alias="maxIndex", default=None)
+    image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
 class OverlayInput(BaseModel):
     object: str
     identifier: str
@@ -1019,6 +1039,14 @@ class ContinousScanView(ViewBase, BaseModel):
     )
     id: ID
     direction: ScanDirection
+    model_config = ConfigDict(frozen=True)
+
+
+class PixelView(ViewBase, BaseModel):
+    typename: Optional[Literal["PixelView"]] = Field(
+        alias="__typename", default="PixelView", exclude=True
+    )
+    id: ID
     model_config = ConfigDict(frozen=True)
 
 
@@ -1552,6 +1580,7 @@ class Image(HasZarrStoreTrait, BaseModel):
         ],
         ...,
     ]
+    pixel_views: Tuple[PixelView, ...] = Field(alias="pixelViews")
     rgb_contexts: Tuple[ImageRgbcontexts, ...] = Field(alias="rgbContexts")
     model_config = ConfigDict(frozen=True)
 
@@ -1780,9 +1809,15 @@ class From_parquet_likeMutation(BaseModel):
         name: str
         origins: Optional[List[ID]] = Field(default=None)
         dataset: Optional[ID] = Field(default=None)
+        label_accessors: Optional[List[PartialLabelAccessorInput]] = Field(
+            alias="labelAccessors", default=None
+        )
+        image_accessors: Optional[List[PartialImageAccessorInput]] = Field(
+            alias="imageAccessors", default=None
+        )
 
     class Meta:
-        document = "fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment Table on Table {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n  }\n}\n\nmutation from_parquet_like($dataframe: ParquetLike!, $name: String!, $origins: [ID!], $dataset: ID) {\n  fromParquetLike(\n    input: {dataframe: $dataframe, name: $name, origins: $origins, dataset: $dataset}\n  ) {\n    ...Table\n  }\n}"
+        document = "fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment Table on Table {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n  }\n}\n\nmutation from_parquet_like($dataframe: ParquetLike!, $name: String!, $origins: [ID!], $dataset: ID, $labelAccessors: [PartialLabelAccessorInput!], $imageAccessors: [PartialImageAccessorInput!]) {\n  fromParquetLike(\n    input: {dataframe: $dataframe, name: $name, origins: $origins, dataset: $dataset, labelAccessors: $labelAccessors, imageAccessors: $imageAccessors}\n  ) {\n    ...Table\n  }\n}"
 
 
 class RequestTableUploadMutation(BaseModel):
@@ -2193,7 +2228,7 @@ class From_array_likeMutation(BaseModel):
         tags: Optional[List[str]] = Field(default=None)
 
     class Meta:
-        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment SpecimenView on SpecimenView {\n  ...View\n  id\n  entity {\n    id\n    linkedExpression {\n      label\n    }\n    label\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...SpecimenView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $specimenViews: [PartialSpecimenViewInput!], $scaleViews: [PartialScaleViewInput!], $roiViews: [PartialROIViewInput!], $fileViews: [PartialFileViewInput!], $derivedViews: [PartialDerivedViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, specimenViews: $specimenViews, derivedViews: $derivedViews, roiViews: $roiViews, fileViews: $fileViews}\n  ) {\n    ...Image\n  }\n}"
+        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment SpecimenView on SpecimenView {\n  ...View\n  id\n  entity {\n    id\n    linkedExpression {\n      label\n    }\n    label\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...SpecimenView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  pixelViews {\n    ...PixelView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $specimenViews: [PartialSpecimenViewInput!], $scaleViews: [PartialScaleViewInput!], $roiViews: [PartialROIViewInput!], $fileViews: [PartialFileViewInput!], $derivedViews: [PartialDerivedViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, specimenViews: $specimenViews, derivedViews: $derivedViews, roiViews: $roiViews, fileViews: $fileViews}\n  ) {\n    ...Image\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -2752,7 +2787,7 @@ class GetImageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment SpecimenView on SpecimenView {\n  ...View\n  id\n  entity {\n    id\n    linkedExpression {\n      label\n    }\n    label\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...SpecimenView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
+        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment SpecimenView on SpecimenView {\n  ...View\n  id\n  entity {\n    id\n    linkedExpression {\n      label\n    }\n    label\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...SpecimenView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  pixelViews {\n    ...PixelView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -2762,7 +2797,7 @@ class GetRandomImageQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment SpecimenView on SpecimenView {\n  ...View\n  id\n  entity {\n    id\n    linkedExpression {\n      label\n    }\n    label\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...SpecimenView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment SpecimenView on SpecimenView {\n  ...View\n  id\n  entity {\n    id\n    linkedExpression {\n      label\n    }\n    label\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...SpecimenView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  pixelViews {\n    ...PixelView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
@@ -2793,7 +2828,7 @@ class ImagesQuery(BaseModel):
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
 
     class Meta:
-        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment SpecimenView on SpecimenView {\n  ...View\n  id\n  entity {\n    id\n    linkedExpression {\n      label\n    }\n    label\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...SpecimenView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
+        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment SpecimenView on SpecimenView {\n  ...View\n  id\n  entity {\n    id\n    linkedExpression {\n      label\n    }\n    label\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...SpecimenView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  pixelViews {\n    ...PixelView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
 
 
 class GetEntityQuery(BaseModel):
@@ -2974,7 +3009,7 @@ class WatchImagesSubscription(BaseModel):
         dataset: Optional[ID] = Field(default=None)
 
     class Meta:
-        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment SpecimenView on SpecimenView {\n  ...View\n  id\n  entity {\n    id\n    linkedExpression {\n      label\n    }\n    label\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...SpecimenView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
+        document = "fragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment SpecimenView on SpecimenView {\n  ...View\n  id\n  entity {\n    id\n    linkedExpression {\n      label\n    }\n    label\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...SpecimenView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  pixelViews {\n    ...PixelView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):
@@ -3240,6 +3275,8 @@ async def afrom_parquet_like(
     name: str,
     origins: Optional[List[ID]] = None,
     dataset: Optional[ID] = None,
+    label_accessors: Optional[List[PartialLabelAccessorInput]] = None,
+    image_accessors: Optional[List[PartialImageAccessorInput]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> Table:
     """from_parquet_like
@@ -3251,6 +3288,8 @@ async def afrom_parquet_like(
         name (str): name
         origins (Optional[List[ID]], optional): origins.
         dataset (Optional[ID], optional): dataset.
+        label_accessors (Optional[List[PartialLabelAccessorInput]], optional): labelAccessors.
+        image_accessors (Optional[List[PartialImageAccessorInput]], optional): imageAccessors.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -3263,6 +3302,8 @@ async def afrom_parquet_like(
                 "name": name,
                 "origins": origins,
                 "dataset": dataset,
+                "labelAccessors": label_accessors,
+                "imageAccessors": image_accessors,
             },
             rath=rath,
         )
@@ -3274,6 +3315,8 @@ def from_parquet_like(
     name: str,
     origins: Optional[List[ID]] = None,
     dataset: Optional[ID] = None,
+    label_accessors: Optional[List[PartialLabelAccessorInput]] = None,
+    image_accessors: Optional[List[PartialImageAccessorInput]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> Table:
     """from_parquet_like
@@ -3285,13 +3328,22 @@ def from_parquet_like(
         name (str): name
         origins (Optional[List[ID]], optional): origins.
         dataset (Optional[ID], optional): dataset.
+        label_accessors (Optional[List[PartialLabelAccessorInput]], optional): labelAccessors.
+        image_accessors (Optional[List[PartialImageAccessorInput]], optional): imageAccessors.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         Table"""
     return execute(
         From_parquet_likeMutation,
-        {"dataframe": dataframe, "name": name, "origins": origins, "dataset": dataset},
+        {
+            "dataframe": dataframe,
+            "name": name,
+            "origins": origins,
+            "dataset": dataset,
+            "labelAccessors": label_accessors,
+            "imageAccessors": image_accessors,
+        },
         rath=rath,
     ).from_parquet_like
 

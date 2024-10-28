@@ -2,27 +2,24 @@ from pydantic import Field
 from rath.links.file import FileExtraction
 from rath.links.dictinglink import DictingLink
 from rath.links.auth import AuthTokenLink
-from rath.contrib.fakts.links.aiohttp import FaktsAIOHttpLink
 from rath.links.split import SplitLink
-from rath.contrib.fakts.links.graphql_ws import FaktsGraphQLWSLink
-from rath.contrib.herre.links.auth import HerreAuthLink
-from fakts import Fakts
-from herre import Herre
+from fakts_next import Fakts
+from herre_next import Herre
 from arkitekt_next.service_registry import Params
 from arkitekt_next.base_models import Requirement
 
 from mikro_next.mikro_next import MikroNext
 from mikro_next.rath import MikroNextLinkComposition, MikroNextRath
 from rath.links.split import SplitLink
-from rath.contrib.fakts.links.aiohttp import FaktsAIOHttpLink
-from rath.contrib.fakts.links.graphql_ws import FaktsGraphQLWSLink
-from rath.contrib.herre.links.auth import HerreAuthLink
+from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
+from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
+from herre_next.contrib.rath.auth_link import HerreAuthLink
 from mikro_next.contrib.fakts.datalayer import FaktsDataLayer
 from mikro_next.links.upload import UploadLink
 from mikro_next.datalayer import DataLayer
 from graphql import OperationType
-from herre import Herre
-from fakts import Fakts
+from herre_next import Herre
+from fakts_next import Fakts
 
 from arkitekt_next.base_models import Manifest
 

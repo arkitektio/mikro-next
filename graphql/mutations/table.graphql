@@ -3,6 +3,8 @@ mutation from_parquet_like(
   $name: String!
   $origins: [ID!]
   $dataset: ID
+  $labelAccessors: [PartialLabelAccessorInput!]
+  $imageAccessors: [PartialImageAccessorInput!]
 ) {
   fromParquetLike(
     input: {
@@ -10,6 +12,8 @@ mutation from_parquet_like(
       name: $name
       origins: $origins
       dataset: $dataset
+      labelAccessors: $labelAccessors
+      imageAccessors: $imageAccessors
     }
   ) {
     ...Table
