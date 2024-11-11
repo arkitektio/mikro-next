@@ -1,7 +1,0 @@
-fragment Reagent on Reagent {
-  id
-  expression {
-    id
-  }
-  lotId
-}

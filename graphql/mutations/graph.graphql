@@ -1,5 +1,0 @@
-mutation CreateGraph($name: String!) {
-  createGraph(input: { name: $name }) {
-    ...Graph
-  }
-}

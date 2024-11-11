@@ -8,7 +8,7 @@ mutation from_array_like(
   $acquisitionViews: [PartialAcquisitionViewInput!]
   $timepointViews: [PartialTimepointViewInput!]
   $opticsViews: [PartialOpticsViewInput!]
-  $specimenViews: [PartialSpecimenViewInput!]
+  $structureViews: [PartialStructureViewInput!]
   $scaleViews: [PartialScaleViewInput!]
   $roiViews: [PartialROIViewInput!]
   $fileViews: [PartialFileViewInput!]
@@ -28,7 +28,7 @@ mutation from_array_like(
       rgbViews: $rgbViews
       scaleViews: $scaleViews
       tags: $tags
-      specimenViews: $specimenViews
+      structureViews: $structureViews
       derivedViews: $derivedViews
       roiViews: $roiViews
       fileViews: $fileViews

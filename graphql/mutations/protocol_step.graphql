@@ -1,5 +1,0 @@
-mutation CreateProtocolStep($input: ProtocolStepInput!) {
-  createProtocolStep(input: $input) {
-    ...ProtocolStep
-  }
-}

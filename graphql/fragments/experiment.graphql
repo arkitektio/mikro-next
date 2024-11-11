@@ -1,5 +1,0 @@
-fragment Experiment on Experiment {
-  id
-  name
-  description
-}

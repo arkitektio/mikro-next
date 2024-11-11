@@ -1,8 +1,0 @@
-fragment Entity on Entity {
-  id
-  label
-  linkedExpression {
-    id
-    label
-  }
-}

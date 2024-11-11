@@ -1,8 +1,0 @@
-fragment Expression on Expression {
-  id
-  label
-  ontology {
-    id
-    name
-  }
-}
