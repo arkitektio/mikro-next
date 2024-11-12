@@ -5,7 +5,7 @@ from .rath import MikroNextRath, current_mikro_next_rath
 from koil.helpers import unkoil, unkoil_gen
 from typing import Optional, Protocol, Type, Dict, Any, TypeVar, Iterator, AsyncIterator
 from pydantic import BaseModel
-
+import json
 
 class MetaProtocol(Protocol):
     document: str
@@ -37,7 +37,10 @@ async def aexecute(
                 if value is not None
             },  # type: ignore
         )  # type: ignore
-        return operation(**x.data)
+        try:
+            return operation(**x.data)
+        except Exception as e:
+            raise Exception(f"Error serializing return from data: {json.dumps(x.data, indent=4)}") from e
     except Exception as e:
         raise e
 

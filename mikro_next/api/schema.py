@@ -1,29 +1,38 @@
-from mikro_next.rath import MikroNextRath
 from mikro_next.scalars import (
-    Upload,
     Milliseconds,
-    ParquetLike,
-    FourByFourMatrix,
-    ArrayLike,
-    FileLike,
-    Micrometers,
     FiveDVector,
+    Upload,
+    FileLike,
+    FourByFourMatrix,
+    ParquetLike,
+    ArrayLike,
+    Micrometers,
 )
-from typing import Tuple, Iterator, Literal, Union, Optional, AsyncIterator, List
-from pydantic import ConfigDict, BaseModel, Field
-from mikro_next.traits import (
-    HasZarrStoreTrait,
-    HasPresignedDownloadAccessor,
-    HasParquestStoreTrait,
-    IsVectorizableTrait,
-    HasDownloadAccessor,
-    HasParquetStoreAccesor,
-    HasZarrStoreAccessor,
+from typing import (
+    List,
+    AsyncIterator,
+    Literal,
+    Union,
+    Annotated,
+    Optional,
+    Iterator,
+    Tuple,
 )
-from mikro_next.funcs import subscribe, aexecute, asubscribe, execute
-from enum import Enum
-from rath.scalars import ID
 from datetime import datetime
+from mikro_next.traits import (
+    HasDownloadAccessor,
+    HasParquestStoreTrait,
+    HasParquetStoreAccesor,
+    HasZarrStoreTrait,
+    HasZarrStoreAccessor,
+    HasPresignedDownloadAccessor,
+    IsVectorizableTrait,
+)
+from rath.scalars import ID
+from mikro_next.funcs import asubscribe, execute, aexecute, subscribe
+from mikro_next.rath import MikroNextRath
+from enum import Enum
+from pydantic import Field, ConfigDict, BaseModel
 
 
 class RoiKind(str, Enum):
@@ -655,17 +664,329 @@ class ViewBase(BaseModel):
     z_max: Optional[int] = Field(default=None, alias="zMax")
 
 
-class ChannelView(ViewBase, BaseModel):
-    typename: Optional[Literal["ChannelView"]] = Field(
+class ViewCatch(ViewBase):
+    typename: str = Field(alias="__typename", exclude=True)
+    x_min: Optional[int] = Field(default=None, alias="xMin")
+    x_max: Optional[int] = Field(default=None, alias="xMax")
+    y_min: Optional[int] = Field(default=None, alias="yMin")
+    y_max: Optional[int] = Field(default=None, alias="yMax")
+    t_min: Optional[int] = Field(default=None, alias="tMin")
+    t_max: Optional[int] = Field(default=None, alias="tMax")
+    c_min: Optional[int] = Field(default=None, alias="cMin")
+    c_max: Optional[int] = Field(default=None, alias="cMax")
+    z_min: Optional[int] = Field(default=None, alias="zMin")
+    z_max: Optional[int] = Field(default=None, alias="zMax")
+
+
+class ViewFileView(ViewBase, BaseModel):
+    typename: Literal["FileView"] = Field(
+        alias="__typename", default="FileView", exclude=True
+    )
+
+
+class ViewAffineTransformationView(ViewBase, BaseModel):
+    typename: Literal["AffineTransformationView"] = Field(
+        alias="__typename", default="AffineTransformationView", exclude=True
+    )
+
+
+class ViewLabelView(ViewBase, BaseModel):
+    typename: Literal["LabelView"] = Field(
+        alias="__typename", default="LabelView", exclude=True
+    )
+
+
+class ViewChannelView(ViewBase, BaseModel):
+    typename: Literal["ChannelView"] = Field(
         alias="__typename", default="ChannelView", exclude=True
     )
+
+
+class ViewTimepointView(ViewBase, BaseModel):
+    typename: Literal["TimepointView"] = Field(
+        alias="__typename", default="TimepointView", exclude=True
+    )
+
+
+class ViewOpticsView(ViewBase, BaseModel):
+    typename: Literal["OpticsView"] = Field(
+        alias="__typename", default="OpticsView", exclude=True
+    )
+
+
+class ViewStructureView(ViewBase, BaseModel):
+    typename: Literal["StructureView"] = Field(
+        alias="__typename", default="StructureView", exclude=True
+    )
+
+
+class ViewScaleView(ViewBase, BaseModel):
+    typename: Literal["ScaleView"] = Field(
+        alias="__typename", default="ScaleView", exclude=True
+    )
+
+
+class ViewDerivedView(ViewBase, BaseModel):
+    typename: Literal["DerivedView"] = Field(
+        alias="__typename", default="DerivedView", exclude=True
+    )
+
+
+class ViewROIView(ViewBase, BaseModel):
+    typename: Literal["ROIView"] = Field(
+        alias="__typename", default="ROIView", exclude=True
+    )
+
+
+class ViewPixelView(ViewBase, BaseModel):
+    typename: Literal["PixelView"] = Field(
+        alias="__typename", default="PixelView", exclude=True
+    )
+
+
+class ViewRGBView(ViewBase, BaseModel):
+    typename: Literal["RGBView"] = Field(
+        alias="__typename", default="RGBView", exclude=True
+    )
+
+
+class ViewContinousScanView(ViewBase, BaseModel):
+    typename: Literal["ContinousScanView"] = Field(
+        alias="__typename", default="ContinousScanView", exclude=True
+    )
+
+
+class ViewWellPositionView(ViewBase, BaseModel):
+    typename: Literal["WellPositionView"] = Field(
+        alias="__typename", default="WellPositionView", exclude=True
+    )
+
+
+class ViewAcquisitionView(ViewBase, BaseModel):
+    typename: Literal["AcquisitionView"] = Field(
+        alias="__typename", default="AcquisitionView", exclude=True
+    )
+
+
+class Camera(BaseModel):
+    typename: Literal["Camera"] = Field(
+        alias="__typename", default="Camera", exclude=True
+    )
+    sensor_size_x: Optional[int] = Field(default=None, alias="sensorSizeX")
+    sensor_size_y: Optional[int] = Field(default=None, alias="sensorSizeY")
+    pixel_size_x: Optional[Micrometers] = Field(default=None, alias="pixelSizeX")
+    pixel_size_y: Optional[Micrometers] = Field(default=None, alias="pixelSizeY")
+    name: str
+    serial_number: str = Field(alias="serialNumber")
+    model_config = ConfigDict(frozen=True)
+
+
+class RenderedPlotStore(HasPresignedDownloadAccessor, BaseModel):
+    typename: Literal["MediaStore"] = Field(
+        alias="__typename", default="MediaStore", exclude=True
+    )
     id: ID
-    channel: "Channel"
+    key: str
+    model_config = ConfigDict(frozen=True)
+
+
+class RenderedPlot(BaseModel):
+    typename: Literal["RenderedPlot"] = Field(
+        alias="__typename", default="RenderedPlot", exclude=True
+    )
+    id: ID
+    store: RenderedPlotStore
+    model_config = ConfigDict(frozen=True)
+
+
+class ListRenderedPlotStore(HasPresignedDownloadAccessor, BaseModel):
+    typename: Literal["MediaStore"] = Field(
+        alias="__typename", default="MediaStore", exclude=True
+    )
+    id: ID
+    key: str
+    model_config = ConfigDict(frozen=True)
+
+
+class ListRenderedPlot(BaseModel):
+    typename: Literal["RenderedPlot"] = Field(
+        alias="__typename", default="RenderedPlot", exclude=True
+    )
+    id: ID
+    store: ListRenderedPlotStore
+    model_config = ConfigDict(frozen=True)
+
+
+class Credentials(BaseModel):
+    typename: Literal["Credentials"] = Field(
+        alias="__typename", default="Credentials", exclude=True
+    )
+    access_key: str = Field(alias="accessKey")
+    status: str
+    secret_key: str = Field(alias="secretKey")
+    bucket: str
+    key: str
+    session_token: str = Field(alias="sessionToken")
+    store: str
+    model_config = ConfigDict(frozen=True)
+
+
+class AccessCredentials(BaseModel):
+    typename: Literal["AccessCredentials"] = Field(
+        alias="__typename", default="AccessCredentials", exclude=True
+    )
+    access_key: str = Field(alias="accessKey")
+    secret_key: str = Field(alias="secretKey")
+    bucket: str
+    key: str
+    session_token: str = Field(alias="sessionToken")
+    path: str
+    model_config = ConfigDict(frozen=True)
+
+
+class Stage(BaseModel):
+    typename: Literal["Stage"] = Field(
+        alias="__typename", default="Stage", exclude=True
+    )
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+
+class ROIImage(HasZarrStoreTrait, BaseModel):
+    typename: Literal["Image"] = Field(
+        alias="__typename", default="Image", exclude=True
+    )
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+
+class ROI(IsVectorizableTrait, BaseModel):
+    typename: Literal["ROI"] = Field(alias="__typename", default="ROI", exclude=True)
+    id: ID
+    image: ROIImage
+    vectors: Tuple[FiveDVector, ...]
+    kind: RoiKind
+    model_config = ConfigDict(frozen=True)
+
+
+class Objective(BaseModel):
+    typename: Literal["Objective"] = Field(
+        alias="__typename", default="Objective", exclude=True
+    )
+    id: ID
+    na: Optional[float] = Field(default=None)
+    name: str
+    serial_number: str = Field(alias="serialNumber")
+    model_config = ConfigDict(frozen=True)
+
+
+class HistoryStuffApp(BaseModel):
+    """An app."""
+
+    typename: Literal["App"] = Field(alias="__typename", default="App", exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+
+class HistoryStuff(BaseModel):
+    typename: Literal["History"] = Field(
+        alias="__typename", default="History", exclude=True
+    )
+    id: ID
+    app: Optional[HistoryStuffApp] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+
+class Instrument(BaseModel):
+    typename: Literal["Instrument"] = Field(
+        alias="__typename", default="Instrument", exclude=True
+    )
+    id: ID
+    model: Optional[str] = Field(default=None)
+    name: str
+    serial_number: str = Field(alias="serialNumber")
+    model_config = ConfigDict(frozen=True)
+
+
+class Era(BaseModel):
+    typename: Literal["Era"] = Field(alias="__typename", default="Era", exclude=True)
+    id: ID
+    begin: Optional[datetime] = Field(default=None)
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+
+class SnapshotStore(HasPresignedDownloadAccessor, BaseModel):
+    typename: Literal["MediaStore"] = Field(
+        alias="__typename", default="MediaStore", exclude=True
+    )
+    key: str
+    presigned_url: str = Field(alias="presignedUrl")
+    model_config = ConfigDict(frozen=True)
+
+
+class Snapshot(BaseModel):
+    typename: Literal["Snapshot"] = Field(
+        alias="__typename", default="Snapshot", exclude=True
+    )
+    id: ID
+    store: SnapshotStore
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+
+class ZarrStore(HasZarrStoreAccessor, BaseModel):
+    typename: Literal["ZarrStore"] = Field(
+        alias="__typename", default="ZarrStore", exclude=True
+    )
+    id: ID
+    key: str
+    "The key where the data is stored."
+    bucket: str
+    "The bucket where the data is stored."
+    path: Optional[str] = Field(default=None)
+    "The path to the data. Relative to the bucket."
+    model_config = ConfigDict(frozen=True)
+
+
+class ParquetStore(HasParquetStoreAccesor, BaseModel):
+    typename: Literal["ParquetStore"] = Field(
+        alias="__typename", default="ParquetStore", exclude=True
+    )
+    id: ID
+    key: str
+    bucket: str
+    path: str
+    model_config = ConfigDict(frozen=True)
+
+
+class BigFileStore(HasDownloadAccessor, BaseModel):
+    typename: Literal["BigFileStore"] = Field(
+        alias="__typename", default="BigFileStore", exclude=True
+    )
+    id: ID
+    key: str
+    bucket: str
+    path: str
+    presigned_url: str = Field(alias="presignedUrl")
+    model_config = ConfigDict(frozen=True)
+
+
+class Channel(BaseModel):
+    typename: Literal["Channel"] = Field(
+        alias="__typename", default="Channel", exclude=True
+    )
+    id: ID
+    name: str
+    excitation_wavelength: Optional[float] = Field(
+        default=None, alias="excitationWavelength"
+    )
     model_config = ConfigDict(frozen=True)
 
 
 class DerivedViewOriginimage(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(
+    typename: Literal["Image"] = Field(
         alias="__typename", default="Image", exclude=True
     )
     id: ID
@@ -673,8 +994,8 @@ class DerivedViewOriginimage(HasZarrStoreTrait, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class DerivedView(ViewBase, BaseModel):
-    typename: Optional[Literal["DerivedView"]] = Field(
+class DerivedView(ViewDerivedView, BaseModel):
+    typename: Literal["DerivedView"] = Field(
         alias="__typename", default="DerivedView", exclude=True
     )
     id: ID
@@ -683,16 +1004,14 @@ class DerivedView(ViewBase, BaseModel):
 
 
 class ROIViewRoi(IsVectorizableTrait, BaseModel):
-    typename: Optional[Literal["ROI"]] = Field(
-        alias="__typename", default="ROI", exclude=True
-    )
+    typename: Literal["ROI"] = Field(alias="__typename", default="ROI", exclude=True)
     id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
 
-class ROIView(ViewBase, BaseModel):
-    typename: Optional[Literal["ROIView"]] = Field(
+class ROIView(ViewROIView, BaseModel):
+    typename: Literal["ROIView"] = Field(
         alias="__typename", default="ROIView", exclude=True
     )
     id: ID
@@ -701,16 +1020,14 @@ class ROIView(ViewBase, BaseModel):
 
 
 class FileViewFile(BaseModel):
-    typename: Optional[Literal["File"]] = Field(
-        alias="__typename", default="File", exclude=True
-    )
+    typename: Literal["File"] = Field(alias="__typename", default="File", exclude=True)
     id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
 
-class FileView(ViewBase, BaseModel):
-    typename: Optional[Literal["FileView"]] = Field(
+class FileView(ViewFileView, BaseModel):
+    typename: Literal["FileView"] = Field(
         alias="__typename", default="FileView", exclude=True
     )
     id: ID
@@ -720,7 +1037,7 @@ class FileView(ViewBase, BaseModel):
 
 
 class AffineTransformationViewStage(BaseModel):
-    typename: Optional[Literal["Stage"]] = Field(
+    typename: Literal["Stage"] = Field(
         alias="__typename", default="Stage", exclude=True
     )
     id: ID
@@ -728,8 +1045,8 @@ class AffineTransformationViewStage(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class AffineTransformationView(ViewBase, BaseModel):
-    typename: Optional[Literal["AffineTransformationView"]] = Field(
+class AffineTransformationView(ViewAffineTransformationView, BaseModel):
+    typename: Literal["AffineTransformationView"] = Field(
         alias="__typename", default="AffineTransformationView", exclude=True
     )
     id: ID
@@ -738,8 +1055,146 @@ class AffineTransformationView(ViewBase, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
+class OpticsViewObjective(BaseModel):
+    typename: Literal["Objective"] = Field(
+        alias="__typename", default="Objective", exclude=True
+    )
+    id: ID
+    name: str
+    serial_number: str = Field(alias="serialNumber")
+    model_config = ConfigDict(frozen=True)
+
+
+class OpticsViewCamera(BaseModel):
+    typename: Literal["Camera"] = Field(
+        alias="__typename", default="Camera", exclude=True
+    )
+    id: ID
+    name: str
+    serial_number: str = Field(alias="serialNumber")
+    model_config = ConfigDict(frozen=True)
+
+
+class OpticsViewInstrument(BaseModel):
+    typename: Literal["Instrument"] = Field(
+        alias="__typename", default="Instrument", exclude=True
+    )
+    id: ID
+    name: str
+    serial_number: str = Field(alias="serialNumber")
+    model_config = ConfigDict(frozen=True)
+
+
+class OpticsView(ViewOpticsView, BaseModel):
+    typename: Literal["OpticsView"] = Field(
+        alias="__typename", default="OpticsView", exclude=True
+    )
+    id: ID
+    objective: Optional[OpticsViewObjective] = Field(default=None)
+    camera: Optional[OpticsViewCamera] = Field(default=None)
+    instrument: Optional[OpticsViewInstrument] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+
+class LabelView(ViewLabelView, BaseModel):
+    typename: Literal["LabelView"] = Field(
+        alias="__typename", default="LabelView", exclude=True
+    )
+    id: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+
+class StructureView(ViewStructureView, BaseModel):
+    typename: Literal["StructureView"] = Field(
+        alias="__typename", default="StructureView", exclude=True
+    )
+    id: ID
+    structure: str
+    model_config = ConfigDict(frozen=True)
+
+
+class AcquisitionViewOperator(BaseModel):
+    """A user."""
+
+    typename: Literal["User"] = Field(alias="__typename", default="User", exclude=True)
+    sub: str
+    model_config = ConfigDict(frozen=True)
+
+
+class AcquisitionView(ViewAcquisitionView, BaseModel):
+    typename: Literal["AcquisitionView"] = Field(
+        alias="__typename", default="AcquisitionView", exclude=True
+    )
+    id: ID
+    description: Optional[str] = Field(default=None)
+    acquired_at: Optional[datetime] = Field(default=None, alias="acquiredAt")
+    operator: Optional[AcquisitionViewOperator] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+
+class WellPositionViewWell(BaseModel):
+    typename: Literal["MultiWellPlate"] = Field(
+        alias="__typename", default="MultiWellPlate", exclude=True
+    )
+    id: ID
+    rows: Optional[int] = Field(default=None)
+    columns: Optional[int] = Field(default=None)
+    name: Optional[str] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+
+class WellPositionView(ViewWellPositionView, BaseModel):
+    typename: Literal["WellPositionView"] = Field(
+        alias="__typename", default="WellPositionView", exclude=True
+    )
+    id: ID
+    column: Optional[int] = Field(default=None)
+    row: Optional[int] = Field(default=None)
+    well: Optional[WellPositionViewWell] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+
+class ContinousScanView(ViewContinousScanView, BaseModel):
+    typename: Literal["ContinousScanView"] = Field(
+        alias="__typename", default="ContinousScanView", exclude=True
+    )
+    id: ID
+    direction: ScanDirection
+    model_config = ConfigDict(frozen=True)
+
+
+class PixelView(ViewPixelView, BaseModel):
+    typename: Literal["PixelView"] = Field(
+        alias="__typename", default="PixelView", exclude=True
+    )
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+
+class Dataset(BaseModel):
+    typename: Literal["Dataset"] = Field(
+        alias="__typename", default="Dataset", exclude=True
+    )
+    name: str
+    description: Optional[str] = Field(default=None)
+    history: Tuple[HistoryStuff, ...]
+    model_config = ConfigDict(frozen=True)
+
+
+class TimepointView(ViewTimepointView, BaseModel):
+    typename: Literal["TimepointView"] = Field(
+        alias="__typename", default="TimepointView", exclude=True
+    )
+    id: ID
+    ms_since_start: Optional[Milliseconds] = Field(default=None, alias="msSinceStart")
+    index_since_start: Optional[int] = Field(default=None, alias="indexSinceStart")
+    era: Era
+    model_config = ConfigDict(frozen=True)
+
+
 class RGBViewContexts(BaseModel):
-    typename: Optional[Literal["RGBContext"]] = Field(
+    typename: Literal["RGBContext"] = Field(
         alias="__typename", default="RGBContext", exclude=True
     )
     id: ID
@@ -748,17 +1203,17 @@ class RGBViewContexts(BaseModel):
 
 
 class RGBViewImageDerivedscaleviewsImage(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(
+    typename: Literal["Image"] = Field(
         alias="__typename", default="Image", exclude=True
     )
     id: ID
-    store: "ZarrStore"
+    store: ZarrStore
     "The store where the image data is stored."
     model_config = ConfigDict(frozen=True)
 
 
 class RGBViewImageDerivedscaleviews(BaseModel):
-    typename: Optional[Literal["ScaleView"]] = Field(
+    typename: Literal["ScaleView"] = Field(
         alias="__typename", default="ScaleView", exclude=True
     )
     id: ID
@@ -772,11 +1227,11 @@ class RGBViewImageDerivedscaleviews(BaseModel):
 
 
 class RGBViewImage(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(
+    typename: Literal["Image"] = Field(
         alias="__typename", default="Image", exclude=True
     )
     id: ID
-    store: "ZarrStore"
+    store: ZarrStore
     "The store where the image data is stored."
     derived_scale_views: Tuple[RGBViewImageDerivedscaleviews, ...] = Field(
         alias="derivedScaleViews"
@@ -784,8 +1239,8 @@ class RGBViewImage(HasZarrStoreTrait, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class RGBView(ViewBase, BaseModel):
-    typename: Optional[Literal["RGBView"]] = Field(
+class RGBView(ViewRGBView, BaseModel):
+    typename: Literal["RGBView"] = Field(
         alias="__typename", default="RGBView", exclude=True
     )
     id: ID
@@ -803,151 +1258,8 @@ class RGBView(ViewBase, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class TimepointView(ViewBase, BaseModel):
-    typename: Optional[Literal["TimepointView"]] = Field(
-        alias="__typename", default="TimepointView", exclude=True
-    )
-    id: ID
-    ms_since_start: Optional[Milliseconds] = Field(default=None, alias="msSinceStart")
-    index_since_start: Optional[int] = Field(default=None, alias="indexSinceStart")
-    era: "Era"
-    model_config = ConfigDict(frozen=True)
-
-
-class OpticsViewObjective(BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(
-        alias="__typename", default="Objective", exclude=True
-    )
-    id: ID
-    name: str
-    serial_number: str = Field(alias="serialNumber")
-    model_config = ConfigDict(frozen=True)
-
-
-class OpticsViewCamera(BaseModel):
-    typename: Optional[Literal["Camera"]] = Field(
-        alias="__typename", default="Camera", exclude=True
-    )
-    id: ID
-    name: str
-    serial_number: str = Field(alias="serialNumber")
-    model_config = ConfigDict(frozen=True)
-
-
-class OpticsViewInstrument(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(
-        alias="__typename", default="Instrument", exclude=True
-    )
-    id: ID
-    name: str
-    serial_number: str = Field(alias="serialNumber")
-    model_config = ConfigDict(frozen=True)
-
-
-class OpticsView(ViewBase, BaseModel):
-    typename: Optional[Literal["OpticsView"]] = Field(
-        alias="__typename", default="OpticsView", exclude=True
-    )
-    id: ID
-    objective: Optional[OpticsViewObjective] = Field(default=None)
-    camera: Optional[OpticsViewCamera] = Field(default=None)
-    instrument: Optional[OpticsViewInstrument] = Field(default=None)
-    model_config = ConfigDict(frozen=True)
-
-
-class LabelView(ViewBase, BaseModel):
-    typename: Optional[Literal["LabelView"]] = Field(
-        alias="__typename", default="LabelView", exclude=True
-    )
-    id: ID
-    label: str
-    model_config = ConfigDict(frozen=True)
-
-
-class StructureView(ViewBase, BaseModel):
-    typename: Optional[Literal["StructureView"]] = Field(
-        alias="__typename", default="StructureView", exclude=True
-    )
-    id: ID
-    structure: str
-    model_config = ConfigDict(frozen=True)
-
-
-class AcquisitionViewOperator(BaseModel):
-    """A user."""
-
-    typename: Optional[Literal["User"]] = Field(
-        alias="__typename", default="User", exclude=True
-    )
-    sub: str
-    model_config = ConfigDict(frozen=True)
-
-
-class AcquisitionView(ViewBase, BaseModel):
-    typename: Optional[Literal["AcquisitionView"]] = Field(
-        alias="__typename", default="AcquisitionView", exclude=True
-    )
-    id: ID
-    description: Optional[str] = Field(default=None)
-    acquired_at: Optional[datetime] = Field(default=None, alias="acquiredAt")
-    operator: Optional[AcquisitionViewOperator] = Field(default=None)
-    model_config = ConfigDict(frozen=True)
-
-
-class WellPositionViewWell(BaseModel):
-    typename: Optional[Literal["MultiWellPlate"]] = Field(
-        alias="__typename", default="MultiWellPlate", exclude=True
-    )
-    id: ID
-    rows: Optional[int] = Field(default=None)
-    columns: Optional[int] = Field(default=None)
-    name: Optional[str] = Field(default=None)
-    model_config = ConfigDict(frozen=True)
-
-
-class WellPositionView(ViewBase, BaseModel):
-    typename: Optional[Literal["WellPositionView"]] = Field(
-        alias="__typename", default="WellPositionView", exclude=True
-    )
-    id: ID
-    column: Optional[int] = Field(default=None)
-    row: Optional[int] = Field(default=None)
-    well: Optional[WellPositionViewWell] = Field(default=None)
-    model_config = ConfigDict(frozen=True)
-
-
-class ContinousScanView(ViewBase, BaseModel):
-    typename: Optional[Literal["ContinousScanView"]] = Field(
-        alias="__typename", default="ContinousScanView", exclude=True
-    )
-    id: ID
-    direction: ScanDirection
-    model_config = ConfigDict(frozen=True)
-
-
-class PixelView(ViewBase, BaseModel):
-    typename: Optional[Literal["PixelView"]] = Field(
-        alias="__typename", default="PixelView", exclude=True
-    )
-    id: ID
-    model_config = ConfigDict(frozen=True)
-
-
-class Camera(BaseModel):
-    typename: Optional[Literal["Camera"]] = Field(
-        alias="__typename", default="Camera", exclude=True
-    )
-    sensor_size_x: Optional[int] = Field(default=None, alias="sensorSizeX")
-    sensor_size_y: Optional[int] = Field(default=None, alias="sensorSizeY")
-    pixel_size_x: Optional[Micrometers] = Field(default=None, alias="pixelSizeX")
-    pixel_size_y: Optional[Micrometers] = Field(default=None, alias="pixelSizeY")
-    name: str
-    serial_number: str = Field(alias="serialNumber")
-    model_config = ConfigDict(frozen=True)
-
-
 class TableOrigins(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(
+    typename: Literal["Image"] = Field(
         alias="__typename", default="Image", exclude=True
     )
     id: ID
@@ -955,81 +1267,18 @@ class TableOrigins(HasZarrStoreTrait, BaseModel):
 
 
 class Table(HasParquestStoreTrait, BaseModel):
-    typename: Optional[Literal["Table"]] = Field(
+    typename: Literal["Table"] = Field(
         alias="__typename", default="Table", exclude=True
     )
     origins: Tuple[TableOrigins, ...]
     id: ID
     name: str
-    store: "ParquetStore"
-    model_config = ConfigDict(frozen=True)
-
-
-class RenderedPlotStore(HasPresignedDownloadAccessor, BaseModel):
-    typename: Optional[Literal["MediaStore"]] = Field(
-        alias="__typename", default="MediaStore", exclude=True
-    )
-    id: ID
-    key: str
-    model_config = ConfigDict(frozen=True)
-
-
-class RenderedPlot(BaseModel):
-    typename: Optional[Literal["RenderedPlot"]] = Field(
-        alias="__typename", default="RenderedPlot", exclude=True
-    )
-    id: ID
-    store: RenderedPlotStore
-    model_config = ConfigDict(frozen=True)
-
-
-class ListRenderedPlotStore(HasPresignedDownloadAccessor, BaseModel):
-    typename: Optional[Literal["MediaStore"]] = Field(
-        alias="__typename", default="MediaStore", exclude=True
-    )
-    id: ID
-    key: str
-    model_config = ConfigDict(frozen=True)
-
-
-class ListRenderedPlot(BaseModel):
-    typename: Optional[Literal["RenderedPlot"]] = Field(
-        alias="__typename", default="RenderedPlot", exclude=True
-    )
-    id: ID
-    store: ListRenderedPlotStore
-    model_config = ConfigDict(frozen=True)
-
-
-class Credentials(BaseModel):
-    typename: Optional[Literal["Credentials"]] = Field(
-        alias="__typename", default="Credentials", exclude=True
-    )
-    access_key: str = Field(alias="accessKey")
-    status: str
-    secret_key: str = Field(alias="secretKey")
-    bucket: str
-    key: str
-    session_token: str = Field(alias="sessionToken")
-    store: str
-    model_config = ConfigDict(frozen=True)
-
-
-class AccessCredentials(BaseModel):
-    typename: Optional[Literal["AccessCredentials"]] = Field(
-        alias="__typename", default="AccessCredentials", exclude=True
-    )
-    access_key: str = Field(alias="accessKey")
-    secret_key: str = Field(alias="secretKey")
-    bucket: str
-    key: str
-    session_token: str = Field(alias="sessionToken")
-    path: str
+    store: ParquetStore
     model_config = ConfigDict(frozen=True)
 
 
 class FileOrigins(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(
+    typename: Literal["Image"] = Field(
         alias="__typename", default="Image", exclude=True
     )
     id: ID
@@ -1037,67 +1286,35 @@ class FileOrigins(HasZarrStoreTrait, BaseModel):
 
 
 class File(BaseModel):
-    typename: Optional[Literal["File"]] = Field(
-        alias="__typename", default="File", exclude=True
-    )
+    typename: Literal["File"] = Field(alias="__typename", default="File", exclude=True)
     origins: Tuple[FileOrigins, ...]
     id: ID
     name: str
-    store: "BigFileStore"
+    store: BigFileStore
     model_config = ConfigDict(frozen=True)
 
 
-class Stage(BaseModel):
-    typename: Optional[Literal["Stage"]] = Field(
-        alias="__typename", default="Stage", exclude=True
+class ChannelView(ViewChannelView, BaseModel):
+    typename: Literal["ChannelView"] = Field(
+        alias="__typename", default="ChannelView", exclude=True
     )
     id: ID
-    name: str
-    model_config = ConfigDict(frozen=True)
-
-
-class ROIImage(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(
-        alias="__typename", default="Image", exclude=True
-    )
-    id: ID
-    model_config = ConfigDict(frozen=True)
-
-
-class ROI(IsVectorizableTrait, BaseModel):
-    typename: Optional[Literal["ROI"]] = Field(
-        alias="__typename", default="ROI", exclude=True
-    )
-    id: ID
-    image: ROIImage
-    vectors: Tuple[FiveDVector, ...]
-    kind: RoiKind
-    model_config = ConfigDict(frozen=True)
-
-
-class Objective(BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(
-        alias="__typename", default="Objective", exclude=True
-    )
-    id: ID
-    na: Optional[float] = Field(default=None)
-    name: str
-    serial_number: str = Field(alias="serialNumber")
+    channel: Channel
     model_config = ConfigDict(frozen=True)
 
 
 class RGBContextImage(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(
+    typename: Literal["Image"] = Field(
         alias="__typename", default="Image", exclude=True
     )
     id: ID
-    store: "ZarrStore"
+    store: ZarrStore
     "The store where the image data is stored."
     model_config = ConfigDict(frozen=True)
 
 
 class RGBContext(BaseModel):
-    typename: Optional[Literal["RGBContext"]] = Field(
+    typename: Literal["RGBContext"] = Field(
         alias="__typename", default="RGBContext", exclude=True
     )
     id: ID
@@ -1112,118 +1329,105 @@ class RGBContext(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class HistoryStuffApp(BaseModel):
-    """An app."""
-
-    typename: Optional[Literal["App"]] = Field(
-        alias="__typename", default="App", exclude=True
-    )
-    id: ID
-    model_config = ConfigDict(frozen=True)
-
-
-class HistoryStuff(BaseModel):
-    typename: Optional[Literal["History"]] = Field(
-        alias="__typename", default="History", exclude=True
-    )
-    id: ID
-    app: Optional[HistoryStuffApp] = Field(default=None)
-    model_config = ConfigDict(frozen=True)
-
-
-class Dataset(BaseModel):
-    typename: Optional[Literal["Dataset"]] = Field(
-        alias="__typename", default="Dataset", exclude=True
-    )
-    name: str
-    description: Optional[str] = Field(default=None)
-    history: Tuple[HistoryStuff, ...]
-    model_config = ConfigDict(frozen=True)
-
-
-class Instrument(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(
-        alias="__typename", default="Instrument", exclude=True
-    )
-    id: ID
-    model: Optional[str] = Field(default=None)
-    name: str
-    serial_number: str = Field(alias="serialNumber")
-    model_config = ConfigDict(frozen=True)
-
-
 class ImageViewsBase(BaseModel):
     pass
     model_config = ConfigDict(frozen=True)
 
 
-class ImageViewsChannelView(ImageViewsBase, ChannelView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseFileView(FileView, ImageViewsBase, BaseModel):
+    typename: Literal["FileView"] = Field(
+        alias="__typename", default="FileView", exclude=True
+    )
 
 
-class ImageViewsAffineTransformationView(ImageViewsBase, AffineTransformationView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseAffineTransformationView(
+    AffineTransformationView, ImageViewsBase, BaseModel
+):
+    typename: Literal["AffineTransformationView"] = Field(
+        alias="__typename", default="AffineTransformationView", exclude=True
+    )
 
 
-class ImageViewsLabelView(ImageViewsBase, LabelView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseLabelView(LabelView, ImageViewsBase, BaseModel):
+    typename: Literal["LabelView"] = Field(
+        alias="__typename", default="LabelView", exclude=True
+    )
 
 
-class ImageViewsTimepointView(ImageViewsBase, TimepointView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseChannelView(ChannelView, ImageViewsBase, BaseModel):
+    typename: Literal["ChannelView"] = Field(
+        alias="__typename", default="ChannelView", exclude=True
+    )
 
 
-class ImageViewsOpticsView(ImageViewsBase, OpticsView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseTimepointView(TimepointView, ImageViewsBase, BaseModel):
+    typename: Literal["TimepointView"] = Field(
+        alias="__typename", default="TimepointView", exclude=True
+    )
 
 
-class ImageViewsAcquisitionView(ImageViewsBase, AcquisitionView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseOpticsView(OpticsView, ImageViewsBase, BaseModel):
+    typename: Literal["OpticsView"] = Field(
+        alias="__typename", default="OpticsView", exclude=True
+    )
 
 
-class ImageViewsRGBView(ImageViewsBase, RGBView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseStructureView(StructureView, ImageViewsBase, BaseModel):
+    typename: Literal["StructureView"] = Field(
+        alias="__typename", default="StructureView", exclude=True
+    )
 
 
-class ImageViewsWellPositionView(ImageViewsBase, WellPositionView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseScaleView(ImageViewsBase, BaseModel):
+    typename: Literal["ScaleView"] = Field(
+        alias="__typename", default="ScaleView", exclude=True
+    )
 
 
-class ImageViewsStructureView(ImageViewsBase, StructureView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseDerivedView(DerivedView, ImageViewsBase, BaseModel):
+    typename: Literal["DerivedView"] = Field(
+        alias="__typename", default="DerivedView", exclude=True
+    )
 
 
-class ImageViewsDerivedView(ImageViewsBase, DerivedView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseROIView(ROIView, ImageViewsBase, BaseModel):
+    typename: Literal["ROIView"] = Field(
+        alias="__typename", default="ROIView", exclude=True
+    )
 
 
-class ImageViewsROIView(ImageViewsBase, ROIView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBasePixelView(ImageViewsBase, BaseModel):
+    typename: Literal["PixelView"] = Field(
+        alias="__typename", default="PixelView", exclude=True
+    )
 
 
-class ImageViewsFileView(ImageViewsBase, FileView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseRGBView(RGBView, ImageViewsBase, BaseModel):
+    typename: Literal["RGBView"] = Field(
+        alias="__typename", default="RGBView", exclude=True
+    )
 
 
-class ImageViewsContinousScanView(ImageViewsBase, ContinousScanView):
-    pass
-    model_config = ConfigDict(frozen=True)
+class ImageViewsBaseContinousScanView(ContinousScanView, ImageViewsBase, BaseModel):
+    typename: Literal["ContinousScanView"] = Field(
+        alias="__typename", default="ContinousScanView", exclude=True
+    )
+
+
+class ImageViewsBaseWellPositionView(WellPositionView, ImageViewsBase, BaseModel):
+    typename: Literal["WellPositionView"] = Field(
+        alias="__typename", default="WellPositionView", exclude=True
+    )
+
+
+class ImageViewsBaseAcquisitionView(AcquisitionView, ImageViewsBase, BaseModel):
+    typename: Literal["AcquisitionView"] = Field(
+        alias="__typename", default="AcquisitionView", exclude=True
+    )
 
 
 class ImageRgbcontexts(BaseModel):
-    typename: Optional[Literal["RGBContext"]] = Field(
+    typename: Literal["RGBContext"] = Field(
         alias="__typename", default="RGBContext", exclude=True
     )
     id: ID
@@ -1233,28 +1437,33 @@ class ImageRgbcontexts(BaseModel):
 
 
 class Image(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(
+    typename: Literal["Image"] = Field(
         alias="__typename", default="Image", exclude=True
     )
     id: ID
     name: str
-    store: "ZarrStore"
+    store: ZarrStore
     "The store where the image data is stored."
     views: Tuple[
-        Union[
-            ImageViewsChannelView,
-            ImageViewsAffineTransformationView,
-            ImageViewsLabelView,
-            ImageViewsTimepointView,
-            ImageViewsOpticsView,
-            ImageViewsAcquisitionView,
-            ImageViewsRGBView,
-            ImageViewsWellPositionView,
-            ImageViewsStructureView,
-            ImageViewsDerivedView,
-            ImageViewsROIView,
-            ImageViewsFileView,
-            ImageViewsContinousScanView,
+        Annotated[
+            Union[
+                ImageViewsBaseFileView,
+                ImageViewsBaseAffineTransformationView,
+                ImageViewsBaseLabelView,
+                ImageViewsBaseChannelView,
+                ImageViewsBaseTimepointView,
+                ImageViewsBaseOpticsView,
+                ImageViewsBaseStructureView,
+                ImageViewsBaseScaleView,
+                ImageViewsBaseDerivedView,
+                ImageViewsBaseROIView,
+                ImageViewsBasePixelView,
+                ImageViewsBaseRGBView,
+                ImageViewsBaseContinousScanView,
+                ImageViewsBaseWellPositionView,
+                ImageViewsBaseAcquisitionView,
+            ],
+            Field(discriminator="typename"),
         ],
         ...,
     ]
@@ -1263,86 +1472,8 @@ class Image(HasZarrStoreTrait, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class Era(BaseModel):
-    typename: Optional[Literal["Era"]] = Field(
-        alias="__typename", default="Era", exclude=True
-    )
-    id: ID
-    begin: Optional[datetime] = Field(default=None)
-    name: str
-    model_config = ConfigDict(frozen=True)
-
-
-class SnapshotStore(HasPresignedDownloadAccessor, BaseModel):
-    typename: Optional[Literal["MediaStore"]] = Field(
-        alias="__typename", default="MediaStore", exclude=True
-    )
-    key: str
-    presigned_url: str = Field(alias="presignedUrl")
-    model_config = ConfigDict(frozen=True)
-
-
-class Snapshot(BaseModel):
-    typename: Optional[Literal["Snapshot"]] = Field(
-        alias="__typename", default="Snapshot", exclude=True
-    )
-    id: ID
-    store: SnapshotStore
-    name: str
-    model_config = ConfigDict(frozen=True)
-
-
-class ZarrStore(HasZarrStoreAccessor, BaseModel):
-    typename: Optional[Literal["ZarrStore"]] = Field(
-        alias="__typename", default="ZarrStore", exclude=True
-    )
-    id: ID
-    key: str
-    "The key where the data is stored."
-    bucket: str
-    "The bucket where the data is stored."
-    path: Optional[str] = Field(default=None)
-    "The path to the data. Relative to the bucket."
-    model_config = ConfigDict(frozen=True)
-
-
-class ParquetStore(HasParquetStoreAccesor, BaseModel):
-    typename: Optional[Literal["ParquetStore"]] = Field(
-        alias="__typename", default="ParquetStore", exclude=True
-    )
-    id: ID
-    key: str
-    bucket: str
-    path: str
-    model_config = ConfigDict(frozen=True)
-
-
-class BigFileStore(HasDownloadAccessor, BaseModel):
-    typename: Optional[Literal["BigFileStore"]] = Field(
-        alias="__typename", default="BigFileStore", exclude=True
-    )
-    id: ID
-    key: str
-    bucket: str
-    path: str
-    presigned_url: str = Field(alias="presignedUrl")
-    model_config = ConfigDict(frozen=True)
-
-
-class Channel(BaseModel):
-    typename: Optional[Literal["Channel"]] = Field(
-        alias="__typename", default="Channel", exclude=True
-    )
-    id: ID
-    name: str
-    excitation_wavelength: Optional[float] = Field(
-        default=None, alias="excitationWavelength"
-    )
-    model_config = ConfigDict(frozen=True)
-
-
 class CreateCameraMutationCreatecamera(BaseModel):
-    typename: Optional[Literal["Camera"]] = Field(
+    typename: Literal["Camera"] = Field(
         alias="__typename", default="Camera", exclude=True
     )
     id: ID
@@ -1362,11 +1493,11 @@ class CreateCameraMutation(BaseModel):
         sensor_size_y: Optional[int] = Field(alias="sensorSizeY", default=None)
 
     class Meta:
-        document = "mutation CreateCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int) {\n  createCamera(\n    input: {name: $name, pixelSizeX: $pixelSizeX, serialNumber: $serialNumber, pixelSizeY: $pixelSizeY, sensorSizeX: $sensorSizeX, sensorSizeY: $sensorSizeY}\n  ) {\n    id\n    name\n  }\n}"
+        document = "mutation CreateCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int) {\n  createCamera(\n    input: {name: $name, pixelSizeX: $pixelSizeX, serialNumber: $serialNumber, pixelSizeY: $pixelSizeY, sensorSizeX: $sensorSizeX, sensorSizeY: $sensorSizeY}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class EnsureCameraMutationEnsurecamera(BaseModel):
-    typename: Optional[Literal["Camera"]] = Field(
+    typename: Literal["Camera"] = Field(
         alias="__typename", default="Camera", exclude=True
     )
     id: ID
@@ -1386,11 +1517,11 @@ class EnsureCameraMutation(BaseModel):
         sensor_size_y: Optional[int] = Field(alias="sensorSizeY", default=None)
 
     class Meta:
-        document = "mutation EnsureCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int) {\n  ensureCamera(\n    input: {name: $name, pixelSizeX: $pixelSizeX, serialNumber: $serialNumber, pixelSizeY: $pixelSizeY, sensorSizeX: $sensorSizeX, sensorSizeY: $sensorSizeY}\n  ) {\n    id\n    name\n  }\n}"
+        document = "mutation EnsureCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int) {\n  ensureCamera(\n    input: {name: $name, pixelSizeX: $pixelSizeX, serialNumber: $serialNumber, pixelSizeY: $pixelSizeY, sensorSizeX: $sensorSizeX, sensorSizeY: $sensorSizeY}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class CreateRenderTreeMutationCreaterendertree(BaseModel):
-    typename: Optional[Literal["RenderTree"]] = Field(
+    typename: Literal["RenderTree"] = Field(
         alias="__typename", default="RenderTree", exclude=True
     )
     id: ID
@@ -1407,7 +1538,7 @@ class CreateRenderTreeMutation(BaseModel):
         tree: TreeInput
 
     class Meta:
-        document = "mutation CreateRenderTree($name: String!, $tree: TreeInput!) {\n  createRenderTree(input: {name: $name, tree: $tree}) {\n    id\n  }\n}"
+        document = "mutation CreateRenderTree($name: String!, $tree: TreeInput!) {\n  createRenderTree(input: {name: $name, tree: $tree}) {\n    id\n    __typename\n  }\n}"
 
 
 class From_parquet_likeMutation(BaseModel):
@@ -1426,7 +1557,7 @@ class From_parquet_likeMutation(BaseModel):
         )
 
     class Meta:
-        document = "fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment Table on Table {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n  }\n}\n\nmutation from_parquet_like($dataframe: ParquetLike!, $name: String!, $origins: [ID!], $dataset: ID, $labelAccessors: [PartialLabelAccessorInput!], $imageAccessors: [PartialImageAccessorInput!]) {\n  fromParquetLike(\n    input: {dataframe: $dataframe, name: $name, origins: $origins, dataset: $dataset, labelAccessors: $labelAccessors, imageAccessors: $imageAccessors}\n  ) {\n    ...Table\n  }\n}"
+        document = "fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}\n\nmutation from_parquet_like($dataframe: ParquetLike!, $name: String!, $origins: [ID!], $dataset: ID, $labelAccessors: [PartialLabelAccessorInput!], $imageAccessors: [PartialImageAccessorInput!]) {\n  fromParquetLike(\n    input: {dataframe: $dataframe, name: $name, origins: $origins, dataset: $dataset, labelAccessors: $labelAccessors, imageAccessors: $imageAccessors}\n  ) {\n    ...Table\n    __typename\n  }\n}"
 
 
 class RequestTableUploadMutation(BaseModel):
@@ -1437,7 +1568,7 @@ class RequestTableUploadMutation(BaseModel):
         datalayer: str
 
     class Meta:
-        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n}\n\nmutation RequestTableUpload($key: String!, $datalayer: String!) {\n  requestTableUpload(input: {key: $key, datalayer: $datalayer}) {\n    ...Credentials\n  }\n}"
+        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestTableUpload($key: String!, $datalayer: String!) {\n  requestTableUpload(input: {key: $key, datalayer: $datalayer}) {\n    ...Credentials\n    __typename\n  }\n}"
 
 
 class RequestTableAccessMutation(BaseModel):
@@ -1448,7 +1579,7 @@ class RequestTableAccessMutation(BaseModel):
         duration: Optional[int] = Field(default=None)
 
     class Meta:
-        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestTableAccess($store: ID!, $duration: Int) {\n  requestTableAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
+        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestTableAccess($store: ID!, $duration: Int) {\n  requestTableAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n    __typename\n  }\n}"
 
 
 class CreateRenderedPlotMutation(BaseModel):
@@ -1460,7 +1591,7 @@ class CreateRenderedPlotMutation(BaseModel):
         overlays: Optional[List[OverlayInput]] = Field(default=None)
 
     class Meta:
-        document = "fragment RenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n  }\n}\n\nmutation CreateRenderedPlot($plot: Upload!, $name: String!, $overlays: [OverlayInput!]) {\n  createRenderedPlot(input: {plot: $plot, overlays: $overlays, name: $name}) {\n    ...RenderedPlot\n  }\n}"
+        document = "fragment RenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n    __typename\n  }\n  __typename\n}\n\nmutation CreateRenderedPlot($plot: Upload!, $name: String!, $overlays: [OverlayInput!]) {\n  createRenderedPlot(input: {plot: $plot, overlays: $overlays, name: $name}) {\n    ...RenderedPlot\n    __typename\n  }\n}"
 
 
 class From_file_likeMutation(BaseModel):
@@ -1473,7 +1604,7 @@ class From_file_likeMutation(BaseModel):
         dataset: Optional[ID] = Field(default=None)
 
     class Meta:
-        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n}\n\nfragment File on File {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n  }\n}\n\nmutation from_file_like($file: FileLike!, $name: String!, $origins: [ID!], $dataset: ID) {\n  fromFileLike(\n    input: {file: $file, name: $name, origins: $origins, dataset: $dataset}\n  ) {\n    ...File\n  }\n}"
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation from_file_like($file: FileLike!, $name: String!, $origins: [ID!], $dataset: ID) {\n  fromFileLike(\n    input: {file: $file, name: $name, origins: $origins, dataset: $dataset}\n  ) {\n    ...File\n    __typename\n  }\n}"
 
 
 class RequestFileUploadMutation(BaseModel):
@@ -1484,7 +1615,7 @@ class RequestFileUploadMutation(BaseModel):
         datalayer: str
 
     class Meta:
-        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n}\n\nmutation RequestFileUpload($key: String!, $datalayer: String!) {\n  requestFileUpload(input: {key: $key, datalayer: $datalayer}) {\n    ...Credentials\n  }\n}"
+        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestFileUpload($key: String!, $datalayer: String!) {\n  requestFileUpload(input: {key: $key, datalayer: $datalayer}) {\n    ...Credentials\n    __typename\n  }\n}"
 
 
 class RequestFileAccessMutation(BaseModel):
@@ -1495,7 +1626,7 @@ class RequestFileAccessMutation(BaseModel):
         duration: Optional[int] = Field(default=None)
 
     class Meta:
-        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestFileAccess($store: ID!, $duration: Int) {\n  requestFileAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
+        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestFileAccess($store: ID!, $duration: Int) {\n  requestFileAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n    __typename\n  }\n}"
 
 
 class CreateStageMutation(BaseModel):
@@ -1505,7 +1636,7 @@ class CreateStageMutation(BaseModel):
         name: str
 
     class Meta:
-        document = "fragment Stage on Stage {\n  id\n  name\n}\n\nmutation CreateStage($name: String!) {\n  createStage(input: {name: $name}) {\n    ...Stage\n  }\n}"
+        document = "fragment Stage on Stage {\n  id\n  name\n  __typename\n}\n\nmutation CreateStage($name: String!) {\n  createStage(input: {name: $name}) {\n    ...Stage\n    __typename\n  }\n}"
 
 
 class CreateRoiMutation(BaseModel):
@@ -1520,7 +1651,7 @@ class CreateRoiMutation(BaseModel):
         entity_parent: Optional[ID] = Field(alias="entityParent", default=None)
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nmutation CreateRoi($image: ID!, $vectors: [FiveDVector!]!, $kind: RoiKind!, $entity: ID, $entityKind: ID, $entityParent: ID) {\n  createRoi(\n    input: {image: $image, vectors: $vectors, kind: $kind, entity: $entity, entityKind: $entityKind, entityParent: $entityParent}\n  ) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nmutation CreateRoi($image: ID!, $vectors: [FiveDVector!]!, $kind: RoiKind!, $entity: ID, $entityKind: ID, $entityParent: ID) {\n  createRoi(\n    input: {image: $image, vectors: $vectors, kind: $kind, entity: $entity, entityKind: $entityKind, entityParent: $entityParent}\n  ) {\n    ...ROI\n    __typename\n  }\n}"
 
 
 class DeleteRoiMutation(BaseModel):
@@ -1540,11 +1671,11 @@ class UpdateRoiMutation(BaseModel):
         input: UpdateRoiInput
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nmutation UpdateRoi($input: UpdateRoiInput!) {\n  updateRoi(input: $input) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nmutation UpdateRoi($input: UpdateRoiInput!) {\n  updateRoi(input: $input) {\n    ...ROI\n    __typename\n  }\n}"
 
 
 class CreateObjectiveMutationCreateobjective(BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(
+    typename: Literal["Objective"] = Field(
         alias="__typename", default="Objective", exclude=True
     )
     id: ID
@@ -1564,11 +1695,11 @@ class CreateObjectiveMutation(BaseModel):
         magnification: Optional[float] = Field(default=None)
 
     class Meta:
-        document = "mutation CreateObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  createObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n  }\n}"
+        document = "mutation CreateObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  createObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class EnsureObjectiveMutationEnsureobjective(BaseModel):
-    typename: Optional[Literal["Objective"]] = Field(
+    typename: Literal["Objective"] = Field(
         alias="__typename", default="Objective", exclude=True
     )
     id: ID
@@ -1588,11 +1719,11 @@ class EnsureObjectiveMutation(BaseModel):
         magnification: Optional[float] = Field(default=None)
 
     class Meta:
-        document = "mutation EnsureObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  ensureObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n  }\n}"
+        document = "mutation EnsureObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  ensureObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class CreateDatasetMutationCreatedataset(BaseModel):
-    typename: Optional[Literal["Dataset"]] = Field(
+    typename: Literal["Dataset"] = Field(
         alias="__typename", default="Dataset", exclude=True
     )
     id: ID
@@ -1607,11 +1738,11 @@ class CreateDatasetMutation(BaseModel):
         name: str
 
     class Meta:
-        document = "mutation CreateDataset($name: String!) {\n  createDataset(input: {name: $name}) {\n    id\n    name\n  }\n}"
+        document = "mutation CreateDataset($name: String!) {\n  createDataset(input: {name: $name}) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class UpdateDatasetMutationUpdatedataset(BaseModel):
-    typename: Optional[Literal["Dataset"]] = Field(
+    typename: Literal["Dataset"] = Field(
         alias="__typename", default="Dataset", exclude=True
     )
     id: ID
@@ -1627,11 +1758,11 @@ class UpdateDatasetMutation(BaseModel):
         name: str
 
     class Meta:
-        document = "mutation UpdateDataset($id: ID!, $name: String!) {\n  updateDataset(input: {id: $id, name: $name}) {\n    id\n    name\n  }\n}"
+        document = "mutation UpdateDataset($id: ID!, $name: String!) {\n  updateDataset(input: {id: $id, name: $name}) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class RevertDatasetMutationRevertdataset(BaseModel):
-    typename: Optional[Literal["Dataset"]] = Field(
+    typename: Literal["Dataset"] = Field(
         alias="__typename", default="Dataset", exclude=True
     )
     id: ID
@@ -1648,11 +1779,11 @@ class RevertDatasetMutation(BaseModel):
         history: ID
 
     class Meta:
-        document = "mutation RevertDataset($dataset: ID!, $history: ID!) {\n  revertDataset(input: {id: $dataset, historyId: $history}) {\n    id\n    name\n    description\n  }\n}"
+        document = "mutation RevertDataset($dataset: ID!, $history: ID!) {\n  revertDataset(input: {id: $dataset, historyId: $history}) {\n    id\n    name\n    description\n    __typename\n  }\n}"
 
 
 class CreateInstrumentMutationCreateinstrument(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(
+    typename: Literal["Instrument"] = Field(
         alias="__typename", default="Instrument", exclude=True
     )
     id: ID
@@ -1671,11 +1802,11 @@ class CreateInstrumentMutation(BaseModel):
         model: Optional[str] = Field(default=None)
 
     class Meta:
-        document = "mutation CreateInstrument($serialNumber: String!, $name: String, $model: String) {\n  createInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n  }\n}"
+        document = "mutation CreateInstrument($serialNumber: String!, $name: String, $model: String) {\n  createInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class EnsureInstrumentMutationEnsureinstrument(BaseModel):
-    typename: Optional[Literal["Instrument"]] = Field(
+    typename: Literal["Instrument"] = Field(
         alias="__typename", default="Instrument", exclude=True
     )
     id: ID
@@ -1694,7 +1825,7 @@ class EnsureInstrumentMutation(BaseModel):
         model: Optional[str] = Field(default=None)
 
     class Meta:
-        document = "mutation EnsureInstrument($serialNumber: String!, $name: String, $model: String) {\n  ensureInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n  }\n}"
+        document = "mutation EnsureInstrument($serialNumber: String!, $name: String, $model: String) {\n  ensureInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class From_array_likeMutation(BaseModel):
@@ -1742,7 +1873,7 @@ class From_array_likeMutation(BaseModel):
         tags: Optional[List[str]] = Field(default=None)
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  pixelViews {\n    ...PixelView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $structureViews: [PartialStructureViewInput!], $scaleViews: [PartialScaleViewInput!], $roiViews: [PartialROIViewInput!], $fileViews: [PartialFileViewInput!], $derivedViews: [PartialDerivedViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, structureViews: $structureViews, derivedViews: $derivedViews, roiViews: $roiViews, fileViews: $fileViews}\n  ) {\n    ...Image\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $structureViews: [PartialStructureViewInput!], $scaleViews: [PartialScaleViewInput!], $roiViews: [PartialROIViewInput!], $fileViews: [PartialFileViewInput!], $derivedViews: [PartialDerivedViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, structureViews: $structureViews, derivedViews: $derivedViews, roiViews: $roiViews, fileViews: $fileViews}\n  ) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -1753,7 +1884,7 @@ class RequestUploadMutation(BaseModel):
         datalayer: str
 
     class Meta:
-        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n}\n\nmutation RequestUpload($key: String!, $datalayer: String!) {\n  requestUpload(input: {key: $key, datalayer: $datalayer}) {\n    ...Credentials\n  }\n}"
+        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestUpload($key: String!, $datalayer: String!) {\n  requestUpload(input: {key: $key, datalayer: $datalayer}) {\n    ...Credentials\n    __typename\n  }\n}"
 
 
 class RequestAccessMutation(BaseModel):
@@ -1765,13 +1896,11 @@ class RequestAccessMutation(BaseModel):
         duration: Optional[int] = Field(default=None)
 
     class Meta:
-        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n}\n\nmutation RequestAccess($store: ID!, $duration: Int) {\n  requestAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n  }\n}"
+        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestAccess($store: ID!, $duration: Int) {\n  requestAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n    __typename\n  }\n}"
 
 
 class CreateEraMutationCreateera(BaseModel):
-    typename: Optional[Literal["Era"]] = Field(
-        alias="__typename", default="Era", exclude=True
-    )
+    typename: Literal["Era"] = Field(alias="__typename", default="Era", exclude=True)
     id: ID
     begin: Optional[datetime] = Field(default=None)
     model_config = ConfigDict(frozen=True)
@@ -1785,7 +1914,7 @@ class CreateEraMutation(BaseModel):
         begin: Optional[datetime] = Field(default=None)
 
     class Meta:
-        document = "mutation CreateEra($name: String!, $begin: DateTime) {\n  createEra(input: {name: $name, begin: $begin}) {\n    id\n    begin\n  }\n}"
+        document = "mutation CreateEra($name: String!, $begin: DateTime) {\n  createEra(input: {name: $name, begin: $begin}) {\n    id\n    begin\n    __typename\n  }\n}"
 
 
 class CreateSnapshotMutation(BaseModel):
@@ -1796,11 +1925,11 @@ class CreateSnapshotMutation(BaseModel):
         file: Upload
 
     class Meta:
-        document = "fragment Snapshot on Snapshot {\n  id\n  store {\n    key\n    presignedUrl\n  }\n  name\n}\n\nmutation CreateSnapshot($image: ID!, $file: Upload!) {\n  createSnapshot(input: {file: $file, image: $image}) {\n    ...Snapshot\n  }\n}"
+        document = "fragment Snapshot on Snapshot {\n  id\n  store {\n    key\n    presignedUrl\n    __typename\n  }\n  name\n  __typename\n}\n\nmutation CreateSnapshot($image: ID!, $file: Upload!) {\n  createSnapshot(input: {file: $file, image: $image}) {\n    ...Snapshot\n    __typename\n  }\n}"
 
 
 class CreateRgbViewMutationCreatergbview(BaseModel):
-    typename: Optional[Literal["RGBView"]] = Field(
+    typename: Literal["RGBView"] = Field(
         alias="__typename", default="RGBView", exclude=True
     )
     id: ID
@@ -1826,7 +1955,7 @@ class CreateRgbViewMutation(BaseModel):
         base_color: Optional[List[float]] = Field(alias="baseColor", default=None)
 
     class Meta:
-        document = "mutation CreateRgbView($image: ID!, $context: ID!, $gamma: Float, $contrastLimitMax: Float, $contrastLimitMin: Float, $rescale: Boolean, $active: Boolean, $colorMap: ColorMap, $baseColor: [Float!]) {\n  createRgbView(\n    input: {image: $image, context: $context, gamma: $gamma, contrastLimitMax: $contrastLimitMax, contrastLimitMin: $contrastLimitMin, rescale: $rescale, active: $active, colorMap: $colorMap, baseColor: $baseColor}\n  ) {\n    id\n  }\n}"
+        document = "mutation CreateRgbView($image: ID!, $context: ID!, $gamma: Float, $contrastLimitMax: Float, $contrastLimitMin: Float, $rescale: Boolean, $active: Boolean, $colorMap: ColorMap, $baseColor: [Float!]) {\n  createRgbView(\n    input: {image: $image, context: $context, gamma: $gamma, contrastLimitMax: $contrastLimitMax, contrastLimitMin: $contrastLimitMin, rescale: $rescale, active: $active, colorMap: $colorMap, baseColor: $baseColor}\n  ) {\n    id\n    __typename\n  }\n}"
 
 
 class CreateLabelViewMutation(BaseModel):
@@ -1837,7 +1966,7 @@ class CreateLabelViewMutation(BaseModel):
         label: str
 
     class Meta:
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nmutation CreateLabelView($image: ID!, $label: String!) {\n  createLabelView(input: {image: $image, label: $label}) {\n    ...LabelView\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nmutation CreateLabelView($image: ID!, $label: String!) {\n  createLabelView(input: {image: $image, label: $label}) {\n    ...LabelView\n    __typename\n  }\n}"
 
 
 class CreateRGBContextMutation(BaseModel):
@@ -1847,7 +1976,7 @@ class CreateRGBContextMutation(BaseModel):
         input: CreateRGBContextInput
 
     class Meta:
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class UpdateRGBContextMutation(BaseModel):
@@ -1858,11 +1987,11 @@ class UpdateRGBContextMutation(BaseModel):
         input: UpdateRGBContextInput
 
     class Meta:
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class CreateViewCollectionMutationCreateviewcollection(BaseModel):
-    typename: Optional[Literal["ViewCollection"]] = Field(
+    typename: Literal["ViewCollection"] = Field(
         alias="__typename", default="ViewCollection", exclude=True
     )
     id: ID
@@ -1879,11 +2008,11 @@ class CreateViewCollectionMutation(BaseModel):
         name: str
 
     class Meta:
-        document = "mutation CreateViewCollection($name: String!) {\n  createViewCollection(input: {name: $name}) {\n    id\n    name\n  }\n}"
+        document = "mutation CreateViewCollection($name: String!) {\n  createViewCollection(input: {name: $name}) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class CreateChannelMutationCreatechannel(BaseModel):
-    typename: Optional[Literal["Channel"]] = Field(
+    typename: Literal["Channel"] = Field(
         alias="__typename", default="Channel", exclude=True
     )
     id: ID
@@ -1898,11 +2027,11 @@ class CreateChannelMutation(BaseModel):
         name: str
 
     class Meta:
-        document = "mutation CreateChannel($name: String!) {\n  createChannel(input: {name: $name}) {\n    id\n    name\n  }\n}"
+        document = "mutation CreateChannel($name: String!) {\n  createChannel(input: {name: $name}) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class EnsureChannelMutationEnsurechannel(BaseModel):
-    typename: Optional[Literal["Channel"]] = Field(
+    typename: Literal["Channel"] = Field(
         alias="__typename", default="Channel", exclude=True
     )
     id: ID
@@ -1917,7 +2046,7 @@ class EnsureChannelMutation(BaseModel):
         name: str
 
     class Meta:
-        document = "mutation EnsureChannel($name: String!) {\n  ensureChannel(input: {name: $name}) {\n    id\n    name\n  }\n}"
+        document = "mutation EnsureChannel($name: String!) {\n  ensureChannel(input: {name: $name}) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class GetCameraQuery(BaseModel):
@@ -1927,7 +2056,7 @@ class GetCameraQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Camera on Camera {\n  sensorSizeX\n  sensorSizeY\n  pixelSizeX\n  pixelSizeY\n  name\n  serialNumber\n}\n\nquery GetCamera($id: ID!) {\n  camera(id: $id) {\n    ...Camera\n  }\n}"
+        document = "fragment Camera on Camera {\n  sensorSizeX\n  sensorSizeY\n  pixelSizeX\n  pixelSizeY\n  name\n  serialNumber\n  __typename\n}\n\nquery GetCamera($id: ID!) {\n  camera(id: $id) {\n    ...Camera\n    __typename\n  }\n}"
 
 
 class GetTableQuery(BaseModel):
@@ -1937,7 +2066,7 @@ class GetTableQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment Table on Table {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n  }\n}\n\nquery GetTable($id: ID!) {\n  table(id: $id) {\n    ...Table\n  }\n}"
+        document = "fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}\n\nquery GetTable($id: ID!) {\n  table(id: $id) {\n    ...Table\n    __typename\n  }\n}"
 
 
 class GetRenderedPlotQuery(BaseModel):
@@ -1947,7 +2076,7 @@ class GetRenderedPlotQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment RenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n  }\n}\n\nquery GetRenderedPlot($id: ID!) {\n  renderedPlot(id: $id) {\n    ...RenderedPlot\n  }\n}"
+        document = "fragment RenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n    __typename\n  }\n  __typename\n}\n\nquery GetRenderedPlot($id: ID!) {\n  renderedPlot(id: $id) {\n    ...RenderedPlot\n    __typename\n  }\n}"
 
 
 class ListRenderedPlotsQuery(BaseModel):
@@ -1957,11 +2086,11 @@ class ListRenderedPlotsQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment ListRenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n  }\n}\n\nquery ListRenderedPlots {\n  renderedPlots {\n    ...ListRenderedPlot\n  }\n}"
+        document = "fragment ListRenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n    __typename\n  }\n  __typename\n}\n\nquery ListRenderedPlots {\n  renderedPlots {\n    ...ListRenderedPlot\n    __typename\n  }\n}"
 
 
 class SearchRenderedPlotsQueryOptions(BaseModel):
-    typename: Optional[Literal["RenderedPlot"]] = Field(
+    typename: Literal["RenderedPlot"] = Field(
         alias="__typename", default="RenderedPlot", exclude=True
     )
     value: ID
@@ -1977,7 +2106,7 @@ class SearchRenderedPlotsQuery(BaseModel):
         values: Optional[List[ID]] = Field(default=None)
 
     class Meta:
-        document = "query SearchRenderedPlots($search: String, $values: [ID!]) {\n  options: renderedPlots(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
+        document = "query SearchRenderedPlots($search: String, $values: [ID!]) {\n  options: renderedPlots(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}"
 
 
 class GetFileQuery(BaseModel):
@@ -1987,13 +2116,11 @@ class GetFileQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n}\n\nfragment File on File {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n  }\n}\n\nquery GetFile($id: ID!) {\n  file(id: $id) {\n    ...File\n  }\n}"
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nquery GetFile($id: ID!) {\n  file(id: $id) {\n    ...File\n    __typename\n  }\n}"
 
 
 class SearchFilesQueryOptions(BaseModel):
-    typename: Optional[Literal["File"]] = Field(
-        alias="__typename", default="File", exclude=True
-    )
+    typename: Literal["File"] = Field(alias="__typename", default="File", exclude=True)
     value: ID
     label: str
     model_config = ConfigDict(frozen=True)
@@ -2008,7 +2135,7 @@ class SearchFilesQuery(BaseModel):
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
 
     class Meta:
-        document = "query SearchFiles($search: String, $values: [ID!], $pagination: OffsetPaginationInput) {\n  options: files(\n    filters: {search: $search, ids: $values}\n    pagination: $pagination\n  ) {\n    value: id\n    label: name\n  }\n}"
+        document = "query SearchFiles($search: String, $values: [ID!], $pagination: OffsetPaginationInput) {\n  options: files(\n    filters: {search: $search, ids: $values}\n    pagination: $pagination\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}"
 
 
 class GetStageQuery(BaseModel):
@@ -2018,11 +2145,11 @@ class GetStageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Stage on Stage {\n  id\n  name\n}\n\nquery GetStage($id: ID!) {\n  stage(id: $id) {\n    ...Stage\n  }\n}"
+        document = "fragment Stage on Stage {\n  id\n  name\n  __typename\n}\n\nquery GetStage($id: ID!) {\n  stage(id: $id) {\n    ...Stage\n    __typename\n  }\n}"
 
 
 class SearchStagesQueryOptions(BaseModel):
-    typename: Optional[Literal["Stage"]] = Field(
+    typename: Literal["Stage"] = Field(
         alias="__typename", default="Stage", exclude=True
     )
     value: ID
@@ -2039,7 +2166,7 @@ class SearchStagesQuery(BaseModel):
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
 
     class Meta:
-        document = "query SearchStages($search: String, $values: [ID!], $pagination: OffsetPaginationInput) {\n  options: stages(\n    filters: {search: $search, ids: $values}\n    pagination: $pagination\n  ) {\n    value: id\n    label: name\n  }\n}"
+        document = "query SearchStages($search: String, $values: [ID!], $pagination: OffsetPaginationInput) {\n  options: stages(\n    filters: {search: $search, ids: $values}\n    pagination: $pagination\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}"
 
 
 class GetRoisQuery(BaseModel):
@@ -2049,7 +2176,7 @@ class GetRoisQuery(BaseModel):
         image: ID
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nquery GetRois($image: ID!) {\n  rois(filters: {image: $image}) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nquery GetRois($image: ID!) {\n  rois(filters: {image: $image}) {\n    ...ROI\n    __typename\n  }\n}"
 
 
 class GetRoiQuery(BaseModel):
@@ -2059,13 +2186,11 @@ class GetRoiQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nquery GetRoi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nquery GetRoi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n    __typename\n  }\n}"
 
 
 class SearchRoisQueryOptions(IsVectorizableTrait, BaseModel):
-    typename: Optional[Literal["ROI"]] = Field(
-        alias="__typename", default="ROI", exclude=True
-    )
+    typename: Literal["ROI"] = Field(alias="__typename", default="ROI", exclude=True)
     value: ID
     label: str
     model_config = ConfigDict(frozen=True)
@@ -2079,7 +2204,7 @@ class SearchRoisQuery(BaseModel):
         values: Optional[List[ID]] = Field(default=None)
 
     class Meta:
-        document = "query SearchRois($search: String, $values: [ID!]) {\n  options: rois(filters: {search: $search, ids: $values}, pagination: {limit: 10}) {\n    value: id\n    label: name\n  }\n}"
+        document = "query SearchRois($search: String, $values: [ID!]) {\n  options: rois(filters: {search: $search, ids: $values}, pagination: {limit: 10}) {\n    value: id\n    label: name\n    __typename\n  }\n}"
 
 
 class GetObjectiveQuery(BaseModel):
@@ -2089,7 +2214,7 @@ class GetObjectiveQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Objective on Objective {\n  id\n  na\n  name\n  serialNumber\n}\n\nquery GetObjective($id: ID!) {\n  objective(id: $id) {\n    ...Objective\n  }\n}"
+        document = "fragment Objective on Objective {\n  id\n  na\n  name\n  serialNumber\n  __typename\n}\n\nquery GetObjective($id: ID!) {\n  objective(id: $id) {\n    ...Objective\n    __typename\n  }\n}"
 
 
 class GetDatasetQuery(BaseModel):
@@ -2099,7 +2224,7 @@ class GetDatasetQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment HistoryStuff on History {\n  id\n  app {\n    id\n  }\n}\n\nfragment Dataset on Dataset {\n  name\n  description\n  history {\n    ...HistoryStuff\n  }\n}\n\nquery GetDataset($id: ID!) {\n  dataset(id: $id) {\n    ...Dataset\n  }\n}"
+        document = "fragment HistoryStuff on History {\n  id\n  app {\n    id\n    __typename\n  }\n  __typename\n}\n\nfragment Dataset on Dataset {\n  name\n  description\n  history {\n    ...HistoryStuff\n    __typename\n  }\n  __typename\n}\n\nquery GetDataset($id: ID!) {\n  dataset(id: $id) {\n    ...Dataset\n    __typename\n  }\n}"
 
 
 class GetInstrumentQuery(BaseModel):
@@ -2109,7 +2234,7 @@ class GetInstrumentQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Instrument on Instrument {\n  id\n  model\n  name\n  serialNumber\n}\n\nquery GetInstrument($id: ID!) {\n  instrument(id: $id) {\n    ...Instrument\n  }\n}"
+        document = "fragment Instrument on Instrument {\n  id\n  model\n  name\n  serialNumber\n  __typename\n}\n\nquery GetInstrument($id: ID!) {\n  instrument(id: $id) {\n    ...Instrument\n    __typename\n  }\n}"
 
 
 class GetImageQuery(BaseModel):
@@ -2119,7 +2244,7 @@ class GetImageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  pixelViews {\n    ...PixelView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -2129,11 +2254,11 @@ class GetRandomImageQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  pixelViews {\n    ...PixelView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
-    typename: Optional[Literal["Image"]] = Field(
+    typename: Literal["Image"] = Field(
         alias="__typename", default="Image", exclude=True
     )
     value: ID
@@ -2149,7 +2274,7 @@ class SearchImagesQuery(BaseModel):
         values: Optional[List[ID]] = Field(default=None)
 
     class Meta:
-        document = "query SearchImages($search: String, $values: [ID!]) {\n  options: images(\n    filters: {name: {contains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
+        document = "query SearchImages($search: String, $values: [ID!]) {\n  options: images(\n    filters: {name: {contains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}"
 
 
 class ImagesQuery(BaseModel):
@@ -2160,7 +2285,7 @@ class ImagesQuery(BaseModel):
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  pixelViews {\n    ...PixelView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class GetSnapshotQuery(BaseModel):
@@ -2170,11 +2295,11 @@ class GetSnapshotQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Snapshot on Snapshot {\n  id\n  store {\n    key\n    presignedUrl\n  }\n  name\n}\n\nquery GetSnapshot($id: ID!) {\n  snapshot(id: $id) {\n    ...Snapshot\n  }\n}"
+        document = "fragment Snapshot on Snapshot {\n  id\n  store {\n    key\n    presignedUrl\n    __typename\n  }\n  name\n  __typename\n}\n\nquery GetSnapshot($id: ID!) {\n  snapshot(id: $id) {\n    ...Snapshot\n    __typename\n  }\n}"
 
 
 class SearchSnapshotsQueryOptions(BaseModel):
-    typename: Optional[Literal["Snapshot"]] = Field(
+    typename: Literal["Snapshot"] = Field(
         alias="__typename", default="Snapshot", exclude=True
     )
     value: ID
@@ -2190,7 +2315,7 @@ class SearchSnapshotsQuery(BaseModel):
         values: Optional[List[ID]] = Field(default=None)
 
     class Meta:
-        document = "query SearchSnapshots($search: String, $values: [ID!]) {\n  options: snapshots(\n    filters: {name: {contains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n  }\n}"
+        document = "query SearchSnapshots($search: String, $values: [ID!]) {\n  options: snapshots(\n    filters: {name: {contains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}"
 
 
 class GetRGBContextQuery(BaseModel):
@@ -2200,11 +2325,11 @@ class GetRGBContextQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class WatchFilesSubscriptionFiles(BaseModel):
-    typename: Optional[Literal["FileEvent"]] = Field(
+    typename: Literal["FileEvent"] = Field(
         alias="__typename", default="FileEvent", exclude=True
     )
     create: Optional[File] = Field(default=None)
@@ -2220,11 +2345,11 @@ class WatchFilesSubscription(BaseModel):
         dataset: Optional[ID] = Field(default=None)
 
     class Meta:
-        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n}\n\nfragment File on File {\n  origins {\n    id\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n  }\n}\n\nsubscription WatchFiles($dataset: ID) {\n  files(dataset: $dataset) {\n    create {\n      ...File\n    }\n    delete\n    update {\n      ...File\n    }\n  }\n}"
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchFiles($dataset: ID) {\n  files(dataset: $dataset) {\n    create {\n      ...File\n      __typename\n    }\n    delete\n    update {\n      ...File\n      __typename\n    }\n    __typename\n  }\n}"
 
 
 class WatchImagesSubscriptionImages(BaseModel):
-    typename: Optional[Literal["ImageEvent"]] = Field(
+    typename: Literal["ImageEvent"] = Field(
         alias="__typename", default="ImageEvent", exclude=True
     )
     create: Optional[Image] = Field(default=None)
@@ -2240,11 +2365,11 @@ class WatchImagesSubscription(BaseModel):
         dataset: Optional[ID] = Field(default=None)
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n  }\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n  }\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n  }\n  camera {\n    id\n    name\n    serialNumber\n  }\n  instrument {\n    id\n    name\n    serialNumber\n  }\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n  }\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n  }\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n        }\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n    }\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n  }\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n  }\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n  }\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n  }\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n  }\n  pixelViews {\n    ...PixelView\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n    }\n  }\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n    }\n    delete\n    update {\n      ...Image\n    }\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):
-    typename: Optional[Literal["RoiEvent"]] = Field(
+    typename: Literal["RoiEvent"] = Field(
         alias="__typename", default="RoiEvent", exclude=True
     )
     create: Optional[ROI] = Field(default=None)
@@ -2260,7 +2385,7 @@ class WatchRoisSubscription(BaseModel):
         image: ID
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n  }\n  vectors\n  kind\n}\n\nsubscription WatchRois($image: ID!) {\n  rois(image: $image) {\n    create {\n      ...ROI\n    }\n    delete\n    update {\n      ...ROI\n    }\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nsubscription WatchRois($image: ID!) {\n  rois(image: $image) {\n    create {\n      ...ROI\n      __typename\n    }\n    delete\n    update {\n      ...ROI\n      __typename\n    }\n    __typename\n  }\n}"
 
 
 async def acreate_camera(
@@ -2482,7 +2607,7 @@ async def afrom_parquet_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Table"""
+        From_parquet_likeMutationFromparquetlike"""
     return (
         await aexecute(
             From_parquet_likeMutation,
@@ -2522,7 +2647,7 @@ def from_parquet_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Table"""
+        From_parquet_likeMutationFromparquetlike"""
     return execute(
         From_parquet_likeMutation,
         {
@@ -2552,7 +2677,7 @@ async def arequest_table_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        RequestTableUploadMutationRequesttableupload"""
     return (
         await aexecute(
             RequestTableUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
@@ -2575,7 +2700,7 @@ def request_table_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        RequestTableUploadMutationRequesttableupload"""
     return execute(
         RequestTableUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
     ).request_table_upload
@@ -2596,7 +2721,7 @@ async def arequest_table_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        RequestTableAccessMutationRequesttableaccess"""
     return (
         await aexecute(
             RequestTableAccessMutation,
@@ -2621,7 +2746,7 @@ def request_table_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        RequestTableAccessMutationRequesttableaccess"""
     return execute(
         RequestTableAccessMutation, {"store": store, "duration": duration}, rath=rath
     ).request_table_access
@@ -2644,7 +2769,7 @@ async def acreate_rendered_plot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RenderedPlot"""
+        CreateRenderedPlotMutationCreaterenderedplot"""
     return (
         await aexecute(
             CreateRenderedPlotMutation,
@@ -2671,7 +2796,7 @@ def create_rendered_plot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RenderedPlot"""
+        CreateRenderedPlotMutationCreaterenderedplot"""
     return execute(
         CreateRenderedPlotMutation,
         {"plot": plot, "name": name, "overlays": overlays},
@@ -2698,7 +2823,7 @@ async def afrom_file_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        File"""
+        From_file_likeMutationFromfilelike"""
     return (
         await aexecute(
             From_file_likeMutation,
@@ -2727,7 +2852,7 @@ def from_file_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        File"""
+        From_file_likeMutationFromfilelike"""
     return execute(
         From_file_likeMutation,
         {"file": file, "name": name, "origins": origins, "dataset": dataset},
@@ -2750,7 +2875,7 @@ async def arequest_file_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        RequestFileUploadMutationRequestfileupload"""
     return (
         await aexecute(
             RequestFileUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
@@ -2773,7 +2898,7 @@ def request_file_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        RequestFileUploadMutationRequestfileupload"""
     return execute(
         RequestFileUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
     ).request_file_upload
@@ -2794,7 +2919,7 @@ async def arequest_file_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        RequestFileAccessMutationRequestfileaccess"""
     return (
         await aexecute(
             RequestFileAccessMutation, {"store": store, "duration": duration}, rath=rath
@@ -2817,7 +2942,7 @@ def request_file_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        RequestFileAccessMutationRequestfileaccess"""
     return execute(
         RequestFileAccessMutation, {"store": store, "duration": duration}, rath=rath
     ).request_file_access
@@ -2833,7 +2958,7 @@ async def acreate_stage(name: str, rath: Optional[MikroNextRath] = None) -> Stag
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Stage"""
+        CreateStageMutationCreatestage"""
     return (await aexecute(CreateStageMutation, {"name": name}, rath=rath)).create_stage
 
 
@@ -2847,7 +2972,7 @@ def create_stage(name: str, rath: Optional[MikroNextRath] = None) -> Stage:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Stage"""
+        CreateStageMutationCreatestage"""
     return execute(CreateStageMutation, {"name": name}, rath=rath).create_stage
 
 
@@ -2874,7 +2999,7 @@ async def acreate_roi(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        CreateRoiMutationCreateroi"""
     return (
         await aexecute(
             CreateRoiMutation,
@@ -2914,7 +3039,7 @@ def create_roi(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        CreateRoiMutationCreateroi"""
     return execute(
         CreateRoiMutation,
         {
@@ -2973,7 +3098,7 @@ async def aupdate_roi(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        UpdateRoiMutationUpdateroi"""
     return (await aexecute(UpdateRoiMutation, {"input": input}, rath=rath)).update_roi
 
 
@@ -2987,7 +3112,7 @@ def update_roi(input: UpdateRoiInput, rath: Optional[MikroNextRath] = None) -> R
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        UpdateRoiMutationUpdateroi"""
     return execute(UpdateRoiMutation, {"input": input}, rath=rath).update_roi
 
 
@@ -3380,7 +3505,7 @@ async def afrom_array_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        From_array_likeMutationFromarraylike"""
     return (
         await aexecute(
             From_array_likeMutation,
@@ -3447,7 +3572,7 @@ def from_array_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        From_array_likeMutationFromarraylike"""
     return execute(
         From_array_likeMutation,
         {
@@ -3486,7 +3611,7 @@ async def arequest_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        RequestUploadMutationRequestupload"""
     return (
         await aexecute(
             RequestUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
@@ -3509,7 +3634,7 @@ def request_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        RequestUploadMutationRequestupload"""
     return execute(
         RequestUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
     ).request_upload
@@ -3530,7 +3655,7 @@ async def arequest_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        RequestAccessMutationRequestaccess"""
     return (
         await aexecute(
             RequestAccessMutation, {"store": store, "duration": duration}, rath=rath
@@ -3553,7 +3678,7 @@ def request_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        RequestAccessMutationRequestaccess"""
     return execute(
         RequestAccessMutation, {"store": store, "duration": duration}, rath=rath
     ).request_access
@@ -3610,7 +3735,7 @@ async def acreate_snapshot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Snapshot"""
+        CreateSnapshotMutationCreatesnapshot"""
     return (
         await aexecute(
             CreateSnapshotMutation, {"image": image, "file": file}, rath=rath
@@ -3631,7 +3756,7 @@ def create_snapshot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Snapshot"""
+        CreateSnapshotMutationCreatesnapshot"""
     return execute(
         CreateSnapshotMutation, {"image": image, "file": file}, rath=rath
     ).create_snapshot
@@ -3746,7 +3871,7 @@ async def acreate_label_view(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        LabelView"""
+        CreateLabelViewMutationCreatelabelview"""
     return (
         await aexecute(
             CreateLabelViewMutation, {"image": image, "label": label}, rath=rath
@@ -3767,7 +3892,7 @@ def create_label_view(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        LabelView"""
+        CreateLabelViewMutationCreatelabelview"""
     return execute(
         CreateLabelViewMutation, {"image": image, "label": label}, rath=rath
     ).create_label_view
@@ -3785,7 +3910,7 @@ async def acreate_rgb_context(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        CreateRGBContextMutationCreatergbcontext"""
     return (
         await aexecute(CreateRGBContextMutation, {"input": input}, rath=rath)
     ).create_rgb_context
@@ -3803,7 +3928,7 @@ def create_rgb_context(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        CreateRGBContextMutationCreatergbcontext"""
     return execute(
         CreateRGBContextMutation, {"input": input}, rath=rath
     ).create_rgb_context
@@ -3821,7 +3946,7 @@ async def aupdate_rgb_context(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        UpdateRGBContextMutationUpdatergbcontext"""
     return (
         await aexecute(UpdateRGBContextMutation, {"input": input}, rath=rath)
     ).update_rgb_context
@@ -3839,7 +3964,7 @@ def update_rgb_context(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        UpdateRGBContextMutationUpdatergbcontext"""
     return execute(
         UpdateRGBContextMutation, {"input": input}, rath=rath
     ).update_rgb_context
@@ -3959,7 +4084,7 @@ async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Camera"""
+        GetCameraQueryCamera"""
     return (await aexecute(GetCameraQuery, {"id": id}, rath=rath)).camera
 
 
@@ -3973,7 +4098,7 @@ def get_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Camera"""
+        GetCameraQueryCamera"""
     return execute(GetCameraQuery, {"id": id}, rath=rath).camera
 
 
@@ -3987,7 +4112,7 @@ async def aget_table(id: ID, rath: Optional[MikroNextRath] = None) -> Table:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Table"""
+        GetTableQueryTable"""
     return (await aexecute(GetTableQuery, {"id": id}, rath=rath)).table
 
 
@@ -4001,7 +4126,7 @@ def get_table(id: ID, rath: Optional[MikroNextRath] = None) -> Table:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Table"""
+        GetTableQueryTable"""
     return execute(GetTableQuery, {"id": id}, rath=rath).table
 
 
@@ -4017,7 +4142,7 @@ async def aget_rendered_plot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RenderedPlot"""
+        GetRenderedPlotQueryRenderedplot"""
     return (await aexecute(GetRenderedPlotQuery, {"id": id}, rath=rath)).rendered_plot
 
 
@@ -4031,7 +4156,7 @@ def get_rendered_plot(id: ID, rath: Optional[MikroNextRath] = None) -> RenderedP
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RenderedPlot"""
+        GetRenderedPlotQueryRenderedplot"""
     return execute(GetRenderedPlotQuery, {"id": id}, rath=rath).rendered_plot
 
 
@@ -4046,7 +4171,7 @@ async def alist_rendered_plots(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ListRenderedPlot]"""
+        List[ListRenderedPlotsQueryRenderedplots]"""
     return (await aexecute(ListRenderedPlotsQuery, {}, rath=rath)).rendered_plots
 
 
@@ -4059,7 +4184,7 @@ def list_rendered_plots(rath: Optional[MikroNextRath] = None) -> List[ListRender
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ListRenderedPlot]"""
+        List[ListRenderedPlotsQueryRenderedplots]"""
     return execute(ListRenderedPlotsQuery, {}, rath=rath).rendered_plots
 
 
@@ -4117,7 +4242,7 @@ async def aget_file(id: ID, rath: Optional[MikroNextRath] = None) -> File:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        File"""
+        GetFileQueryFile"""
     return (await aexecute(GetFileQuery, {"id": id}, rath=rath)).file
 
 
@@ -4131,7 +4256,7 @@ def get_file(id: ID, rath: Optional[MikroNextRath] = None) -> File:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        File"""
+        GetFileQueryFile"""
     return execute(GetFileQuery, {"id": id}, rath=rath).file
 
 
@@ -4197,7 +4322,7 @@ async def aget_stage(id: ID, rath: Optional[MikroNextRath] = None) -> Stage:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Stage"""
+        GetStageQueryStage"""
     return (await aexecute(GetStageQuery, {"id": id}, rath=rath)).stage
 
 
@@ -4211,7 +4336,7 @@ def get_stage(id: ID, rath: Optional[MikroNextRath] = None) -> Stage:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Stage"""
+        GetStageQueryStage"""
     return execute(GetStageQuery, {"id": id}, rath=rath).stage
 
 
@@ -4277,7 +4402,7 @@ async def aget_rois(image: ID, rath: Optional[MikroNextRath] = None) -> List[ROI
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ROI]"""
+        List[GetRoisQueryRois]"""
     return (await aexecute(GetRoisQuery, {"image": image}, rath=rath)).rois
 
 
@@ -4291,7 +4416,7 @@ def get_rois(image: ID, rath: Optional[MikroNextRath] = None) -> List[ROI]:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ROI]"""
+        List[GetRoisQueryRois]"""
     return execute(GetRoisQuery, {"image": image}, rath=rath).rois
 
 
@@ -4305,7 +4430,7 @@ async def aget_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ROI:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        GetRoiQueryRoi"""
     return (await aexecute(GetRoiQuery, {"id": id}, rath=rath)).roi
 
 
@@ -4319,7 +4444,7 @@ def get_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ROI:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        GetRoiQueryRoi"""
     return execute(GetRoiQuery, {"id": id}, rath=rath).roi
 
 
@@ -4375,7 +4500,7 @@ async def aget_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Objective"""
+        GetObjectiveQueryObjective"""
     return (await aexecute(GetObjectiveQuery, {"id": id}, rath=rath)).objective
 
 
@@ -4389,7 +4514,7 @@ def get_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Objective:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Objective"""
+        GetObjectiveQueryObjective"""
     return execute(GetObjectiveQuery, {"id": id}, rath=rath).objective
 
 
@@ -4403,7 +4528,7 @@ async def aget_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        GetDatasetQueryDataset"""
     return (await aexecute(GetDatasetQuery, {"id": id}, rath=rath)).dataset
 
 
@@ -4417,7 +4542,7 @@ def get_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        GetDatasetQueryDataset"""
     return execute(GetDatasetQuery, {"id": id}, rath=rath).dataset
 
 
@@ -4431,7 +4556,7 @@ async def aget_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instr
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Instrument"""
+        GetInstrumentQueryInstrument"""
     return (await aexecute(GetInstrumentQuery, {"id": id}, rath=rath)).instrument
 
 
@@ -4445,7 +4570,7 @@ def get_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instrument:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Instrument"""
+        GetInstrumentQueryInstrument"""
     return execute(GetInstrumentQuery, {"id": id}, rath=rath).instrument
 
 
@@ -4459,7 +4584,7 @@ async def aget_image(id: ID, rath: Optional[MikroNextRath] = None) -> Image:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        GetImageQueryImage"""
     return (await aexecute(GetImageQuery, {"id": id}, rath=rath)).image
 
 
@@ -4473,7 +4598,7 @@ def get_image(id: ID, rath: Optional[MikroNextRath] = None) -> Image:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        GetImageQueryImage"""
     return execute(GetImageQuery, {"id": id}, rath=rath).image
 
 
@@ -4486,7 +4611,7 @@ async def aget_random_image(rath: Optional[MikroNextRath] = None) -> Image:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        GetRandomImageQueryRandomimage"""
     return (await aexecute(GetRandomImageQuery, {}, rath=rath)).random_image
 
 
@@ -4499,7 +4624,7 @@ def get_random_image(rath: Optional[MikroNextRath] = None) -> Image:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        GetRandomImageQueryRandomimage"""
     return execute(GetRandomImageQuery, {}, rath=rath).random_image
 
 
@@ -4562,7 +4687,7 @@ async def aimages(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[Image]"""
+        List[ImagesQueryImages]"""
     return (
         await aexecute(
             ImagesQuery, {"filter": filter, "pagination": pagination}, rath=rath
@@ -4585,7 +4710,7 @@ def images(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[Image]"""
+        List[ImagesQueryImages]"""
     return execute(
         ImagesQuery, {"filter": filter, "pagination": pagination}, rath=rath
     ).images
@@ -4601,7 +4726,7 @@ async def aget_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> Snapsho
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Snapshot"""
+        GetSnapshotQuerySnapshot"""
     return (await aexecute(GetSnapshotQuery, {"id": id}, rath=rath)).snapshot
 
 
@@ -4615,7 +4740,7 @@ def get_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> Snapshot:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Snapshot"""
+        GetSnapshotQuerySnapshot"""
     return execute(GetSnapshotQuery, {"id": id}, rath=rath).snapshot
 
 
@@ -4673,7 +4798,7 @@ async def aget_rgb_context(id: ID, rath: Optional[MikroNextRath] = None) -> RGBC
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        GetRGBContextQueryRgbcontext"""
     return (await aexecute(GetRGBContextQuery, {"id": id}, rath=rath)).rgbcontext
 
 
@@ -4687,7 +4812,7 @@ def get_rgb_context(id: ID, rath: Optional[MikroNextRath] = None) -> RGBContext:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        GetRGBContextQueryRgbcontext"""
     return execute(GetRGBContextQuery, {"id": id}, rath=rath).rgbcontext
 
 
@@ -4798,20 +4923,12 @@ def watch_rois(
 
 
 AffineTransformationViewFilter.model_rebuild()
-ChannelView.model_rebuild()
 DatasetFilter.model_rebuild()
 EraFilter.model_rebuild()
-File.model_rebuild()
-Image.model_rebuild()
 ImageFilter.model_rebuild()
 PartialPixelViewInput.model_rebuild()
 ProvenanceFilter.model_rebuild()
-RGBContextImage.model_rebuild()
-RGBViewImage.model_rebuild()
-RGBViewImageDerivedscaleviewsImage.model_rebuild()
 StageFilter.model_rebuild()
-Table.model_rebuild()
-TimepointView.model_rebuild()
 TimepointViewFilter.model_rebuild()
 TreeInput.model_rebuild()
 TreeNodeInput.model_rebuild()
