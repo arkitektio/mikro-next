@@ -1,6 +1,5 @@
-
-mutation CreateRenderTree($name: String!, $tree: TreeInput!) {
-  createRenderTree(input: {name: $name, tree: $tree}) {
+mutation CreateRenderTree($input: RenderTreeInput!) {
+  createRenderTree(input: $input) {
     id
   }
 }

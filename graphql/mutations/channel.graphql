@@ -1,16 +1,13 @@
-mutation CreateChannel($name: String!) {
-  createChannel(input: {name: $name}) {
+mutation CreateChannel($input: ChannelInput!) {
+  createChannel(input: $input) {
     id
     name
   }
 }
 
-mutation EnsureChannel($name: String!){
-  ensureChannel(input: {
-    name: $name
-  }) {
+mutation EnsureChannel($input: ChannelInput!) {
+  ensureChannel(input: $input) {
     id
     name
-    
   }
 }

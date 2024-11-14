@@ -1,5 +1,5 @@
-mutation CreateSnapshot($image: ID!, $file: Upload!) {
-  createSnapshot(input: { file: $file , image: $image}) {
+mutation CreateSnapshot($input: SnapshotInput!) {
+  createSnapshot(input: $input) {
     ...Snapshot
   }
 }

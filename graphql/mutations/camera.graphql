@@ -1,34 +1,12 @@
-mutation CreateCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int,) {
-  createCamera(input: {
-    name: $name,
-     pixelSizeX: $pixelSizeX, 
-     serialNumber: $serialNumber,
-      pixelSizeY: $pixelSizeY,
-        sensorSizeX: $sensorSizeX,
-          sensorSizeY: $sensorSizeY,
-
-     
-     
-     
-     }) {
+mutation CreateCamera($input: CameraInput!) {
+  createCamera(input: $input) {
     id
     name
   }
 }
 
-mutation EnsureCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int,) {
-  ensureCamera(input: {
-    name: $name,
-     pixelSizeX: $pixelSizeX, 
-     serialNumber: $serialNumber,
-      pixelSizeY: $pixelSizeY,
-        sensorSizeX: $sensorSizeX,
-          sensorSizeY: $sensorSizeY,
-          
-     
-     
-     
-     }) {
+mutation EnsureCamera($input: CameraInput!) {
+  ensureCamera(input: $input) {
     id
     name
   }

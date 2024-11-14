@@ -1,27 +1,11 @@
-mutation CreateRoi(
-  $image: ID!
-  $vectors: [FiveDVector!]!
-  $kind: RoiKind!
-  $entity: ID
-  $entityKind: ID
-  $entityParent: ID
-) {
-  createRoi(
-    input: {
-      image: $image
-      vectors: $vectors
-      kind: $kind
-      entity: $entity
-      entityKind: $entityKind
-      entityParent: $entityParent
-    }
-  ) {
+mutation CreateRoi($input: RoiInput!) {
+  createRoi(input: $input) {
     ...ROI
   }
 }
 
-mutation DeleteRoi($roi: ID!) {
-  deleteRoi(input: { id: $roi })
+mutation DeleteRoi($input: DeleteRoiInput!) {
+  deleteRoi(input: $input)
 }
 
 mutation UpdateRoi($input: UpdateRoiInput!) {

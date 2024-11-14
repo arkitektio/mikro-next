@@ -1,3 +1,5 @@
+import json
+import os
 from pydantic import Field
 from rath.links.file import FileExtraction
 from rath.links.dictinglink import DictingLink
@@ -5,7 +7,7 @@ from rath.links.auth import AuthTokenLink
 from rath.links.split import SplitLink
 from fakts_next import Fakts
 from herre_next import Herre
-from arkitekt_next.service_registry import Params
+from arkitekt_next.service_registry import BaseArkitektService, Params
 from arkitekt_next.base_models import Requirement
 
 from mikro_next.mikro_next import MikroNext
@@ -22,38 +24,47 @@ from herre_next import Herre
 from fakts_next import Fakts
 
 from arkitekt_next.base_models import Manifest
+try:
+    from rekuest_next.links.context import ContextLink
+    from rath.links.compose import TypedComposedLink
+
+    class ArkitektMikroNextLinkComposition(TypedComposedLink):
+        fileextraction: FileExtraction = Field(default_factory=FileExtraction)
+        """ A link that extracts files from the request and follows the graphql multipart request spec"""
+        dicting: DictingLink = Field(default_factory=DictingLink)
+        """ A link that converts basemodels to dicts"""
+        upload: UploadLink
+        """ A link that uploads supported data types like numpy arrays and parquet files to the datalayer"""
+        auth: AuthTokenLink
+        """ A link that adds the auth token to the request"""
+        """ A link that splits the request into a http and a websocket request"""
+        assignation: ContextLink = Field(default_factory=ContextLink)
+        split: SplitLink
+
+except ImportError:
+    ArkitektMikroNextLinkComposition = MikroNextLinkComposition
+
+class ArkitektMikroNextRath(MikroNextRath):
+    link: ArkitektMikroNextLinkComposition
+
+class ArkitektNextMikroNext(MikroNext):
+    rath: ArkitektMikroNextRath
+    datalayer: DataLayer
 
 
-def init_services(service_builder_registry):
 
-    try:
-        from rekuest_next.links.context import ContextLink
-        from rath.links.compose import TypedComposedLink
+def build_relative_path(*path: str) -> str:
+    return os.path.join(os.path.dirname(__file__), *path)
 
-        class ArkitektMikroNextLinkComposition(TypedComposedLink):
-            fileextraction: FileExtraction = Field(default_factory=FileExtraction)
-            """ A link that extracts files from the request and follows the graphql multipart request spec"""
-            dicting: DictingLink = Field(default_factory=DictingLink)
-            """ A link that converts basemodels to dicts"""
-            upload: UploadLink
-            """ A link that uploads supported data types like numpy arrays and parquet files to the datalayer"""
-            auth: AuthTokenLink
-            """ A link that adds the auth token to the request"""
-            """ A link that splits the request into a http and a websocket request"""
-            assignation: ContextLink = Field(default_factory=ContextLink)
-            split: SplitLink
 
-    except ImportError:
-        ArkitektMikroNextLinkComposition = MikroNextLinkComposition
+class MikroService(BaseArkitektService):
 
-    class ArkitektMikroNextRath(MikroNextRath):
-        link: ArkitektMikroNextLinkComposition
 
-    class ArkitektNextMikroNext(MikroNext):
-        rath: ArkitektMikroNextRath
-        datalayer: DataLayer
+    def get_service_name(self):
+        return "mikro"
+    
 
-    def builder_mikro(fakts: Fakts, herre: Herre, params: Params, manifest: Manifest):
+    def build_service(self, fakts: Fakts, herre: Herre, params: Params, manifest: Manifest):
         datalayer = FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
 
         return ArkitektNextMikroNext(
@@ -76,27 +87,33 @@ def init_services(service_builder_registry):
             ),
             datalayer=datalayer,
         )
-
-    def fake_builder(fakts, herre, params, manifest):
-        return FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
-
-    service_builder_registry.register(
-        "mikro",
-        builder_mikro,
-        Requirement(
+    
+    def get_requirements(self):
+        return [
+            Requirement(
             key="mikro",
             service="live.arkitekt.mikro",
             description="An instance of ArkitektNext Mikro to make requests to the user's data",
             optional=True,
         ),
-    )
-    service_builder_registry.register(
-        "datalayer",
-        fake_builder,
         Requirement(
             key="datalayer",
             service="live.arkitekt.s3",
             description="An instance of ArkitektNext Datalayer to make requests to the user's data",
             optional=True,
         ),
-    )
+        ]
+
+    def get_graphql_schema(self):
+        schema_graphql_path = build_relative_path("api", "schema.graphql")
+        with open(schema_graphql_path) as f:
+            return f.read()
+        
+    def get_turms_project(self):
+        turms_prject = build_relative_path("api", "project.json")
+        with open(turms_prject) as f:
+            return json.loads(f.read())
+
+
+def build_services():
+    return [MikroService()]

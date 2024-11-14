@@ -1,51 +1,17 @@
-mutation from_array_like(
-  $array: ArrayLike!
-  $name: String!
-  $channelViews: [PartialChannelViewInput!]
-  $transformationViews: [PartialAffineTransformationViewInput!]
-  $pixelViews: [PartialPixelViewInput!]
-  $rgbViews: [PartialRGBViewInput!]
-  $acquisitionViews: [PartialAcquisitionViewInput!]
-  $timepointViews: [PartialTimepointViewInput!]
-  $opticsViews: [PartialOpticsViewInput!]
-  $structureViews: [PartialStructureViewInput!]
-  $scaleViews: [PartialScaleViewInput!]
-  $roiViews: [PartialROIViewInput!]
-  $fileViews: [PartialFileViewInput!]
-  $derivedViews: [PartialDerivedViewInput!]
-  $tags: [String!]
-) {
-  fromArrayLike(
-    input: {
-      array: $array
-      name: $name
-      channelViews: $channelViews
-      transformationViews: $transformationViews
-      acquisitionViews: $acquisitionViews
-      pixelViews: $pixelViews
-      timepointViews: $timepointViews
-      opticsViews: $opticsViews
-      rgbViews: $rgbViews
-      scaleViews: $scaleViews
-      tags: $tags
-      structureViews: $structureViews
-      derivedViews: $derivedViews
-      roiViews: $roiViews
-      fileViews: $fileViews
-    }
-  ) {
+mutation from_array_like($input: FromArrayLikeInput!) {
+  fromArrayLike(input: $input) {
     ...Image
   }
 }
 
-mutation RequestUpload($key: String!, $datalayer: String!) {
-  requestUpload(input: { key: $key, datalayer: $datalayer }) {
+mutation RequestUpload($input: RequestUploadInput!) {
+  requestUpload(input: $input) {
     ...Credentials
   }
 }
 
-mutation RequestAccess($store: ID!, $duration: Int) {
-  requestAccess(input: { store: $store, duration: $duration }) {
+mutation RequestAccess($input: RequestAccessInput!) {
+  requestAccess(input: $input) {
     ...AccessCredentials
   }
 }

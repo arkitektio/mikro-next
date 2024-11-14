@@ -1,12 +1,12 @@
-mutation CreateInstrument($serialNumber: String!, $name: String, $model: String) {
-  createInstrument(input: {name: $name, model: $model, serialNumber: $serialNumber}) {
+mutation CreateInstrument($input: InstrumentInput!) {
+  createInstrument(input: $input) {
     id
     name
   }
 }
 
-mutation EnsureInstrument($serialNumber: String!, $name: String, $model: String) {
-  ensureInstrument(input: {name: $name, model: $model, serialNumber: $serialNumber}) {
+mutation EnsureInstrument($input: InstrumentInput!) {
+  ensureInstrument(input: $input) {
     id
     name
   }

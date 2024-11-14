@@ -1,27 +1,19 @@
-mutation CreateDataset($name: String!) {
-  createDataset(input: {
-    name: $name
-  }){
-    id 
-    name
-  }
-}
-
-mutation UpdateDataset($id: ID!, $name:String!){
-  updateDataset(input: {
-    id: $id
-    name: $name
-  }){
+mutation CreateDataset($input: CreateDatasetInput!) {
+  createDataset(input: $input) {
     id
     name
   }
 }
 
-mutation RevertDataset($dataset: ID!, $history:ID!){
-  revertDataset(input: {
-    id: $dataset
-    historyId: $history
-  }){
+mutation UpdateDataset($input: ChangeDatasetInput!) {
+  updateDataset(input: $input) {
+    id
+    name
+  }
+}
+
+mutation RevertDataset($input: RevertInput!) {
+  revertDataset(input: $input) {
     id
     name
     description

@@ -79,33 +79,33 @@ class UploadLink(ParsingLink):
         self._executor_session = self.executor.__enter__()
 
     async def aget_image_credentials(self, key, datalayer) -> Any:
-        from mikro_next.api.schema import RequestUploadMutation
+        from mikro_next.api.schema import RequestUploadMutation, RequestUploadInput
 
         operation = opify(
             RequestUploadMutation.Meta.document,
-            variables={"key": key, "datalayer": datalayer},
+            variables={"input": RequestUploadInput(key=key, datalayer=datalayer).model_dump()},
         )
 
         async for result in self.next.aexecute(operation):
             return RequestUploadMutation(**result.data).request_upload
 
     async def aget_table_credentials(self, key, datalayer) -> Any:
-        from mikro_next.api.schema import RequestTableUploadMutation
+        from mikro_next.api.schema import RequestTableUploadMutation, RequestTableUploadInput
 
         operation = opify(
             RequestTableUploadMutation.Meta.document,
-            variables={"key": key, "datalayer": datalayer},
+            variables={"input": RequestTableUploadInput(key=key, datalayer=datalayer).model_dump()},
         )
 
         async for result in self.next.aexecute(operation):
             return RequestTableUploadMutation(**result.data).request_table_upload
 
     async def aget_bigfile_credentials(self, key, datalayer) -> Any:
-        from mikro_next.api.schema import RequestFileUploadMutation
+        from mikro_next.api.schema import RequestFileUploadMutation, RequestFileUploadInput
 
         operation = opify(
             RequestFileUploadMutation.Meta.document,
-            variables={"key": key, "datalayer": datalayer},
+            variables={"input": RequestFileUploadInput(key=key, datalayer=datalayer).model_dump()},
         )
 
         async for result in self.next.aexecute(operation):

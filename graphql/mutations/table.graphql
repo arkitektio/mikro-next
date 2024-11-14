@@ -1,33 +1,17 @@
-mutation from_parquet_like(
-  $dataframe: ParquetLike!
-  $name: String!
-  $origins: [ID!]
-  $dataset: ID
-  $labelAccessors: [PartialLabelAccessorInput!]
-  $imageAccessors: [PartialImageAccessorInput!]
-) {
-  fromParquetLike(
-    input: {
-      dataframe: $dataframe
-      name: $name
-      origins: $origins
-      dataset: $dataset
-      labelAccessors: $labelAccessors
-      imageAccessors: $imageAccessors
-    }
-  ) {
+mutation from_parquet_like($input: FromParquetLike!) {
+  fromParquetLike(input: $input) {
     ...Table
   }
 }
 
-mutation RequestTableUpload($key: String!, $datalayer: String!) {
-  requestTableUpload(input: { key: $key, datalayer: $datalayer }) {
+mutation RequestTableUpload($input: RequestTableUploadInput!) {
+  requestTableUpload(input: $input) {
     ...Credentials
   }
 }
 
-mutation RequestTableAccess($store: ID!, $duration: Int) {
-  requestTableAccess(input: { store: $store, duration: $duration }) {
+mutation RequestTableAccess($input: RequestTableAccessInput!) {
+  requestTableAccess(input: $input) {
     ...AccessCredentials
   }
 }

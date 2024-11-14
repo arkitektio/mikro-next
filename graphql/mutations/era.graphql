@@ -1,5 +1,5 @@
-mutation CreateEra($name: String!, $begin: DateTime) {
-  createEra(input: {name: $name, begin: $begin}) {
+mutation CreateEra($input: EraInput!) {
+  createEra(input: $input) {
     id
     begin
   }

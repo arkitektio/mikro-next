@@ -1,5 +1,5 @@
-mutation CreateStage($name: String!) {
-  createStage(input: { name: $name }) {
+mutation CreateStage($input: StageInput!) {
+  createStage(input: $input) {
     ...Stage
   }
 }

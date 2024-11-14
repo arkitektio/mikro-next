@@ -1,33 +1,11 @@
-mutation CreateRgbView(
-  $image: ID!
-  $context: ID!
-  $gamma: Float
-  $contrastLimitMax: Float
-  $contrastLimitMin: Float
-  $rescale: Boolean
-  $active: Boolean
-  $colorMap: ColorMap
-  $baseColor: [Float!]
-) {
-  createRgbView(
-    input: {
-      image: $image
-      context: $context
-      gamma: $gamma
-      contrastLimitMax: $contrastLimitMax
-      contrastLimitMin: $contrastLimitMin
-      rescale: $rescale
-      active: $active
-      colorMap: $colorMap
-      baseColor: $baseColor
-    }
-  ) {
+mutation CreateRgbView($input: RGBViewInput!) {
+  createRgbView(input: $input) {
     id
   }
 }
 
-mutation CreateLabelView($image: ID!, $label: String!) {
-  createLabelView(input: { image: $image, label: $label }) {
+mutation CreateLabelView($input: LabelViewInput!) {
+  createLabelView(input: $input) {
     ...LabelView
   }
 }

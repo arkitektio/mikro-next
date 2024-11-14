@@ -1,38 +1,39 @@
+from enum import Enum
 from mikro_next.scalars import (
-    Milliseconds,
+    ParquetLike,
     FiveDVector,
-    Upload,
     FileLike,
     FourByFourMatrix,
-    ParquetLike,
-    ArrayLike,
     Micrometers,
+    Milliseconds,
+    Upload,
+    ArrayLike,
 )
-from typing import (
-    List,
-    AsyncIterator,
-    Literal,
-    Union,
-    Annotated,
-    Optional,
-    Iterator,
-    Tuple,
-)
-from datetime import datetime
 from mikro_next.traits import (
     HasDownloadAccessor,
-    HasParquestStoreTrait,
     HasParquetStoreAccesor,
-    HasZarrStoreTrait,
     HasZarrStoreAccessor,
-    HasPresignedDownloadAccessor,
     IsVectorizableTrait,
+    HasPresignedDownloadAccessor,
+    HasParquestStoreTrait,
+    HasZarrStoreTrait,
 )
+from typing import (
+    Union,
+    Optional,
+    Iterator,
+    Literal,
+    Tuple,
+    Annotated,
+    List,
+    Iterable,
+    AsyncIterator,
+)
+from mikro_next.funcs import asubscribe, execute, subscribe, aexecute
+from datetime import datetime
+from pydantic import BaseModel, Field, ConfigDict
 from rath.scalars import ID
-from mikro_next.funcs import asubscribe, execute, aexecute, subscribe
 from mikro_next.rath import MikroNextRath
-from enum import Enum
-from pydantic import Field, ConfigDict, BaseModel
 
 
 class RoiKind(str, Enum):
@@ -312,19 +313,143 @@ class EraFilter(BaseModel):
     )
 
 
+class RequestUploadInput(BaseModel):
+    key: str
+    datalayer: str
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestAccessInput(BaseModel):
+    store: ID
+    duration: Optional[int] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestTableUploadInput(BaseModel):
+    key: str
+    datalayer: str
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestTableAccessInput(BaseModel):
+    store: ID
+    duration: Optional[int] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestFileUploadInput(BaseModel):
+    key: str
+    datalayer: str
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestFileAccessInput(BaseModel):
+    store: ID
+    duration: Optional[int] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class FromArrayLikeInput(BaseModel):
+    """Input type for creating an image from an array-like object"""
+
+    array: ArrayLike
+    "The array-like object to create the image from"
+    name: str
+    "The name of the image"
+    dataset: Optional[ID] = None
+    "Optional dataset ID to associate the image with"
+    channel_views: Optional[Tuple["PartialChannelViewInput", ...]] = Field(
+        alias="channelViews", default=None
+    )
+    "Optional list of channel views"
+    transformation_views: Optional[
+        Tuple["PartialAffineTransformationViewInput", ...]
+    ] = Field(alias="transformationViews", default=None)
+    "Optional list of affine transformation views"
+    acquisition_views: Optional[Tuple["PartialAcquisitionViewInput", ...]] = Field(
+        alias="acquisitionViews", default=None
+    )
+    "Optional list of acquisition views"
+    pixel_views: Optional[Tuple["PartialPixelViewInput", ...]] = Field(
+        alias="pixelViews", default=None
+    )
+    "Optional list of pixel views"
+    structure_views: Optional[Tuple["PartialStructureViewInput", ...]] = Field(
+        alias="structureViews", default=None
+    )
+    "Optional list of structure views"
+    rgb_views: Optional[Tuple["PartialRGBViewInput", ...]] = Field(
+        alias="rgbViews", default=None
+    )
+    "Optional list of RGB views"
+    timepoint_views: Optional[Tuple["PartialTimepointViewInput", ...]] = Field(
+        alias="timepointViews", default=None
+    )
+    "Optional list of timepoint views"
+    optics_views: Optional[Tuple["PartialOpticsViewInput", ...]] = Field(
+        alias="opticsViews", default=None
+    )
+    "Optional list of optics views"
+    scale_views: Optional[Tuple["PartialScaleViewInput", ...]] = Field(
+        alias="scaleViews", default=None
+    )
+    "Optional list of scale views"
+    tags: Optional[Tuple[str, ...]] = None
+    "Optional list of tags to associate with the image"
+    roi_views: Optional[Tuple["PartialROIViewInput", ...]] = Field(
+        alias="roiViews", default=None
+    )
+    "Optional list of ROI views"
+    file_views: Optional[Tuple["PartialFileViewInput", ...]] = Field(
+        alias="fileViews", default=None
+    )
+    "Optional list of file views"
+    derived_views: Optional[Tuple["PartialDerivedViewInput", ...]] = Field(
+        alias="derivedViews", default=None
+    )
+    "Optional list of derived views"
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
 class PartialChannelViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     channel: ID
+    "The ID of the channel this view is for"
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -332,16 +457,27 @@ class PartialChannelViewInput(BaseModel):
 
 class PartialAffineTransformationViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     stage: Optional[ID] = None
     affine_matrix: FourByFourMatrix = Field(alias="affineMatrix")
     model_config = ConfigDict(
@@ -351,16 +487,27 @@ class PartialAffineTransformationViewInput(BaseModel):
 
 class PartialAcquisitionViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     description: Optional[str] = None
     acquired_at: Optional[datetime] = Field(alias="acquiredAt", default=None)
     operator: Optional[ID] = None
@@ -371,16 +518,27 @@ class PartialAcquisitionViewInput(BaseModel):
 
 class PartialPixelViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     linked_view: Optional[ID] = Field(alias="linkedView", default=None)
     range_labels: Optional[Tuple["RangePixelLabel", ...]] = Field(
         alias="rangeLabels", default=None
@@ -402,16 +560,27 @@ class RangePixelLabel(BaseModel):
 
 class PartialStructureViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     structure: str
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
@@ -420,16 +589,27 @@ class PartialStructureViewInput(BaseModel):
 
 class PartialRGBViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     context: Optional[ID] = None
     gamma: Optional[float] = None
     contrast_limit_min: Optional[float] = Field(alias="contrastLimitMin", default=None)
@@ -446,16 +626,27 @@ class PartialRGBViewInput(BaseModel):
 
 class PartialTimepointViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     era: Optional[ID] = None
     ms_since_start: Optional[Milliseconds] = Field(alias="msSinceStart", default=None)
     index_since_start: Optional[int] = Field(alias="indexSinceStart", default=None)
@@ -466,16 +657,27 @@ class PartialTimepointViewInput(BaseModel):
 
 class PartialOpticsViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     instrument: Optional[ID] = None
     objective: Optional[ID] = None
     camera: Optional[ID] = None
@@ -486,16 +688,27 @@ class PartialOpticsViewInput(BaseModel):
 
 class PartialScaleViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     parent: Optional[ID] = None
     scale_x: Optional[float] = Field(alias="scaleX", default=None)
     scale_y: Optional[float] = Field(alias="scaleY", default=None)
@@ -509,16 +722,27 @@ class PartialScaleViewInput(BaseModel):
 
 class PartialROIViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     roi: ID
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
@@ -527,16 +751,27 @@ class PartialROIViewInput(BaseModel):
 
 class PartialFileViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     file: ID
     series_identifier: Optional[str] = Field(alias="seriesIdentifier", default=None)
     model_config = ConfigDict(
@@ -546,17 +781,36 @@ class PartialFileViewInput(BaseModel):
 
 class PartialDerivedViewInput(BaseModel):
     collection: Optional[ID] = None
+    "The collection this view belongs to"
     z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
     z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
     x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
     x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
     y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
     y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
     t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
     t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
     c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     origin_image: ID = Field(alias="originImage")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RenderTreeInput(BaseModel):
+    tree: "TreeInput"
+    name: str
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -576,6 +830,28 @@ class TreeNodeInput(BaseModel):
     context: Optional[str] = None
     gap: Optional[int] = None
     children: Optional[Tuple["TreeNodeInput", ...]] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class FromParquetLike(BaseModel):
+    dataframe: ParquetLike
+    "The parquet dataframe to create the table from"
+    name: str
+    "The name of the table"
+    origins: Optional[Tuple[ID, ...]] = None
+    "The IDs of tables this table was derived from"
+    dataset: Optional[ID] = None
+    "The dataset ID this table belongs to"
+    label_accessors: Optional[Tuple["PartialLabelAccessorInput", ...]] = Field(
+        alias="labelAccessors", default=None
+    )
+    "Label accessors to create for this table"
+    image_accessors: Optional[Tuple["PartialImageAccessorInput", ...]] = Field(
+        alias="imageAccessors", default=None
+    )
+    "Image accessors to create for this table"
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -601,12 +877,46 @@ class PartialImageAccessorInput(BaseModel):
     )
 
 
+class FromFileLike(BaseModel):
+    name: str
+    file: FileLike
+    origins: Optional[Tuple[ID, ...]] = None
+    dataset: Optional[ID] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RenderedPlotInput(BaseModel):
+    name: str
+    plot: Upload
+    overlays: Optional[Tuple["OverlayInput", ...]] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
 class OverlayInput(BaseModel):
     object: str
     identifier: str
     color: str
     x: int
     y: int
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ChannelInput(BaseModel):
+    name: str
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class StageInput(BaseModel):
+    name: str
+    instrument: Optional[ID] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -638,6 +948,169 @@ class UpdateRGBContextInput(BaseModel):
     )
 
 
+class CreateDatasetInput(BaseModel):
+    name: str
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ChangeDatasetInput(BaseModel):
+    name: str
+    id: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RevertInput(BaseModel):
+    id: ID
+    history_id: ID = Field(alias="historyId")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ViewCollectionInput(BaseModel):
+    name: str
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class EraInput(BaseModel):
+    name: str
+    begin: Optional[datetime] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class LabelViewInput(BaseModel):
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    label: str
+    image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RGBViewInput(BaseModel):
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    context: ID
+    gamma: Optional[float] = None
+    contrast_limit_min: Optional[float] = Field(alias="contrastLimitMin", default=None)
+    contrast_limit_max: Optional[float] = Field(alias="contrastLimitMax", default=None)
+    rescale: Optional[bool] = None
+    scale: Optional[float] = None
+    active: Optional[bool] = None
+    color_map: Optional[ColorMap] = Field(alias="colorMap", default=None)
+    base_color: Optional[Tuple[float, ...]] = Field(alias="baseColor", default=None)
+    image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class InstrumentInput(BaseModel):
+    serial_number: str = Field(alias="serialNumber")
+    manufacturer: Optional[str] = None
+    name: Optional[str] = None
+    model: Optional[str] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ObjectiveInput(BaseModel):
+    serial_number: str = Field(alias="serialNumber")
+    name: Optional[str] = None
+    na: Optional[float] = None
+    magnification: Optional[float] = None
+    immersion: Optional[str] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CameraInput(BaseModel):
+    serial_number: str = Field(alias="serialNumber")
+    name: Optional[str] = None
+    model: Optional[str] = None
+    bit_depth: Optional[int] = Field(alias="bitDepth", default=None)
+    sensor_size_x: Optional[int] = Field(alias="sensorSizeX", default=None)
+    sensor_size_y: Optional[int] = Field(alias="sensorSizeY", default=None)
+    pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX", default=None)
+    pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY", default=None)
+    manufacturer: Optional[str] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class SnapshotInput(BaseModel):
+    file: Upload
+    image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RoiInput(BaseModel):
+    image: ID
+    vectors: Tuple[FiveDVector, ...]
+    kind: RoiKind
+    entity: Optional[ID] = None
+    entity_kind: Optional[ID] = Field(alias="entityKind", default=None)
+    entity_group: Optional[ID] = Field(alias="entityGroup", default=None)
+    entity_parent: Optional[ID] = Field(alias="entityParent", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
 class UpdateRoiInput(BaseModel):
     roi: ID
     vectors: Optional[Tuple[FiveDVector, ...]] = None
@@ -646,6 +1119,13 @@ class UpdateRoiInput(BaseModel):
     entity_kind: Optional[ID] = Field(alias="entityKind", default=None)
     entity_group: Optional[ID] = Field(alias="entityGroup", default=None)
     entity_parent: Optional[ID] = Field(alias="entityParent", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class DeleteRoiInput(BaseModel):
+    id: ID
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -818,6 +1298,8 @@ class ListRenderedPlot(BaseModel):
 
 
 class Credentials(BaseModel):
+    """Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)"""
+
     typename: Literal["Credentials"] = Field(
         alias="__typename", default="Credentials", exclude=True
     )
@@ -832,6 +1314,8 @@ class Credentials(BaseModel):
 
 
 class AccessCredentials(BaseModel):
+    """Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)"""
+
     typename: Literal["AccessCredentials"] = Field(
         alias="__typename", default="AccessCredentials", exclude=True
     )
@@ -991,6 +1475,7 @@ class DerivedViewOriginimage(HasZarrStoreTrait, BaseModel):
     )
     id: ID
     name: str
+    "The name of the image"
     model_config = ConfigDict(frozen=True)
 
 
@@ -1236,6 +1721,7 @@ class RGBViewImage(HasZarrStoreTrait, BaseModel):
     derived_scale_views: Tuple[RGBViewImageDerivedscaleviews, ...] = Field(
         alias="derivedScaleViews"
     )
+    "Scale views derived from this image"
     model_config = ConfigDict(frozen=True)
 
 
@@ -1442,6 +1928,7 @@ class Image(HasZarrStoreTrait, BaseModel):
     )
     id: ID
     name: str
+    "The name of the image"
     store: ZarrStore
     "The store where the image data is stored."
     views: Tuple[
@@ -1467,8 +1954,11 @@ class Image(HasZarrStoreTrait, BaseModel):
         ],
         ...,
     ]
+    "All views of this image"
     pixel_views: Tuple[PixelView, ...] = Field(alias="pixelViews")
+    "Pixel views describing pixel value semantics"
     rgb_contexts: Tuple[ImageRgbcontexts, ...] = Field(alias="rgbContexts")
+    "RGB rendering contexts"
     model_config = ConfigDict(frozen=True)
 
 
@@ -1483,17 +1973,13 @@ class CreateCameraMutationCreatecamera(BaseModel):
 
 class CreateCameraMutation(BaseModel):
     create_camera: CreateCameraMutationCreatecamera = Field(alias="createCamera")
+    "Create a new camera configuration"
 
     class Arguments(BaseModel):
-        serial_number: str = Field(alias="serialNumber")
-        name: Optional[str] = Field(default=None)
-        pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX", default=None)
-        pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY", default=None)
-        sensor_size_x: Optional[int] = Field(alias="sensorSizeX", default=None)
-        sensor_size_y: Optional[int] = Field(alias="sensorSizeY", default=None)
+        input: CameraInput
 
     class Meta:
-        document = "mutation CreateCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int) {\n  createCamera(\n    input: {name: $name, pixelSizeX: $pixelSizeX, serialNumber: $serialNumber, pixelSizeY: $pixelSizeY, sensorSizeX: $sensorSizeX, sensorSizeY: $sensorSizeY}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
+        document = "mutation CreateCamera($input: CameraInput!) {\n  createCamera(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class EnsureCameraMutationEnsurecamera(BaseModel):
@@ -1507,17 +1993,13 @@ class EnsureCameraMutationEnsurecamera(BaseModel):
 
 class EnsureCameraMutation(BaseModel):
     ensure_camera: EnsureCameraMutationEnsurecamera = Field(alias="ensureCamera")
+    "Ensure a camera exists, creating if needed"
 
     class Arguments(BaseModel):
-        serial_number: str = Field(alias="serialNumber")
-        name: Optional[str] = Field(default=None)
-        pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX", default=None)
-        pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY", default=None)
-        sensor_size_x: Optional[int] = Field(alias="sensorSizeX", default=None)
-        sensor_size_y: Optional[int] = Field(alias="sensorSizeY", default=None)
+        input: CameraInput
 
     class Meta:
-        document = "mutation EnsureCamera($serialNumber: String!, $name: String, $pixelSizeX: Micrometers, $pixelSizeY: Micrometers, $sensorSizeX: Int, $sensorSizeY: Int) {\n  ensureCamera(\n    input: {name: $name, pixelSizeX: $pixelSizeX, serialNumber: $serialNumber, pixelSizeY: $pixelSizeY, sensorSizeX: $sensorSizeX, sensorSizeY: $sensorSizeY}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
+        document = "mutation EnsureCamera($input: CameraInput!) {\n  ensureCamera(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class CreateRenderTreeMutationCreaterendertree(BaseModel):
@@ -1532,140 +2014,128 @@ class CreateRenderTreeMutation(BaseModel):
     create_render_tree: CreateRenderTreeMutationCreaterendertree = Field(
         alias="createRenderTree"
     )
+    "Create a new render tree for image visualization"
 
     class Arguments(BaseModel):
-        name: str
-        tree: TreeInput
+        input: RenderTreeInput
 
     class Meta:
-        document = "mutation CreateRenderTree($name: String!, $tree: TreeInput!) {\n  createRenderTree(input: {name: $name, tree: $tree}) {\n    id\n    __typename\n  }\n}"
+        document = "mutation CreateRenderTree($input: RenderTreeInput!) {\n  createRenderTree(input: $input) {\n    id\n    __typename\n  }\n}"
 
 
 class From_parquet_likeMutation(BaseModel):
     from_parquet_like: Table = Field(alias="fromParquetLike")
+    "Create a table from parquet-like data"
 
     class Arguments(BaseModel):
-        dataframe: ParquetLike
-        name: str
-        origins: Optional[List[ID]] = Field(default=None)
-        dataset: Optional[ID] = Field(default=None)
-        label_accessors: Optional[List[PartialLabelAccessorInput]] = Field(
-            alias="labelAccessors", default=None
-        )
-        image_accessors: Optional[List[PartialImageAccessorInput]] = Field(
-            alias="imageAccessors", default=None
-        )
+        input: FromParquetLike
 
     class Meta:
-        document = "fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}\n\nmutation from_parquet_like($dataframe: ParquetLike!, $name: String!, $origins: [ID!], $dataset: ID, $labelAccessors: [PartialLabelAccessorInput!], $imageAccessors: [PartialImageAccessorInput!]) {\n  fromParquetLike(\n    input: {dataframe: $dataframe, name: $name, origins: $origins, dataset: $dataset, labelAccessors: $labelAccessors, imageAccessors: $imageAccessors}\n  ) {\n    ...Table\n    __typename\n  }\n}"
+        document = "fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}\n\nmutation from_parquet_like($input: FromParquetLike!) {\n  fromParquetLike(input: $input) {\n    ...Table\n    __typename\n  }\n}"
 
 
 class RequestTableUploadMutation(BaseModel):
     request_table_upload: Credentials = Field(alias="requestTableUpload")
+    "Request credentials to upload a new table"
 
     class Arguments(BaseModel):
-        key: str
-        datalayer: str
+        input: RequestTableUploadInput
 
     class Meta:
-        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestTableUpload($key: String!, $datalayer: String!) {\n  requestTableUpload(input: {key: $key, datalayer: $datalayer}) {\n    ...Credentials\n    __typename\n  }\n}"
+        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestTableUpload($input: RequestTableUploadInput!) {\n  requestTableUpload(input: $input) {\n    ...Credentials\n    __typename\n  }\n}"
 
 
 class RequestTableAccessMutation(BaseModel):
     request_table_access: AccessCredentials = Field(alias="requestTableAccess")
+    "Request credentials to access a table"
 
     class Arguments(BaseModel):
-        store: ID
-        duration: Optional[int] = Field(default=None)
+        input: RequestTableAccessInput
 
     class Meta:
-        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestTableAccess($store: ID!, $duration: Int) {\n  requestTableAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n    __typename\n  }\n}"
+        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestTableAccess($input: RequestTableAccessInput!) {\n  requestTableAccess(input: $input) {\n    ...AccessCredentials\n    __typename\n  }\n}"
 
 
 class CreateRenderedPlotMutation(BaseModel):
     create_rendered_plot: RenderedPlot = Field(alias="createRenderedPlot")
+    "Create a new rendered plot"
 
     class Arguments(BaseModel):
-        plot: Upload
-        name: str
-        overlays: Optional[List[OverlayInput]] = Field(default=None)
+        input: RenderedPlotInput
 
     class Meta:
-        document = "fragment RenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n    __typename\n  }\n  __typename\n}\n\nmutation CreateRenderedPlot($plot: Upload!, $name: String!, $overlays: [OverlayInput!]) {\n  createRenderedPlot(input: {plot: $plot, overlays: $overlays, name: $name}) {\n    ...RenderedPlot\n    __typename\n  }\n}"
+        document = "fragment RenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n    __typename\n  }\n  __typename\n}\n\nmutation CreateRenderedPlot($input: RenderedPlotInput!) {\n  createRenderedPlot(input: $input) {\n    ...RenderedPlot\n    __typename\n  }\n}"
 
 
 class From_file_likeMutation(BaseModel):
     from_file_like: File = Field(alias="fromFileLike")
+    "Create a file from file-like data"
 
     class Arguments(BaseModel):
-        file: FileLike
-        name: str
-        origins: Optional[List[ID]] = Field(default=None)
-        dataset: Optional[ID] = Field(default=None)
+        input: FromFileLike
 
     class Meta:
-        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation from_file_like($file: FileLike!, $name: String!, $origins: [ID!], $dataset: ID) {\n  fromFileLike(\n    input: {file: $file, name: $name, origins: $origins, dataset: $dataset}\n  ) {\n    ...File\n    __typename\n  }\n}"
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation from_file_like($input: FromFileLike!) {\n  fromFileLike(input: $input) {\n    ...File\n    __typename\n  }\n}"
 
 
 class RequestFileUploadMutation(BaseModel):
     request_file_upload: Credentials = Field(alias="requestFileUpload")
+    "Request credentials to upload a new file"
 
     class Arguments(BaseModel):
-        key: str
-        datalayer: str
+        input: RequestFileUploadInput
 
     class Meta:
-        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestFileUpload($key: String!, $datalayer: String!) {\n  requestFileUpload(input: {key: $key, datalayer: $datalayer}) {\n    ...Credentials\n    __typename\n  }\n}"
+        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestFileUpload($input: RequestFileUploadInput!) {\n  requestFileUpload(input: $input) {\n    ...Credentials\n    __typename\n  }\n}"
 
 
 class RequestFileAccessMutation(BaseModel):
     request_file_access: AccessCredentials = Field(alias="requestFileAccess")
+    "Request credentials to access a file"
 
     class Arguments(BaseModel):
-        store: ID
-        duration: Optional[int] = Field(default=None)
+        input: RequestFileAccessInput
 
     class Meta:
-        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestFileAccess($store: ID!, $duration: Int) {\n  requestFileAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n    __typename\n  }\n}"
+        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestFileAccess($input: RequestFileAccessInput!) {\n  requestFileAccess(input: $input) {\n    ...AccessCredentials\n    __typename\n  }\n}"
 
 
 class CreateStageMutation(BaseModel):
     create_stage: Stage = Field(alias="createStage")
+    "Create a new stage for organizing data"
 
     class Arguments(BaseModel):
-        name: str
+        input: StageInput
 
     class Meta:
-        document = "fragment Stage on Stage {\n  id\n  name\n  __typename\n}\n\nmutation CreateStage($name: String!) {\n  createStage(input: {name: $name}) {\n    ...Stage\n    __typename\n  }\n}"
+        document = "fragment Stage on Stage {\n  id\n  name\n  __typename\n}\n\nmutation CreateStage($input: StageInput!) {\n  createStage(input: $input) {\n    ...Stage\n    __typename\n  }\n}"
 
 
 class CreateRoiMutation(BaseModel):
     create_roi: ROI = Field(alias="createRoi")
+    "Create a new region of interest"
 
     class Arguments(BaseModel):
-        image: ID
-        vectors: List[FiveDVector]
-        kind: RoiKind
-        entity: Optional[ID] = Field(default=None)
-        entity_kind: Optional[ID] = Field(alias="entityKind", default=None)
-        entity_parent: Optional[ID] = Field(alias="entityParent", default=None)
+        input: RoiInput
 
     class Meta:
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nmutation CreateRoi($image: ID!, $vectors: [FiveDVector!]!, $kind: RoiKind!, $entity: ID, $entityKind: ID, $entityParent: ID) {\n  createRoi(\n    input: {image: $image, vectors: $vectors, kind: $kind, entity: $entity, entityKind: $entityKind, entityParent: $entityParent}\n  ) {\n    ...ROI\n    __typename\n  }\n}"
+        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nmutation CreateRoi($input: RoiInput!) {\n  createRoi(input: $input) {\n    ...ROI\n    __typename\n  }\n}"
 
 
 class DeleteRoiMutation(BaseModel):
     delete_roi: ID = Field(alias="deleteRoi")
+    "Delete an existing region of interest"
 
     class Arguments(BaseModel):
-        roi: ID
+        input: DeleteRoiInput
 
     class Meta:
-        document = "mutation DeleteRoi($roi: ID!) {\n  deleteRoi(input: {id: $roi})\n}"
+        document = "mutation DeleteRoi($input: DeleteRoiInput!) {\n  deleteRoi(input: $input)\n}"
 
 
 class UpdateRoiMutation(BaseModel):
     update_roi: ROI = Field(alias="updateRoi")
+    "Update an existing region of interest"
 
     class Arguments(BaseModel):
         input: UpdateRoiInput
@@ -1687,15 +2157,13 @@ class CreateObjectiveMutation(BaseModel):
     create_objective: CreateObjectiveMutationCreateobjective = Field(
         alias="createObjective"
     )
+    "Create a new microscope objective configuration"
 
     class Arguments(BaseModel):
-        serial_number: str = Field(alias="serialNumber")
-        name: Optional[str] = Field(default=None)
-        na: Optional[float] = Field(default=None)
-        magnification: Optional[float] = Field(default=None)
+        input: ObjectiveInput
 
     class Meta:
-        document = "mutation CreateObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  createObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
+        document = "mutation CreateObjective($input: ObjectiveInput!) {\n  createObjective(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class EnsureObjectiveMutationEnsureobjective(BaseModel):
@@ -1711,15 +2179,13 @@ class EnsureObjectiveMutation(BaseModel):
     ensure_objective: EnsureObjectiveMutationEnsureobjective = Field(
         alias="ensureObjective"
     )
+    "Ensure an objective exists, creating if needed"
 
     class Arguments(BaseModel):
-        serial_number: str = Field(alias="serialNumber")
-        name: Optional[str] = Field(default=None)
-        na: Optional[float] = Field(default=None)
-        magnification: Optional[float] = Field(default=None)
+        input: ObjectiveInput
 
     class Meta:
-        document = "mutation EnsureObjective($serialNumber: String!, $name: String, $na: Float, $magnification: Float) {\n  ensureObjective(\n    input: {name: $name, na: $na, serialNumber: $serialNumber, magnification: $magnification}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
+        document = "mutation EnsureObjective($input: ObjectiveInput!) {\n  ensureObjective(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class CreateDatasetMutationCreatedataset(BaseModel):
@@ -1733,12 +2199,13 @@ class CreateDatasetMutationCreatedataset(BaseModel):
 
 class CreateDatasetMutation(BaseModel):
     create_dataset: CreateDatasetMutationCreatedataset = Field(alias="createDataset")
+    "Create a new dataset to organize data"
 
     class Arguments(BaseModel):
-        name: str
+        input: CreateDatasetInput
 
     class Meta:
-        document = "mutation CreateDataset($name: String!) {\n  createDataset(input: {name: $name}) {\n    id\n    name\n    __typename\n  }\n}"
+        document = "mutation CreateDataset($input: CreateDatasetInput!) {\n  createDataset(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class UpdateDatasetMutationUpdatedataset(BaseModel):
@@ -1752,13 +2219,13 @@ class UpdateDatasetMutationUpdatedataset(BaseModel):
 
 class UpdateDatasetMutation(BaseModel):
     update_dataset: UpdateDatasetMutationUpdatedataset = Field(alias="updateDataset")
+    "Update dataset metadata"
 
     class Arguments(BaseModel):
-        id: ID
-        name: str
+        input: ChangeDatasetInput
 
     class Meta:
-        document = "mutation UpdateDataset($id: ID!, $name: String!) {\n  updateDataset(input: {id: $id, name: $name}) {\n    id\n    name\n    __typename\n  }\n}"
+        document = "mutation UpdateDataset($input: ChangeDatasetInput!) {\n  updateDataset(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class RevertDatasetMutationRevertdataset(BaseModel):
@@ -1773,13 +2240,13 @@ class RevertDatasetMutationRevertdataset(BaseModel):
 
 class RevertDatasetMutation(BaseModel):
     revert_dataset: RevertDatasetMutationRevertdataset = Field(alias="revertDataset")
+    "Revert dataset to a previous version"
 
     class Arguments(BaseModel):
-        dataset: ID
-        history: ID
+        input: RevertInput
 
     class Meta:
-        document = "mutation RevertDataset($dataset: ID!, $history: ID!) {\n  revertDataset(input: {id: $dataset, historyId: $history}) {\n    id\n    name\n    description\n    __typename\n  }\n}"
+        document = "mutation RevertDataset($input: RevertInput!) {\n  revertDataset(input: $input) {\n    id\n    name\n    description\n    __typename\n  }\n}"
 
 
 class CreateInstrumentMutationCreateinstrument(BaseModel):
@@ -1795,14 +2262,13 @@ class CreateInstrumentMutation(BaseModel):
     create_instrument: CreateInstrumentMutationCreateinstrument = Field(
         alias="createInstrument"
     )
+    "Create a new instrument configuration"
 
     class Arguments(BaseModel):
-        serial_number: str = Field(alias="serialNumber")
-        name: Optional[str] = Field(default=None)
-        model: Optional[str] = Field(default=None)
+        input: InstrumentInput
 
     class Meta:
-        document = "mutation CreateInstrument($serialNumber: String!, $name: String, $model: String) {\n  createInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
+        document = "mutation CreateInstrument($input: InstrumentInput!) {\n  createInstrument(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class EnsureInstrumentMutationEnsureinstrument(BaseModel):
@@ -1818,85 +2284,46 @@ class EnsureInstrumentMutation(BaseModel):
     ensure_instrument: EnsureInstrumentMutationEnsureinstrument = Field(
         alias="ensureInstrument"
     )
+    "Ensure an instrument exists, creating if needed"
 
     class Arguments(BaseModel):
-        serial_number: str = Field(alias="serialNumber")
-        name: Optional[str] = Field(default=None)
-        model: Optional[str] = Field(default=None)
+        input: InstrumentInput
 
     class Meta:
-        document = "mutation EnsureInstrument($serialNumber: String!, $name: String, $model: String) {\n  ensureInstrument(\n    input: {name: $name, model: $model, serialNumber: $serialNumber}\n  ) {\n    id\n    name\n    __typename\n  }\n}"
+        document = "mutation EnsureInstrument($input: InstrumentInput!) {\n  ensureInstrument(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class From_array_likeMutation(BaseModel):
     from_array_like: Image = Field(alias="fromArrayLike")
+    "Create an image from array-like data"
 
     class Arguments(BaseModel):
-        array: ArrayLike
-        name: str
-        channel_views: Optional[List[PartialChannelViewInput]] = Field(
-            alias="channelViews", default=None
-        )
-        transformation_views: Optional[
-            List[PartialAffineTransformationViewInput]
-        ] = Field(alias="transformationViews", default=None)
-        pixel_views: Optional[List[PartialPixelViewInput]] = Field(
-            alias="pixelViews", default=None
-        )
-        rgb_views: Optional[List[PartialRGBViewInput]] = Field(
-            alias="rgbViews", default=None
-        )
-        acquisition_views: Optional[List[PartialAcquisitionViewInput]] = Field(
-            alias="acquisitionViews", default=None
-        )
-        timepoint_views: Optional[List[PartialTimepointViewInput]] = Field(
-            alias="timepointViews", default=None
-        )
-        optics_views: Optional[List[PartialOpticsViewInput]] = Field(
-            alias="opticsViews", default=None
-        )
-        structure_views: Optional[List[PartialStructureViewInput]] = Field(
-            alias="structureViews", default=None
-        )
-        scale_views: Optional[List[PartialScaleViewInput]] = Field(
-            alias="scaleViews", default=None
-        )
-        roi_views: Optional[List[PartialROIViewInput]] = Field(
-            alias="roiViews", default=None
-        )
-        file_views: Optional[List[PartialFileViewInput]] = Field(
-            alias="fileViews", default=None
-        )
-        derived_views: Optional[List[PartialDerivedViewInput]] = Field(
-            alias="derivedViews", default=None
-        )
-        tags: Optional[List[str]] = Field(default=None)
+        input: FromArrayLikeInput
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($array: ArrayLike!, $name: String!, $channelViews: [PartialChannelViewInput!], $transformationViews: [PartialAffineTransformationViewInput!], $pixelViews: [PartialPixelViewInput!], $rgbViews: [PartialRGBViewInput!], $acquisitionViews: [PartialAcquisitionViewInput!], $timepointViews: [PartialTimepointViewInput!], $opticsViews: [PartialOpticsViewInput!], $structureViews: [PartialStructureViewInput!], $scaleViews: [PartialScaleViewInput!], $roiViews: [PartialROIViewInput!], $fileViews: [PartialFileViewInput!], $derivedViews: [PartialDerivedViewInput!], $tags: [String!]) {\n  fromArrayLike(\n    input: {array: $array, name: $name, channelViews: $channelViews, transformationViews: $transformationViews, acquisitionViews: $acquisitionViews, pixelViews: $pixelViews, timepointViews: $timepointViews, opticsViews: $opticsViews, rgbViews: $rgbViews, scaleViews: $scaleViews, tags: $tags, structureViews: $structureViews, derivedViews: $derivedViews, roiViews: $roiViews, fileViews: $fileViews}\n  ) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
     request_upload: Credentials = Field(alias="requestUpload")
+    "Request credentials to upload a new image"
 
     class Arguments(BaseModel):
-        key: str
-        datalayer: str
+        input: RequestUploadInput
 
     class Meta:
-        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestUpload($key: String!, $datalayer: String!) {\n  requestUpload(input: {key: $key, datalayer: $datalayer}) {\n    ...Credentials\n    __typename\n  }\n}"
+        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestUpload($input: RequestUploadInput!) {\n  requestUpload(input: $input) {\n    ...Credentials\n    __typename\n  }\n}"
 
 
 class RequestAccessMutation(BaseModel):
     request_access: AccessCredentials = Field(alias="requestAccess")
-    "Request upload credentials for a given key"
+    "Request credentials to access an image"
 
     class Arguments(BaseModel):
-        store: ID
-        duration: Optional[int] = Field(default=None)
+        input: RequestAccessInput
 
     class Meta:
-        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestAccess($store: ID!, $duration: Int) {\n  requestAccess(input: {store: $store, duration: $duration}) {\n    ...AccessCredentials\n    __typename\n  }\n}"
+        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestAccess($input: RequestAccessInput!) {\n  requestAccess(input: $input) {\n    ...AccessCredentials\n    __typename\n  }\n}"
 
 
 class CreateEraMutationCreateera(BaseModel):
@@ -1908,24 +2335,24 @@ class CreateEraMutationCreateera(BaseModel):
 
 class CreateEraMutation(BaseModel):
     create_era: CreateEraMutationCreateera = Field(alias="createEra")
+    "Create a new era for temporal organization"
 
     class Arguments(BaseModel):
-        name: str
-        begin: Optional[datetime] = Field(default=None)
+        input: EraInput
 
     class Meta:
-        document = "mutation CreateEra($name: String!, $begin: DateTime) {\n  createEra(input: {name: $name, begin: $begin}) {\n    id\n    begin\n    __typename\n  }\n}"
+        document = "mutation CreateEra($input: EraInput!) {\n  createEra(input: $input) {\n    id\n    begin\n    __typename\n  }\n}"
 
 
 class CreateSnapshotMutation(BaseModel):
     create_snapshot: Snapshot = Field(alias="createSnapshot")
+    "Create a new state snapshot"
 
     class Arguments(BaseModel):
-        image: ID
-        file: Upload
+        input: SnapshotInput
 
     class Meta:
-        document = "fragment Snapshot on Snapshot {\n  id\n  store {\n    key\n    presignedUrl\n    __typename\n  }\n  name\n  __typename\n}\n\nmutation CreateSnapshot($image: ID!, $file: Upload!) {\n  createSnapshot(input: {file: $file, image: $image}) {\n    ...Snapshot\n    __typename\n  }\n}"
+        document = "fragment Snapshot on Snapshot {\n  id\n  store {\n    key\n    presignedUrl\n    __typename\n  }\n  name\n  __typename\n}\n\nmutation CreateSnapshot($input: SnapshotInput!) {\n  createSnapshot(input: $input) {\n    ...Snapshot\n    __typename\n  }\n}"
 
 
 class CreateRgbViewMutationCreatergbview(BaseModel):
@@ -1938,39 +2365,29 @@ class CreateRgbViewMutationCreatergbview(BaseModel):
 
 class CreateRgbViewMutation(BaseModel):
     create_rgb_view: CreateRgbViewMutationCreatergbview = Field(alias="createRgbView")
+    "Create a new view for RGB image data"
 
     class Arguments(BaseModel):
-        image: ID
-        context: ID
-        gamma: Optional[float] = Field(default=None)
-        contrast_limit_max: Optional[float] = Field(
-            alias="contrastLimitMax", default=None
-        )
-        contrast_limit_min: Optional[float] = Field(
-            alias="contrastLimitMin", default=None
-        )
-        rescale: Optional[bool] = Field(default=None)
-        active: Optional[bool] = Field(default=None)
-        color_map: Optional[ColorMap] = Field(alias="colorMap", default=None)
-        base_color: Optional[List[float]] = Field(alias="baseColor", default=None)
+        input: RGBViewInput
 
     class Meta:
-        document = "mutation CreateRgbView($image: ID!, $context: ID!, $gamma: Float, $contrastLimitMax: Float, $contrastLimitMin: Float, $rescale: Boolean, $active: Boolean, $colorMap: ColorMap, $baseColor: [Float!]) {\n  createRgbView(\n    input: {image: $image, context: $context, gamma: $gamma, contrastLimitMax: $contrastLimitMax, contrastLimitMin: $contrastLimitMin, rescale: $rescale, active: $active, colorMap: $colorMap, baseColor: $baseColor}\n  ) {\n    id\n    __typename\n  }\n}"
+        document = "mutation CreateRgbView($input: RGBViewInput!) {\n  createRgbView(input: $input) {\n    id\n    __typename\n  }\n}"
 
 
 class CreateLabelViewMutation(BaseModel):
     create_label_view: LabelView = Field(alias="createLabelView")
+    "Create a new view for label data"
 
     class Arguments(BaseModel):
-        image: ID
-        label: str
+        input: LabelViewInput
 
     class Meta:
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nmutation CreateLabelView($image: ID!, $label: String!) {\n  createLabelView(input: {image: $image, label: $label}) {\n    ...LabelView\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nmutation CreateLabelView($input: LabelViewInput!) {\n  createLabelView(input: $input) {\n    ...LabelView\n    __typename\n  }\n}"
 
 
 class CreateRGBContextMutation(BaseModel):
     create_rgb_context: RGBContext = Field(alias="createRgbContext")
+    "Create a new RGB context for image visualization"
 
     class Arguments(BaseModel):
         input: CreateRGBContextInput
@@ -1981,7 +2398,7 @@ class CreateRGBContextMutation(BaseModel):
 
 class UpdateRGBContextMutation(BaseModel):
     update_rgb_context: RGBContext = Field(alias="updateRgbContext")
-    "Update RGB Context"
+    "Update settings of an existing RGB context"
 
     class Arguments(BaseModel):
         input: UpdateRGBContextInput
@@ -2003,12 +2420,13 @@ class CreateViewCollectionMutation(BaseModel):
     create_view_collection: CreateViewCollectionMutationCreateviewcollection = Field(
         alias="createViewCollection"
     )
+    "Create a new collection of views to organize related views"
 
     class Arguments(BaseModel):
-        name: str
+        input: ViewCollectionInput
 
     class Meta:
-        document = "mutation CreateViewCollection($name: String!) {\n  createViewCollection(input: {name: $name}) {\n    id\n    name\n    __typename\n  }\n}"
+        document = "mutation CreateViewCollection($input: ViewCollectionInput!) {\n  createViewCollection(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class CreateChannelMutationCreatechannel(BaseModel):
@@ -2022,12 +2440,13 @@ class CreateChannelMutationCreatechannel(BaseModel):
 
 class CreateChannelMutation(BaseModel):
     create_channel: CreateChannelMutationCreatechannel = Field(alias="createChannel")
+    "Create a new channel"
 
     class Arguments(BaseModel):
-        name: str
+        input: ChannelInput
 
     class Meta:
-        document = "mutation CreateChannel($name: String!) {\n  createChannel(input: {name: $name}) {\n    id\n    name\n    __typename\n  }\n}"
+        document = "mutation CreateChannel($input: ChannelInput!) {\n  createChannel(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class EnsureChannelMutationEnsurechannel(BaseModel):
@@ -2041,12 +2460,13 @@ class EnsureChannelMutationEnsurechannel(BaseModel):
 
 class EnsureChannelMutation(BaseModel):
     ensure_channel: EnsureChannelMutationEnsurechannel = Field(alias="ensureChannel")
+    "Ensure a channel exists, creating if needed"
 
     class Arguments(BaseModel):
-        name: str
+        input: ChannelInput
 
     class Meta:
-        document = "mutation EnsureChannel($name: String!) {\n  ensureChannel(input: {name: $name}) {\n    id\n    name\n    __typename\n  }\n}"
+        document = "mutation EnsureChannel($input: ChannelInput!) {\n  ensureChannel(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class GetCameraQuery(BaseModel):
@@ -2244,7 +2664,7 @@ class GetImageQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -2254,7 +2674,7 @@ class GetRandomImageQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
@@ -2263,6 +2683,7 @@ class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
     )
     value: ID
     label: str
+    "The name of the image"
     model_config = ConfigDict(frozen=True)
 
 
@@ -2285,7 +2706,7 @@ class ImagesQuery(BaseModel):
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class GetSnapshotQuery(BaseModel):
@@ -2340,6 +2761,7 @@ class WatchFilesSubscriptionFiles(BaseModel):
 
 class WatchFilesSubscription(BaseModel):
     files: WatchFilesSubscriptionFiles
+    "Subscribe to real-time file updates"
 
     class Arguments(BaseModel):
         dataset: Optional[ID] = Field(default=None)
@@ -2360,12 +2782,13 @@ class WatchImagesSubscriptionImages(BaseModel):
 
 class WatchImagesSubscription(BaseModel):
     images: WatchImagesSubscriptionImages
+    "Subscribe to real-time image updates"
 
     class Arguments(BaseModel):
         dataset: Optional[ID] = Field(default=None)
 
     class Meta:
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):
@@ -2380,6 +2803,7 @@ class WatchRoisSubscriptionRois(BaseModel):
 
 class WatchRoisSubscription(BaseModel):
     rois: WatchRoisSubscriptionRois
+    "Subscribe to real-time ROI updates"
 
     class Arguments(BaseModel):
         image: ID
@@ -2391,23 +2815,29 @@ class WatchRoisSubscription(BaseModel):
 async def acreate_camera(
     serial_number: str,
     name: Optional[str] = None,
-    pixel_size_x: Optional[Micrometers] = None,
-    pixel_size_y: Optional[Micrometers] = None,
+    model: Optional[str] = None,
+    bit_depth: Optional[int] = None,
     sensor_size_x: Optional[int] = None,
     sensor_size_y: Optional[int] = None,
+    pixel_size_x: Optional[Micrometers] = None,
+    pixel_size_y: Optional[Micrometers] = None,
+    manufacturer: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> CreateCameraMutationCreatecamera:
     """CreateCamera
 
-
+    Create a new camera configuration
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
-        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
-        sensor_size_x (Optional[int], optional): sensorSizeX.
-        sensor_size_y (Optional[int], optional): sensorSizeY.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        bit_depth: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        sensor_size_x: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        sensor_size_y: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        pixel_size_x: The `Micrometers` scalar type represents a matrix valuesas specified by
+        pixel_size_y: The `Micrometers` scalar type represents a matrix valuesas specified by
+        manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -2416,12 +2846,17 @@ async def acreate_camera(
         await aexecute(
             CreateCameraMutation,
             {
-                "serialNumber": serial_number,
-                "name": name,
-                "pixelSizeX": pixel_size_x,
-                "pixelSizeY": pixel_size_y,
-                "sensorSizeX": sensor_size_x,
-                "sensorSizeY": sensor_size_y,
+                "input": {
+                    "serial_number": serial_number,
+                    "name": name,
+                    "model": model,
+                    "bit_depth": bit_depth,
+                    "sensor_size_x": sensor_size_x,
+                    "sensor_size_y": sensor_size_y,
+                    "pixel_size_x": pixel_size_x,
+                    "pixel_size_y": pixel_size_y,
+                    "manufacturer": manufacturer,
+                }
             },
             rath=rath,
         )
@@ -2431,23 +2866,29 @@ async def acreate_camera(
 def create_camera(
     serial_number: str,
     name: Optional[str] = None,
-    pixel_size_x: Optional[Micrometers] = None,
-    pixel_size_y: Optional[Micrometers] = None,
+    model: Optional[str] = None,
+    bit_depth: Optional[int] = None,
     sensor_size_x: Optional[int] = None,
     sensor_size_y: Optional[int] = None,
+    pixel_size_x: Optional[Micrometers] = None,
+    pixel_size_y: Optional[Micrometers] = None,
+    manufacturer: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> CreateCameraMutationCreatecamera:
     """CreateCamera
 
-
+    Create a new camera configuration
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
-        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
-        sensor_size_x (Optional[int], optional): sensorSizeX.
-        sensor_size_y (Optional[int], optional): sensorSizeY.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        bit_depth: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        sensor_size_x: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        sensor_size_y: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        pixel_size_x: The `Micrometers` scalar type represents a matrix valuesas specified by
+        pixel_size_y: The `Micrometers` scalar type represents a matrix valuesas specified by
+        manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -2455,12 +2896,17 @@ def create_camera(
     return execute(
         CreateCameraMutation,
         {
-            "serialNumber": serial_number,
-            "name": name,
-            "pixelSizeX": pixel_size_x,
-            "pixelSizeY": pixel_size_y,
-            "sensorSizeX": sensor_size_x,
-            "sensorSizeY": sensor_size_y,
+            "input": {
+                "serial_number": serial_number,
+                "name": name,
+                "model": model,
+                "bit_depth": bit_depth,
+                "sensor_size_x": sensor_size_x,
+                "sensor_size_y": sensor_size_y,
+                "pixel_size_x": pixel_size_x,
+                "pixel_size_y": pixel_size_y,
+                "manufacturer": manufacturer,
+            }
         },
         rath=rath,
     ).create_camera
@@ -2469,23 +2915,29 @@ def create_camera(
 async def aensure_camera(
     serial_number: str,
     name: Optional[str] = None,
-    pixel_size_x: Optional[Micrometers] = None,
-    pixel_size_y: Optional[Micrometers] = None,
+    model: Optional[str] = None,
+    bit_depth: Optional[int] = None,
     sensor_size_x: Optional[int] = None,
     sensor_size_y: Optional[int] = None,
+    pixel_size_x: Optional[Micrometers] = None,
+    pixel_size_y: Optional[Micrometers] = None,
+    manufacturer: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> EnsureCameraMutationEnsurecamera:
     """EnsureCamera
 
-
+    Ensure a camera exists, creating if needed
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
-        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
-        sensor_size_x (Optional[int], optional): sensorSizeX.
-        sensor_size_y (Optional[int], optional): sensorSizeY.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        bit_depth: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        sensor_size_x: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        sensor_size_y: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        pixel_size_x: The `Micrometers` scalar type represents a matrix valuesas specified by
+        pixel_size_y: The `Micrometers` scalar type represents a matrix valuesas specified by
+        manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -2494,12 +2946,17 @@ async def aensure_camera(
         await aexecute(
             EnsureCameraMutation,
             {
-                "serialNumber": serial_number,
-                "name": name,
-                "pixelSizeX": pixel_size_x,
-                "pixelSizeY": pixel_size_y,
-                "sensorSizeX": sensor_size_x,
-                "sensorSizeY": sensor_size_y,
+                "input": {
+                    "serial_number": serial_number,
+                    "name": name,
+                    "model": model,
+                    "bit_depth": bit_depth,
+                    "sensor_size_x": sensor_size_x,
+                    "sensor_size_y": sensor_size_y,
+                    "pixel_size_x": pixel_size_x,
+                    "pixel_size_y": pixel_size_y,
+                    "manufacturer": manufacturer,
+                }
             },
             rath=rath,
         )
@@ -2509,23 +2966,29 @@ async def aensure_camera(
 def ensure_camera(
     serial_number: str,
     name: Optional[str] = None,
-    pixel_size_x: Optional[Micrometers] = None,
-    pixel_size_y: Optional[Micrometers] = None,
+    model: Optional[str] = None,
+    bit_depth: Optional[int] = None,
     sensor_size_x: Optional[int] = None,
     sensor_size_y: Optional[int] = None,
+    pixel_size_x: Optional[Micrometers] = None,
+    pixel_size_y: Optional[Micrometers] = None,
+    manufacturer: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> EnsureCameraMutationEnsurecamera:
     """EnsureCamera
 
-
+    Ensure a camera exists, creating if needed
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        pixel_size_x (Optional[Micrometers], optional): pixelSizeX.
-        pixel_size_y (Optional[Micrometers], optional): pixelSizeY.
-        sensor_size_x (Optional[int], optional): sensorSizeX.
-        sensor_size_y (Optional[int], optional): sensorSizeY.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        bit_depth: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        sensor_size_x: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        sensor_size_y: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        pixel_size_x: The `Micrometers` scalar type represents a matrix valuesas specified by
+        pixel_size_y: The `Micrometers` scalar type represents a matrix valuesas specified by
+        manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -2533,91 +2996,98 @@ def ensure_camera(
     return execute(
         EnsureCameraMutation,
         {
-            "serialNumber": serial_number,
-            "name": name,
-            "pixelSizeX": pixel_size_x,
-            "pixelSizeY": pixel_size_y,
-            "sensorSizeX": sensor_size_x,
-            "sensorSizeY": sensor_size_y,
+            "input": {
+                "serial_number": serial_number,
+                "name": name,
+                "model": model,
+                "bit_depth": bit_depth,
+                "sensor_size_x": sensor_size_x,
+                "sensor_size_y": sensor_size_y,
+                "pixel_size_x": pixel_size_x,
+                "pixel_size_y": pixel_size_y,
+                "manufacturer": manufacturer,
+            }
         },
         rath=rath,
     ).ensure_camera
 
 
 async def acreate_render_tree(
-    name: str, tree: TreeInput, rath: Optional[MikroNextRath] = None
+    tree: TreeInput, name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateRenderTreeMutationCreaterendertree:
     """CreateRenderTree
 
-
+    Create a new render tree for image visualization
 
     Arguments:
-        name (str): name
-        tree (TreeInput): tree
+        tree:  (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateRenderTreeMutationCreaterendertree"""
     return (
         await aexecute(
-            CreateRenderTreeMutation, {"name": name, "tree": tree}, rath=rath
+            CreateRenderTreeMutation, {"input": {"tree": tree, "name": name}}, rath=rath
         )
     ).create_render_tree
 
 
 def create_render_tree(
-    name: str, tree: TreeInput, rath: Optional[MikroNextRath] = None
+    tree: TreeInput, name: str, rath: Optional[MikroNextRath] = None
 ) -> CreateRenderTreeMutationCreaterendertree:
     """CreateRenderTree
 
-
+    Create a new render tree for image visualization
 
     Arguments:
-        name (str): name
-        tree (TreeInput): tree
+        tree:  (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateRenderTreeMutationCreaterendertree"""
     return execute(
-        CreateRenderTreeMutation, {"name": name, "tree": tree}, rath=rath
+        CreateRenderTreeMutation, {"input": {"tree": tree, "name": name}}, rath=rath
     ).create_render_tree
 
 
 async def afrom_parquet_like(
     dataframe: ParquetLike,
     name: str,
-    origins: Optional[List[ID]] = None,
+    origins: Optional[Iterable[ID]] = None,
     dataset: Optional[ID] = None,
-    label_accessors: Optional[List[PartialLabelAccessorInput]] = None,
-    image_accessors: Optional[List[PartialImageAccessorInput]] = None,
+    label_accessors: Optional[Iterable[PartialLabelAccessorInput]] = None,
+    image_accessors: Optional[Iterable[PartialImageAccessorInput]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> Table:
     """from_parquet_like
 
-
+    Create a table from parquet-like data
 
     Arguments:
-        dataframe (ParquetLike): dataframe
-        name (str): name
-        origins (Optional[List[ID]], optional): origins.
-        dataset (Optional[ID], optional): dataset.
-        label_accessors (Optional[List[PartialLabelAccessorInput]], optional): labelAccessors.
-        image_accessors (Optional[List[PartialImageAccessorInput]], optional): imageAccessors.
+        dataframe: The parquet dataframe to create the table from
+        name: The name of the table
+        origins: The IDs of tables this table was derived from
+        dataset: The dataset ID this table belongs to
+        label_accessors: Label accessors to create for this table
+        image_accessors: Image accessors to create for this table
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        From_parquet_likeMutationFromparquetlike"""
+        Table"""
     return (
         await aexecute(
             From_parquet_likeMutation,
             {
-                "dataframe": dataframe,
-                "name": name,
-                "origins": origins,
-                "dataset": dataset,
-                "labelAccessors": label_accessors,
-                "imageAccessors": image_accessors,
+                "input": {
+                    "dataframe": dataframe,
+                    "name": name,
+                    "origins": origins,
+                    "dataset": dataset,
+                    "label_accessors": label_accessors,
+                    "image_accessors": image_accessors,
+                }
             },
             rath=rath,
         )
@@ -2627,36 +3097,38 @@ async def afrom_parquet_like(
 def from_parquet_like(
     dataframe: ParquetLike,
     name: str,
-    origins: Optional[List[ID]] = None,
+    origins: Optional[Iterable[ID]] = None,
     dataset: Optional[ID] = None,
-    label_accessors: Optional[List[PartialLabelAccessorInput]] = None,
-    image_accessors: Optional[List[PartialImageAccessorInput]] = None,
+    label_accessors: Optional[Iterable[PartialLabelAccessorInput]] = None,
+    image_accessors: Optional[Iterable[PartialImageAccessorInput]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> Table:
     """from_parquet_like
 
-
+    Create a table from parquet-like data
 
     Arguments:
-        dataframe (ParquetLike): dataframe
-        name (str): name
-        origins (Optional[List[ID]], optional): origins.
-        dataset (Optional[ID], optional): dataset.
-        label_accessors (Optional[List[PartialLabelAccessorInput]], optional): labelAccessors.
-        image_accessors (Optional[List[PartialImageAccessorInput]], optional): imageAccessors.
+        dataframe: The parquet dataframe to create the table from
+        name: The name of the table
+        origins: The IDs of tables this table was derived from
+        dataset: The dataset ID this table belongs to
+        label_accessors: Label accessors to create for this table
+        image_accessors: Image accessors to create for this table
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        From_parquet_likeMutationFromparquetlike"""
+        Table"""
     return execute(
         From_parquet_likeMutation,
         {
-            "dataframe": dataframe,
-            "name": name,
-            "origins": origins,
-            "dataset": dataset,
-            "labelAccessors": label_accessors,
-            "imageAccessors": image_accessors,
+            "input": {
+                "dataframe": dataframe,
+                "name": name,
+                "origins": origins,
+                "dataset": dataset,
+                "label_accessors": label_accessors,
+                "image_accessors": image_accessors,
+            }
         },
         rath=rath,
     ).from_parquet_like
@@ -2667,20 +3139,20 @@ async def arequest_table_upload(
 ) -> Credentials:
     """RequestTableUpload
 
-
-     requestTableUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to upload a new table
 
     Arguments:
-        key (str): key
-        datalayer (str): datalayer
+        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestTableUploadMutationRequesttableupload"""
+        Credentials"""
     return (
         await aexecute(
-            RequestTableUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
+            RequestTableUploadMutation,
+            {"input": {"key": key, "datalayer": datalayer}},
+            rath=rath,
         )
     ).request_table_upload
 
@@ -2690,19 +3162,19 @@ def request_table_upload(
 ) -> Credentials:
     """RequestTableUpload
 
-
-     requestTableUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to upload a new table
 
     Arguments:
-        key (str): key
-        datalayer (str): datalayer
+        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestTableUploadMutationRequesttableupload"""
+        Credentials"""
     return execute(
-        RequestTableUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
+        RequestTableUploadMutation,
+        {"input": {"key": key, "datalayer": datalayer}},
+        rath=rath,
     ).request_table_upload
 
 
@@ -2711,21 +3183,19 @@ async def arequest_table_access(
 ) -> AccessCredentials:
     """RequestTableAccess
 
-
-     requestTableAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to access a table
 
     Arguments:
-        store (ID): store
-        duration (Optional[int], optional): duration.
+        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestTableAccessMutationRequesttableaccess"""
+        AccessCredentials"""
     return (
         await aexecute(
             RequestTableAccessMutation,
-            {"store": store, "duration": duration},
+            {"input": {"store": store, "duration": duration}},
             rath=rath,
         )
     ).request_table_access
@@ -2736,126 +3206,133 @@ def request_table_access(
 ) -> AccessCredentials:
     """RequestTableAccess
 
-
-     requestTableAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to access a table
 
     Arguments:
-        store (ID): store
-        duration (Optional[int], optional): duration.
+        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestTableAccessMutationRequesttableaccess"""
+        AccessCredentials"""
     return execute(
-        RequestTableAccessMutation, {"store": store, "duration": duration}, rath=rath
+        RequestTableAccessMutation,
+        {"input": {"store": store, "duration": duration}},
+        rath=rath,
     ).request_table_access
 
 
 async def acreate_rendered_plot(
-    plot: Upload,
     name: str,
-    overlays: Optional[List[OverlayInput]] = None,
+    plot: Upload,
+    overlays: Optional[Iterable[OverlayInput]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> RenderedPlot:
     """CreateRenderedPlot
 
-
+    Create a new rendered plot
 
     Arguments:
-        plot (Upload): plot
-        name (str): name
-        overlays (Optional[List[OverlayInput]], optional): overlays.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        plot:  (required)
+        overlays:  (required) (list)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRenderedPlotMutationCreaterenderedplot"""
+        RenderedPlot"""
     return (
         await aexecute(
             CreateRenderedPlotMutation,
-            {"plot": plot, "name": name, "overlays": overlays},
+            {"input": {"name": name, "plot": plot, "overlays": overlays}},
             rath=rath,
         )
     ).create_rendered_plot
 
 
 def create_rendered_plot(
-    plot: Upload,
     name: str,
-    overlays: Optional[List[OverlayInput]] = None,
+    plot: Upload,
+    overlays: Optional[Iterable[OverlayInput]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> RenderedPlot:
     """CreateRenderedPlot
 
-
+    Create a new rendered plot
 
     Arguments:
-        plot (Upload): plot
-        name (str): name
-        overlays (Optional[List[OverlayInput]], optional): overlays.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        plot:  (required)
+        overlays:  (required) (list)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRenderedPlotMutationCreaterenderedplot"""
+        RenderedPlot"""
     return execute(
         CreateRenderedPlotMutation,
-        {"plot": plot, "name": name, "overlays": overlays},
+        {"input": {"name": name, "plot": plot, "overlays": overlays}},
         rath=rath,
     ).create_rendered_plot
 
 
 async def afrom_file_like(
-    file: FileLike,
     name: str,
-    origins: Optional[List[ID]] = None,
+    file: FileLike,
+    origins: Optional[Iterable[ID]] = None,
     dataset: Optional[ID] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> File:
     """from_file_like
 
-
+    Create a file from file-like data
 
     Arguments:
-        file (FileLike): file
-        name (str): name
-        origins (Optional[List[ID]], optional): origins.
-        dataset (Optional[ID], optional): dataset.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        file: The `FileLike` scalar type represents a reference to a big file storage previously created by the user n a datalayer (required)
+        origins: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
+        dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        From_file_likeMutationFromfilelike"""
+        File"""
     return (
         await aexecute(
             From_file_likeMutation,
-            {"file": file, "name": name, "origins": origins, "dataset": dataset},
+            {
+                "input": {
+                    "name": name,
+                    "file": file,
+                    "origins": origins,
+                    "dataset": dataset,
+                }
+            },
             rath=rath,
         )
     ).from_file_like
 
 
 def from_file_like(
-    file: FileLike,
     name: str,
-    origins: Optional[List[ID]] = None,
+    file: FileLike,
+    origins: Optional[Iterable[ID]] = None,
     dataset: Optional[ID] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> File:
     """from_file_like
 
-
+    Create a file from file-like data
 
     Arguments:
-        file (FileLike): file
-        name (str): name
-        origins (Optional[List[ID]], optional): origins.
-        dataset (Optional[ID], optional): dataset.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        file: The `FileLike` scalar type represents a reference to a big file storage previously created by the user n a datalayer (required)
+        origins: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
+        dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        From_file_likeMutationFromfilelike"""
+        File"""
     return execute(
         From_file_likeMutation,
-        {"file": file, "name": name, "origins": origins, "dataset": dataset},
+        {"input": {"name": name, "file": file, "origins": origins, "dataset": dataset}},
         rath=rath,
     ).from_file_like
 
@@ -2865,20 +3342,20 @@ async def arequest_file_upload(
 ) -> Credentials:
     """RequestFileUpload
 
-
-     requestFileUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to upload a new file
 
     Arguments:
-        key (str): key
-        datalayer (str): datalayer
+        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestFileUploadMutationRequestfileupload"""
+        Credentials"""
     return (
         await aexecute(
-            RequestFileUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
+            RequestFileUploadMutation,
+            {"input": {"key": key, "datalayer": datalayer}},
+            rath=rath,
         )
     ).request_file_upload
 
@@ -2888,19 +3365,19 @@ def request_file_upload(
 ) -> Credentials:
     """RequestFileUpload
 
-
-     requestFileUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to upload a new file
 
     Arguments:
-        key (str): key
-        datalayer (str): datalayer
+        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestFileUploadMutationRequestfileupload"""
+        Credentials"""
     return execute(
-        RequestFileUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
+        RequestFileUploadMutation,
+        {"input": {"key": key, "datalayer": datalayer}},
+        rath=rath,
     ).request_file_upload
 
 
@@ -2909,20 +3386,20 @@ async def arequest_file_access(
 ) -> AccessCredentials:
     """RequestFileAccess
 
-
-     requestFileAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to access a file
 
     Arguments:
-        store (ID): store
-        duration (Optional[int], optional): duration.
+        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestFileAccessMutationRequestfileaccess"""
+        AccessCredentials"""
     return (
         await aexecute(
-            RequestFileAccessMutation, {"store": store, "duration": duration}, rath=rath
+            RequestFileAccessMutation,
+            {"input": {"store": store, "duration": duration}},
+            rath=rath,
         )
     ).request_file_access
 
@@ -2932,84 +3409,105 @@ def request_file_access(
 ) -> AccessCredentials:
     """RequestFileAccess
 
-
-     requestFileAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to access a file
 
     Arguments:
-        store (ID): store
-        duration (Optional[int], optional): duration.
+        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestFileAccessMutationRequestfileaccess"""
+        AccessCredentials"""
     return execute(
-        RequestFileAccessMutation, {"store": store, "duration": duration}, rath=rath
+        RequestFileAccessMutation,
+        {"input": {"store": store, "duration": duration}},
+        rath=rath,
     ).request_file_access
 
 
-async def acreate_stage(name: str, rath: Optional[MikroNextRath] = None) -> Stage:
+async def acreate_stage(
+    name: str, instrument: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+) -> Stage:
     """CreateStage
 
-
+    Create a new stage for organizing data
 
     Arguments:
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        instrument: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateStageMutationCreatestage"""
-    return (await aexecute(CreateStageMutation, {"name": name}, rath=rath)).create_stage
+        Stage"""
+    return (
+        await aexecute(
+            CreateStageMutation,
+            {"input": {"name": name, "instrument": instrument}},
+            rath=rath,
+        )
+    ).create_stage
 
 
-def create_stage(name: str, rath: Optional[MikroNextRath] = None) -> Stage:
+def create_stage(
+    name: str, instrument: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+) -> Stage:
     """CreateStage
 
-
+    Create a new stage for organizing data
 
     Arguments:
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        instrument: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateStageMutationCreatestage"""
-    return execute(CreateStageMutation, {"name": name}, rath=rath).create_stage
+        Stage"""
+    return execute(
+        CreateStageMutation,
+        {"input": {"name": name, "instrument": instrument}},
+        rath=rath,
+    ).create_stage
 
 
 async def acreate_roi(
     image: ID,
-    vectors: List[FiveDVector],
+    vectors: Iterable[FiveDVector],
     kind: RoiKind,
     entity: Optional[ID] = None,
     entity_kind: Optional[ID] = None,
+    entity_group: Optional[ID] = None,
     entity_parent: Optional[ID] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> ROI:
     """CreateRoi
 
-
+    Create a new region of interest
 
     Arguments:
-        image (ID): image
-        vectors (List[FiveDVector]): vectors
-        kind (RoiKind): kind
-        entity (Optional[ID], optional): entity.
-        entity_kind (Optional[ID], optional): entityKind.
-        entity_parent (Optional[ID], optional): entityParent.
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list) (required)
+        kind: RoiKind (required)
+        entity: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_kind: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_group: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRoiMutationCreateroi"""
+        ROI"""
     return (
         await aexecute(
             CreateRoiMutation,
             {
-                "image": image,
-                "vectors": vectors,
-                "kind": kind,
-                "entity": entity,
-                "entityKind": entity_kind,
-                "entityParent": entity_parent,
+                "input": {
+                    "image": image,
+                    "vectors": vectors,
+                    "kind": kind,
+                    "entity": entity,
+                    "entity_kind": entity_kind,
+                    "entity_group": entity_group,
+                    "entity_parent": entity_parent,
+                }
             },
             rath=rath,
         )
@@ -3018,102 +3516,163 @@ async def acreate_roi(
 
 def create_roi(
     image: ID,
-    vectors: List[FiveDVector],
+    vectors: Iterable[FiveDVector],
     kind: RoiKind,
     entity: Optional[ID] = None,
     entity_kind: Optional[ID] = None,
+    entity_group: Optional[ID] = None,
     entity_parent: Optional[ID] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> ROI:
     """CreateRoi
 
-
+    Create a new region of interest
 
     Arguments:
-        image (ID): image
-        vectors (List[FiveDVector]): vectors
-        kind (RoiKind): kind
-        entity (Optional[ID], optional): entity.
-        entity_kind (Optional[ID], optional): entityKind.
-        entity_parent (Optional[ID], optional): entityParent.
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list) (required)
+        kind: RoiKind (required)
+        entity: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_kind: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_group: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRoiMutationCreateroi"""
+        ROI"""
     return execute(
         CreateRoiMutation,
         {
-            "image": image,
-            "vectors": vectors,
-            "kind": kind,
-            "entity": entity,
-            "entityKind": entity_kind,
-            "entityParent": entity_parent,
+            "input": {
+                "image": image,
+                "vectors": vectors,
+                "kind": kind,
+                "entity": entity,
+                "entity_kind": entity_kind,
+                "entity_group": entity_group,
+                "entity_parent": entity_parent,
+            }
         },
         rath=rath,
     ).create_roi
 
 
-async def adelete_roi(roi: ID, rath: Optional[MikroNextRath] = None) -> ID:
+async def adelete_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ID:
     """DeleteRoi
 
-
-     deleteRoi: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-
+    Delete an existing region of interest
 
     Arguments:
-        roi (ID): roi
+        id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         ID"""
-    return (await aexecute(DeleteRoiMutation, {"roi": roi}, rath=rath)).delete_roi
+    return (
+        await aexecute(DeleteRoiMutation, {"input": {"id": id}}, rath=rath)
+    ).delete_roi
 
 
-def delete_roi(roi: ID, rath: Optional[MikroNextRath] = None) -> ID:
+def delete_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ID:
     """DeleteRoi
 
-
-     deleteRoi: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-
+    Delete an existing region of interest
 
     Arguments:
-        roi (ID): roi
+        id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         ID"""
-    return execute(DeleteRoiMutation, {"roi": roi}, rath=rath).delete_roi
+    return execute(DeleteRoiMutation, {"input": {"id": id}}, rath=rath).delete_roi
 
 
 async def aupdate_roi(
-    input: UpdateRoiInput, rath: Optional[MikroNextRath] = None
+    roi: ID,
+    vectors: Optional[Iterable[FiveDVector]] = None,
+    kind: Optional[RoiKind] = None,
+    entity: Optional[ID] = None,
+    entity_kind: Optional[ID] = None,
+    entity_group: Optional[ID] = None,
+    entity_parent: Optional[ID] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> ROI:
     """UpdateRoi
 
-
+    Update an existing region of interest
 
     Arguments:
-        input (UpdateRoiInput): input
+        roi: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list)
+        kind: RoiKind
+        entity: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_kind: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_group: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        UpdateRoiMutationUpdateroi"""
-    return (await aexecute(UpdateRoiMutation, {"input": input}, rath=rath)).update_roi
+        ROI"""
+    return (
+        await aexecute(
+            UpdateRoiMutation,
+            {
+                "input": {
+                    "roi": roi,
+                    "vectors": vectors,
+                    "kind": kind,
+                    "entity": entity,
+                    "entity_kind": entity_kind,
+                    "entity_group": entity_group,
+                    "entity_parent": entity_parent,
+                }
+            },
+            rath=rath,
+        )
+    ).update_roi
 
 
-def update_roi(input: UpdateRoiInput, rath: Optional[MikroNextRath] = None) -> ROI:
+def update_roi(
+    roi: ID,
+    vectors: Optional[Iterable[FiveDVector]] = None,
+    kind: Optional[RoiKind] = None,
+    entity: Optional[ID] = None,
+    entity_kind: Optional[ID] = None,
+    entity_group: Optional[ID] = None,
+    entity_parent: Optional[ID] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> ROI:
     """UpdateRoi
 
-
+    Update an existing region of interest
 
     Arguments:
-        input (UpdateRoiInput): input
+        roi: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list)
+        kind: RoiKind
+        entity: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_kind: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_group: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        entity_parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        UpdateRoiMutationUpdateroi"""
-    return execute(UpdateRoiMutation, {"input": input}, rath=rath).update_roi
+        ROI"""
+    return execute(
+        UpdateRoiMutation,
+        {
+            "input": {
+                "roi": roi,
+                "vectors": vectors,
+                "kind": kind,
+                "entity": entity,
+                "entity_kind": entity_kind,
+                "entity_group": entity_group,
+                "entity_parent": entity_parent,
+            }
+        },
+        rath=rath,
+    ).update_roi
 
 
 async def acreate_objective(
@@ -3121,17 +3680,19 @@ async def acreate_objective(
     name: Optional[str] = None,
     na: Optional[float] = None,
     magnification: Optional[float] = None,
+    immersion: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> CreateObjectiveMutationCreateobjective:
     """CreateObjective
 
-
+    Create a new microscope objective configuration
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        na (Optional[float], optional): na.
-        magnification (Optional[float], optional): magnification.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        na: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        magnification: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        immersion: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -3140,10 +3701,13 @@ async def acreate_objective(
         await aexecute(
             CreateObjectiveMutation,
             {
-                "serialNumber": serial_number,
-                "name": name,
-                "na": na,
-                "magnification": magnification,
+                "input": {
+                    "serial_number": serial_number,
+                    "name": name,
+                    "na": na,
+                    "magnification": magnification,
+                    "immersion": immersion,
+                }
             },
             rath=rath,
         )
@@ -3155,17 +3719,19 @@ def create_objective(
     name: Optional[str] = None,
     na: Optional[float] = None,
     magnification: Optional[float] = None,
+    immersion: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> CreateObjectiveMutationCreateobjective:
     """CreateObjective
 
-
+    Create a new microscope objective configuration
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        na (Optional[float], optional): na.
-        magnification (Optional[float], optional): magnification.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        na: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        magnification: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        immersion: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -3173,10 +3739,13 @@ def create_objective(
     return execute(
         CreateObjectiveMutation,
         {
-            "serialNumber": serial_number,
-            "name": name,
-            "na": na,
-            "magnification": magnification,
+            "input": {
+                "serial_number": serial_number,
+                "name": name,
+                "na": na,
+                "magnification": magnification,
+                "immersion": immersion,
+            }
         },
         rath=rath,
     ).create_objective
@@ -3187,17 +3756,19 @@ async def aensure_objective(
     name: Optional[str] = None,
     na: Optional[float] = None,
     magnification: Optional[float] = None,
+    immersion: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> EnsureObjectiveMutationEnsureobjective:
     """EnsureObjective
 
-
+    Ensure an objective exists, creating if needed
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        na (Optional[float], optional): na.
-        magnification (Optional[float], optional): magnification.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        na: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        magnification: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        immersion: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -3206,10 +3777,13 @@ async def aensure_objective(
         await aexecute(
             EnsureObjectiveMutation,
             {
-                "serialNumber": serial_number,
-                "name": name,
-                "na": na,
-                "magnification": magnification,
+                "input": {
+                    "serial_number": serial_number,
+                    "name": name,
+                    "na": na,
+                    "magnification": magnification,
+                    "immersion": immersion,
+                }
             },
             rath=rath,
         )
@@ -3221,17 +3795,19 @@ def ensure_objective(
     name: Optional[str] = None,
     na: Optional[float] = None,
     magnification: Optional[float] = None,
+    immersion: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> EnsureObjectiveMutationEnsureobjective:
     """EnsureObjective
 
-
+    Ensure an objective exists, creating if needed
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        na (Optional[float], optional): na.
-        magnification (Optional[float], optional): magnification.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        na: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        magnification: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        immersion: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -3239,10 +3815,13 @@ def ensure_objective(
     return execute(
         EnsureObjectiveMutation,
         {
-            "serialNumber": serial_number,
-            "name": name,
-            "na": na,
-            "magnification": magnification,
+            "input": {
+                "serial_number": serial_number,
+                "name": name,
+                "na": na,
+                "magnification": magnification,
+                "immersion": immersion,
+            }
         },
         rath=rath,
     ).ensure_objective
@@ -3253,16 +3832,16 @@ async def acreate_dataset(
 ) -> CreateDatasetMutationCreatedataset:
     """CreateDataset
 
-
+    Create a new dataset to organize data
 
     Arguments:
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateDatasetMutationCreatedataset"""
     return (
-        await aexecute(CreateDatasetMutation, {"name": name}, rath=rath)
+        await aexecute(CreateDatasetMutation, {"input": {"name": name}}, rath=rath)
     ).create_dataset
 
 
@@ -3271,109 +3850,119 @@ def create_dataset(
 ) -> CreateDatasetMutationCreatedataset:
     """CreateDataset
 
-
+    Create a new dataset to organize data
 
     Arguments:
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateDatasetMutationCreatedataset"""
-    return execute(CreateDatasetMutation, {"name": name}, rath=rath).create_dataset
+    return execute(
+        CreateDatasetMutation, {"input": {"name": name}}, rath=rath
+    ).create_dataset
 
 
 async def aupdate_dataset(
-    id: ID, name: str, rath: Optional[MikroNextRath] = None
+    name: str, id: ID, rath: Optional[MikroNextRath] = None
 ) -> UpdateDatasetMutationUpdatedataset:
     """UpdateDataset
 
-
+    Update dataset metadata
 
     Arguments:
-        id (ID): id
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         UpdateDatasetMutationUpdatedataset"""
     return (
-        await aexecute(UpdateDatasetMutation, {"id": id, "name": name}, rath=rath)
+        await aexecute(
+            UpdateDatasetMutation, {"input": {"name": name, "id": id}}, rath=rath
+        )
     ).update_dataset
 
 
 def update_dataset(
-    id: ID, name: str, rath: Optional[MikroNextRath] = None
+    name: str, id: ID, rath: Optional[MikroNextRath] = None
 ) -> UpdateDatasetMutationUpdatedataset:
     """UpdateDataset
 
-
+    Update dataset metadata
 
     Arguments:
-        id (ID): id
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         UpdateDatasetMutationUpdatedataset"""
     return execute(
-        UpdateDatasetMutation, {"id": id, "name": name}, rath=rath
+        UpdateDatasetMutation, {"input": {"name": name, "id": id}}, rath=rath
     ).update_dataset
 
 
 async def arevert_dataset(
-    dataset: ID, history: ID, rath: Optional[MikroNextRath] = None
+    id: ID, history_id: ID, rath: Optional[MikroNextRath] = None
 ) -> RevertDatasetMutationRevertdataset:
     """RevertDataset
 
-
+    Revert dataset to a previous version
 
     Arguments:
-        dataset (ID): dataset
-        history (ID): history
+        id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        history_id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         RevertDatasetMutationRevertdataset"""
     return (
         await aexecute(
-            RevertDatasetMutation, {"dataset": dataset, "history": history}, rath=rath
+            RevertDatasetMutation,
+            {"input": {"id": id, "history_id": history_id}},
+            rath=rath,
         )
     ).revert_dataset
 
 
 def revert_dataset(
-    dataset: ID, history: ID, rath: Optional[MikroNextRath] = None
+    id: ID, history_id: ID, rath: Optional[MikroNextRath] = None
 ) -> RevertDatasetMutationRevertdataset:
     """RevertDataset
 
-
+    Revert dataset to a previous version
 
     Arguments:
-        dataset (ID): dataset
-        history (ID): history
+        id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        history_id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         RevertDatasetMutationRevertdataset"""
     return execute(
-        RevertDatasetMutation, {"dataset": dataset, "history": history}, rath=rath
+        RevertDatasetMutation,
+        {"input": {"id": id, "history_id": history_id}},
+        rath=rath,
     ).revert_dataset
 
 
 async def acreate_instrument(
     serial_number: str,
+    manufacturer: Optional[str] = None,
     name: Optional[str] = None,
     model: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> CreateInstrumentMutationCreateinstrument:
     """CreateInstrument
 
-
+    Create a new instrument configuration
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        model (Optional[str], optional): model.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -3381,7 +3970,14 @@ async def acreate_instrument(
     return (
         await aexecute(
             CreateInstrumentMutation,
-            {"serialNumber": serial_number, "name": name, "model": model},
+            {
+                "input": {
+                    "serial_number": serial_number,
+                    "manufacturer": manufacturer,
+                    "name": name,
+                    "model": model,
+                }
+            },
             rath=rath,
         )
     ).create_instrument
@@ -3389,43 +3985,54 @@ async def acreate_instrument(
 
 def create_instrument(
     serial_number: str,
+    manufacturer: Optional[str] = None,
     name: Optional[str] = None,
     model: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> CreateInstrumentMutationCreateinstrument:
     """CreateInstrument
 
-
+    Create a new instrument configuration
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        model (Optional[str], optional): model.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateInstrumentMutationCreateinstrument"""
     return execute(
         CreateInstrumentMutation,
-        {"serialNumber": serial_number, "name": name, "model": model},
+        {
+            "input": {
+                "serial_number": serial_number,
+                "manufacturer": manufacturer,
+                "name": name,
+                "model": model,
+            }
+        },
         rath=rath,
     ).create_instrument
 
 
 async def aensure_instrument(
     serial_number: str,
+    manufacturer: Optional[str] = None,
     name: Optional[str] = None,
     model: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> EnsureInstrumentMutationEnsureinstrument:
     """EnsureInstrument
 
-
+    Ensure an instrument exists, creating if needed
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        model (Optional[str], optional): model.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -3433,7 +4040,14 @@ async def aensure_instrument(
     return (
         await aexecute(
             EnsureInstrumentMutation,
-            {"serialNumber": serial_number, "name": name, "model": model},
+            {
+                "input": {
+                    "serial_number": serial_number,
+                    "manufacturer": manufacturer,
+                    "name": name,
+                    "model": model,
+                }
+            },
             rath=rath,
         )
     ).ensure_instrument
@@ -3441,25 +4055,34 @@ async def aensure_instrument(
 
 def ensure_instrument(
     serial_number: str,
+    manufacturer: Optional[str] = None,
     name: Optional[str] = None,
     model: Optional[str] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> EnsureInstrumentMutationEnsureinstrument:
     """EnsureInstrument
 
-
+    Ensure an instrument exists, creating if needed
 
     Arguments:
-        serial_number (str): serialNumber
-        name (Optional[str], optional): name.
-        model (Optional[str], optional): model.
+        serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         EnsureInstrumentMutationEnsureinstrument"""
     return execute(
         EnsureInstrumentMutation,
-        {"serialNumber": serial_number, "name": name, "model": model},
+        {
+            "input": {
+                "serial_number": serial_number,
+                "manufacturer": manufacturer,
+                "name": name,
+                "model": model,
+            }
+        },
         rath=rath,
     ).ensure_instrument
 
@@ -3467,64 +4090,71 @@ def ensure_instrument(
 async def afrom_array_like(
     array: ArrayLike,
     name: str,
-    channel_views: Optional[List[PartialChannelViewInput]] = None,
-    transformation_views: Optional[List[PartialAffineTransformationViewInput]] = None,
-    pixel_views: Optional[List[PartialPixelViewInput]] = None,
-    rgb_views: Optional[List[PartialRGBViewInput]] = None,
-    acquisition_views: Optional[List[PartialAcquisitionViewInput]] = None,
-    timepoint_views: Optional[List[PartialTimepointViewInput]] = None,
-    optics_views: Optional[List[PartialOpticsViewInput]] = None,
-    structure_views: Optional[List[PartialStructureViewInput]] = None,
-    scale_views: Optional[List[PartialScaleViewInput]] = None,
-    roi_views: Optional[List[PartialROIViewInput]] = None,
-    file_views: Optional[List[PartialFileViewInput]] = None,
-    derived_views: Optional[List[PartialDerivedViewInput]] = None,
-    tags: Optional[List[str]] = None,
+    dataset: Optional[ID] = None,
+    channel_views: Optional[Iterable[PartialChannelViewInput]] = None,
+    transformation_views: Optional[
+        Iterable[PartialAffineTransformationViewInput]
+    ] = None,
+    acquisition_views: Optional[Iterable[PartialAcquisitionViewInput]] = None,
+    pixel_views: Optional[Iterable[PartialPixelViewInput]] = None,
+    structure_views: Optional[Iterable[PartialStructureViewInput]] = None,
+    rgb_views: Optional[Iterable[PartialRGBViewInput]] = None,
+    timepoint_views: Optional[Iterable[PartialTimepointViewInput]] = None,
+    optics_views: Optional[Iterable[PartialOpticsViewInput]] = None,
+    scale_views: Optional[Iterable[PartialScaleViewInput]] = None,
+    tags: Optional[Iterable[str]] = None,
+    roi_views: Optional[Iterable[PartialROIViewInput]] = None,
+    file_views: Optional[Iterable[PartialFileViewInput]] = None,
+    derived_views: Optional[Iterable[PartialDerivedViewInput]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> Image:
     """from_array_like
 
-
+    Create an image from array-like data
 
     Arguments:
-        array (ArrayLike): array
-        name (str): name
-        channel_views (Optional[List[PartialChannelViewInput]], optional): channelViews.
-        transformation_views (Optional[List[PartialAffineTransformationViewInput]], optional): transformationViews.
-        pixel_views (Optional[List[PartialPixelViewInput]], optional): pixelViews.
-        rgb_views (Optional[List[PartialRGBViewInput]], optional): rgbViews.
-        acquisition_views (Optional[List[PartialAcquisitionViewInput]], optional): acquisitionViews.
-        timepoint_views (Optional[List[PartialTimepointViewInput]], optional): timepointViews.
-        optics_views (Optional[List[PartialOpticsViewInput]], optional): opticsViews.
-        structure_views (Optional[List[PartialStructureViewInput]], optional): structureViews.
-        scale_views (Optional[List[PartialScaleViewInput]], optional): scaleViews.
-        roi_views (Optional[List[PartialROIViewInput]], optional): roiViews.
-        file_views (Optional[List[PartialFileViewInput]], optional): fileViews.
-        derived_views (Optional[List[PartialDerivedViewInput]], optional): derivedViews.
-        tags (Optional[List[str]], optional): tags.
+        array: The array-like object to create the image from
+        name: The name of the image
+        dataset: Optional dataset ID to associate the image with
+        channel_views: Optional list of channel views
+        transformation_views: Optional list of affine transformation views
+        acquisition_views: Optional list of acquisition views
+        pixel_views: Optional list of pixel views
+        structure_views: Optional list of structure views
+        rgb_views: Optional list of RGB views
+        timepoint_views: Optional list of timepoint views
+        optics_views: Optional list of optics views
+        scale_views: Optional list of scale views
+        tags: Optional list of tags to associate with the image
+        roi_views: Optional list of ROI views
+        file_views: Optional list of file views
+        derived_views: Optional list of derived views
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        From_array_likeMutationFromarraylike"""
+        Image"""
     return (
         await aexecute(
             From_array_likeMutation,
             {
-                "array": array,
-                "name": name,
-                "channelViews": channel_views,
-                "transformationViews": transformation_views,
-                "pixelViews": pixel_views,
-                "rgbViews": rgb_views,
-                "acquisitionViews": acquisition_views,
-                "timepointViews": timepoint_views,
-                "opticsViews": optics_views,
-                "structureViews": structure_views,
-                "scaleViews": scale_views,
-                "roiViews": roi_views,
-                "fileViews": file_views,
-                "derivedViews": derived_views,
-                "tags": tags,
+                "input": {
+                    "array": array,
+                    "name": name,
+                    "dataset": dataset,
+                    "channel_views": channel_views,
+                    "transformation_views": transformation_views,
+                    "acquisition_views": acquisition_views,
+                    "pixel_views": pixel_views,
+                    "structure_views": structure_views,
+                    "rgb_views": rgb_views,
+                    "timepoint_views": timepoint_views,
+                    "optics_views": optics_views,
+                    "scale_views": scale_views,
+                    "tags": tags,
+                    "roi_views": roi_views,
+                    "file_views": file_views,
+                    "derived_views": derived_views,
+                }
             },
             rath=rath,
         )
@@ -3534,63 +4164,70 @@ async def afrom_array_like(
 def from_array_like(
     array: ArrayLike,
     name: str,
-    channel_views: Optional[List[PartialChannelViewInput]] = None,
-    transformation_views: Optional[List[PartialAffineTransformationViewInput]] = None,
-    pixel_views: Optional[List[PartialPixelViewInput]] = None,
-    rgb_views: Optional[List[PartialRGBViewInput]] = None,
-    acquisition_views: Optional[List[PartialAcquisitionViewInput]] = None,
-    timepoint_views: Optional[List[PartialTimepointViewInput]] = None,
-    optics_views: Optional[List[PartialOpticsViewInput]] = None,
-    structure_views: Optional[List[PartialStructureViewInput]] = None,
-    scale_views: Optional[List[PartialScaleViewInput]] = None,
-    roi_views: Optional[List[PartialROIViewInput]] = None,
-    file_views: Optional[List[PartialFileViewInput]] = None,
-    derived_views: Optional[List[PartialDerivedViewInput]] = None,
-    tags: Optional[List[str]] = None,
+    dataset: Optional[ID] = None,
+    channel_views: Optional[Iterable[PartialChannelViewInput]] = None,
+    transformation_views: Optional[
+        Iterable[PartialAffineTransformationViewInput]
+    ] = None,
+    acquisition_views: Optional[Iterable[PartialAcquisitionViewInput]] = None,
+    pixel_views: Optional[Iterable[PartialPixelViewInput]] = None,
+    structure_views: Optional[Iterable[PartialStructureViewInput]] = None,
+    rgb_views: Optional[Iterable[PartialRGBViewInput]] = None,
+    timepoint_views: Optional[Iterable[PartialTimepointViewInput]] = None,
+    optics_views: Optional[Iterable[PartialOpticsViewInput]] = None,
+    scale_views: Optional[Iterable[PartialScaleViewInput]] = None,
+    tags: Optional[Iterable[str]] = None,
+    roi_views: Optional[Iterable[PartialROIViewInput]] = None,
+    file_views: Optional[Iterable[PartialFileViewInput]] = None,
+    derived_views: Optional[Iterable[PartialDerivedViewInput]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> Image:
     """from_array_like
 
-
+    Create an image from array-like data
 
     Arguments:
-        array (ArrayLike): array
-        name (str): name
-        channel_views (Optional[List[PartialChannelViewInput]], optional): channelViews.
-        transformation_views (Optional[List[PartialAffineTransformationViewInput]], optional): transformationViews.
-        pixel_views (Optional[List[PartialPixelViewInput]], optional): pixelViews.
-        rgb_views (Optional[List[PartialRGBViewInput]], optional): rgbViews.
-        acquisition_views (Optional[List[PartialAcquisitionViewInput]], optional): acquisitionViews.
-        timepoint_views (Optional[List[PartialTimepointViewInput]], optional): timepointViews.
-        optics_views (Optional[List[PartialOpticsViewInput]], optional): opticsViews.
-        structure_views (Optional[List[PartialStructureViewInput]], optional): structureViews.
-        scale_views (Optional[List[PartialScaleViewInput]], optional): scaleViews.
-        roi_views (Optional[List[PartialROIViewInput]], optional): roiViews.
-        file_views (Optional[List[PartialFileViewInput]], optional): fileViews.
-        derived_views (Optional[List[PartialDerivedViewInput]], optional): derivedViews.
-        tags (Optional[List[str]], optional): tags.
+        array: The array-like object to create the image from
+        name: The name of the image
+        dataset: Optional dataset ID to associate the image with
+        channel_views: Optional list of channel views
+        transformation_views: Optional list of affine transformation views
+        acquisition_views: Optional list of acquisition views
+        pixel_views: Optional list of pixel views
+        structure_views: Optional list of structure views
+        rgb_views: Optional list of RGB views
+        timepoint_views: Optional list of timepoint views
+        optics_views: Optional list of optics views
+        scale_views: Optional list of scale views
+        tags: Optional list of tags to associate with the image
+        roi_views: Optional list of ROI views
+        file_views: Optional list of file views
+        derived_views: Optional list of derived views
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        From_array_likeMutationFromarraylike"""
+        Image"""
     return execute(
         From_array_likeMutation,
         {
-            "array": array,
-            "name": name,
-            "channelViews": channel_views,
-            "transformationViews": transformation_views,
-            "pixelViews": pixel_views,
-            "rgbViews": rgb_views,
-            "acquisitionViews": acquisition_views,
-            "timepointViews": timepoint_views,
-            "opticsViews": optics_views,
-            "structureViews": structure_views,
-            "scaleViews": scale_views,
-            "roiViews": roi_views,
-            "fileViews": file_views,
-            "derivedViews": derived_views,
-            "tags": tags,
+            "input": {
+                "array": array,
+                "name": name,
+                "dataset": dataset,
+                "channel_views": channel_views,
+                "transformation_views": transformation_views,
+                "acquisition_views": acquisition_views,
+                "pixel_views": pixel_views,
+                "structure_views": structure_views,
+                "rgb_views": rgb_views,
+                "timepoint_views": timepoint_views,
+                "optics_views": optics_views,
+                "scale_views": scale_views,
+                "tags": tags,
+                "roi_views": roi_views,
+                "file_views": file_views,
+                "derived_views": derived_views,
+            }
         },
         rath=rath,
     ).from_array_like
@@ -3601,20 +4238,20 @@ async def arequest_upload(
 ) -> Credentials:
     """RequestUpload
 
-
-     requestUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to upload a new image
 
     Arguments:
-        key (str): key
-        datalayer (str): datalayer
+        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestUploadMutationRequestupload"""
+        Credentials"""
     return (
         await aexecute(
-            RequestUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
+            RequestUploadMutation,
+            {"input": {"key": key, "datalayer": datalayer}},
+            rath=rath,
         )
     ).request_upload
 
@@ -3624,19 +4261,19 @@ def request_upload(
 ) -> Credentials:
     """RequestUpload
 
-
-     requestUpload: Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to upload a new image
 
     Arguments:
-        key (str): key
-        datalayer (str): datalayer
+        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestUploadMutationRequestupload"""
+        Credentials"""
     return execute(
-        RequestUploadMutation, {"key": key, "datalayer": datalayer}, rath=rath
+        RequestUploadMutation,
+        {"input": {"key": key, "datalayer": datalayer}},
+        rath=rath,
     ).request_upload
 
 
@@ -3645,20 +4282,20 @@ async def arequest_access(
 ) -> AccessCredentials:
     """RequestAccess
 
-
-     requestAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to access an image
 
     Arguments:
-        store (ID): store
-        duration (Optional[int], optional): duration.
+        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestAccessMutationRequestaccess"""
+        AccessCredentials"""
     return (
         await aexecute(
-            RequestAccessMutation, {"store": store, "duration": duration}, rath=rath
+            RequestAccessMutation,
+            {"input": {"store": store, "duration": duration}},
+            rath=rath,
         )
     ).request_access
 
@@ -3668,19 +4305,19 @@ def request_access(
 ) -> AccessCredentials:
     """RequestAccess
 
-
-     requestAccess: Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)
-
+    Request credentials to access an image
 
     Arguments:
-        store (ID): store
-        duration (Optional[int], optional): duration.
+        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RequestAccessMutationRequestaccess"""
+        AccessCredentials"""
     return execute(
-        RequestAccessMutation, {"store": store, "duration": duration}, rath=rath
+        RequestAccessMutation,
+        {"input": {"store": store, "duration": duration}},
+        rath=rath,
     ).request_access
 
 
@@ -3689,17 +4326,19 @@ async def acreate_era(
 ) -> CreateEraMutationCreateera:
     """CreateEra
 
-
+    Create a new era for temporal organization
 
     Arguments:
-        name (str): name
-        begin (Optional[datetime], optional): begin.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        begin: Date with time (isoformat)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateEraMutationCreateera"""
     return (
-        await aexecute(CreateEraMutation, {"name": name, "begin": begin}, rath=rath)
+        await aexecute(
+            CreateEraMutation, {"input": {"name": name, "begin": begin}}, rath=rath
+        )
     ).create_era
 
 
@@ -3708,86 +4347,110 @@ def create_era(
 ) -> CreateEraMutationCreateera:
     """CreateEra
 
-
+    Create a new era for temporal organization
 
     Arguments:
-        name (str): name
-        begin (Optional[datetime], optional): begin.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        begin: Date with time (isoformat)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateEraMutationCreateera"""
     return execute(
-        CreateEraMutation, {"name": name, "begin": begin}, rath=rath
+        CreateEraMutation, {"input": {"name": name, "begin": begin}}, rath=rath
     ).create_era
 
 
 async def acreate_snapshot(
-    image: ID, file: Upload, rath: Optional[MikroNextRath] = None
+    file: Upload, image: ID, rath: Optional[MikroNextRath] = None
 ) -> Snapshot:
     """CreateSnapshot
 
-
+    Create a new state snapshot
 
     Arguments:
-        image (ID): image
-        file (Upload): file
+        file:  (required)
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateSnapshotMutationCreatesnapshot"""
+        Snapshot"""
     return (
         await aexecute(
-            CreateSnapshotMutation, {"image": image, "file": file}, rath=rath
+            CreateSnapshotMutation, {"input": {"file": file, "image": image}}, rath=rath
         )
     ).create_snapshot
 
 
 def create_snapshot(
-    image: ID, file: Upload, rath: Optional[MikroNextRath] = None
+    file: Upload, image: ID, rath: Optional[MikroNextRath] = None
 ) -> Snapshot:
     """CreateSnapshot
 
-
+    Create a new state snapshot
 
     Arguments:
-        image (ID): image
-        file (Upload): file
+        file:  (required)
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateSnapshotMutationCreatesnapshot"""
+        Snapshot"""
     return execute(
-        CreateSnapshotMutation, {"image": image, "file": file}, rath=rath
+        CreateSnapshotMutation, {"input": {"file": file, "image": image}}, rath=rath
     ).create_snapshot
 
 
 async def acreate_rgb_view(
-    image: ID,
     context: ID,
+    image: ID,
+    collection: Optional[ID] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
     gamma: Optional[float] = None,
-    contrast_limit_max: Optional[float] = None,
     contrast_limit_min: Optional[float] = None,
+    contrast_limit_max: Optional[float] = None,
     rescale: Optional[bool] = None,
+    scale: Optional[float] = None,
     active: Optional[bool] = None,
     color_map: Optional[ColorMap] = None,
-    base_color: Optional[List[float]] = None,
+    base_color: Optional[Iterable[float]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> CreateRgbViewMutationCreatergbview:
     """CreateRgbView
 
-
+    Create a new view for RGB image data
 
     Arguments:
-        image (ID): image
-        context (ID): context
-        gamma (Optional[float], optional): gamma.
-        contrast_limit_max (Optional[float], optional): contrastLimitMax.
-        contrast_limit_min (Optional[float], optional): contrastLimitMin.
-        rescale (Optional[bool], optional): rescale.
-        active (Optional[bool], optional): active.
-        color_map (Optional[ColorMap], optional): colorMap.
-        base_color (Optional[List[float]], optional): baseColor.
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        context: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        gamma: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        contrast_limit_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        contrast_limit_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        rescale: The `Boolean` scalar type represents `true` or `false`.
+        scale: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        active: The `Boolean` scalar type represents `true` or `false`.
+        color_map: ColorMap
+        base_color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -3796,15 +4459,29 @@ async def acreate_rgb_view(
         await aexecute(
             CreateRgbViewMutation,
             {
-                "image": image,
-                "context": context,
-                "gamma": gamma,
-                "contrastLimitMax": contrast_limit_max,
-                "contrastLimitMin": contrast_limit_min,
-                "rescale": rescale,
-                "active": active,
-                "colorMap": color_map,
-                "baseColor": base_color,
+                "input": {
+                    "collection": collection,
+                    "z_min": z_min,
+                    "z_max": z_max,
+                    "x_min": x_min,
+                    "x_max": x_max,
+                    "y_min": y_min,
+                    "y_max": y_max,
+                    "t_min": t_min,
+                    "t_max": t_max,
+                    "c_min": c_min,
+                    "c_max": c_max,
+                    "context": context,
+                    "gamma": gamma,
+                    "contrast_limit_min": contrast_limit_min,
+                    "contrast_limit_max": contrast_limit_max,
+                    "rescale": rescale,
+                    "scale": scale,
+                    "active": active,
+                    "color_map": color_map,
+                    "base_color": base_color,
+                    "image": image,
+                }
             },
             rath=rath,
         )
@@ -3812,31 +4489,55 @@ async def acreate_rgb_view(
 
 
 def create_rgb_view(
-    image: ID,
     context: ID,
+    image: ID,
+    collection: Optional[ID] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
     gamma: Optional[float] = None,
-    contrast_limit_max: Optional[float] = None,
     contrast_limit_min: Optional[float] = None,
+    contrast_limit_max: Optional[float] = None,
     rescale: Optional[bool] = None,
+    scale: Optional[float] = None,
     active: Optional[bool] = None,
     color_map: Optional[ColorMap] = None,
-    base_color: Optional[List[float]] = None,
+    base_color: Optional[Iterable[float]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> CreateRgbViewMutationCreatergbview:
     """CreateRgbView
 
-
+    Create a new view for RGB image data
 
     Arguments:
-        image (ID): image
-        context (ID): context
-        gamma (Optional[float], optional): gamma.
-        contrast_limit_max (Optional[float], optional): contrastLimitMax.
-        contrast_limit_min (Optional[float], optional): contrastLimitMin.
-        rescale (Optional[bool], optional): rescale.
-        active (Optional[bool], optional): active.
-        color_map (Optional[ColorMap], optional): colorMap.
-        base_color (Optional[List[float]], optional): baseColor.
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        context: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        gamma: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        contrast_limit_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        contrast_limit_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        rescale: The `Boolean` scalar type represents `true` or `false`.
+        scale: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        active: The `Boolean` scalar type represents `true` or `false`.
+        color_map: ColorMap
+        base_color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -3844,129 +4545,331 @@ def create_rgb_view(
     return execute(
         CreateRgbViewMutation,
         {
-            "image": image,
-            "context": context,
-            "gamma": gamma,
-            "contrastLimitMax": contrast_limit_max,
-            "contrastLimitMin": contrast_limit_min,
-            "rescale": rescale,
-            "active": active,
-            "colorMap": color_map,
-            "baseColor": base_color,
+            "input": {
+                "collection": collection,
+                "z_min": z_min,
+                "z_max": z_max,
+                "x_min": x_min,
+                "x_max": x_max,
+                "y_min": y_min,
+                "y_max": y_max,
+                "t_min": t_min,
+                "t_max": t_max,
+                "c_min": c_min,
+                "c_max": c_max,
+                "context": context,
+                "gamma": gamma,
+                "contrast_limit_min": contrast_limit_min,
+                "contrast_limit_max": contrast_limit_max,
+                "rescale": rescale,
+                "scale": scale,
+                "active": active,
+                "color_map": color_map,
+                "base_color": base_color,
+                "image": image,
+            }
         },
         rath=rath,
     ).create_rgb_view
 
 
 async def acreate_label_view(
-    image: ID, label: str, rath: Optional[MikroNextRath] = None
+    label: str,
+    image: ID,
+    collection: Optional[ID] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> LabelView:
     """CreateLabelView
 
-
+    Create a new view for label data
 
     Arguments:
-        image (ID): image
-        label (str): label
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        label: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateLabelViewMutationCreatelabelview"""
+        LabelView"""
     return (
         await aexecute(
-            CreateLabelViewMutation, {"image": image, "label": label}, rath=rath
+            CreateLabelViewMutation,
+            {
+                "input": {
+                    "collection": collection,
+                    "z_min": z_min,
+                    "z_max": z_max,
+                    "x_min": x_min,
+                    "x_max": x_max,
+                    "y_min": y_min,
+                    "y_max": y_max,
+                    "t_min": t_min,
+                    "t_max": t_max,
+                    "c_min": c_min,
+                    "c_max": c_max,
+                    "label": label,
+                    "image": image,
+                }
+            },
+            rath=rath,
         )
     ).create_label_view
 
 
 def create_label_view(
-    image: ID, label: str, rath: Optional[MikroNextRath] = None
+    label: str,
+    image: ID,
+    collection: Optional[ID] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> LabelView:
     """CreateLabelView
 
-
+    Create a new view for label data
 
     Arguments:
-        image (ID): image
-        label (str): label
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        label: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateLabelViewMutationCreatelabelview"""
+        LabelView"""
     return execute(
-        CreateLabelViewMutation, {"image": image, "label": label}, rath=rath
+        CreateLabelViewMutation,
+        {
+            "input": {
+                "collection": collection,
+                "z_min": z_min,
+                "z_max": z_max,
+                "x_min": x_min,
+                "x_max": x_max,
+                "y_min": y_min,
+                "y_max": y_max,
+                "t_min": t_min,
+                "t_max": t_max,
+                "c_min": c_min,
+                "c_max": c_max,
+                "label": label,
+                "image": image,
+            }
+        },
+        rath=rath,
     ).create_label_view
 
 
 async def acreate_rgb_context(
-    input: CreateRGBContextInput, rath: Optional[MikroNextRath] = None
+    image: ID,
+    name: Optional[str] = None,
+    thumbnail: Optional[ID] = None,
+    views: Optional[Iterable[PartialRGBViewInput]] = None,
+    z: Optional[int] = None,
+    t: Optional[int] = None,
+    c: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> RGBContext:
     """CreateRGBContext
 
-
+    Create a new RGB context for image visualization
 
     Arguments:
-        input (CreateRGBContextInput): input
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        thumbnail: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        views:  (required) (list)
+        z: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        t: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        c: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRGBContextMutationCreatergbcontext"""
+        RGBContext"""
     return (
-        await aexecute(CreateRGBContextMutation, {"input": input}, rath=rath)
+        await aexecute(
+            CreateRGBContextMutation,
+            {
+                "input": {
+                    "name": name,
+                    "thumbnail": thumbnail,
+                    "image": image,
+                    "views": views,
+                    "z": z,
+                    "t": t,
+                    "c": c,
+                }
+            },
+            rath=rath,
+        )
     ).create_rgb_context
 
 
 def create_rgb_context(
-    input: CreateRGBContextInput, rath: Optional[MikroNextRath] = None
+    image: ID,
+    name: Optional[str] = None,
+    thumbnail: Optional[ID] = None,
+    views: Optional[Iterable[PartialRGBViewInput]] = None,
+    z: Optional[int] = None,
+    t: Optional[int] = None,
+    c: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> RGBContext:
     """CreateRGBContext
 
-
+    Create a new RGB context for image visualization
 
     Arguments:
-        input (CreateRGBContextInput): input
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        thumbnail: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        views:  (required) (list)
+        z: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        t: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        c: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRGBContextMutationCreatergbcontext"""
+        RGBContext"""
     return execute(
-        CreateRGBContextMutation, {"input": input}, rath=rath
+        CreateRGBContextMutation,
+        {
+            "input": {
+                "name": name,
+                "thumbnail": thumbnail,
+                "image": image,
+                "views": views,
+                "z": z,
+                "t": t,
+                "c": c,
+            }
+        },
+        rath=rath,
     ).create_rgb_context
 
 
 async def aupdate_rgb_context(
-    input: UpdateRGBContextInput, rath: Optional[MikroNextRath] = None
+    id: ID,
+    name: Optional[str] = None,
+    thumbnail: Optional[ID] = None,
+    views: Optional[Iterable[PartialRGBViewInput]] = None,
+    z: Optional[int] = None,
+    t: Optional[int] = None,
+    c: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> RGBContext:
     """UpdateRGBContext
 
-
+    Update settings of an existing RGB context
 
     Arguments:
-        input (UpdateRGBContextInput): input
+        id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        thumbnail: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        views:  (required) (list)
+        z: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        t: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        c: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        UpdateRGBContextMutationUpdatergbcontext"""
+        RGBContext"""
     return (
-        await aexecute(UpdateRGBContextMutation, {"input": input}, rath=rath)
+        await aexecute(
+            UpdateRGBContextMutation,
+            {
+                "input": {
+                    "id": id,
+                    "name": name,
+                    "thumbnail": thumbnail,
+                    "views": views,
+                    "z": z,
+                    "t": t,
+                    "c": c,
+                }
+            },
+            rath=rath,
+        )
     ).update_rgb_context
 
 
 def update_rgb_context(
-    input: UpdateRGBContextInput, rath: Optional[MikroNextRath] = None
+    id: ID,
+    name: Optional[str] = None,
+    thumbnail: Optional[ID] = None,
+    views: Optional[Iterable[PartialRGBViewInput]] = None,
+    z: Optional[int] = None,
+    t: Optional[int] = None,
+    c: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> RGBContext:
     """UpdateRGBContext
 
-
+    Update settings of an existing RGB context
 
     Arguments:
-        input (UpdateRGBContextInput): input
+        id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        thumbnail: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        views:  (required) (list)
+        z: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        t: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        c: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        UpdateRGBContextMutationUpdatergbcontext"""
+        RGBContext"""
     return execute(
-        UpdateRGBContextMutation, {"input": input}, rath=rath
+        UpdateRGBContextMutation,
+        {
+            "input": {
+                "id": id,
+                "name": name,
+                "thumbnail": thumbnail,
+                "views": views,
+                "z": z,
+                "t": t,
+                "c": c,
+            }
+        },
+        rath=rath,
     ).update_rgb_context
 
 
@@ -3975,16 +4878,18 @@ async def acreate_view_collection(
 ) -> CreateViewCollectionMutationCreateviewcollection:
     """CreateViewCollection
 
-
+    Create a new collection of views to organize related views
 
     Arguments:
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateViewCollectionMutationCreateviewcollection"""
     return (
-        await aexecute(CreateViewCollectionMutation, {"name": name}, rath=rath)
+        await aexecute(
+            CreateViewCollectionMutation, {"input": {"name": name}}, rath=rath
+        )
     ).create_view_collection
 
 
@@ -3993,16 +4898,16 @@ def create_view_collection(
 ) -> CreateViewCollectionMutationCreateviewcollection:
     """CreateViewCollection
 
-
+    Create a new collection of views to organize related views
 
     Arguments:
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateViewCollectionMutationCreateviewcollection"""
     return execute(
-        CreateViewCollectionMutation, {"name": name}, rath=rath
+        CreateViewCollectionMutation, {"input": {"name": name}}, rath=rath
     ).create_view_collection
 
 
@@ -4011,16 +4916,16 @@ async def acreate_channel(
 ) -> CreateChannelMutationCreatechannel:
     """CreateChannel
 
-
+    Create a new channel
 
     Arguments:
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateChannelMutationCreatechannel"""
     return (
-        await aexecute(CreateChannelMutation, {"name": name}, rath=rath)
+        await aexecute(CreateChannelMutation, {"input": {"name": name}}, rath=rath)
     ).create_channel
 
 
@@ -4029,15 +4934,17 @@ def create_channel(
 ) -> CreateChannelMutationCreatechannel:
     """CreateChannel
 
-
+    Create a new channel
 
     Arguments:
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         CreateChannelMutationCreatechannel"""
-    return execute(CreateChannelMutation, {"name": name}, rath=rath).create_channel
+    return execute(
+        CreateChannelMutation, {"input": {"name": name}}, rath=rath
+    ).create_channel
 
 
 async def aensure_channel(
@@ -4045,16 +4952,16 @@ async def aensure_channel(
 ) -> EnsureChannelMutationEnsurechannel:
     """EnsureChannel
 
-
+    Ensure a channel exists, creating if needed
 
     Arguments:
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         EnsureChannelMutationEnsurechannel"""
     return (
-        await aexecute(EnsureChannelMutation, {"name": name}, rath=rath)
+        await aexecute(EnsureChannelMutation, {"input": {"name": name}}, rath=rath)
     ).ensure_channel
 
 
@@ -4063,28 +4970,29 @@ def ensure_channel(
 ) -> EnsureChannelMutationEnsurechannel:
     """EnsureChannel
 
-
+    Ensure a channel exists, creating if needed
 
     Arguments:
-        name (str): name
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         EnsureChannelMutationEnsurechannel"""
-    return execute(EnsureChannelMutation, {"name": name}, rath=rath).ensure_channel
+    return execute(
+        EnsureChannelMutation, {"input": {"name": name}}, rath=rath
+    ).ensure_channel
 
 
 async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
     """GetCamera
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetCameraQueryCamera"""
+        Camera"""
     return (await aexecute(GetCameraQuery, {"id": id}, rath=rath)).camera
 
 
@@ -4092,13 +5000,12 @@ def get_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
     """GetCamera
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetCameraQueryCamera"""
+        Camera"""
     return execute(GetCameraQuery, {"id": id}, rath=rath).camera
 
 
@@ -4106,13 +5013,12 @@ async def aget_table(id: ID, rath: Optional[MikroNextRath] = None) -> Table:
     """GetTable
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetTableQueryTable"""
+        Table"""
     return (await aexecute(GetTableQuery, {"id": id}, rath=rath)).table
 
 
@@ -4120,13 +5026,12 @@ def get_table(id: ID, rath: Optional[MikroNextRath] = None) -> Table:
     """GetTable
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetTableQueryTable"""
+        Table"""
     return execute(GetTableQuery, {"id": id}, rath=rath).table
 
 
@@ -4136,13 +5041,12 @@ async def aget_rendered_plot(
     """GetRenderedPlot
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetRenderedPlotQueryRenderedplot"""
+        RenderedPlot"""
     return (await aexecute(GetRenderedPlotQuery, {"id": id}, rath=rath)).rendered_plot
 
 
@@ -4150,13 +5054,12 @@ def get_rendered_plot(id: ID, rath: Optional[MikroNextRath] = None) -> RenderedP
     """GetRenderedPlot
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetRenderedPlotQueryRenderedplot"""
+        RenderedPlot"""
     return execute(GetRenderedPlotQuery, {"id": id}, rath=rath).rendered_plot
 
 
@@ -4166,12 +5069,11 @@ async def alist_rendered_plots(
     """ListRenderedPlots
 
 
-
     Arguments:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ListRenderedPlotsQueryRenderedplots]"""
+        List[ListRenderedPlot]"""
     return (await aexecute(ListRenderedPlotsQuery, {}, rath=rath)).rendered_plots
 
 
@@ -4179,12 +5081,11 @@ def list_rendered_plots(rath: Optional[MikroNextRath] = None) -> List[ListRender
     """ListRenderedPlots
 
 
-
     Arguments:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ListRenderedPlotsQueryRenderedplots]"""
+        List[ListRenderedPlot]"""
     return execute(ListRenderedPlotsQuery, {}, rath=rath).rendered_plots
 
 
@@ -4196,10 +5097,9 @@ async def asearch_rendered_plots(
     """SearchRenderedPlots
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4219,10 +5119,9 @@ def search_rendered_plots(
     """SearchRenderedPlots
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4236,13 +5135,12 @@ async def aget_file(id: ID, rath: Optional[MikroNextRath] = None) -> File:
     """GetFile
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetFileQueryFile"""
+        File"""
     return (await aexecute(GetFileQuery, {"id": id}, rath=rath)).file
 
 
@@ -4250,13 +5148,12 @@ def get_file(id: ID, rath: Optional[MikroNextRath] = None) -> File:
     """GetFile
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetFileQueryFile"""
+        File"""
     return execute(GetFileQuery, {"id": id}, rath=rath).file
 
 
@@ -4269,11 +5166,10 @@ async def asearch_files(
     """SearchFiles
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
+        pagination (Optional[OffsetPaginationInput], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4296,11 +5192,10 @@ def search_files(
     """SearchFiles
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
+        pagination (Optional[OffsetPaginationInput], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4316,13 +5211,12 @@ async def aget_stage(id: ID, rath: Optional[MikroNextRath] = None) -> Stage:
     """GetStage
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetStageQueryStage"""
+        Stage"""
     return (await aexecute(GetStageQuery, {"id": id}, rath=rath)).stage
 
 
@@ -4330,13 +5224,12 @@ def get_stage(id: ID, rath: Optional[MikroNextRath] = None) -> Stage:
     """GetStage
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetStageQueryStage"""
+        Stage"""
     return execute(GetStageQuery, {"id": id}, rath=rath).stage
 
 
@@ -4349,11 +5242,10 @@ async def asearch_stages(
     """SearchStages
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
+        pagination (Optional[OffsetPaginationInput], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4376,11 +5268,10 @@ def search_stages(
     """SearchStages
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
+        pagination (Optional[OffsetPaginationInput], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4396,13 +5287,12 @@ async def aget_rois(image: ID, rath: Optional[MikroNextRath] = None) -> List[ROI
     """GetRois
 
 
-
     Arguments:
-        image (ID): image
+        image (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[GetRoisQueryRois]"""
+        List[ROI]"""
     return (await aexecute(GetRoisQuery, {"image": image}, rath=rath)).rois
 
 
@@ -4410,13 +5300,12 @@ def get_rois(image: ID, rath: Optional[MikroNextRath] = None) -> List[ROI]:
     """GetRois
 
 
-
     Arguments:
-        image (ID): image
+        image (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[GetRoisQueryRois]"""
+        List[ROI]"""
     return execute(GetRoisQuery, {"image": image}, rath=rath).rois
 
 
@@ -4424,13 +5313,12 @@ async def aget_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ROI:
     """GetRoi
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetRoiQueryRoi"""
+        ROI"""
     return (await aexecute(GetRoiQuery, {"id": id}, rath=rath)).roi
 
 
@@ -4438,13 +5326,12 @@ def get_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ROI:
     """GetRoi
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetRoiQueryRoi"""
+        ROI"""
     return execute(GetRoiQuery, {"id": id}, rath=rath).roi
 
 
@@ -4456,10 +5343,9 @@ async def asearch_rois(
     """SearchRois
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4477,10 +5363,9 @@ def search_rois(
     """SearchRois
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4494,13 +5379,12 @@ async def aget_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Object
     """GetObjective
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetObjectiveQueryObjective"""
+        Objective"""
     return (await aexecute(GetObjectiveQuery, {"id": id}, rath=rath)).objective
 
 
@@ -4508,13 +5392,12 @@ def get_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Objective:
     """GetObjective
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetObjectiveQueryObjective"""
+        Objective"""
     return execute(GetObjectiveQuery, {"id": id}, rath=rath).objective
 
 
@@ -4522,13 +5405,12 @@ async def aget_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
     """GetDataset
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetDatasetQueryDataset"""
+        Dataset"""
     return (await aexecute(GetDatasetQuery, {"id": id}, rath=rath)).dataset
 
 
@@ -4536,13 +5418,12 @@ def get_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
     """GetDataset
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetDatasetQueryDataset"""
+        Dataset"""
     return execute(GetDatasetQuery, {"id": id}, rath=rath).dataset
 
 
@@ -4550,13 +5431,12 @@ async def aget_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instr
     """GetInstrument
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetInstrumentQueryInstrument"""
+        Instrument"""
     return (await aexecute(GetInstrumentQuery, {"id": id}, rath=rath)).instrument
 
 
@@ -4564,13 +5444,12 @@ def get_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instrument:
     """GetInstrument
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetInstrumentQueryInstrument"""
+        Instrument"""
     return execute(GetInstrumentQuery, {"id": id}, rath=rath).instrument
 
 
@@ -4578,13 +5457,12 @@ async def aget_image(id: ID, rath: Optional[MikroNextRath] = None) -> Image:
     """GetImage
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetImageQueryImage"""
+        Image"""
     return (await aexecute(GetImageQuery, {"id": id}, rath=rath)).image
 
 
@@ -4592,13 +5470,12 @@ def get_image(id: ID, rath: Optional[MikroNextRath] = None) -> Image:
     """GetImage
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetImageQueryImage"""
+        Image"""
     return execute(GetImageQuery, {"id": id}, rath=rath).image
 
 
@@ -4606,12 +5483,11 @@ async def aget_random_image(rath: Optional[MikroNextRath] = None) -> Image:
     """GetRandomImage
 
 
-
     Arguments:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetRandomImageQueryRandomimage"""
+        Image"""
     return (await aexecute(GetRandomImageQuery, {}, rath=rath)).random_image
 
 
@@ -4619,12 +5495,11 @@ def get_random_image(rath: Optional[MikroNextRath] = None) -> Image:
     """GetRandomImage
 
 
-
     Arguments:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetRandomImageQueryRandomimage"""
+        Image"""
     return execute(GetRandomImageQuery, {}, rath=rath).random_image
 
 
@@ -4636,10 +5511,9 @@ async def asearch_images(
     """SearchImages
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4659,10 +5533,9 @@ def search_images(
     """SearchImages
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4680,14 +5553,13 @@ async def aimages(
     """Images
 
 
-
     Arguments:
-        filter (Optional[ImageFilter], optional): filter.
-        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        filter (Optional[ImageFilter], optional): No description.
+        pagination (Optional[OffsetPaginationInput], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ImagesQueryImages]"""
+        List[Image]"""
     return (
         await aexecute(
             ImagesQuery, {"filter": filter, "pagination": pagination}, rath=rath
@@ -4703,14 +5575,13 @@ def images(
     """Images
 
 
-
     Arguments:
-        filter (Optional[ImageFilter], optional): filter.
-        pagination (Optional[OffsetPaginationInput], optional): pagination.
+        filter (Optional[ImageFilter], optional): No description.
+        pagination (Optional[OffsetPaginationInput], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ImagesQueryImages]"""
+        List[Image]"""
     return execute(
         ImagesQuery, {"filter": filter, "pagination": pagination}, rath=rath
     ).images
@@ -4720,13 +5591,12 @@ async def aget_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> Snapsho
     """GetSnapshot
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetSnapshotQuerySnapshot"""
+        Snapshot"""
     return (await aexecute(GetSnapshotQuery, {"id": id}, rath=rath)).snapshot
 
 
@@ -4734,13 +5604,12 @@ def get_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> Snapshot:
     """GetSnapshot
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetSnapshotQuerySnapshot"""
+        Snapshot"""
     return execute(GetSnapshotQuery, {"id": id}, rath=rath).snapshot
 
 
@@ -4752,10 +5621,9 @@ async def asearch_snapshots(
     """SearchSnapshots
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4775,10 +5643,9 @@ def search_snapshots(
     """SearchSnapshots
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4792,13 +5659,12 @@ async def aget_rgb_context(id: ID, rath: Optional[MikroNextRath] = None) -> RGBC
     """GetRGBContext
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetRGBContextQueryRgbcontext"""
+        RGBContext"""
     return (await aexecute(GetRGBContextQuery, {"id": id}, rath=rath)).rgbcontext
 
 
@@ -4806,13 +5672,12 @@ def get_rgb_context(id: ID, rath: Optional[MikroNextRath] = None) -> RGBContext:
     """GetRGBContext
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        GetRGBContextQueryRgbcontext"""
+        RGBContext"""
     return execute(GetRGBContextQuery, {"id": id}, rath=rath).rgbcontext
 
 
@@ -4821,10 +5686,10 @@ async def awatch_files(
 ) -> AsyncIterator[WatchFilesSubscriptionFiles]:
     """WatchFiles
 
-
+    Subscribe to real-time file updates
 
     Arguments:
-        dataset (Optional[ID], optional): dataset.
+        dataset (Optional[ID], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4840,10 +5705,10 @@ def watch_files(
 ) -> Iterator[WatchFilesSubscriptionFiles]:
     """WatchFiles
 
-
+    Subscribe to real-time file updates
 
     Arguments:
-        dataset (Optional[ID], optional): dataset.
+        dataset (Optional[ID], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4857,10 +5722,10 @@ async def awatch_images(
 ) -> AsyncIterator[WatchImagesSubscriptionImages]:
     """WatchImages
 
-
+    Subscribe to real-time image updates
 
     Arguments:
-        dataset (Optional[ID], optional): dataset.
+        dataset (Optional[ID], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4876,10 +5741,10 @@ def watch_images(
 ) -> Iterator[WatchImagesSubscriptionImages]:
     """WatchImages
 
-
+    Subscribe to real-time image updates
 
     Arguments:
-        dataset (Optional[ID], optional): dataset.
+        dataset (Optional[ID], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4893,10 +5758,10 @@ async def awatch_rois(
 ) -> AsyncIterator[WatchRoisSubscriptionRois]:
     """WatchRois
 
-
+    Subscribe to real-time ROI updates
 
     Arguments:
-        image (ID): image
+        image (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4910,10 +5775,10 @@ def watch_rois(
 ) -> Iterator[WatchRoisSubscriptionRois]:
     """WatchRois
 
-
+    Subscribe to real-time ROI updates
 
     Arguments:
-        image (ID): image
+        image (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -4925,9 +5790,13 @@ def watch_rois(
 AffineTransformationViewFilter.model_rebuild()
 DatasetFilter.model_rebuild()
 EraFilter.model_rebuild()
+FromArrayLikeInput.model_rebuild()
+FromParquetLike.model_rebuild()
 ImageFilter.model_rebuild()
 PartialPixelViewInput.model_rebuild()
 ProvenanceFilter.model_rebuild()
+RenderTreeInput.model_rebuild()
+RenderedPlotInput.model_rebuild()
 StageFilter.model_rebuild()
 TimepointViewFilter.model_rebuild()
 TreeInput.model_rebuild()
