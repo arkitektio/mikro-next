@@ -25,3 +25,19 @@ query Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {
     ...Image
   }
 }
+
+query ViewImage($id: ID!, $filtersggg: ViewFilter) {
+  image(id: $id) {
+    id
+    store {
+      id
+      key
+      bucket
+    }
+    views(filters: $filtersggg) {
+      ... on RGBView {
+        id
+      }
+    }
+  }
+}

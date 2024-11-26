@@ -133,6 +133,9 @@
                 },
                 {
                     "type": "turms.plugins.funcs.FuncsPlugin",
+                    "expand_input_types": [
+                        "input"
+                    ],
                     "global_kwargs": [
                         {
                             "type": "mikro_next.rath.MikroNextRath",

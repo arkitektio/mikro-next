@@ -39,7 +39,11 @@ type Image {
   store: ZarrStore!
 
   """All views of this image"""
-  views(filters: ViewFilter, types: [ViewKind!]): [View!]!
+  views(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
 
   """Associated snapshots"""
   snapshots(filters: SnapshotFilter, pagination: OffsetPaginationInput): [Snapshot!]!
@@ -1184,22 +1188,72 @@ type Query {
   imageAccessors: [ImageAccessor!]!
   children(parent: ID!, filters: DatasetChildrenFilter = null, pagination: ChildrenPaginationInput = null): [DatasetImageFile!]!
   rows(table: ID!, filters: RowFilter = null, pagination: TablePaginationInput = null): [MetricMap!]!
-  pixelView(id: ID!): PixelView!
-  image(id: ID!): Image!
-  roi(id: ID!): ROI!
-  renderTree(id: ID!): RenderTree!
-  rgbcontext(id: ID!): RGBContext!
-  objective(id: ID!): Objective!
-  camera(id: ID!): Camera!
-  snapshot(id: ID!): Snapshot!
-  file(id: ID!): File!
-  table(id: ID!): Table!
-  instrument(id: ID!): Instrument!
-  dataset(id: ID!): Dataset!
-  multiWellPlate(id: ID!): MultiWellPlate!
-  stage(id: ID!): Stage!
-  renderedPlot(id: ID!): RenderedPlot!
-  experiment(id: ID!): Experiment!
+  pixelView(
+    """The unique identifier of an object"""
+    id: ID!
+  ): PixelView!
+
+  """Returns a single image by ID"""
+  image(
+    """The unique identifier of an object"""
+    id: ID!
+  ): Image!
+  roi(
+    """The unique identifier of an object"""
+    id: ID!
+  ): ROI!
+  renderTree(
+    """The unique identifier of an object"""
+    id: ID!
+  ): RenderTree!
+  rgbcontext(
+    """The unique identifier of an object"""
+    id: ID!
+  ): RGBContext!
+  objective(
+    """The unique identifier of an object"""
+    id: ID!
+  ): Objective!
+  camera(
+    """The unique identifier of an object"""
+    id: ID!
+  ): Camera!
+  snapshot(
+    """The unique identifier of an object"""
+    id: ID!
+  ): Snapshot!
+  file(
+    """The unique identifier of an object"""
+    id: ID!
+  ): File!
+  table(
+    """The unique identifier of an object"""
+    id: ID!
+  ): Table!
+  instrument(
+    """The unique identifier of an object"""
+    id: ID!
+  ): Instrument!
+  dataset(
+    """The unique identifier of an object"""
+    id: ID!
+  ): Dataset!
+  multiWellPlate(
+    """The unique identifier of an object"""
+    id: ID!
+  ): MultiWellPlate!
+  stage(
+    """The unique identifier of an object"""
+    id: ID!
+  ): Stage!
+  renderedPlot(
+    """The unique identifier of an object"""
+    id: ID!
+  ): RenderedPlot!
+  experiment(
+    """The unique identifier of an object"""
+    id: ID!
+  ): Experiment!
 }
 
 type ContinousScanView implements View {
@@ -3038,13 +3092,14 @@ input PinSnapshotInput {
 }
 
 input RoiInput {
+  """The image this ROI belongs to"""
   image: ID!
+
+  """The vector coordinates defining the ROI"""
   vectors: [FiveDVector!]!
+
+  """The type/kind of ROI"""
   kind: RoiKind!
-  entity: ID = null
-  entityKind: ID = null
-  entityGroup: ID = null
-  entityParent: ID = null
 }
 
 input UpdateRoiInput {
