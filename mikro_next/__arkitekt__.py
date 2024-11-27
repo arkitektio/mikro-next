@@ -24,6 +24,7 @@ from herre_next import Herre
 from fakts_next import Fakts
 
 from arkitekt_next.base_models import Manifest
+
 try:
     from rekuest_next.links.context import ContextLink
     from rath.links.compose import TypedComposedLink
@@ -44,13 +45,14 @@ try:
 except ImportError:
     ArkitektMikroNextLinkComposition = MikroNextLinkComposition
 
+
 class ArkitektMikroNextRath(MikroNextRath):
     link: ArkitektMikroNextLinkComposition
+
 
 class ArkitektNextMikroNext(MikroNext):
     rath: ArkitektMikroNextRath
     datalayer: DataLayer
-
 
 
 def build_relative_path(*path: str) -> str:
@@ -59,12 +61,12 @@ def build_relative_path(*path: str) -> str:
 
 class MikroService(BaseArkitektService):
 
-
     def get_service_name(self):
         return "mikro"
-    
 
-    def build_service(self, fakts: Fakts, herre: Herre, params: Params, manifest: Manifest):
+    def build_service(
+        self, fakts: Fakts, herre: Herre, params: Params, manifest: Manifest
+    ):
         datalayer = FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
 
         return ArkitektNextMikroNext(
@@ -87,28 +89,28 @@ class MikroService(BaseArkitektService):
             ),
             datalayer=datalayer,
         )
-    
+
     def get_requirements(self):
         return [
             Requirement(
-            key="mikro",
-            service="live.arkitekt.mikro",
-            description="An instance of ArkitektNext Mikro to make requests to the user's data",
-            optional=True,
-        ),
-        Requirement(
-            key="datalayer",
-            service="live.arkitekt.s3",
-            description="An instance of ArkitektNext Datalayer to make requests to the user's data",
-            optional=True,
-        ),
+                key="mikro",
+                service="live.arkitekt.mikro",
+                description="An instance of ArkitektNext Mikro to make requests to the user's data",
+                optional=True,
+            ),
+            Requirement(
+                key="datalayer",
+                service="live.arkitekt.s3",
+                description="An instance of ArkitektNext Datalayer to make requests to the user's data",
+                optional=True,
+            ),
         ]
 
     def get_graphql_schema(self):
         schema_graphql_path = build_relative_path("api", "schema.graphql")
         with open(schema_graphql_path) as f:
             return f.read()
-        
+
     def get_turms_project(self):
         turms_prject = build_relative_path("api", "project.json")
         with open(turms_prject) as f:

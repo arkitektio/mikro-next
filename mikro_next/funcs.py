@@ -7,6 +7,7 @@ from typing import Optional, Protocol, Type, Dict, Any, TypeVar, Iterator, Async
 from pydantic import BaseModel
 import json
 
+
 class MetaProtocol(Protocol):
     document: str
 
@@ -40,7 +41,9 @@ async def aexecute(
         try:
             return operation(**x.data)
         except Exception as e:
-            raise Exception(f"Error serializing return from data: {json.dumps(x.data, indent=4)}") from e
+            raise Exception(
+                f"Error serializing return from data: {json.dumps(x.data, indent=4)}"
+            ) from e
     except Exception as e:
         raise e
 

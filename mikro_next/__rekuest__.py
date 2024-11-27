@@ -1,4 +1,3 @@
-
 def register_structures(structure_reg):
     from rekuest_next.structures.default import (
         PortScope,
@@ -107,7 +106,3 @@ def register_structures(structure_reg):
             query=SearchRenderedPlotsQuery.Meta.document, ward="mikro"
         ),
     )
-
-    
-
-    
