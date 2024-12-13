@@ -107,6 +107,15 @@ type Image {
   """Views this image was derived from"""
   derivedFromViews: [DerivedView!]!
 
+  """The channels of this image"""
+  channels: [ChannelInfo!]!
+
+  """The channels of this image"""
+  frames: [FrameInfo!]!
+
+  """The channels of this image"""
+  planes: [PlaneInfo!]!
+
   """The latest snapshot of this image"""
   latestSnapshot: Snapshot
 
@@ -142,6 +151,9 @@ type ZarrStore {
 
   """Whether the zarr store was populated (e.g. was a dataset created)."""
   populated: Boolean!
+
+  """The version of the zarr store (e.g. the version of the dataset)."""
+  version: String!
 }
 
 interface View {
@@ -1043,6 +1055,21 @@ input PixelViewFilter {
   provenance: ProvenanceFilter
   AND: PixelViewFilter
   OR: PixelViewFilter
+}
+
+"""A channel descriptor"""
+type ChannelInfo {
+  label(withColorName: Boolean! = false): String!
+}
+
+"""A channel descriptor"""
+type FrameInfo {
+  label: String!
+}
+
+"""A channel descriptor"""
+type PlaneInfo {
+  label: String!
 }
 
 enum RenderKind {

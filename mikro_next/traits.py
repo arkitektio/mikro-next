@@ -340,6 +340,24 @@ class IsVectorizableTrait:
             f"Center calculation not implemented for this ROI type {self.type}"
         )
 
+    def crop(self, data: xr.DataArray) -> xr.DataArray:
+        """Crop the data to the ROI
+
+        Args:
+            data (xr.DataArray): The data to crop
+
+        Returns:
+            xr.DataArray: The cropped data
+        """
+        vector_data = self.get_vector_data(dims="ctzyx")
+        return data.sel(
+            x=slice(vector_data[:, 3].min(), vector_data[:, 3].max()),
+            y=slice(vector_data[:, 4].min(), vector_data[:, 4].max()),
+            z=slice(vector_data[:, 2].min(), vector_data[:, 2].max()),
+            t=slice(vector_data[:, 1].min(), vector_data[:, 1].max()),
+            c=slice(vector_data[:, 0].min(), vector_data[:, 0].max()),
+        )
+
     def center_as_array(self) -> np.ndarray:
         """The center of the ROI
 
