@@ -22,6 +22,11 @@ from mikro_next.datalayer import DataLayer
 from graphql import OperationType
 from herre_next import Herre
 from fakts_next import Fakts
+from arkitekt_next.service_registry import (
+    BaseArkitektService,
+    Params,
+    get_default_service_registry,
+)
 
 from arkitekt_next.base_models import Manifest
 
@@ -117,5 +122,6 @@ class MikroService(BaseArkitektService):
             return json.loads(f.read())
 
 
-def build_services():
-    return [MikroService()]
+
+
+get_default_service_registry().register(MikroService())
