@@ -12,6 +12,13 @@ fragment ParquetStore on ParquetStore {
   path
 }
 
+fragment MeshStore on MeshStore {
+  id
+  key
+  bucket
+  path
+}
+
 fragment BigFileStore on BigFileStore {
   id
   key

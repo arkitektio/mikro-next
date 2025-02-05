@@ -1,3 +1,4 @@
+import zarr.storage
 from mikro_next.api.schema import (
     arequest_access,
     arequest_table_access,
@@ -50,7 +51,7 @@ async def aopen_zarr_store(store_id: str, cache: int = 2**30):
         asynchronous=True,
     )
 
-    return zarr.LRUStoreCache(_s3fs.get_mapper(credentials.path), cache)
+    return zarr.storage.RemoteStore(_s3fs, read_only=False, path=f"{credentials.bucket}/{credentials.key}")
 
 
 def open_zarr_store(store_id: str, cache: int = 2**30):
@@ -63,10 +64,10 @@ def open_zarr_store(store_id: str, cache: int = 2**30):
             "endpoint_url": endpoint_url,
             "aws_session_token": credentials.session_token,
         },
-        asynchronous=False,
+        asynchronous=True,
     )
-
-    return zarr.LRUStoreCache(_s3fs.get_mapper(credentials.path), cache)
+    print(credentials.path)
+    return zarr.storage.RemoteStore(_s3fs, read_only=False, path=f"{credentials.bucket}/{credentials.key}")
 
 
 async def aopen_parquet_filesytem(store_id: str):

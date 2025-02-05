@@ -4,6 +4,7 @@ Custom scalars for mikro_next
 
 """
 
+import io
 import os
 from typing import Any, IO, List, Optional
 import xarray as xr
@@ -486,3 +487,36 @@ class FileLike:
 
     def __repr__(self):
         return f"FileLikeInput({self.value})"
+
+
+class MeshLike:
+    """A custom scalar for ensuring a common format to support write to the
+    mesh api supported by mikro_next It converts the passed value into
+    a compliant format.."""
+
+    def __init__(self, value: IO, name="") -> None:
+        self.value = value
+        self.key = str(name)
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v, *info):
+        """Validate the input array and convert it to a xr.DataArray."""
+
+        if isinstance(v, str):
+            file = open(v, "rb")
+            name = v
+        else:
+            file = v
+            name = v.name
+
+        if not isinstance(file, io.IOBase):
+            raise ValueError("This needs to be a instance of a file")
+
+        return cls(file, name=name)
+
+    def __repr__(self):
+        return f"MeshLike({self.value})"

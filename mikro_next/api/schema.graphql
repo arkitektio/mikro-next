@@ -1213,8 +1213,13 @@ type Query {
   randomImage: Image!
   labelAccessors: [LabelAccessor!]!
   imageAccessors: [ImageAccessor!]!
+  meshes(filters: MeshFilter, pagination: OffsetPaginationInput): [Mesh!]!
   children(parent: ID!, filters: DatasetChildrenFilter = null, pagination: ChildrenPaginationInput = null): [DatasetImageFile!]!
   rows(table: ID!, filters: RowFilter = null, pagination: TablePaginationInput = null): [MetricMap!]!
+  mesh(
+    """The unique identifier of an object"""
+    id: ID!
+  ): Mesh!
   pixelView(
     """The unique identifier of an object"""
     id: ID!
@@ -1484,6 +1489,28 @@ type ImageAccessor implements Accessor {
   maxIndex: Int
 }
 
+type Mesh {
+  id: ID!
+  name: String!
+  store: MeshStore!
+}
+
+type MeshStore {
+  id: ID!
+  path: String!
+  bucket: String!
+  key: String!
+  presignedUrl(host: String = null): String!
+}
+
+input MeshFilter {
+  ids: [ID!]
+  search: String
+  id: ID
+  AND: MeshFilter
+  OR: MeshFilter
+}
+
 union DatasetImageFile = Dataset | Image | File
 
 input DatasetChildrenFilter {
@@ -1526,6 +1553,9 @@ type Mutation {
   """Request credentials to access a table"""
   requestTableAccess(input: RequestTableAccessInput!): AccessCredentials!
 
+  """Request presigned credentials for mesh upload"""
+  requestMeshUpload(input: RequestMeshUploadInput!): PresignedPostCredentials!
+
   """Request credentials to upload a new file"""
   requestFileUpload(input: RequestFileUploadInput!): Credentials!
 
@@ -1555,6 +1585,15 @@ type Mutation {
 
   """Create a table from parquet-like data"""
   fromParquetLike(input: FromParquetLike!): Table!
+
+  """Create a new mesh"""
+  createMesh(input: MeshInput!): Mesh!
+
+  """Delete an existing mesh"""
+  deleteMesh(input: DeleteMeshInput!): ID!
+
+  """Pin a mesh for quick access"""
+  pinMesh(input: DeleteMeshInput!): Snapshot!
 
   """Create a file from file-like data"""
   fromFileLike(input: FromFileLike!): File!
@@ -1836,6 +1875,11 @@ input RequestTableUploadInput {
 input RequestTableAccessInput {
   store: ID!
   duration: Int
+}
+
+input RequestMeshUploadInput {
+  key: String!
+  datalayer: String!
 }
 
 input RequestFileUploadInput {
@@ -2482,6 +2526,20 @@ input PartialImageAccessorInput {
   minIndex: Int = null
   maxIndex: Int = null
   image: ID!
+}
+
+input MeshInput {
+  mesh: MeshLike!
+  name: String!
+}
+
+"""
+The `MeshLike` scalar type represents a reference to a mesh previously created by the user n a datalayer
+"""
+scalar MeshLike
+
+input DeleteMeshInput {
+  id: ID!
 }
 
 input FromFileLike {

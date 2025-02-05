@@ -1,9 +1,9 @@
 
 from rekuest_next.structures.default import (
-    PortScope,
     get_default_structure_registry,
     id_shrink,
 )
+from rekuest_next.api.schema import PortScope
 from rekuest_next.widgets import SearchWidget
 from mikro_next.api.schema import (
     Image,
@@ -30,6 +30,9 @@ from mikro_next.api.schema import (
     RenderedPlot,
     SearchRoisQuery,
     SearchRenderedPlotsQuery,
+    Mesh,
+    aget_mesh,
+    SearchMeshesQuery,
 )
 
 structure_reg = get_default_structure_registry()
@@ -108,4 +111,13 @@ structure_reg.register_as_structure(
     default_widget=SearchWidget(
         query=SearchRenderedPlotsQuery.Meta.document, ward="mikro"
     ),
+)
+
+structure_reg.register_as_structure(
+    Mesh,
+    identifier="@mikro/mesh",
+    aexpand=aget_mesh,
+    ashrink=id_shrink,
+    scope=PortScope.GLOBAL,
+    default_widget=SearchWidget(query=SearchMeshesQuery.Meta.document, ward="mikro"),
 )

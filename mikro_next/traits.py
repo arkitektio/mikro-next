@@ -17,6 +17,8 @@ from pydantic import BaseModel
 import xarray as xr
 import pandas as pd
 from typing import TYPE_CHECKING
+
+import zarr
 from .scalars import FiveDVector
 from .utils import rechunk
 from rath.scalars import ID
@@ -157,7 +159,11 @@ class HasZarrStoreTrait(BaseModel):
     @property
     def data(self) -> xr.DataArray:
         store = get_attributes_or_error(self, "store")
-        return xr.open_zarr(store=store.zarr_store, consolidated=True)["data"]
+
+        array: zarr.Array = zarr.open(store.zarr_store)
+        print(array)
+
+        return xr.DataArray(array, dims=["c", "t", "z", "y", "x"])
 
     @property
     def multi_scale_data(self) -> List[xr.DataArray]:

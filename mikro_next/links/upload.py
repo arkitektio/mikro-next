@@ -1,11 +1,11 @@
 import asyncio
 
-from mikro_next.scalars import ArrayLike, ParquetLike, FileLike
+from mikro_next.scalars import ArrayLike, MeshLike, ParquetLike, FileLike
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation, opify
 from mikro_next.io.types import Uploader
 from typing import Any
-from mikro_next.io.upload import aupload_bigfile, aupload_xarray, aupload_parquet
+from mikro_next.io.upload import aupload_bigfile, aupload_xarray, aupload_parquet, astore_mesh_file
 from pydantic import Field
 from concurrent.futures import ThreadPoolExecutor
 import uuid
@@ -64,7 +64,7 @@ class UploadLink(ParsingLink):
 
 
     """
-
+    mesh_uploader: Uploader = astore_mesh_file
     parquet_uploader: Uploader = aupload_parquet
     xarray_uploader: Uploader = aupload_xarray
     bigfile_uploader: Uploader = aupload_bigfile
@@ -126,6 +126,25 @@ class UploadLink(ParsingLink):
 
         async for result in self.next.aexecute(operation):
             return RequestFileUploadMutation(**result.data).request_file_upload
+        
+
+    async def aget_mesh_credentials(self, key, datalayer) -> Any:
+        from mikro_next.api.schema import (
+            RequestMeshUploadMutation,
+            RequestMeshUploadInput,
+        )
+
+        operation = opify(
+            RequestMeshUploadMutation.Meta.document,
+            variables={
+                "input": RequestMeshUploadInput(
+                    key=key, datalayer=datalayer
+                ).model_dump()
+            },
+        )
+
+        async for result in self.next.aexecute(operation):
+            return RequestMeshUploadMutation(**result.data).request_mesh_upload
 
     async def aupload_parquet(
         self, datalayer: "DataLayer", parquet_input: ParquetLike
@@ -164,6 +183,18 @@ class UploadLink(ParsingLink):
             datalayer,
             self._executor_session,
         )
+    
+    async def astore_mesh_file(self, datalayer: "DataLayer", mesh: FileLike) -> str:
+        assert datalayer is not None, "Datalayer must be set"
+        endpoint_url = await datalayer.get_endpoint_url()
+
+        credentials = await self.aget_mesh_credentials(mesh.key, endpoint_url)
+        return await self.mesh_uploader(
+            mesh,
+            credentials,
+            datalayer,
+            self._executor_session,
+        )
 
     async def aparse(self, operation: Operation) -> Operation:
         """Parse the operation (Async)
@@ -189,6 +220,9 @@ class UploadLink(ParsingLink):
         )
         operation.variables = await apply_recursive(
             partial(self.aupload_bigfile, datalayer), operation.variables, FileLike
+        )
+        operation.variables = await apply_recursive(
+            partial(self.astore_mesh_file, datalayer), operation.variables, MeshLike
         )
 
         return operation
