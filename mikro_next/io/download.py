@@ -67,7 +67,7 @@ def open_zarr_store(store_id: str, cache: int = 2**30):
         asynchronous=True,
     )
     print(credentials.path)
-    return zarr.storage.RemoteStore(_s3fs, read_only=False, path=f"{credentials.bucket}/{credentials.key}")
+    return zarr.storage.FsspecStore(_s3fs, read_only=False, path=f"{credentials.bucket}/{credentials.key}")
 
 
 async def aopen_parquet_filesytem(store_id: str):

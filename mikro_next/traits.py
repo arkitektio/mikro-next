@@ -17,7 +17,7 @@ from pydantic import BaseModel
 import xarray as xr
 import pandas as pd
 from typing import TYPE_CHECKING
-
+from dask.array import from_zarr
 import zarr
 from .scalars import FiveDVector
 from .utils import rechunk
@@ -160,7 +160,7 @@ class HasZarrStoreTrait(BaseModel):
     def data(self) -> xr.DataArray:
         store = get_attributes_or_error(self, "store")
 
-        array: zarr.Array = zarr.open(store.zarr_store)
+        array: zarr.Array = from_zarr(store.zarr_store)
         print(array)
 
         return xr.DataArray(array, dims=["c", "t", "z", "y", "x"])

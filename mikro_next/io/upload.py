@@ -7,7 +7,7 @@ import botocore
 from concurrent.futures import ThreadPoolExecutor
 
 from .errors import PermissionsError, UploadError
-from zarr.storage import RemoteStore
+from zarr.storage import FsspecStore
 import zarr
 import zarr.api.asynchronous as async_api
 import aiohttp
@@ -41,7 +41,7 @@ def _store_xarray_input(
 
 
     s3_path = f"{credentials.bucket}/{credentials.key}"
-    store = RemoteStore(filesystem, read_only=False, path=s3_path )
+    store = FsspecStore(filesystem, read_only=False, path=s3_path )
 
 
 
@@ -76,7 +76,7 @@ async def astore_xarray_input(
 
 
     s3_path = f"{credentials.bucket}/{credentials.key}"
-    store = RemoteStore(filesystem, read_only=False, path=s3_path )
+    store = FsspecStore(filesystem, read_only=False, path=s3_path )
 
 
 
@@ -184,7 +184,7 @@ async def aupload_bigfile(
 
 async def aupload_xarray(
     array: ArrayLike,
-    credentials: "CredentialsFragment",
+    credentials: "Credentials",
     datalayer: "DataLayer",
     executor: ThreadPoolExecutor,
 ) -> str:
@@ -194,7 +194,7 @@ async def aupload_xarray(
 
 async def aupload_parquet(
     parquet: ParquetLike,
-    credentials: "CredentialsFragment",
+    credentials: "Credentials",
     datalayer: "DataLayer",
     executor: ThreadPoolExecutor,
 ) -> str:

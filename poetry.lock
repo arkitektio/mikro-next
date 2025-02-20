@@ -2505,30 +2505,28 @@ propcache = ">=0.2.0"
 
 [[package]]
 name = "zarr"
-version = "3.0.0b3"
+version = "3.0.2"
 description = "An implementation of chunked, compressed, N-dimensional arrays for Python"
 optional = false
 python-versions = ">=3.11"
 files = [
-    {file = "zarr-3.0.0b3-py3-none-any.whl", hash = "sha256:668f5e9fb053e8a98a3a3fa27becb8ca82336e2fdbbf681e21922efca1d50495"},
-    {file = "zarr-3.0.0b3.tar.gz", hash = "sha256:e3d1830d0dc3658f58a4d4d9b273484f8a8c8c77eb1551decfc2deb20e4e2f78"},
+    {file = "zarr-3.0.2-py3-none-any.whl", hash = "sha256:cd57949934a339cddc4853c0e819fd7f8e0370022e8eeddec2e56a6b13dc5021"},
+    {file = "zarr-3.0.2.tar.gz", hash = "sha256:036b2dabffa9f0148cad57a7be6c69d9761f6b3b833b61b7d29c2ee8a836b46c"},
 ]
 
 [package.dependencies]
 donfig = ">=0.8"
 numcodecs = {version = ">=0.14", extras = ["crc32c"]}
 numpy = ">=1.25"
+packaging = ">=22.0"
 typing-extensions = ">=4.9"
 
 [package.extras]
-docs = ["msgpack", "numcodecs[msgpack]", "numpydoc", "pydata-sphinx-theme", "sphinx (==8.1.3)", "sphinx-autoapi (==3.4.0)", "sphinx-autobuild (>=2021.3.14)", "sphinx-copybutton", "sphinx-design", "sphinx-issues"]
-extra = ["msgpack"]
-fsspec = ["fsspec (>=2023.10.0)"]
+docs = ["numcodecs[msgpack]", "numpydoc", "pydata-sphinx-theme", "rich", "s3fs", "sphinx (==8.1.3)", "sphinx-autoapi (==3.4.0)", "sphinx-autobuild (>=2021.3.14)", "sphinx-copybutton", "sphinx-design", "sphinx-issues", "sphinx-reredirects", "towncrier"]
 gpu = ["cupy-cuda12x"]
-jupyter = ["ipytree (>=0.2.2)", "ipywidgets (>=8.0.0)", "notebook"]
-optional = ["rich", "universal-pathlib (>=0.0.22)"]
-test = ["coverage", "hypothesis", "moto[s3]", "mypy", "pytest", "pytest-asyncio", "pytest-cov", "requests", "s3fs", "universal-pathlib"]
-tree = ["rich"]
+optional = ["rich", "universal-pathlib"]
+remote = ["fsspec (>=2023.10.0)"]
+test = ["botocore", "coverage", "fsspec (>=2023.10.0)", "hypothesis", "moto[s3,server]", "mypy", "pytest", "pytest-accept", "pytest-asyncio", "pytest-cov", "requests", "rich", "s3fs", "universal-pathlib"]
 
 [[package]]
 name = "zipp"
@@ -2557,4 +2555,4 @@ turms = []
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "1f8680dce4bb9ba2e9d9f0011857a249dcadb9029f2e6ff8304f3dc3c32e2d2f"
+content-hash = "bc9767eccd70f201c7607ff021743403a1c450a85cca0c5a1725f781b591a1a7"
