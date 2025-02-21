@@ -1475,8 +1475,9 @@ input ExperimentFilter {
 }
 
 input TableFilter {
-  id: ID
   ids: [ID!]
+  search: String
+  id: ID
   AND: TableFilter
   OR: TableFilter
 }

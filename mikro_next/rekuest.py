@@ -13,12 +13,15 @@ from mikro_next.api.schema import (
     Stage,
     aget_stage,
     File,
+    Table,
     aget_file,
     SearchStagesQuery,
+    SearchTablesQuery,
     SearchFilesQuery,
     aget_rgb_context,
     RGBContext,
     aget_dataset,
+    aget_table,
 )
 from mikro_next.api.schema import (
     Snapshot,
@@ -120,4 +123,13 @@ structure_reg.register_as_structure(
     ashrink=id_shrink,
     scope=PortScope.GLOBAL,
     default_widget=SearchWidget(query=SearchMeshesQuery.Meta.document, ward="mikro"),
+)
+
+structure_reg.register_as_structure(
+    Table,
+    identifier="@mikro/table",
+    aexpand=aget_table,
+    ashrink=id_shrink,
+    scope=PortScope.GLOBAL,
+    default_widget=SearchWidget(query=SearchTablesQuery.Meta.document, ward="mikro"),
 )
