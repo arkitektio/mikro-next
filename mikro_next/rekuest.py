@@ -5,38 +5,8 @@ from rekuest_next.structures.default import (
 )
 from rekuest_next.api.schema import PortScope
 from rekuest_next.widgets import SearchWidget
-from mikro_next.api.schema import (
-    Image,
-    aget_image,
-    SearchImagesQuery,
-    Dataset,
-    Stage,
-    aget_stage,
-    File,
-    Table,
-    aget_file,
-    SearchStagesQuery,
-    SearchTablesQuery,
-    SearchFilesQuery,
-    aget_rgb_context,
-    RGBContext,
-    aget_dataset,
-    aget_table,
-)
-from mikro_next.api.schema import (
-    Snapshot,
-    aget_snapshot,
-    SearchSnapshotsQuery,
-    ROI,
-    aget_roi,
-    aget_rendered_plot,
-    RenderedPlot,
-    SearchRoisQuery,
-    SearchRenderedPlotsQuery,
-    Mesh,
-    aget_mesh,
-    SearchMeshesQuery,
-)
+from mikro_next.api.schema import *
+
 
 structure_reg = get_default_structure_registry()
 
@@ -132,4 +102,26 @@ structure_reg.register_as_structure(
     ashrink=id_shrink,
     scope=PortScope.GLOBAL,
     default_widget=SearchWidget(query=SearchTablesQuery.Meta.document, ward="mikro"),
+)
+
+structure_reg.register_as_structure(
+    TableCell,
+    identifier="@mikro/tablecell",
+    aexpand=aget_table_cell,
+    ashrink=id_shrink,
+    scope=PortScope.GLOBAL,
+    default_widget=SearchWidget(
+        query=SearchTableCellsQuery.Meta.document, ward="mikro"
+    ),
+)
+
+structure_reg.register_as_structure(
+    TableRow,
+    identifier="@mikro/tablerow",
+    aexpand=aget_table_row,
+    ashrink=id_shrink,
+    scope=PortScope.GLOBAL,
+    default_widget=SearchWidget(
+        query=SearchTableRowsQuery.Meta.document, ward="mikro"
+    ),
 )

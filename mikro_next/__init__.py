@@ -1,5 +1,5 @@
 from .mikro_next import MikroNext
-from .utils import v, e, m, rm, rechunk
+from .utils import rechunk
 try:
     from .arkitekt import MikroService
 except ImportError:

@@ -22,6 +22,7 @@
             "always_resolve_interfaces": true,
             "exclude_typenames": true,
             "scalar_definitions": {
+                "Any": "typing.Any",
                 "StructureString": "str",
                 "ArrayLike": "mikro_next.scalars.ArrayLike",
                 "ParquetLike": "mikro_next.scalars.ParquetLike",

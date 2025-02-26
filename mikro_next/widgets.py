@@ -44,21 +44,8 @@ def build_roi_query(for_input: str):
 
 
 try:
-    from mikro_nextapi.schema import (
-        Search_representationQuery,
-        Search_sampleQuery,
-        Search_tagsQuery,
-    )
-    from rekuest.widgets import SearchWidget
-
-    MY_TOP_REPRESENTATIONS = SearchWidget(
-        query=Search_representationQuery.Meta.document, ward="mikro"
-    )
-
-    MY_TOP_SAMPLES = SearchWidget(query=Search_sampleQuery.Meta.document, ward="mikro")
-
-    TAGS_WIDGET = SearchWidget(query=Search_tagsQuery.Meta.document, ward="mikro")
-
+    from rekuest_next.widgets import SearchWidget
+    
     def ColumnWidget(for_input: str, **kwargs):
         return SearchWidget(query=build_column_query(for_input), ward="mikro", **kwargs)
 

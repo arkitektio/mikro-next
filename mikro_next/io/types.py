@@ -9,8 +9,8 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from mikro_new.api.schema import (
-        CredentialsFragment as Credentials,
+    from mikro_next.api.schema import (
+        Credentials,
     )
 from concurrent.futures import ThreadPoolExecutor
 

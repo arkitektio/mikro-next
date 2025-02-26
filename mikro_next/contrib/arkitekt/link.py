@@ -3,7 +3,7 @@ from rath.links.compose import TypedComposedLink
 from rath.links.dictinglink import DictingLink
 from rath.links.file import FileExtraction
 from rath.links.split import SplitLink
-from rekuest.contrib.rath.set_assignation_link import SetAssignationLink
+from rekuest_next.contrib.rath.set_assignation_link import SetAssignationLink
 from pydantic import Field
 from mikro_next.links.upload import UploadLink
 

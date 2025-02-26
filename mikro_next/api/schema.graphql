@@ -1216,6 +1216,8 @@ type Query {
   meshes(filters: MeshFilter, pagination: OffsetPaginationInput): [Mesh!]!
   children(parent: ID!, filters: DatasetChildrenFilter = null, pagination: ChildrenPaginationInput = null): [DatasetImageFile!]!
   rows(table: ID!, filters: RowFilter = null, pagination: TablePaginationInput = null): [MetricMap!]!
+  tableRows(filters: TableRowFilter!, pagination: OffsetPaginationInput!): [TableRow!]!
+  tableCells(filters: TableCellFilter!, pagination: OffsetPaginationInput!): [TableCell!]!
   mesh(
     """The unique identifier of an object"""
     id: ID!
@@ -1230,6 +1232,14 @@ type Query {
     """The unique identifier of an object"""
     id: ID!
   ): Image!
+  tableCell(
+    """The unique identifier of an object"""
+    id: ID!
+  ): TableCell!
+  tableRow(
+    """The unique identifier of an object"""
+    id: ID!
+  ): TableRow!
   roi(
     """The unique identifier of an object"""
     id: ID!
@@ -1530,6 +1540,40 @@ input RowFilter {
 input TablePaginationInput {
   limit: Int = 200
   offset: Int = 0
+}
+
+"""A cell of a table"""
+type TableRow {
+  id: ID!
+  table: Table!
+  rowId: Int!
+  columns: [TableColumn!]!
+  values: [Any!]!
+  name: String!
+}
+
+"""The `Any` scalar any type"""
+scalar Any
+
+input TableRowFilter {
+  search: String = null
+  ids: [ID!] = null
+}
+
+"""A cell of a table"""
+type TableCell {
+  id: ID!
+  table: Table!
+  rowId: Int!
+  columnId: Int!
+  value: Any!
+  column: TableColumn!
+  name: String!
+}
+
+input TableCellFilter {
+  search: String = null
+  ids: [ID!] = null
 }
 
 type Mutation {
