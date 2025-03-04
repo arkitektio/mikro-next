@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mikro-next"
-version = "0.1.59"
+version = "0.1.60"
 description = "next images for arkitekt"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"
