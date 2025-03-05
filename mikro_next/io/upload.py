@@ -11,10 +11,24 @@ from zarr.storage import FsspecStore
 import zarr
 import zarr.api.asynchronous as async_api
 import aiohttp
+import dask
+import numpy as np
 
 if TYPE_CHECKING:
     from mikro_next.api.schema import Credentials, PresignedPostCredentials
     from mikro_next.datalayer import DataLayer
+
+
+
+    
+
+
+
+
+
+
+
+
 
 
 def _store_xarray_input(
@@ -37,16 +51,17 @@ def _store_xarray_input(
     # random_uuid = uuid.uuid4()
     # s3_path = f"zarr/{random_uuid}.zarr"
 
-    array = xarray.value.transpose("c", "t", "z", "y", "x")
+    array = xarray.value
 
 
     s3_path = f"{credentials.bucket}/{credentials.key}"
     store = FsspecStore(filesystem, read_only=False, path=s3_path )
-
-
+    
+    assert isinstance(array.data, np.ndarray), "Array must be a numpy array"
+    
 
     try:
-        zarr.save_array(store, array.to_numpy(), zarr_version=3)
+        zarr.save_array(store, array.data, zarr_version=3)
         return credentials.store
     except Exception as e:
         raise UploadError(f"Error while uploading to {s3_path}") from e
@@ -77,6 +92,8 @@ async def astore_xarray_input(
 
     s3_path = f"{credentials.bucket}/{credentials.key}"
     store = FsspecStore(filesystem, read_only=False, path=s3_path )
+    
+    
 
 
 

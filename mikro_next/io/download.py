@@ -51,7 +51,7 @@ async def aopen_zarr_store(store_id: str, cache: int = 2**30):
         asynchronous=True,
     )
 
-    return zarr.storage.RemoteStore(_s3fs, read_only=False, path=f"{credentials.bucket}/{credentials.key}")
+    return zarr.storage.FsspecStore(_s3fs, read_only=False, path=f"{credentials.bucket}/{credentials.key}")
 
 
 def open_zarr_store(store_id: str, cache: int = 2**30):

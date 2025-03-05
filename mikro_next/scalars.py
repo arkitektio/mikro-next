@@ -15,6 +15,18 @@ from .utils import rechunk
 from collections.abc import Iterable
 
 
+def is_dask_array(x):
+    try:
+        import dask.array as da
+
+        return isinstance(x, da.Array)
+    except ImportError:
+        return False
+
+
+
+
+
 class AssignationID(str):
     """A custom scalar to represent an affine matrix."""
 
@@ -349,11 +361,14 @@ class ArrayLike:
         # initial coercion checks, if a numpy array is passed, we need to convert it to a xarray
         # but that means the user didnt pass the dimensions explicitly so we need to add them
         # but error if they do not make sense
+        
+    
 
-        if isinstance(v, np.ndarray):
+        if isinstance(v, np.ndarray) or is_dask_array(v):
             dims = ["c", "t", "z", "y", "x"]
             v = xr.DataArray(v, dims=dims[5 - v.ndim :])
             was_labeled = False
+            
 
         if not isinstance(v, xr.DataArray):
             raise ValueError("This needs to be a instance of xarray.DataArray")
@@ -393,6 +408,11 @@ class ArrayLike:
         )
 
         v = v.transpose(*"ctzyx")
+        
+        if is_dask_array(v.data):
+            v = v.compute()
+        
+        
 
         return cls(v)
 
