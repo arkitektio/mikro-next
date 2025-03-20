@@ -47,7 +47,6 @@ class HasZarrStoreTrait(BaseModel):
         store = get_attributes_or_error(self, "store")
 
         array: zarr.Array = from_zarr(store.zarr_store)
-        print(array)
 
         return xr.DataArray(array, dims=["c", "t", "z", "y", "x"])
 

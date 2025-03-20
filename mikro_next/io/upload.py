@@ -1,3 +1,4 @@
+import os
 from typing import TYPE_CHECKING
 from mikro_next.scalars import ArrayLike, MeshLike, ParquetLike, FileLike
 import asyncio
@@ -18,16 +19,9 @@ if TYPE_CHECKING:
     from mikro_next.api.schema import Credentials, PresignedPostCredentials
     from mikro_next.datalayer import DataLayer
 
-
-
+from dask.distributed import Client
+import dask.array as da
     
-
-
-
-
-
-
-
 
 
 
@@ -52,6 +46,7 @@ def _store_xarray_input(
     # s3_path = f"zarr/{random_uuid}.zarr"
 
     array = xarray.value
+        
 
 
     s3_path = f"{credentials.bucket}/{credentials.key}"
@@ -70,9 +65,12 @@ def _store_xarray_input(
 async def astore_xarray_input(
     xarray: ArrayLike,
     credentials: "Credentials",
-    endpoint_url: "DataLayer",
+    endpoint_url: str,
 ) -> str:
     """Stores an xarray in the DataLayer"""
+
+    if endpoint_url.startswith("https://"):
+        os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = "when_required" #TODO: This is a workaround for a bug in aiobotocore and s3fs https://github.com/fsspec/s3fs/issues/931
 
     filesystem = s3fs.S3FileSystem(
         secret=credentials.secret_key,
@@ -93,15 +91,12 @@ async def astore_xarray_input(
     s3_path = f"{credentials.bucket}/{credentials.key}"
     store = FsspecStore(filesystem, read_only=False, path=s3_path )
     
-    
-
-
 
     try:
         await async_api.save_array(store, array.to_numpy(), zarr_version=3)
         return credentials.store
     except Exception as e:
-        raise UploadError(f"Error while uploading to {s3_path}") from e
+        raise UploadError(f"Error while uploading to {s3_path} on {endpoint_url}") from e
 
 
 def _store_parquet_input(

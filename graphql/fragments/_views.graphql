@@ -28,6 +28,13 @@ fragment DerivedView on DerivedView {
   }
 }
 
+fragment HistogramView on HistogramView {
+  ...View
+  id
+  histogram
+  bins
+}
+
 fragment ROIView on ROIView {
   ...View
   id

@@ -361,8 +361,6 @@ class ArrayLike:
         # initial coercion checks, if a numpy array is passed, we need to convert it to a xarray
         # but that means the user didnt pass the dimensions explicitly so we need to add them
         # but error if they do not make sense
-        
-    
 
         if isinstance(v, np.ndarray) or is_dask_array(v):
             dims = ["c", "t", "z", "y", "x"]

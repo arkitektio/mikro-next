@@ -9,3 +9,9 @@ mutation CreateLabelView($input: LabelViewInput!) {
     ...LabelView
   }
 }
+
+mutation CreateHistogramView($input: HistogramViewInput!) {
+  createHistogramView(input: $input) {
+    ...HistogramView
+  }
+}

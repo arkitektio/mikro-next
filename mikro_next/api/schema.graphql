@@ -1613,6 +1613,9 @@ type Mutation {
   """Create a new view for affine transformation data"""
   createAffineTransformationView(input: AffineTransformationViewInput!): AffineTransformationView!
 
+  """Create a new view for histogram data"""
+  createHistogramView(input: HistogramViewInput!): HistogramView!
+
   """Create an image from array-like data"""
   fromArrayLike(input: FromArrayLikeInput!): Image!
 
@@ -1972,6 +1975,69 @@ input AffineTransformationViewInput {
   cMax: Int = null
   stage: ID = null
   affineMatrix: FourByFourMatrix!
+  image: ID!
+}
+
+type HistogramView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+  id: ID!
+  bins: [Float!]!
+  min: Float!
+  max: Float!
+  histogram: [Float!]!
+}
+
+input HistogramViewInput {
+  """The collection this view belongs to"""
+  collection: ID = null
+
+  """The minimum z coordinate of the view"""
+  zMin: Int = null
+
+  """The maximum z coordinate of the view"""
+  zMax: Int = null
+
+  """The minimum x coordinate of the view"""
+  xMin: Int = null
+
+  """The maximum x coordinate of the view"""
+  xMax: Int = null
+
+  """The minimum y coordinate of the view"""
+  yMin: Int = null
+
+  """The maximum y coordinate of the view"""
+  yMax: Int = null
+
+  """The minimum t coordinate of the view"""
+  tMin: Int = null
+
+  """The maximum t coordinate of the view"""
+  tMax: Int = null
+
+  """The minimum c (channel) coordinate of the view"""
+  cMin: Int = null
+
+  """The maximum c (channel) coordinate of the view"""
+  cMax: Int = null
+  histogram: [Float!]!
+  bins: [Float!]!
+  min: Float!
+  max: Float!
   image: ID!
 }
 
