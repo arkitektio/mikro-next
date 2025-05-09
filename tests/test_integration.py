@@ -37,3 +37,17 @@ def test_get_random(deployed_app):
 def test_create_dataset(deployed_app):
     x = create_dataset(name="johannes")
     assert x.id, "Was not able to create a dataset"
+    
+    
+    
+    
+@pytest.mark.integration
+def test_create_dataset_in_parent(deployed_app):
+    
+    
+    
+    x = create_dataset(name="johannes")
+
+    z = create_dataset(name="johannes", parent=x.id)
+
+    pass
