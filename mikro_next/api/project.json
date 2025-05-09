@@ -58,6 +58,7 @@
                 "include_fields": [],
                 "convert_list_to_tuple": true
             },
+            "create_catchall": true,
             "options": {
                 "enabled": true,
                 "extra": "forbid",
@@ -109,6 +110,9 @@
                 ],
                 "Entity": [
                     "mikro_next.traits.EntityTrait"
+                ],
+                "File": [
+                    "mikro_next.traits.FileTrait"
                 ],
                 "EntityRelation": [
                     "mikro_next.traits.EntityRelationTrait"

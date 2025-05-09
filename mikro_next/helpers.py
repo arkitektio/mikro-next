@@ -1,17 +1,16 @@
+
 from .api.schema import (
     PartialAffineTransformationViewInput,
     PartialChannelViewInput,
     PartialTimepointViewInput,
     PartialOpticsViewInput,
-    PartialLabelViewInput,
-    ChannelFragment,
-    FluorophoreFragment,
-    ObjectiveFragment,
-    InstrumentFragment,
     PartialRGBViewInput,
-    CameraFragment,
-    EraFragment,
-    AntibodyFragment,
+    Channel,
+    Era,
+    ChannelView,
+    Instrument,
+    Objective,
+    Camera,
 )
 from .scalars import ThreeDVector, Milliseconds, FourByFourMatrix
 from rath.scalars import ID
@@ -70,7 +69,7 @@ def view_from_pixel_size_and_position(
 
 
 def view_from_channel(
-    channel: ChannelFragment, c: int = None, **kwargs
+    channel: Channel, c: int = None, **kwargs
 ) -> PartialChannelViewInput:
     """Creates a view from the channel name
 
@@ -87,9 +86,9 @@ def view_from_channel(
 
 
 def opticsview_from_path(
-    objective: ObjectiveFragment = None,
-    camera: CameraFragment = None,
-    instrument: InstrumentFragment = None,
+    objective: Objective = None,
+    camera: Camera = None,
+    instrument: Instrument = None,
     **kwargs,
 ) -> PartialOpticsViewInput:
     """Creates a view from the channel name
@@ -106,7 +105,7 @@ def opticsview_from_path(
 
 
 def timepoint_view_from_era(
-    era: EraFragment,
+    era: Era,
     index_since_start: int = None,
     ms_since_start: Milliseconds = None,
     t: int = None,
@@ -132,39 +131,6 @@ def timepoint_view_from_era(
         era=era.id,
         index_since_start=index_since_start,
         ms_since_start=ms_since_start,
-    )
-
-
-def labelview_from_agents(
-    fluorophore: Optional[FluorophoreFragment] = None,
-    primary_antibody: AntibodyFragment = None,
-    secondary_antibody: AntibodyFragment = None,
-    c: int = None,
-    **kwargs,
-) -> PartialLabelViewInput:
-    """Creates a view from the channel name
-
-    Args:
-        channel_name (str): The channel name
-
-    Returns:
-        View: The view
-    """
-    if c is not None:
-        return PartialLabelViewInput(
-            fluorophore=fluorophore.id,
-            primary_antibody=primary_antibody.id,
-            secondary_antibody=secondary_antibody.id,
-            cMax=c,
-            cMin=c,
-            **kwargs,
-        )
-
-    return PartialLabelViewInput(
-        fluorophore=fluorophore.id,
-        primary_antibody=primary_antibody.id,
-        secondary_antibody=secondary_antibody.id,
-        **kwargs,
     )
 
 

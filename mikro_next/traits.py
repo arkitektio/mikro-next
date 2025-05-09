@@ -446,3 +446,12 @@ class HasFromNumpyArrayTrait:
         x: np.ndarray,
     ) -> T:
         return cls(x=x[4], y=x[3], z=x[2], t=x[1], c=x[0])
+
+
+
+class FileTrait:
+    
+    def download(self, file_name: str = None) -> "str":
+
+        store = get_attributes_or_error(self, "store")
+        return store.download(file_name=file_name)

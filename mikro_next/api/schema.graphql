@@ -1,1183 +1,6 @@
-"""Make string uppercase"""
-directive @upper on FIELD
-
-directive @replace(old: String!, new: String!) on FIELD
-
-"""Make get stuff uppercase"""
-directive @relation(on: String!) on FIELD
-
-interface RenderNode {
-  kind: String!
-}
-
-type ContextNode implements RenderNode {
-  kind: String!
-  context: RGBContext!
-  label: String
-}
-
-type RGBContext {
-  id: ID!
-  name: String!
-  image: Image!
-  snapshots(filters: SnapshotFilter, pagination: OffsetPaginationInput): [Snapshot!]!
-  views: [RGBView!]!
-  blending: Blending!
-  z: Int!
-  t: Int!
-  c: Int!
-  pinned: Boolean!
-}
-
-type Image {
-  id: ID!
-
-  """The name of the image"""
-  name: String!
-
-  """The store where the image data is stored."""
-  store: ZarrStore!
-
-  """All views of this image"""
-  views(
-    """A filter to selected the subset of views"""
-    filters: ViewFilter
-    types: [ViewKind!]
-  ): [View!]!
-
-  """Associated snapshots"""
-  snapshots(filters: SnapshotFilter, pagination: OffsetPaginationInput): [Snapshot!]!
-
-  """Associated videos"""
-  videos(pagination: OffsetPaginationInput): [Video!]!
-
-  """The dataset this image belongs to"""
-  dataset: Dataset
-
-  """History of changes to this image"""
-  history(pagination: OffsetPaginationInput): [History!]!
-
-  """The affine transformation views describing position and scale"""
-  affineTransformationViews(filters: AffineTransformationViewFilter, pagination: OffsetPaginationInput): [AffineTransformationView!]!
-
-  """Label views mapping channels to labels"""
-  labelViews: [LabelView!]!
-
-  """Channel views relating to acquisition channels"""
-  channelViews: [ChannelView!]!
-
-  """Timepoint views describing temporal relationships"""
-  timepointViews(filters: TimepointViewFilter, pagination: OffsetPaginationInput): [TimepointView!]!
-
-  """Optics views describing acquisition settings"""
-  opticsViews(filters: OpticsViewFilter, pagination: OffsetPaginationInput): [OpticsView!]!
-
-  """
-  Structure views relating other Arkitekt types to a subsection of the image
-  """
-  structureViews(filters: StructureViewFilter, pagination: OffsetPaginationInput): [StructureView!]!
-
-  """Scale views describing physical dimensions"""
-  scaleViews: [ScaleView!]!
-
-  """When this image was created"""
-  createdAt: DateTime!
-
-  """Who created this image"""
-  creator: User
-
-  """RGB rendering contexts"""
-  rgbContexts(filters: RGBContextFilter, pagination: OffsetPaginationInput): [RGBContext!]!
-
-  """Scale views derived from this image"""
-  derivedScaleViews: [ScaleView!]!
-
-  """Views derived from this image"""
-  derivedViews: [DerivedView!]!
-
-  """Region of interest views"""
-  roiViews: [ROIView!]!
-
-  """File views relating to source files"""
-  fileViews: [FileView!]!
-
-  """Pixel views describing pixel value semantics"""
-  pixelViews(filters: PixelViewFilter, pagination: OffsetPaginationInput): [PixelView!]!
-
-  """Views this image was derived from"""
-  derivedFromViews: [DerivedView!]!
-
-  """The channels of this image"""
-  channels: [ChannelInfo!]!
-
-  """The channels of this image"""
-  frames: [FrameInfo!]!
-
-  """The channels of this image"""
-  planes: [PlaneInfo!]!
-
-  """The latest snapshot of this image"""
-  latestSnapshot: Snapshot
-
-  """Is this image pinned by the current user"""
-  pinned: Boolean!
-
-  """The tags of this image"""
-  tags: [String!]!
-  renders(filters: ViewFilter, types: [RenderKind!]): [Render!]!
-  rois(filters: ROIFilter): [ROI!]!
-}
-
-type ZarrStore {
-  id: ID!
-
-  """The path to the data. Relative to the bucket."""
-  path: String
-
-  """The shape of the data."""
-  shape: [Int!]
-
-  """The dtype of the data."""
-  dtype: String
-
-  """The bucket where the data is stored."""
-  bucket: String!
-
-  """The key where the data is stored."""
-  key: String!
-
-  """The chunks of the data."""
-  chunks: [Int!]
-
-  """Whether the zarr store was populated (e.g. was a dataset created)."""
-  populated: Boolean!
-
-  """The version of the zarr store (e.g. the version of the dataset)."""
-  version: String!
-}
-
-interface View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-}
-
-input ViewFilter {
-  isGlobal: Boolean
-  provenance: ProvenanceFilter
-  AND: ViewFilter
-  OR: ViewFilter
-}
-
-input ProvenanceFilter {
-  during: String
-  AND: ProvenanceFilter
-  OR: ProvenanceFilter
-}
-
-enum ViewKind {
-  CHANNEL
-  LABEL
-  AFFINE_TRANSFORMATION
-  TIMEPOINT
-  OPTICS
-}
-
-type Snapshot implements Render {
-  createdAt: DateTime!
-  creator: User
-  id: ID!
-  store: MediaStore!
-  name: String!
-}
-
-interface Render {
-  createdAt: DateTime!
-  creator: User
-}
-
-"""Date with time (isoformat)"""
-scalar DateTime
-
-"""A user."""
-type User {
-  id: ID!
-  sub: String!
-  username: String!
-  email: String!
-  password: String!
-}
-
-type MediaStore {
-  id: ID!
-  path: String!
-  bucket: String!
-  key: String!
-  presignedUrl(host: String = null): String!
-}
-
-input SnapshotFilter {
-  name: StrFilterLookup
-  ids: [ID!]
-  AND: SnapshotFilter
-  OR: SnapshotFilter
-}
-
-input StrFilterLookup {
-  exact: String
-  iExact: String
-  contains: String
-  iContains: String
-  inList: [String!]
-  gt: String
-  gte: String
-  lt: String
-  lte: String
-  startsWith: String
-  iStartsWith: String
-  endsWith: String
-  iEndsWith: String
-  range: [String!]
-  isNull: Boolean
-  regex: String
-  iRegex: String
-  nExact: String
-  nIExact: String
-  nContains: String
-  nIContains: String
-  nInList: [String!]
-  nGt: String
-  nGte: String
-  nLt: String
-  nLte: String
-  nStartsWith: String
-  nIStartsWith: String
-  nEndsWith: String
-  nIEndsWith: String
-  nRange: [String!]
-  nIsNull: Boolean
-  nRegex: String
-  nIRegex: String
-}
-
-input OffsetPaginationInput {
-  offset: Int! = 0
-  limit: Int! = -1
-}
-
-type Video implements Render {
-  createdAt: DateTime!
-  creator: User
-  id: ID!
-  store: MediaStore!
-  thumbnail: MediaStore!
-}
-
-type Dataset {
-  id: ID!
-  images(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
-  files(filters: FileFilter, pagination: OffsetPaginationInput): [File!]!
-  children(filters: DatasetFilter, pagination: OffsetPaginationInput): [Dataset!]!
-  description: String
-  name: String!
-  history(pagination: OffsetPaginationInput): [History!]!
-  isDefault: Boolean!
-  createdAt: DateTime!
-  creator: User
-  pinned: Boolean!
-  tags: [String!]!
-}
-
-input ImageFilter {
-  name: StrFilterLookup
-  ids: [ID!]
-  store: ZarrStoreFilter
-  dataset: DatasetFilter
-  transformationViews: AffineTransformationViewFilter
-  timepointViews: TimepointViewFilter
-  notDerived: Boolean = null
-  provenance: ProvenanceFilter
-  AND: ImageFilter
-  OR: ImageFilter
-}
-
-input ZarrStoreFilter {
-  shape: IntFilterLookup
-  AND: ZarrStoreFilter
-  OR: ZarrStoreFilter
-}
-
-input IntFilterLookup {
-  exact: Int
-  iExact: Int
-  contains: Int
-  iContains: Int
-  inList: [Int!]
-  gt: Int
-  gte: Int
-  lt: Int
-  lte: Int
-  startsWith: Int
-  iStartsWith: Int
-  endsWith: Int
-  iEndsWith: Int
-  range: [Int!]
-  isNull: Boolean
-  regex: String
-  iRegex: String
-  nExact: Int
-  nIExact: Int
-  nContains: Int
-  nIContains: Int
-  nInList: [Int!]
-  nGt: Int
-  nGte: Int
-  nLt: Int
-  nLte: Int
-  nStartsWith: Int
-  nIStartsWith: Int
-  nEndsWith: Int
-  nIEndsWith: Int
-  nRange: [Int!]
-  nIsNull: Boolean
-  nRegex: String
-  nIRegex: String
-}
-
-input DatasetFilter {
-  id: ID
-  name: StrFilterLookup
-  provenance: ProvenanceFilter
-  AND: DatasetFilter
-  OR: DatasetFilter
-}
-
-input AffineTransformationViewFilter {
-  isGlobal: Boolean
-  provenance: ProvenanceFilter
-  AND: AffineTransformationViewFilter
-  OR: AffineTransformationViewFilter
-  stage: StageFilter
-  pixelSize: FloatFilterLookup
-}
-
-input StageFilter {
-  ids: [ID!]
-  search: String
-  id: ID
-  kind: String
-  name: StrFilterLookup
-  provenance: ProvenanceFilter
-  AND: StageFilter
-  OR: StageFilter
-}
-
-input FloatFilterLookup {
-  exact: Float
-  iExact: Float
-  contains: Float
-  iContains: Float
-  inList: [Float!]
-  gt: Float
-  gte: Float
-  lt: Float
-  lte: Float
-  startsWith: Float
-  iStartsWith: Float
-  endsWith: Float
-  iEndsWith: Float
-  range: [Float!]
-  isNull: Boolean
-  regex: String
-  iRegex: String
-  nExact: Float
-  nIExact: Float
-  nContains: Float
-  nIContains: Float
-  nInList: [Float!]
-  nGt: Float
-  nGte: Float
-  nLt: Float
-  nLte: Float
-  nStartsWith: Float
-  nIStartsWith: Float
-  nEndsWith: Float
-  nIEndsWith: Float
-  nRange: [Float!]
-  nIsNull: Boolean
-  nRegex: String
-  nIRegex: String
-}
-
-input TimepointViewFilter {
-  isGlobal: Boolean
-  provenance: ProvenanceFilter
-  AND: TimepointViewFilter
-  OR: TimepointViewFilter
-  era: EraFilter
-  msSinceStart: Float
-  indexSinceStart: Int
-}
-
-input EraFilter {
-  id: ID
-  begin: DateTime
-  provenance: ProvenanceFilter
-  AND: EraFilter
-  OR: EraFilter
-}
-
-input ImageOrder {
-  createdAt: Ordering
-}
-
-enum Ordering {
-  ASC
-  DESC
-}
-
-type File {
-  id: ID!
-  name: String!
-  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
-  store: BigFileStore!
-  views: [FileView!]!
-}
-
-type BigFileStore {
-  id: ID!
-  path: String!
-  bucket: String!
-  key: String!
-  presignedUrl: String!
-}
-
-type FileView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  seriesIdentifier: String
-  file: File!
-}
-
-input FileFilter {
-  ids: [ID!]
-  search: String
-  id: ID
-  name: StrFilterLookup
-  provenance: ProvenanceFilter
-  AND: FileFilter
-  OR: FileFilter
-}
-
-type History {
-  app: App
-  user: User
-  kind: HistoryKind!
-  date: DateTime!
-  during: String
-  id: ID!
-  effectiveChanges: [ModelChange!]!
-}
-
-"""An app."""
-type App {
-  id: ID!
-  name: String!
-  clientId: String!
-}
-
-enum HistoryKind {
-  CREATE
-  UPDATE
-  DELETE
-}
-
-type ModelChange {
-  field: String!
-  oldValue: String
-  newValue: String
-}
-
-type AffineTransformationView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  stage: Stage!
-  affineMatrix: FourByFourMatrix!
-  pixelSize: ThreeDVector!
-  pixelSizeX: Micrometers!
-  pixelSizeY: Micrometers!
-  position: ThreeDVector!
-}
-
-type Stage {
-  id: ID!
-  affineViews(filters: AffineTransformationViewFilter, pagination: OffsetPaginationInput): [AffineTransformationView!]!
-  description: String
-  name: String!
-  history(pagination: OffsetPaginationInput): [History!]!
-  pinned: Boolean!
-}
-
-"""
-The `FourByFourMatrix` scalar type represents a matrix values as specified by
-"""
-scalar FourByFourMatrix
-
-"""The `Vector` scalar type represents a matrix values as specified by"""
-scalar ThreeDVector
-
-"""
-The `Micrometers` scalar type represents a matrix valuesas specified by
-"""
-scalar Micrometers
-
-type LabelView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  label: String!
-}
-
-type ChannelView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  channel: Channel!
-}
-
-type Channel {
-  id: ID!
-  views: [ChannelView!]!
-  name: String!
-  emissionWavelength: Float
-  excitationWavelength: Float
-  acquisitionMode: String
-  color: String
-}
-
-type TimepointView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  era: Era!
-  msSinceStart: Milliseconds
-  indexSinceStart: Int
-}
-
-type Era {
-  id: ID!
-  begin: DateTime
-  views(filters: TimepointViewFilter, pagination: OffsetPaginationInput): [TimepointView!]!
-  name: String!
-  history(pagination: OffsetPaginationInput): [History!]!
-}
-
-"""The `Matrix` scalar type represents a matrix values as specified by"""
-scalar Milliseconds
-
-type OpticsView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  instrument: Instrument
-  camera: Camera
-  objective: Objective
-}
-
-type Instrument {
-  id: ID!
-  name: String!
-  model: String
-  serialNumber: String!
-  views(filters: OpticsViewFilter, pagination: OffsetPaginationInput): [OpticsView!]!
-  manufacturer: String
-}
-
-input OpticsViewFilter {
-  isGlobal: Boolean
-  provenance: ProvenanceFilter
-  AND: OpticsViewFilter
-  OR: OpticsViewFilter
-  instrument: InstrumentFilter
-  objective: ObjectiveFilter
-  camera: CameraFilter
-}
-
-input InstrumentFilter {
-  id: ID
-  name: String
-  provenance: ProvenanceFilter
-  AND: InstrumentFilter
-  OR: InstrumentFilter
-}
-
-input ObjectiveFilter {
-  id: ID
-  name: String
-  provenance: ProvenanceFilter
-  AND: ObjectiveFilter
-  OR: ObjectiveFilter
-}
-
-input CameraFilter {
-  id: ID
-  name: String
-  provenance: ProvenanceFilter
-  AND: CameraFilter
-  OR: CameraFilter
-}
-
-type Camera {
-  id: ID!
-  name: String!
-  serialNumber: String!
-  views(filters: OpticsViewFilter, pagination: OffsetPaginationInput): [OpticsView!]!
-  model: String
-  bitDepth: Int
-  pixelSizeX: Micrometers
-  pixelSizeY: Micrometers
-  sensorSizeX: Int
-  sensorSizeY: Int
-  manufacturer: String
-  history(pagination: OffsetPaginationInput): [History!]!
-}
-
-type Objective {
-  id: ID!
-  name: String!
-  serialNumber: String!
-  na: Float
-  magnification: Float
-  immersion: String
-  views(filters: OpticsViewFilter, pagination: OffsetPaginationInput): [OpticsView!]!
-}
-
-type StructureView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  structure: StructureString!
-}
-
-"""
-The `StructureString` scalar type represents a reference to a strucutre outside of this service previously created by the user n a datalayer
-"""
-scalar StructureString
-
-input StructureViewFilter {
-  isGlobal: Boolean
-  provenance: ProvenanceFilter
-  AND: StructureViewFilter
-  OR: StructureViewFilter
-  structure: StructureString
-}
-
-type ScaleView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  parent: Image!
-  scaleX: Float!
-  scaleY: Float!
-  scaleZ: Float!
-  scaleT: Float!
-  scaleC: Float!
-}
-
-input RGBContextFilter {
-  ids: [ID!]
-  search: String
-  id: ID
-  provenance: ProvenanceFilter
-  AND: RGBContextFilter
-  OR: RGBContextFilter
-}
-
-type DerivedView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  originImage: Image!
-  operation: String
-}
-
-type ROIView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  roi: ROI!
-}
-
-type ROI {
-  id: ID!
-  image: Image!
-  kind: RoiKind!
-  vectors: [FiveDVector!]!
-  createdAt: DateTime!
-  creator: User
-  history(pagination: OffsetPaginationInput): [History!]!
-  pinned: Boolean!
-  name: String!
-}
-
-enum RoiKind {
-  ELLIPSIS
-  POLYGON
-  LINE
-  RECTANGLE
-  SPECTRAL_RECTANGLE
-  TEMPORAL_RECTANGLE
-  CUBE
-  SPECTRAL_CUBE
-  TEMPORAL_CUBE
-  HYPERCUBE
-  SPECTRAL_HYPERCUBE
-  PATH
-  FRAME
-  SLICE
-  POINT
-}
-
-"""The `Vector` scalar type represents a matrix values as specified by"""
-scalar FiveDVector
-
-type PixelView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  labels(filters: PixelLabelFilter, pagination: OffsetPaginationInput): [PixelLabel!]!
-  labelAccessors: [LabelAccessor!]!
-}
-
-type PixelLabel {
-  id: ID!
-  view: PixelView!
-  value: Int!
-}
-
-input PixelLabelFilter {
-  value: Float = null
-  view: ID = null
-  entityKind: ID = null
-  entity: ID = null
-  AND: PixelLabelFilter
-  OR: PixelLabelFilter
-}
-
-type LabelAccessor implements Accessor {
-  id: ID!
-  table: Table!
-  keys: [String!]!
-  minIndex: Int
-  maxIndex: Int
-  pixelView: PixelView!
-}
-
-interface Accessor {
-  id: ID!
-  table: Table!
-  keys: [String!]!
-  minIndex: Int
-  maxIndex: Int
-}
-
-type Table {
-  id: ID!
-  name: String!
-  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
-  store: ParquetStore!
-  columns: [TableColumn!]!
-  rows: [MetricMap!]!
-  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
-}
-
-type ParquetStore {
-  id: ID!
-  path: String!
-  bucket: String!
-  key: String!
-}
-
-"""A column descriptor"""
-type TableColumn {
-  name: String!
-  type: DuckDBDataType!
-  nullable: Boolean!
-  key: String
-  default: String
-  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
-}
-
-enum DuckDBDataType {
-  """Represents a True/False value"""
-  BOOLEAN
-
-  """Very small integer (-128 to 127)"""
-  TINYINT
-
-  """Small integer (-32,768 to 32,767)"""
-  SMALLINT
-
-  """Standard integer (-2,147,483,648 to 2,147,483,647)"""
-  INTEGER
-
-  """Large integer for large numeric values"""
-  BIGINT
-
-  """Extremely large integer for very large numeric ranges"""
-  HUGEINT
-
-  """Single-precision floating point number"""
-  FLOAT
-
-  """Double-precision floating point number"""
-  DOUBLE
-
-  """Variable-length string (text)"""
-  VARCHAR
-
-  """Binary large object for storing binary data"""
-  BLOB
-
-  """Date and time with precision"""
-  TIMESTAMP
-
-  """Specific date (year, month, day)"""
-  DATE
-
-  """Specific time of the day (hours, minutes, seconds)"""
-  TIME
-
-  """Span of time between two dates or times"""
-  INTERVAL
-
-  """Exact decimal number with defined precision and scale"""
-  DECIMAL
-
-  """Universally Unique Identifier used to uniquely identify objects"""
-  UUID
-
-  """A list of values of the same data type"""
-  LIST
-
-  """A collection of key-value pairs where each key is unique"""
-  MAP
-
-  """Enumeration of predefined values"""
-  ENUM
-
-  """Composite type grouping several fields with different data types"""
-  STRUCT
-
-  """JSON object, a structured text format used for representing data"""
-  JSON
-}
-
-input AccessorFilter {
-  keys: JSON
-  provenance: ProvenanceFilter
-  AND: AccessorFilter
-  OR: AccessorFilter
-}
-
-"""
-The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
-"""
-scalar JSON
-
-enum AccessorKind {
-  LABEL
-  IMAGE
-}
-
-"""The `MetricMap` scalar type represents a matrix values as specified by"""
-scalar MetricMap
-
-input PixelViewFilter {
-  isGlobal: Boolean
-  provenance: ProvenanceFilter
-  AND: PixelViewFilter
-  OR: PixelViewFilter
-}
-
-"""A channel descriptor"""
-type ChannelInfo {
-  label(withColorName: Boolean! = false): String!
-}
-
-"""A channel descriptor"""
-type FrameInfo {
-  label: String!
-}
-
-"""A channel descriptor"""
-type PlaneInfo {
-  label: String!
-}
-
-enum RenderKind {
-  VIDEO
-  SNAPSHOT
-}
-
-input ROIFilter {
-  ids: [ID!]
-  id: ID
-  kind: RoiKindChoices
-  image: ID = null
-  search: String
-  AND: ROIFilter
-  OR: ROIFilter
-}
-
-enum RoiKindChoices {
-  ELLIPSIS
-  POLYGON
-  LINE
-  RECTANGLE
-  SPECTRAL_RECTANGLE
-  TEMPORAL_RECTANGLE
-  CUBE
-  SPECTRAL_CUBE
-  TEMPORAL_CUBE
-  HYPERCUBE
-  SPECTRAL_HYPERCUBE
-  PATH
-  UNKNOWN
-  FRAME
-  SLICE
-  POINT
-}
-
-type RGBView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  contexts(filters: RGBContextFilter, pagination: OffsetPaginationInput): [RGBContext!]!
-  colorMap: ColorMap!
-  gamma: Float
-  contrastLimitMin: Float
-  contrastLimitMax: Float
-  rescale: Boolean!
-  active: Boolean!
-  baseColor: [Int!]
-  fullColour(format: ColorFormat = RGB): String!
-  name(long: Boolean! = false): String!
-}
-
-enum ColorMap {
-  VIRIDIS
-  PLASMA
-  INFERNO
-  MAGMA
-  RED
-  GREEN
-  BLUE
-  INTENSITY
-}
-
-enum ColorFormat {
-  RGB
-  HSL
-}
-
-enum Blending {
-  ADDITIVE
-  MULTIPLICATIVE
-}
-
-type OverlayNode implements RenderNode {
-  kind: String!
-  children: [RenderNode!]!
-  label: String
-}
-
-type GridNode implements RenderNode {
-  kind: String!
-  children: [RenderNode!]!
-  gap: Int
-  label: String
-}
-
-type SplitNode implements RenderNode {
-  kind: String!
-  children: [RenderNode!]!
-  label: String
-}
-
 type Query {
   images(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
-  rois(filters: ROIFilter, pagination: OffsetPaginationInput): [ROI!]!
+  rois(filters: ROIFilter, order: ROIOrder, pagination: OffsetPaginationInput): [ROI!]!
   myimages(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
   datasets(filters: DatasetFilter, pagination: OffsetPaginationInput): [Dataset!]!
   mydatasets(filters: DatasetFilter, pagination: OffsetPaginationInput): [Dataset!]!
@@ -1298,6 +121,1280 @@ type Query {
   ): Experiment!
 }
 
+type Image {
+  id: ID!
+
+  """The name of the image"""
+  name: String!
+
+  """The store where the image data is stored."""
+  store: ZarrStore!
+
+  """All views of this image"""
+  views(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+
+  """Associated snapshots"""
+  snapshots(filters: SnapshotFilter, pagination: OffsetPaginationInput): [Snapshot!]!
+
+  """Associated videos"""
+  videos(pagination: OffsetPaginationInput): [Video!]!
+
+  """The dataset this image belongs to"""
+  dataset: Dataset
+
+  """Provenance entries for this camera"""
+  provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
+
+  """The affine transformation views describing position and scale"""
+  affineTransformationViews(filters: AffineTransformationViewFilter, pagination: OffsetPaginationInput): [AffineTransformationView!]!
+
+  """Label views mapping channels to labels"""
+  labelViews: [LabelView!]!
+
+  """Channel views relating to acquisition channels"""
+  channelViews: [ChannelView!]!
+
+  """Timepoint views describing temporal relationships"""
+  timepointViews(filters: TimepointViewFilter, pagination: OffsetPaginationInput): [TimepointView!]!
+
+  """Optics views describing acquisition settings"""
+  opticsViews(filters: OpticsViewFilter, pagination: OffsetPaginationInput): [OpticsView!]!
+
+  """
+  Structure views relating other Arkitekt types to a subsection of the image
+  """
+  structureViews(filters: StructureViewFilter, pagination: OffsetPaginationInput): [StructureView!]!
+
+  """Scale views describing physical dimensions"""
+  scaleViews: [ScaleView!]!
+
+  """Histogram views describing pixel value distribution"""
+  histogramViews: [HistogramView!]!
+
+  """When this image was created"""
+  createdAt: DateTime!
+
+  """Who created this image"""
+  creator: User
+
+  """RGB rendering contexts"""
+  rgbContexts(filters: RGBContextFilter, pagination: OffsetPaginationInput): [RGBContext!]!
+
+  """Scale views derived from this image"""
+  derivedScaleViews: [ScaleView!]!
+
+  """Views derived from this image"""
+  derivedViews: [DerivedView!]!
+
+  """Region of interest views"""
+  roiViews: [ROIView!]!
+
+  """File views relating to source files"""
+  fileViews: [FileView!]!
+
+  """Pixel views describing pixel value semantics"""
+  pixelViews(filters: PixelViewFilter, pagination: OffsetPaginationInput): [PixelView!]!
+
+  """Views this image was derived from"""
+  derivedFromViews: [DerivedView!]!
+
+  """The channels of this image"""
+  channels: [ChannelInfo!]!
+
+  """The channels of this image"""
+  frames: [FrameInfo!]!
+
+  """The channels of this image"""
+  planes: [PlaneInfo!]!
+
+  """The latest snapshot of this image"""
+  latestSnapshot: Snapshot
+
+  """Is this image pinned by the current user"""
+  pinned: Boolean!
+
+  """The tags of this image"""
+  tags: [String!]!
+  renders(filters: ViewFilter, types: [RenderKind!]): [Render!]!
+  rois(filters: ROIFilter): [ROI!]!
+}
+
+type ZarrStore {
+  id: ID!
+
+  """The path to the data. Relative to the bucket."""
+  path: String
+
+  """The shape of the data."""
+  shape: [Int!]
+
+  """The dtype of the data."""
+  dtype: String
+
+  """The bucket where the data is stored."""
+  bucket: String!
+
+  """The key where the data is stored."""
+  key: String!
+
+  """The chunks of the data."""
+  chunks: [Int!]
+
+  """Whether the zarr store was populated (e.g. was a dataset created)."""
+  populated: Boolean!
+
+  """The version of the zarr store (e.g. the version of the dataset)."""
+  version: String!
+}
+
+interface View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+}
+
+input ViewFilter {
+  isGlobal: Boolean
+  AND: ViewFilter
+  OR: ViewFilter
+  NOT: ViewFilter
+  DISTINCT: Boolean
+}
+
+enum ViewKind {
+  CHANNEL
+  LABEL
+  AFFINE_TRANSFORMATION
+  TIMEPOINT
+  OPTICS
+  HISTOGRAM
+}
+
+type Snapshot implements Render {
+  createdAt: DateTime!
+  creator: User
+  id: ID!
+  store: MediaStore!
+  name: String!
+}
+
+interface Render {
+  createdAt: DateTime!
+  creator: User
+}
+
+"""Date with time (isoformat)"""
+scalar DateTime
+
+type User {
+  sub: String!
+  preferredUsername: String!
+  roles: [String!]!
+}
+
+type MediaStore {
+  id: ID!
+  path: String!
+  bucket: String!
+  key: String!
+  presignedUrl(host: String = null): String!
+}
+
+input SnapshotFilter {
+  name: StrFilterLookup
+  ids: [ID!]
+  AND: SnapshotFilter
+  OR: SnapshotFilter
+  NOT: SnapshotFilter
+  DISTINCT: Boolean
+}
+
+input StrFilterLookup {
+  exact: String
+  iExact: String
+  contains: String
+  iContains: String
+  inList: [String!]
+  gt: String
+  gte: String
+  lt: String
+  lte: String
+  startsWith: String
+  iStartsWith: String
+  endsWith: String
+  iEndsWith: String
+  range: [String!]
+  isNull: Boolean
+  regex: String
+  iRegex: String
+}
+
+input OffsetPaginationInput {
+  offset: Int! = 0
+  limit: Int
+}
+
+type Video implements Render {
+  createdAt: DateTime!
+  creator: User
+  id: ID!
+  store: MediaStore!
+  thumbnail: MediaStore!
+}
+
+type Dataset {
+  id: ID!
+  images(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
+  files(filters: FileFilter, pagination: OffsetPaginationInput): [File!]!
+  parent: Dataset
+  children(filters: DatasetFilter, pagination: OffsetPaginationInput): [Dataset!]!
+  description: String
+  name: String!
+
+  """Provenance entries for this camera"""
+  provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
+  isDefault: Boolean!
+  createdAt: DateTime!
+  creator: User
+  pinned: Boolean!
+  tags: [String!]!
+}
+
+input ImageFilter {
+  name: StrFilterLookup
+  ids: [ID!]
+  store: ZarrStoreFilter
+  dataset: DatasetFilter
+  transformationViews: AffineTransformationViewFilter
+  timepointViews: TimepointViewFilter
+  notDerived: Boolean = null
+  AND: ImageFilter
+  OR: ImageFilter
+  NOT: ImageFilter
+  DISTINCT: Boolean
+}
+
+input ZarrStoreFilter {
+  shape: IntFilterLookup
+  AND: ZarrStoreFilter
+  OR: ZarrStoreFilter
+  NOT: ZarrStoreFilter
+  DISTINCT: Boolean
+}
+
+input IntFilterLookup {
+  exact: Int
+  iExact: Int
+  contains: Int
+  iContains: Int
+  inList: [Int!]
+  gt: Int
+  gte: Int
+  lt: Int
+  lte: Int
+  startsWith: Int
+  iStartsWith: Int
+  endsWith: Int
+  iEndsWith: Int
+  range: [Int!]
+  isNull: Boolean
+  regex: String
+  iRegex: String
+}
+
+input DatasetFilter {
+  ids: [ID!]
+  search: String
+  id: ID
+  name: StrFilterLookup
+  AND: DatasetFilter
+  OR: DatasetFilter
+  NOT: DatasetFilter
+  DISTINCT: Boolean
+}
+
+input AffineTransformationViewFilter {
+  isGlobal: Boolean
+  AND: AffineTransformationViewFilter
+  OR: AffineTransformationViewFilter
+  NOT: AffineTransformationViewFilter
+  DISTINCT: Boolean
+  stage: StageFilter
+  pixelSize: FloatFilterLookup
+}
+
+input StageFilter {
+  ids: [ID!]
+  search: String
+  id: ID
+  kind: String
+  name: StrFilterLookup
+  AND: StageFilter
+  OR: StageFilter
+  NOT: StageFilter
+  DISTINCT: Boolean
+}
+
+input FloatFilterLookup {
+  exact: Float
+  iExact: Float
+  contains: Float
+  iContains: Float
+  inList: [Float!]
+  gt: Float
+  gte: Float
+  lt: Float
+  lte: Float
+  startsWith: Float
+  iStartsWith: Float
+  endsWith: Float
+  iEndsWith: Float
+  range: [Float!]
+  isNull: Boolean
+  regex: String
+  iRegex: String
+}
+
+input TimepointViewFilter {
+  isGlobal: Boolean
+  AND: TimepointViewFilter
+  OR: TimepointViewFilter
+  NOT: TimepointViewFilter
+  DISTINCT: Boolean
+  era: EraFilter
+  msSinceStart: Float
+  indexSinceStart: Int
+}
+
+input EraFilter {
+  id: ID
+  begin: DateTime
+  AND: EraFilter
+  OR: EraFilter
+  NOT: EraFilter
+  DISTINCT: Boolean
+}
+
+input ImageOrder {
+  createdAt: Ordering
+}
+
+enum Ordering {
+  ASC
+  ASC_NULLS_FIRST
+  ASC_NULLS_LAST
+  DESC
+  DESC_NULLS_FIRST
+  DESC_NULLS_LAST
+}
+
+type File {
+  id: ID!
+  name: String!
+  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
+  store: BigFileStore!
+  views: [FileView!]!
+
+  """Provenance entries for this camera"""
+  provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
+}
+
+type BigFileStore {
+  id: ID!
+  path: String!
+  bucket: String!
+  key: String!
+  filename: String!
+  presignedUrl: String!
+}
+
+type FileView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  seriesIdentifier: String
+  file: File!
+}
+
+"""A provenance event for a model."""
+type ProvenanceEntry {
+  client: Client
+
+  """User who made the change."""
+  user: User
+
+  """The type of change that was made."""
+  kind: HistoryKind!
+
+  """The date of the change."""
+  date: DateTime!
+
+  """
+  The assignation ID during which the change occurred. If it was happening outside of an assignation, it will be None.
+  """
+  during: String
+
+  """The ID of the history entry."""
+  id: ID!
+
+  """The effective changes made to the model."""
+  effectiveChanges: [ModelChange!]!
+}
+
+type Client {
+  clientId: String!
+  name: String!
+}
+
+"""The type of change that was made."""
+enum HistoryKind {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+"""A change made to a model."""
+type ModelChange {
+  """The field that was changed."""
+  field: String!
+
+  """The old value of the field."""
+  oldValue: String
+
+  """The new value of the field."""
+  newValue: String
+}
+
+input FileFilter {
+  ids: [ID!]
+  search: String
+  id: ID
+  name: StrFilterLookup
+  AND: FileFilter
+  OR: FileFilter
+  NOT: FileFilter
+  DISTINCT: Boolean
+}
+
+type AffineTransformationView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  stage: Stage!
+  affineMatrix: FourByFourMatrix!
+  pixelSize: ThreeDVector!
+  pixelSizeX: Micrometers!
+  pixelSizeY: Micrometers!
+  position: ThreeDVector!
+}
+
+type Stage {
+  id: ID!
+  affineViews(filters: AffineTransformationViewFilter, pagination: OffsetPaginationInput): [AffineTransformationView!]!
+  description: String
+  name: String!
+
+  """Provenance entries for this camera"""
+  provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
+  pinned: Boolean!
+}
+
+"""
+The `FourByFourMatrix` scalar type represents a matrix values as specified by
+"""
+scalar FourByFourMatrix
+
+"""The `Vector` scalar type represents a matrix values as specified by"""
+scalar ThreeDVector
+
+"""
+The `Micrometers` scalar type represents a matrix valuesas specified by
+"""
+scalar Micrometers
+
+type LabelView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  label: String!
+}
+
+type ChannelView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  channel: Channel!
+}
+
+type Channel {
+  id: ID!
+  views: [ChannelView!]!
+  name: String!
+  emissionWavelength: Float
+  excitationWavelength: Float
+  acquisitionMode: String
+  color: String
+}
+
+type TimepointView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  era: Era!
+  msSinceStart: Milliseconds
+  indexSinceStart: Int
+}
+
+type Era {
+  id: ID!
+  begin: DateTime
+  views(filters: TimepointViewFilter, pagination: OffsetPaginationInput): [TimepointView!]!
+  name: String!
+
+  """Provenance entries for this camera"""
+  provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
+}
+
+"""The `Matrix` scalar type represents a matrix values as specified by"""
+scalar Milliseconds
+
+type OpticsView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  instrument: Instrument
+  camera: Camera
+  objective: Objective
+}
+
+type Instrument {
+  id: ID!
+  name: String!
+  model: String
+  serialNumber: String!
+  views(filters: OpticsViewFilter, pagination: OffsetPaginationInput): [OpticsView!]!
+  manufacturer: String
+}
+
+input OpticsViewFilter {
+  isGlobal: Boolean
+  AND: OpticsViewFilter
+  OR: OpticsViewFilter
+  NOT: OpticsViewFilter
+  DISTINCT: Boolean
+  instrument: InstrumentFilter
+  objective: ObjectiveFilter
+  camera: CameraFilter
+}
+
+input InstrumentFilter {
+  id: ID
+  name: String
+  AND: InstrumentFilter
+  OR: InstrumentFilter
+  NOT: InstrumentFilter
+  DISTINCT: Boolean
+}
+
+input ObjectiveFilter {
+  id: ID
+  name: String
+  AND: ObjectiveFilter
+  OR: ObjectiveFilter
+  NOT: ObjectiveFilter
+  DISTINCT: Boolean
+}
+
+input CameraFilter {
+  id: ID
+  name: String
+  AND: CameraFilter
+  OR: CameraFilter
+  NOT: CameraFilter
+  DISTINCT: Boolean
+}
+
+type Camera {
+  id: ID!
+  name: String!
+  serialNumber: String!
+  views(filters: OpticsViewFilter, pagination: OffsetPaginationInput): [OpticsView!]!
+  model: String
+  bitDepth: Int
+  pixelSizeX: Micrometers
+  pixelSizeY: Micrometers
+  sensorSizeX: Int
+  sensorSizeY: Int
+  manufacturer: String
+
+  """Provenance entries for this camera"""
+  provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
+}
+
+type Objective {
+  id: ID!
+  name: String!
+  serialNumber: String!
+  na: Float
+  magnification: Float
+  immersion: String
+  views(filters: OpticsViewFilter, pagination: OffsetPaginationInput): [OpticsView!]!
+}
+
+type StructureView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  structure: StructureString!
+}
+
+"""
+The `StructureString` scalar type represents a reference to a strucutre outside of this service previously created by the user n a datalayer
+"""
+scalar StructureString
+
+input StructureViewFilter {
+  isGlobal: Boolean
+  AND: StructureViewFilter
+  OR: StructureViewFilter
+  NOT: StructureViewFilter
+  DISTINCT: Boolean
+  structure: StructureString
+}
+
+type ScaleView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  parent: Image!
+  scaleX: Float!
+  scaleY: Float!
+  scaleZ: Float!
+  scaleT: Float!
+  scaleC: Float!
+}
+
+type HistogramView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  bins: [Float!]!
+  min: Float!
+  max: Float!
+  histogram: [Float!]!
+}
+
+type RGBContext {
+  id: ID!
+  name: String!
+  image: Image!
+  snapshots(filters: SnapshotFilter, pagination: OffsetPaginationInput): [Snapshot!]!
+  views: [RGBView!]!
+  blending: Blending!
+  z: Int!
+  t: Int!
+  c: Int!
+  pinned: Boolean!
+}
+
+type RGBView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  contexts(filters: RGBContextFilter, pagination: OffsetPaginationInput): [RGBContext!]!
+  colorMap: ColorMap!
+  gamma: Float
+  contrastLimitMin: Float
+  contrastLimitMax: Float
+  rescale: Boolean!
+  active: Boolean!
+  baseColor: [Int!]
+  fullColour(format: ColorFormat = RGB): String!
+  name(long: Boolean! = false): String!
+}
+
+input RGBContextFilter {
+  ids: [ID!]
+  search: String
+  id: ID
+  AND: RGBContextFilter
+  OR: RGBContextFilter
+  NOT: RGBContextFilter
+  DISTINCT: Boolean
+}
+
+enum ColorMap {
+  VIRIDIS
+  PLASMA
+  INFERNO
+  MAGMA
+  RED
+  GREEN
+  BLUE
+  INTENSITY
+}
+
+enum ColorFormat {
+  RGB
+  HSL
+}
+
+enum Blending {
+  ADDITIVE
+  MULTIPLICATIVE
+}
+
+type DerivedView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  originImage: Image!
+  operation: String
+}
+
+type ROIView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  roi: ROI!
+}
+
+type ROI {
+  id: ID!
+  image: Image!
+  kind: RoiKind!
+  vectors: [FiveDVector!]!
+  createdAt: DateTime!
+  creator: User
+
+  """Provenance entries for this camera"""
+  provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
+  pinned: Boolean!
+  name: String!
+}
+
+enum RoiKind {
+  ELLIPSIS
+  POLYGON
+  LINE
+  RECTANGLE
+  SPECTRAL_RECTANGLE
+  TEMPORAL_RECTANGLE
+  CUBE
+  SPECTRAL_CUBE
+  TEMPORAL_CUBE
+  HYPERCUBE
+  SPECTRAL_HYPERCUBE
+  PATH
+  FRAME
+  SLICE
+  POINT
+}
+
+"""The `Vector` scalar type represents a matrix values as specified by"""
+scalar FiveDVector
+
+type PixelView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  labels(filters: PixelLabelFilter, pagination: OffsetPaginationInput): [PixelLabel!]!
+  labelAccessors: [LabelAccessor!]!
+}
+
+type PixelLabel {
+  id: ID!
+  view: PixelView!
+  value: Int!
+}
+
+input PixelLabelFilter {
+  value: Float = null
+  view: ID = null
+  entityKind: ID = null
+  entity: ID = null
+  AND: PixelLabelFilter
+  OR: PixelLabelFilter
+  NOT: PixelLabelFilter
+  DISTINCT: Boolean
+}
+
+type LabelAccessor implements Accessor {
+  id: ID!
+  table: Table!
+  keys: [String!]!
+  minIndex: Int
+  maxIndex: Int
+  pixelView: PixelView!
+}
+
+interface Accessor {
+  id: ID!
+  table: Table!
+  keys: [String!]!
+  minIndex: Int
+  maxIndex: Int
+}
+
+type Table {
+  id: ID!
+  name: String!
+  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
+  store: ParquetStore!
+  columns: [TableColumn!]!
+  rows: [MetricMap!]!
+  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
+}
+
+type ParquetStore {
+  id: ID!
+  path: String!
+  bucket: String!
+  key: String!
+}
+
+"""A column descriptor"""
+type TableColumn {
+  name: String!
+  type: DuckDBDataType!
+  nullable: Boolean!
+  key: String
+  default: String
+  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
+}
+
+enum DuckDBDataType {
+  """Represents a True/False value"""
+  BOOLEAN
+
+  """Very small integer (-128 to 127)"""
+  TINYINT
+
+  """Small integer (-32,768 to 32,767)"""
+  SMALLINT
+
+  """Standard integer (-2,147,483,648 to 2,147,483,647)"""
+  INTEGER
+
+  """Large integer for large numeric values"""
+  BIGINT
+
+  """Extremely large integer for very large numeric ranges"""
+  HUGEINT
+
+  """Single-precision floating point number"""
+  FLOAT
+
+  """Double-precision floating point number"""
+  DOUBLE
+
+  """Variable-length string (text)"""
+  VARCHAR
+
+  """Binary large object for storing binary data"""
+  BLOB
+
+  """Date and time with precision"""
+  TIMESTAMP
+
+  """Specific date (year, month, day)"""
+  DATE
+
+  """Specific time of the day (hours, minutes, seconds)"""
+  TIME
+
+  """Span of time between two dates or times"""
+  INTERVAL
+
+  """Exact decimal number with defined precision and scale"""
+  DECIMAL
+
+  """Universally Unique Identifier used to uniquely identify objects"""
+  UUID
+
+  """A list of values of the same data type"""
+  LIST
+
+  """A collection of key-value pairs where each key is unique"""
+  MAP
+
+  """Enumeration of predefined values"""
+  ENUM
+
+  """Composite type grouping several fields with different data types"""
+  STRUCT
+
+  """JSON object, a structured text format used for representing data"""
+  JSON
+}
+
+input AccessorFilter {
+  keys: JSON
+  AND: AccessorFilter
+  OR: AccessorFilter
+  NOT: AccessorFilter
+  DISTINCT: Boolean
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
+"""
+scalar JSON
+
+enum AccessorKind {
+  LABEL
+  IMAGE
+}
+
+"""The `MetricMap` scalar type represents a matrix values as specified by"""
+scalar MetricMap
+
+input PixelViewFilter {
+  isGlobal: Boolean
+  AND: PixelViewFilter
+  OR: PixelViewFilter
+  NOT: PixelViewFilter
+  DISTINCT: Boolean
+}
+
+"""A channel descriptor"""
+type ChannelInfo {
+  label(withColorName: Boolean! = false): String!
+}
+
+"""A channel descriptor"""
+type FrameInfo {
+  label: String!
+}
+
+"""A channel descriptor"""
+type PlaneInfo {
+  label: String!
+}
+
+enum RenderKind {
+  VIDEO
+  SNAPSHOT
+}
+
+input ROIFilter {
+  ids: [ID!]
+  id: ID
+  kind: RoiKindChoices
+  image: ID = null
+  search: String
+  AND: ROIFilter
+  OR: ROIFilter
+  NOT: ROIFilter
+  DISTINCT: Boolean
+}
+
+enum RoiKindChoices {
+  ELLIPSIS
+  POLYGON
+  LINE
+  RECTANGLE
+  SPECTRAL_RECTANGLE
+  TEMPORAL_RECTANGLE
+  CUBE
+  SPECTRAL_CUBE
+  TEMPORAL_CUBE
+  HYPERCUBE
+  SPECTRAL_HYPERCUBE
+  PATH
+  UNKNOWN
+  FRAME
+  SLICE
+  POINT
+}
+
+input ROIOrder {
+  createdAt: Ordering
+}
+
 type ContinousScanView implements View {
   image: Image!
   zMin: Int
@@ -1314,6 +1411,13 @@ type ContinousScanView implements View {
 
   """The accessor"""
   accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
   id: ID!
   direction: ScanDirection!
 }
@@ -1329,9 +1433,10 @@ enum ScanDirection {
 
 input ContinousScanViewFilter {
   isGlobal: Boolean
-  provenance: ProvenanceFilter
   AND: ContinousScanViewFilter
   OR: ContinousScanViewFilter
+  NOT: ContinousScanViewFilter
+  DISTINCT: Boolean
   direction: ContinousScanDirection
 }
 
@@ -1360,6 +1465,13 @@ type WellPositionView implements View {
 
   """The accessor"""
   accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
   id: ID!
   well: MultiWellPlate
   row: Int
@@ -1377,9 +1489,10 @@ type MultiWellPlate {
 
 input WellPositionViewFilter {
   isGlobal: Boolean
-  provenance: ProvenanceFilter
   AND: WellPositionViewFilter
   OR: WellPositionViewFilter
+  NOT: WellPositionViewFilter
+  DISTINCT: Boolean
   well: MultiWellPlateFilter
   row: Int
   column: Int
@@ -1392,6 +1505,8 @@ input MultiWellPlateFilter {
   name: StrFilterLookup
   AND: MultiWellPlateFilter
   OR: MultiWellPlateFilter
+  NOT: MultiWellPlateFilter
+  DISTINCT: Boolean
 }
 
 type AcquisitionView implements View {
@@ -1410,6 +1525,13 @@ type AcquisitionView implements View {
 
   """The accessor"""
   accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
   id: ID!
   description: String
   acquiredAt: DateTime
@@ -1443,24 +1565,22 @@ input RenderedPlotFilter {
   id: ID
   AND: RenderedPlotFilter
   OR: RenderedPlotFilter
+  NOT: RenderedPlotFilter
+  DISTINCT: Boolean
 }
 
 type RenderTree {
   id: ID!
   name: String!
   linkedContexts(filters: RGBContextFilter, pagination: OffsetPaginationInput): [RGBContext!]!
-  tree: Tree!
-}
-
-type Tree {
-  children: [RenderNode!]!
 }
 
 input RenderTreeFilter {
   id: ID
-  provenance: ProvenanceFilter
   AND: RenderTreeFilter
   OR: RenderTreeFilter
+  NOT: RenderTreeFilter
+  DISTINCT: Boolean
 }
 
 input RenderTreeOrder {
@@ -1471,7 +1591,9 @@ type Experiment {
   id: ID!
   name: String!
   description: String
-  history(pagination: OffsetPaginationInput): [History!]!
+
+  """Provenance entries for this camera"""
+  provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   createdAt: DateTime!
   creator: User
 }
@@ -1482,6 +1604,8 @@ input ExperimentFilter {
   id: ID
   AND: ExperimentFilter
   OR: ExperimentFilter
+  NOT: ExperimentFilter
+  DISTINCT: Boolean
 }
 
 input TableFilter {
@@ -1490,6 +1614,8 @@ input TableFilter {
   id: ID
   AND: TableFilter
   OR: TableFilter
+  NOT: TableFilter
+  DISTINCT: Boolean
 }
 
 type ImageAccessor implements Accessor {
@@ -1520,6 +1646,8 @@ input MeshFilter {
   id: ID
   AND: MeshFilter
   OR: MeshFilter
+  NOT: MeshFilter
+  DISTINCT: Boolean
 }
 
 union DatasetImageFile = Dataset | Image | File
@@ -1685,6 +1813,9 @@ type Mutation {
   """Create a new dataset to organize data"""
   createDataset(input: CreateDatasetInput!): Dataset!
 
+  """Create a new dataset to organize data"""
+  ensureDataset(input: CreateDatasetInput!): Dataset!
+
   """Update dataset metadata"""
   updateDataset(input: ChangeDatasetInput!): Dataset!
 
@@ -1774,6 +1905,9 @@ type Mutation {
 
   """Create a new view for continuous scan data"""
   createContinousScanView(input: ContinousScanViewInput!): ContinousScanView!
+
+  """Delete an existing histogram view"""
+  deleteHistogramView(input: DeleteViewInput!): ID!
 
   """Delete an existing affine transformation view"""
   deleteAffineTransformationView(input: DeleteViewInput!): ID!
@@ -1931,7 +2065,7 @@ input RequestMeshUploadInput {
 }
 
 input RequestFileUploadInput {
-  key: String!
+  fileName: String!
   datalayer: String!
 }
 
@@ -1976,29 +2110,6 @@ input AffineTransformationViewInput {
   stage: ID = null
   affineMatrix: FourByFourMatrix!
   image: ID!
-}
-
-type HistogramView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-  id: ID!
-  bins: [Float!]!
-  min: Float!
-  max: Float!
-  histogram: [Float!]!
 }
 
 input HistogramViewInput {
@@ -2654,10 +2765,10 @@ input DeleteMeshInput {
 }
 
 input FromFileLike {
-  name: String!
   file: FileLike!
-  origins: [ID!] = null
+  fileName: String!
   dataset: ID = null
+  origins: [ID!] = null
 }
 
 """
@@ -2738,10 +2849,12 @@ input UpdateRGBContextInput {
 
 input CreateDatasetInput {
   name: String!
+  parent: ID = null
 }
 
 input ChangeDatasetInput {
   name: String!
+  parent: ID = null
   id: ID!
 }
 
@@ -2788,7 +2901,9 @@ type ViewCollection {
   id: ID!
   name: String!
   views: [View!]!
-  history(pagination: OffsetPaginationInput): [History!]!
+
+  """Provenance entries for this camera"""
+  provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
   affineTransformationViews(filters: AffineTransformationViewFilter, pagination: OffsetPaginationInput): [AffineTransformationView!]!
   labelViews: [LabelView!]!
   channelViews: [ChannelView!]!
@@ -3318,9 +3433,6 @@ input DeleteRoiInput {
 }
 
 type Subscription {
-  """Subscribe to real-time image history events"""
-  historyEvents: Image!
-
   """Subscribe to real-time ROI updates"""
   rois(image: ID!): RoiEvent!
 

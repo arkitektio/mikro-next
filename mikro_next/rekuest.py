@@ -1,9 +1,7 @@
-
 from rekuest_next.structures.default import (
     get_default_structure_registry,
     id_shrink,
 )
-from rekuest_next.api.schema import PortScope
 from rekuest_next.widgets import SearchWidget
 from mikro_next.api.schema import *
 
@@ -15,20 +13,14 @@ structure_reg.register_as_structure(
     identifier="@mikro/image",
     aexpand=aget_image,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
-    default_widget=SearchWidget(
-        query=SearchImagesQuery.Meta.document, ward="mikro"
-    ),
+    default_widget=SearchWidget(query=SearchImagesQuery.Meta.document, ward="mikro"),
 )
 structure_reg.register_as_structure(
     Snapshot,
     identifier="@mikro/snapshot",
     aexpand=aget_snapshot,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
-    default_widget=SearchWidget(
-        query=SearchSnapshotsQuery.Meta.document, ward="mikro"
-    ),
+    default_widget=SearchWidget(query=SearchSnapshotsQuery.Meta.document, ward="mikro"),
 )
 
 structure_reg.register_as_structure(
@@ -36,7 +28,6 @@ structure_reg.register_as_structure(
     identifier="@mikro/roi",
     aexpand=aget_roi,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
     default_widget=SearchWidget(query=SearchRoisQuery.Meta.document, ward="mikro"),
 )
 structure_reg.register_as_structure(
@@ -44,27 +35,20 @@ structure_reg.register_as_structure(
     identifier="@mikro/stage",
     aexpand=aget_stage,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
-    default_widget=SearchWidget(
-        query=SearchStagesQuery.Meta.document, ward="mikro"
-    ),
+    default_widget=SearchWidget(query=SearchStagesQuery.Meta.document, ward="mikro"),
 )
 structure_reg.register_as_structure(
     Dataset,
     identifier="@mikro/dataset",
     aexpand=aget_dataset,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
-    default_widget=SearchWidget(
-        query=SearchImagesQuery.Meta.document, ward="mikro"
-    ),
+    default_widget=SearchWidget(query=SearchDatasetsQuery.Meta.document, ward="mikro"),
 )
 structure_reg.register_as_structure(
     File,
     identifier="@mikro/file",
     aexpand=aget_file,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
     default_widget=SearchWidget(query=SearchFilesQuery.Meta.document, ward="mikro"),
 )
 structure_reg.register_as_structure(
@@ -72,7 +56,6 @@ structure_reg.register_as_structure(
     identifier="@mikro/rbgcontext",
     aexpand=aget_rgb_context,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
 )
 
 structure_reg.register_as_structure(
@@ -80,7 +63,6 @@ structure_reg.register_as_structure(
     identifier="@mikro/renderedplot",
     aexpand=aget_rendered_plot,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
     default_widget=SearchWidget(
         query=SearchRenderedPlotsQuery.Meta.document, ward="mikro"
     ),
@@ -91,7 +73,6 @@ structure_reg.register_as_structure(
     identifier="@mikro/mesh",
     aexpand=aget_mesh,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
     default_widget=SearchWidget(query=SearchMeshesQuery.Meta.document, ward="mikro"),
 )
 
@@ -100,7 +81,6 @@ structure_reg.register_as_structure(
     identifier="@mikro/table",
     aexpand=aget_table,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
     default_widget=SearchWidget(query=SearchTablesQuery.Meta.document, ward="mikro"),
 )
 
@@ -109,7 +89,6 @@ structure_reg.register_as_structure(
     identifier="@mikro/tablecell",
     aexpand=aget_table_cell,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
     default_widget=SearchWidget(
         query=SearchTableCellsQuery.Meta.document, ward="mikro"
     ),
@@ -120,8 +99,5 @@ structure_reg.register_as_structure(
     identifier="@mikro/tablerow",
     aexpand=aget_table_row,
     ashrink=id_shrink,
-    scope=PortScope.GLOBAL,
-    default_widget=SearchWidget(
-        query=SearchTableRowsQuery.Meta.document, ward="mikro"
-    ),
+    default_widget=SearchWidget(query=SearchTableRowsQuery.Meta.document, ward="mikro"),
 )

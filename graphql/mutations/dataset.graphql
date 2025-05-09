@@ -1,21 +1,23 @@
 mutation CreateDataset($input: CreateDatasetInput!) {
   createDataset(input: $input) {
-    id
-    name
+    ...Dataset
+  }
+}
+
+mutation EnsureDataset($input: CreateDatasetInput!) {
+  ensureDataset(input: $input) {
+    ...Dataset
   }
 }
 
 mutation UpdateDataset($input: ChangeDatasetInput!) {
   updateDataset(input: $input) {
-    id
-    name
+   ...Dataset
   }
 }
 
 mutation RevertDataset($input: RevertInput!) {
   revertDataset(input: $input) {
-    id
-    name
-    description
+    ...Dataset
   }
 }

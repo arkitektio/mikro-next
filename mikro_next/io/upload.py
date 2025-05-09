@@ -19,7 +19,6 @@ if TYPE_CHECKING:
     from mikro_next.api.schema import Credentials, PresignedPostCredentials
     from mikro_next.datalayer import DataLayer
 
-from dask.distributed import Client
 import dask.array as da
     
 
@@ -180,6 +179,7 @@ async def aupload_bigfile(
         aws_session_token=credentials.session_token,
     ) as client:
         try:
+            print(credentials, file.value)
             await client.put_object(
                 Bucket=credentials.bucket, Key=credentials.key, Body=file.value
             )

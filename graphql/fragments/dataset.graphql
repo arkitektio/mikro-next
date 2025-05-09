@@ -1,15 +1,9 @@
-fragment HistoryStuff on History {
-    id
-    app {
-        id
-    }
-}
-
-
 fragment Dataset on Dataset {
+  id
+  name
+  description
+  parent {
+    id
     name
-    description
-    history {
-        ...HistoryStuff
-    }
+  }
 }

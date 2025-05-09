@@ -1,32 +1,58 @@
-[tool.poetry]
+[project]
 name = "mikro-next"
-version = "0.1.61"
+version = "0.2.0"
 description = "next images for arkitekt"
-authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
-license = "CC BY-NC 3.0"
-packages = [{ include = "mikro_next" }]
+authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
+requires-python = "~=3.11"
+license = "MIT"
+dependencies = [
+    "zarr>3",
+    "xarray>=2024.11.0",
+    "s3fs>=2024.10.0",
+    "pandas>=2.2",
+    "dask>=2024.12.1",
+    "rath>=2",
+    "dokker>=1.0.0",
+    "numpy>=1.26 ; python_version ~= '3.12'",
+    "websockets>=15.0.1",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-zarr = ">3"
-xarray = ">=2024.11.0"
-s3fs = ">=2024.10.0"
-pandas = ">=2.2"
-dask = ">=2024.12.1"
-rath = ">=1.0.0"
-pyarrow = ">=12.0.1"
-dokker = ">=1.0.0"
-numpy = { version = ">=1.26",  python = "^3.12", optional = true }
+[project.optional-dependencies]
+turms = []
+table = ["pyarrow>=12.0.1"]
+complete = ["pyarrow>=12.0.1"]
 
-[tool.poetry.extras]
-turms = ["turms"]
-table = ["pyarrow"]
-complete = ["turms", "pyarrow"]
+[tool.uv]
+dev-dependencies =  [
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=6.1.1",
+    "pytest>=8.3.5",
+    "python-semantic-release>=9.21.0",
+    "testcontainers==3.7.0",
+    "autoflake>=1.7.7,<2",
+    "aiohttp>=3.8.3,<4",
+    "black>=23.1.0,<24",
+    "pytest-aiohttp>=1.0.4,<2",
+    "ruff>=0.0.254,<0.0.255",
+    "cryptography>=44.0.3",
+    "pyjwt>=2.10.1",
+    "dokker>=2",
+]
+
+
+[tool.hatch.build.targets.sdist]
+include = ["mikro_next"]
+
+[tool.hatch.build.targets.wheel]
+include = ["mikro_next"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.mypy]
 exclude = ["venv/", "tests/"]
 ignore_missing_imports = true
-
 
 [tool.ruff]
 extend-select = ["ANN", "D1"]
@@ -58,25 +84,6 @@ exclude = [
 
 # Same as Black.
 line-length = 100
-
-[tool.poetry.group.dev.dependencies]
-testcontainers = "3.7.0"
-autoflake = "^1.7.7"
-pytest = "^7.2.0"
-pytest-asyncio = "^0.20.2"
-aiohttp = "^3.8.3"
-websockets = "^10.4"
-black = "^23.1.0"
-pytest-cov = "^4.0.0"
-pytest-aiohttp = "^1.0.4"
-ruff = "^0.0.254"
-mypy = "^1.0.1"
-pyjwt = "^2.8.0"
-cryptography = "^41.0.3"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 markers = [

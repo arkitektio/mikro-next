@@ -109,7 +109,7 @@ class UploadLink(ParsingLink):
         async for result in self.next.aexecute(operation):
             return RequestTableUploadMutation(**result.data).request_table_upload
 
-    async def aget_bigfile_credentials(self, key, datalayer) -> Any:
+    async def aget_bigfile_credentials(self, file: FileLike, datalayer) -> Any:
         from mikro_next.api.schema import (
             RequestFileUploadMutation,
             RequestFileUploadInput,
@@ -119,8 +119,8 @@ class UploadLink(ParsingLink):
             RequestFileUploadMutation.Meta.document,
             variables={
                 "input": RequestFileUploadInput(
-                    key=key, datalayer=datalayer
-                ).model_dump()
+                    fileName=file.file_name, datalayer=datalayer
+                ).model_dump(by_alias=True)
             },
         )
 
@@ -176,7 +176,7 @@ class UploadLink(ParsingLink):
         assert datalayer is not None, "Datalayer must be set"
         endpoint_url = await datalayer.get_endpoint_url()
 
-        credentials = await self.aget_bigfile_credentials(file.key, endpoint_url)
+        credentials = await self.aget_bigfile_credentials(file, endpoint_url)
         return await self.bigfile_uploader(
             file,
             credentials,

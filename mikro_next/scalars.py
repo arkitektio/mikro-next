@@ -13,6 +13,8 @@ import numpy as np
 import uuid
 from .utils import rechunk
 from collections.abc import Iterable
+import mimetypes
+from pathlib import Path
 
 
 def is_dask_array(x):
@@ -481,7 +483,8 @@ class FileLike:
 
     def __init__(self, value: IO, name="") -> None:
         self.value = value
-        self.key = str(name)
+        self.file_name = os.path.basename(name)
+        self.mime_type = mimetypes.guess_type(self.file_name)[0]
 
     @classmethod
     def __get_validators__(cls):
@@ -494,9 +497,17 @@ class FileLike:
         if isinstance(v, str):
             file = open(v, "rb")
             name = v
-        else:
+        elif isinstance(v, io.IOBase):
             file = v
             name = v.name
+        elif isinstance(v, Path):
+            file = open(v, "rb")
+            name = str(v)
+        else:
+            raise ValueError(
+                f"Unsupported type {type(v)}. Please provide a string or a Path object. Or a file object that is opened in binary mode."
+            )
+            
 
         if not isinstance(file, io.IOBase):
             raise ValueError("This needs to be a instance of a file")
