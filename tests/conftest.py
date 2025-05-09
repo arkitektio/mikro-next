@@ -41,7 +41,7 @@ def deployed_app() -> DeployedMikro:
 
     setup = local(docker_compose_file)
     setup.add_health_check(
-        url=lambda spec: f"http://localhost:{spec.services.get("mikro").get_port_for_internal(80).published}/graphql", service="mikro", timeout=5, max_retries=10
+        url=lambda spec: f"http://localhost:{spec.services.get('mikro').get_port_for_internal(80).published}/graphql", service="mikro", timeout=5, max_retries=10
     )
 
     watcher = setup.create_watcher("mikro")
