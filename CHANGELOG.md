@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.3.0 (2025-05-09)
+
+
 ## v0.2.0 (2025-05-09)
+
+### Features
+
+- Add readme entry in pyproject.toml and new integration test for dataset creation with parent
+  ([`b0ae9ae`](https://github.com/arkitektio/mikro-next/commit/b0ae9ae91b462e5d238c12c1c38325531a3f62d9))
 
 
 ## v0.1.0 (2025-05-09)
