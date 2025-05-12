@@ -31,6 +31,3 @@ class MikroNext(Composition):
         ..., description="The datalayer for interacting with the mikro api"
     )
     rath: MikroNextRath
-
-    def _repr_html_inline_(self):
-        return f"<table><td>rath</td><td>{self.rath._repr_html_inline_()}</td></tr></table>"

@@ -26,9 +26,6 @@ def is_dask_array(x):
         return False
 
 
-
-
-
 class AssignationID(str):
     """A custom scalar to represent an affine matrix."""
 
@@ -240,7 +237,6 @@ class FiveDVector(list):
 
         for i in v:
             if not isinstance(i, (int, float)):
-
                 raise ValueError(
                     f"The input must be a list of integers or floats. You provided a list of {type(i)}"
                 )
@@ -368,7 +364,6 @@ class ArrayLike:
             dims = ["c", "t", "z", "y", "x"]
             v = xr.DataArray(v, dims=dims[5 - v.ndim :])
             was_labeled = False
-            
 
         if not isinstance(v, xr.DataArray):
             raise ValueError("This needs to be a instance of xarray.DataArray")
@@ -408,11 +403,9 @@ class ArrayLike:
         )
 
         v = v.transpose(*"ctzyx")
-        
+
         if is_dask_array(v.data):
             v = v.compute()
-        
-        
 
         return cls(v)
 
@@ -507,7 +500,6 @@ class FileLike:
             raise ValueError(
                 f"Unsupported type {type(v)}. Please provide a string or a Path object. Or a file object that is opened in binary mode."
             )
-            
 
         if not isinstance(file, io.IOBase):
             raise ValueError("This needs to be a instance of a file")
@@ -523,7 +515,7 @@ class MeshLike:
     mesh api supported by mikro_next It converts the passed value into
     a compliant format.."""
 
-    def __init__(self, value: IO, name="") -> None:
+    def __init__(self, value: IO[bytes], name: str = "") -> None:
         self.value = value
         self.key = str(name)
 

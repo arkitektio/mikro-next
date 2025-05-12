@@ -882,7 +882,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2" },
     { name = "pyarrow", marker = "extra == 'complete'", specifier = ">=12.0.1" },
     { name = "pyarrow", marker = "extra == 'table'", specifier = ">=12.0.1" },
-    { name = "rath", specifier = ">=2" },
+    { name = "rath", specifier = ">=3.2" },
     { name = "s3fs", specifier = ">=2024.10.0" },
     { name = "websockets", specifier = ">=15.0.1" },
     { name = "xarray", specifier = ">=2024.11.0" },
@@ -1507,16 +1507,16 @@ wheels = [
 
 [[package]]
 name = "rath"
-version = "2.0.0"
+version = "3.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "graphql-core" },
     { name = "koil" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c8/21/eb2e4bf35aa2a7bcb11899603f6dd696f45a1abf1c12aa6eba6810fb7673/rath-2.0.0.tar.gz", hash = "sha256:c511d0d2c096254d77d432dde4ea7d07955e3132e9439e97abf44e97545ec208", size = 35522 }
+sdist = { url = "https://files.pythonhosted.org/packages/25/82/9fd604db89508ef405671a8a57ff407f37ea7477dff0a8db565c2a548816/rath-3.2.0.tar.gz", hash = "sha256:0dda6f568d6908a6a865bf90328226c1586514ca62c0d4264472e0cde192653e", size = 34250 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/72/c0/fa0cd77fa1b0532f7055d242676d08f413032e4823ed6df14bbfa719714d/rath-2.0.0-py3-none-any.whl", hash = "sha256:f581ddf94c06f46e06b7cb02f2035c881f5446e7a8b9f73e6b05b4c4d454af3e", size = 54397 },
+    { url = "https://files.pythonhosted.org/packages/e6/fb/3c36ba8ceb044348aba82e0ddce56f4ed488c0102e061cbc6e6014ed1a81/rath-3.2.0-py3-none-any.whl", hash = "sha256:d5dea97342b19fecf1c0837c2021788500ff667c812aeb0a9842fb604c075a06", size = 53837 },
 ]
 
 [[package]]

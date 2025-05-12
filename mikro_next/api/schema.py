@@ -1,39 +1,39 @@
 from mikro_next.traits import (
-    HasDownloadAccessor,
-    HasZarrStoreTrait,
-    FileTrait,
-    HasPresignedDownloadAccessor,
-    HasParquetStoreAccesor,
     IsVectorizableTrait,
     HasZarrStoreAccessor,
+    HasPresignedDownloadAccessor,
+    HasZarrStoreTrait,
+    HasParquetStoreAccesor,
     HasParquestStoreTrait,
+    HasDownloadAccessor,
+    FileTrait,
 )
+from pydantic import Field, ConfigDict, BaseModel
+from datetime import datetime
 from mikro_next.scalars import (
-    FiveDVector,
-    ParquetLike,
-    FileLike,
     Milliseconds,
-    MeshLike,
     Upload,
-    FourByFourMatrix,
-    Micrometers,
+    ParquetLike,
     ArrayLike,
+    FourByFourMatrix,
+    FileLike,
+    MeshLike,
+    FiveDVector,
+    Micrometers,
 )
-from mikro_next.funcs import asubscribe, aexecute, subscribe, execute
-from pydantic import ConfigDict, BaseModel, Field
 from typing import (
     Iterable,
-    Literal,
-    AsyncIterator,
     Tuple,
-    Optional,
+    Literal,
     Iterator,
-    Any,
+    AsyncIterator,
     Union,
-    List,
+    Any,
+    Optional,
     Annotated,
+    List,
 )
-from datetime import datetime
+from mikro_next.funcs import aexecute, execute, subscribe, asubscribe
 from rath.scalars import ID
 from enum import Enum
 from mikro_next.rath import MikroNextRath
@@ -2439,6 +2439,7 @@ class CreateCameraMutation(BaseModel):
         """Arguments for CreateCamera"""
 
         input: CameraInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateCamera"""
@@ -2467,6 +2468,7 @@ class EnsureCameraMutation(BaseModel):
         """Arguments for EnsureCamera"""
 
         input: CameraInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for EnsureCamera"""
@@ -2496,6 +2498,7 @@ class CreateRenderTreeMutation(BaseModel):
         """Arguments for CreateRenderTree"""
 
         input: RenderTreeInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateRenderTree"""
@@ -2513,6 +2516,7 @@ class From_parquet_likeMutation(BaseModel):
         """Arguments for from_parquet_like"""
 
         input: FromParquetLike
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for from_parquet_like"""
@@ -2530,6 +2534,7 @@ class RequestTableUploadMutation(BaseModel):
         """Arguments for RequestTableUpload"""
 
         input: RequestTableUploadInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestTableUpload"""
@@ -2547,6 +2552,7 @@ class RequestTableAccessMutation(BaseModel):
         """Arguments for RequestTableAccess"""
 
         input: RequestTableAccessInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestTableAccess"""
@@ -2564,6 +2570,7 @@ class CreateRenderedPlotMutation(BaseModel):
         """Arguments for CreateRenderedPlot"""
 
         input: RenderedPlotInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateRenderedPlot"""
@@ -2581,6 +2588,7 @@ class From_file_likeMutation(BaseModel):
         """Arguments for from_file_like"""
 
         input: FromFileLike
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for from_file_like"""
@@ -2598,6 +2606,7 @@ class RequestFileUploadMutation(BaseModel):
         """Arguments for RequestFileUpload"""
 
         input: RequestFileUploadInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestFileUpload"""
@@ -2615,6 +2624,7 @@ class RequestFileAccessMutation(BaseModel):
         """Arguments for RequestFileAccess"""
 
         input: RequestFileAccessInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestFileAccess"""
@@ -2632,6 +2642,7 @@ class CreateStageMutation(BaseModel):
         """Arguments for CreateStage"""
 
         input: StageInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateStage"""
@@ -2649,6 +2660,7 @@ class CreateRoiMutation(BaseModel):
         """Arguments for CreateRoi"""
 
         input: RoiInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateRoi"""
@@ -2666,6 +2678,7 @@ class DeleteRoiMutation(BaseModel):
         """Arguments for DeleteRoi"""
 
         input: DeleteRoiInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for DeleteRoi"""
@@ -2683,6 +2696,7 @@ class UpdateRoiMutation(BaseModel):
         """Arguments for UpdateRoi"""
 
         input: UpdateRoiInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateRoi"""
@@ -2713,6 +2727,7 @@ class CreateObjectiveMutation(BaseModel):
         """Arguments for CreateObjective"""
 
         input: ObjectiveInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateObjective"""
@@ -2743,6 +2758,7 @@ class EnsureObjectiveMutation(BaseModel):
         """Arguments for EnsureObjective"""
 
         input: ObjectiveInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for EnsureObjective"""
@@ -2760,6 +2776,7 @@ class CreateDatasetMutation(BaseModel):
         """Arguments for CreateDataset"""
 
         input: CreateDatasetInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateDataset"""
@@ -2777,6 +2794,7 @@ class EnsureDatasetMutation(BaseModel):
         """Arguments for EnsureDataset"""
 
         input: CreateDatasetInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for EnsureDataset"""
@@ -2794,6 +2812,7 @@ class UpdateDatasetMutation(BaseModel):
         """Arguments for UpdateDataset"""
 
         input: ChangeDatasetInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateDataset"""
@@ -2811,6 +2830,7 @@ class RevertDatasetMutation(BaseModel):
         """Arguments for RevertDataset"""
 
         input: RevertInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RevertDataset"""
@@ -2841,6 +2861,7 @@ class CreateInstrumentMutation(BaseModel):
         """Arguments for CreateInstrument"""
 
         input: InstrumentInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateInstrument"""
@@ -2871,6 +2892,7 @@ class EnsureInstrumentMutation(BaseModel):
         """Arguments for EnsureInstrument"""
 
         input: InstrumentInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for EnsureInstrument"""
@@ -2888,11 +2910,12 @@ class From_array_likeMutation(BaseModel):
         """Arguments for from_array_like"""
 
         input: FromArrayLikeInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for from_array_like"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -2905,6 +2928,7 @@ class RequestUploadMutation(BaseModel):
         """Arguments for RequestUpload"""
 
         input: RequestUploadInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestUpload"""
@@ -2922,6 +2946,7 @@ class RequestAccessMutation(BaseModel):
         """Arguments for RequestAccess"""
 
         input: RequestAccessInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestAccess"""
@@ -2948,6 +2973,7 @@ class CreateEraMutation(BaseModel):
         """Arguments for CreateEra"""
 
         input: EraInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateEra"""
@@ -2965,6 +2991,7 @@ class CreateSnapshotMutation(BaseModel):
         """Arguments for CreateSnapshot"""
 
         input: SnapshotInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateSnapshot"""
@@ -2992,6 +3019,7 @@ class CreateRgbViewMutation(BaseModel):
         """Arguments for CreateRgbView"""
 
         input: RGBViewInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateRgbView"""
@@ -3009,6 +3037,7 @@ class CreateLabelViewMutation(BaseModel):
         """Arguments for CreateLabelView"""
 
         input: LabelViewInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateLabelView"""
@@ -3026,6 +3055,7 @@ class CreateHistogramViewMutation(BaseModel):
         """Arguments for CreateHistogramView"""
 
         input: HistogramViewInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateHistogramView"""
@@ -3043,6 +3073,7 @@ class CreateRGBContextMutation(BaseModel):
         """Arguments for CreateRGBContext"""
 
         input: CreateRGBContextInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateRGBContext"""
@@ -3060,6 +3091,7 @@ class UpdateRGBContextMutation(BaseModel):
         """Arguments for UpdateRGBContext"""
 
         input: UpdateRGBContextInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateRGBContext"""
@@ -3090,6 +3122,7 @@ class CreateViewCollectionMutation(BaseModel):
         """Arguments for CreateViewCollection"""
 
         input: ViewCollectionInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateViewCollection"""
@@ -3118,6 +3151,7 @@ class CreateChannelMutation(BaseModel):
         """Arguments for CreateChannel"""
 
         input: ChannelInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateChannel"""
@@ -3146,6 +3180,7 @@ class EnsureChannelMutation(BaseModel):
         """Arguments for EnsureChannel"""
 
         input: ChannelInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for EnsureChannel"""
@@ -3163,6 +3198,7 @@ class CreateMeshMutation(BaseModel):
         """Arguments for CreateMesh"""
 
         input: MeshInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateMesh"""
@@ -3180,6 +3216,7 @@ class RequestMeshUploadMutation(BaseModel):
         """Arguments for RequestMeshUpload"""
 
         input: RequestMeshUploadInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestMeshUpload"""
@@ -3196,6 +3233,7 @@ class GetCameraQuery(BaseModel):
         """Arguments for GetCamera"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetCamera"""
@@ -3212,6 +3250,7 @@ class GetTableQuery(BaseModel):
         """Arguments for GetTable"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetTable"""
@@ -3240,6 +3279,7 @@ class SearchTablesQuery(BaseModel):
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchTables"""
@@ -3256,6 +3296,7 @@ class GetRenderedPlotQuery(BaseModel):
         """Arguments for GetRenderedPlot"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetRenderedPlot"""
@@ -3270,6 +3311,8 @@ class ListRenderedPlotsQuery(BaseModel):
 
     class Arguments(BaseModel):
         """Arguments for ListRenderedPlots"""
+
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for ListRenderedPlots"""
@@ -3298,6 +3341,7 @@ class SearchRenderedPlotsQuery(BaseModel):
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchRenderedPlots"""
@@ -3314,6 +3358,7 @@ class GetFileQuery(BaseModel):
         """Arguments for GetFile"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetFile"""
@@ -3341,6 +3386,7 @@ class SearchFilesQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchFiles"""
@@ -3357,6 +3403,7 @@ class GetTableRowQuery(BaseModel):
         """Arguments for GetTableRow"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetTableRow"""
@@ -3385,6 +3432,7 @@ class SearchTableRowsQuery(BaseModel):
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchTableRows"""
@@ -3401,6 +3449,7 @@ class GetStageQuery(BaseModel):
         """Arguments for GetStage"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetStage"""
@@ -3430,6 +3479,7 @@ class SearchStagesQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchStages"""
@@ -3446,6 +3496,7 @@ class GetRoisQuery(BaseModel):
         """Arguments for GetRois"""
 
         image: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetRois"""
@@ -3462,6 +3513,7 @@ class GetRoiQuery(BaseModel):
         """Arguments for GetRoi"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetRoi"""
@@ -3488,6 +3540,7 @@ class SearchRoisQuery(BaseModel):
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchRois"""
@@ -3504,6 +3557,7 @@ class GetObjectiveQuery(BaseModel):
         """Arguments for GetObjective"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetObjective"""
@@ -3520,6 +3574,7 @@ class GetDatasetQuery(BaseModel):
         """Arguments for GetDataset"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetDataset"""
@@ -3549,6 +3604,7 @@ class SearchDatasetsQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchDatasets"""
@@ -3565,6 +3621,7 @@ class GetInstrumentQuery(BaseModel):
         """Arguments for GetInstrument"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetInstrument"""
@@ -3581,6 +3638,7 @@ class GetTableCellQuery(BaseModel):
         """Arguments for GetTableCell"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetTableCell"""
@@ -3609,6 +3667,7 @@ class SearchTableCellsQuery(BaseModel):
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchTableCells"""
@@ -3626,11 +3685,12 @@ class GetImageQuery(BaseModel):
         """Arguments for GetImage"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetImage"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -3641,10 +3701,12 @@ class GetRandomImageQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetRandomImage"""
 
+        model_config = ConfigDict(populate_by_name=True)
+
     class Meta:
         """Meta class for GetRandomImage"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
@@ -3669,6 +3731,7 @@ class SearchImagesQuery(BaseModel):
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchImages"""
@@ -3686,11 +3749,12 @@ class ImagesQuery(BaseModel):
 
         filter: Optional[ImageFilter] = Field(default=None)
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for Images"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class ViewImageQueryImageStore(HasZarrStoreAccessor, BaseModel):
@@ -3796,6 +3860,9 @@ class ViewImageQueryImageViewsBaseHistogramView(
 class ViewImageQueryImageViewsBaseRGBView(ViewImageQueryImageViewsBase, BaseModel):
     """No documentation"""
 
+    typename: Literal["RGBView"] = Field(
+        alias="__typename", default="RGBView", exclude=True
+    )
     typename: Literal["RGBView"] = Field(
         alias="__typename", default="RGBView", exclude=True
     )
@@ -3912,6 +3979,7 @@ class ViewImageQuery(BaseModel):
 
         id: ID
         filtersggg: Optional[ViewFilter] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for ViewImage"""
@@ -3928,6 +3996,7 @@ class GetSnapshotQuery(BaseModel):
         """Arguments for GetSnapshot"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetSnapshot"""
@@ -3956,6 +4025,7 @@ class SearchSnapshotsQuery(BaseModel):
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchSnapshots"""
@@ -3972,6 +4042,7 @@ class GetRGBContextQuery(BaseModel):
         """Arguments for GetRGBContext"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetRGBContext"""
@@ -3988,6 +4059,7 @@ class GetMeshQuery(BaseModel):
         """Arguments for GetMesh"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetMesh"""
@@ -4015,6 +4087,7 @@ class SearchMeshesQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchMeshes"""
@@ -4044,6 +4117,7 @@ class WatchFilesSubscription(BaseModel):
         """Arguments for WatchFiles"""
 
         dataset: Optional[ID] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for WatchFiles"""
@@ -4073,11 +4147,12 @@ class WatchImagesSubscription(BaseModel):
         """Arguments for WatchImages"""
 
         dataset: Optional[ID] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for WatchImages"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):
@@ -4102,6 +4177,7 @@ class WatchRoisSubscription(BaseModel):
         """Arguments for WatchRois"""
 
         image: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for WatchRois"""
@@ -4138,7 +4214,8 @@ async def acreate_camera(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateCameraMutationCreatecamera"""
+        CreateCameraMutationCreatecamera
+    """
     return (
         await aexecute(
             CreateCameraMutation,
@@ -4189,7 +4266,8 @@ def create_camera(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateCameraMutationCreatecamera"""
+        CreateCameraMutationCreatecamera
+    """
     return execute(
         CreateCameraMutation,
         {
@@ -4238,7 +4316,8 @@ async def aensure_camera(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureCameraMutationEnsurecamera"""
+        EnsureCameraMutationEnsurecamera
+    """
     return (
         await aexecute(
             EnsureCameraMutation,
@@ -4289,7 +4368,8 @@ def ensure_camera(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureCameraMutationEnsurecamera"""
+        EnsureCameraMutationEnsurecamera
+    """
     return execute(
         EnsureCameraMutation,
         {
@@ -4322,7 +4402,8 @@ async def acreate_render_tree(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRenderTreeMutationCreaterendertree"""
+        CreateRenderTreeMutationCreaterendertree
+    """
     return (
         await aexecute(
             CreateRenderTreeMutation, {"input": {"tree": tree, "name": name}}, rath=rath
@@ -4343,7 +4424,8 @@ def create_render_tree(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRenderTreeMutationCreaterendertree"""
+        CreateRenderTreeMutationCreaterendertree
+    """
     return execute(
         CreateRenderTreeMutation, {"input": {"tree": tree, "name": name}}, rath=rath
     ).create_render_tree
@@ -4372,7 +4454,8 @@ async def afrom_parquet_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Table"""
+        Table
+    """
     return (
         await aexecute(
             From_parquet_likeMutation,
@@ -4414,7 +4497,8 @@ def from_parquet_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Table"""
+        Table
+    """
     return execute(
         From_parquet_likeMutation,
         {
@@ -4444,7 +4528,8 @@ async def arequest_table_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        Credentials
+    """
     return (
         await aexecute(
             RequestTableUploadMutation,
@@ -4467,7 +4552,8 @@ def request_table_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        Credentials
+    """
     return execute(
         RequestTableUploadMutation,
         {"input": {"key": key, "datalayer": datalayer}},
@@ -4488,7 +4574,8 @@ async def arequest_table_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        AccessCredentials
+    """
     return (
         await aexecute(
             RequestTableAccessMutation,
@@ -4511,7 +4598,8 @@ def request_table_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        AccessCredentials
+    """
     return execute(
         RequestTableAccessMutation,
         {"input": {"store": store, "duration": duration}},
@@ -4536,7 +4624,8 @@ async def acreate_rendered_plot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RenderedPlot"""
+        RenderedPlot
+    """
     return (
         await aexecute(
             CreateRenderedPlotMutation,
@@ -4563,7 +4652,8 @@ def create_rendered_plot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RenderedPlot"""
+        RenderedPlot
+    """
     return execute(
         CreateRenderedPlotMutation,
         {"input": {"name": name, "plot": plot, "overlays": overlays}},
@@ -4590,7 +4680,8 @@ async def afrom_file_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        File"""
+        File
+    """
     return (
         await aexecute(
             From_file_likeMutation,
@@ -4626,7 +4717,8 @@ def from_file_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        File"""
+        File
+    """
     return execute(
         From_file_likeMutation,
         {
@@ -4654,7 +4746,8 @@ async def arequest_file_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        Credentials
+    """
     return (
         await aexecute(
             RequestFileUploadMutation,
@@ -4677,7 +4770,8 @@ def request_file_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        Credentials
+    """
     return execute(
         RequestFileUploadMutation,
         {"input": {"fileName": file_name, "datalayer": datalayer}},
@@ -4698,7 +4792,8 @@ async def arequest_file_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        AccessCredentials
+    """
     return (
         await aexecute(
             RequestFileAccessMutation,
@@ -4721,7 +4816,8 @@ def request_file_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        AccessCredentials
+    """
     return execute(
         RequestFileAccessMutation,
         {"input": {"store": store, "duration": duration}},
@@ -4742,7 +4838,8 @@ async def acreate_stage(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Stage"""
+        Stage
+    """
     return (
         await aexecute(
             CreateStageMutation,
@@ -4765,7 +4862,8 @@ def create_stage(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Stage"""
+        Stage
+    """
     return execute(
         CreateStageMutation,
         {"input": {"name": name, "instrument": instrument}},
@@ -4790,7 +4888,8 @@ async def acreate_roi(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        ROI
+    """
     return (
         await aexecute(
             CreateRoiMutation,
@@ -4817,7 +4916,8 @@ def create_roi(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        ROI
+    """
     return execute(
         CreateRoiMutation,
         {"input": {"image": image, "vectors": vectors, "kind": kind}},
@@ -4835,7 +4935,8 @@ async def adelete_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ID:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ID"""
+        ID
+    """
     return (
         await aexecute(DeleteRoiMutation, {"input": {"id": id}}, rath=rath)
     ).delete_roi
@@ -4851,7 +4952,8 @@ def delete_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ID:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ID"""
+        ID
+    """
     return execute(DeleteRoiMutation, {"input": {"id": id}}, rath=rath).delete_roi
 
 
@@ -4880,7 +4982,8 @@ async def aupdate_roi(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        ROI
+    """
     return (
         await aexecute(
             UpdateRoiMutation,
@@ -4925,7 +5028,8 @@ def update_roi(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        ROI
+    """
     return execute(
         UpdateRoiMutation,
         {
@@ -4964,7 +5068,8 @@ async def acreate_objective(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateObjectiveMutationCreateobjective"""
+        CreateObjectiveMutationCreateobjective
+    """
     return (
         await aexecute(
             CreateObjectiveMutation,
@@ -5003,7 +5108,8 @@ def create_objective(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateObjectiveMutationCreateobjective"""
+        CreateObjectiveMutationCreateobjective
+    """
     return execute(
         CreateObjectiveMutation,
         {
@@ -5040,7 +5146,8 @@ async def aensure_objective(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureObjectiveMutationEnsureobjective"""
+        EnsureObjectiveMutationEnsureobjective
+    """
     return (
         await aexecute(
             EnsureObjectiveMutation,
@@ -5079,7 +5186,8 @@ def ensure_objective(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureObjectiveMutationEnsureobjective"""
+        EnsureObjectiveMutationEnsureobjective
+    """
     return execute(
         EnsureObjectiveMutation,
         {
@@ -5108,7 +5216,8 @@ async def acreate_dataset(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        Dataset
+    """
     return (
         await aexecute(
             CreateDatasetMutation,
@@ -5131,7 +5240,8 @@ def create_dataset(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        Dataset
+    """
     return execute(
         CreateDatasetMutation, {"input": {"name": name, "parent": parent}}, rath=rath
     ).create_dataset
@@ -5150,7 +5260,8 @@ async def aensure_dataset(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        Dataset
+    """
     return (
         await aexecute(
             EnsureDatasetMutation,
@@ -5173,7 +5284,8 @@ def ensure_dataset(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        Dataset
+    """
     return execute(
         EnsureDatasetMutation, {"input": {"name": name, "parent": parent}}, rath=rath
     ).ensure_dataset
@@ -5193,7 +5305,8 @@ async def aupdate_dataset(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        Dataset
+    """
     return (
         await aexecute(
             UpdateDatasetMutation,
@@ -5217,7 +5330,8 @@ def update_dataset(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        Dataset
+    """
     return execute(
         UpdateDatasetMutation,
         {"input": {"name": name, "parent": parent, "id": id}},
@@ -5238,7 +5352,8 @@ async def arevert_dataset(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        Dataset
+    """
     return (
         await aexecute(
             RevertDatasetMutation,
@@ -5261,7 +5376,8 @@ def revert_dataset(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        Dataset
+    """
     return execute(
         RevertDatasetMutation, {"input": {"id": id, "historyId": history_id}}, rath=rath
     ).revert_dataset
@@ -5286,7 +5402,8 @@ async def acreate_instrument(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateInstrumentMutationCreateinstrument"""
+        CreateInstrumentMutationCreateinstrument
+    """
     return (
         await aexecute(
             CreateInstrumentMutation,
@@ -5322,7 +5439,8 @@ def create_instrument(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateInstrumentMutationCreateinstrument"""
+        CreateInstrumentMutationCreateinstrument
+    """
     return execute(
         CreateInstrumentMutation,
         {
@@ -5356,7 +5474,8 @@ async def aensure_instrument(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureInstrumentMutationEnsureinstrument"""
+        EnsureInstrumentMutationEnsureinstrument
+    """
     return (
         await aexecute(
             EnsureInstrumentMutation,
@@ -5392,7 +5511,8 @@ def ensure_instrument(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureInstrumentMutationEnsureinstrument"""
+        EnsureInstrumentMutationEnsureinstrument
+    """
     return execute(
         EnsureInstrumentMutation,
         {
@@ -5452,7 +5572,8 @@ async def afrom_array_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        Image
+    """
     return (
         await aexecute(
             From_array_likeMutation,
@@ -5526,7 +5647,8 @@ def from_array_like(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        Image
+    """
     return execute(
         From_array_likeMutation,
         {
@@ -5566,7 +5688,8 @@ async def arequest_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        Credentials
+    """
     return (
         await aexecute(
             RequestUploadMutation,
@@ -5589,7 +5712,8 @@ def request_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Credentials"""
+        Credentials
+    """
     return execute(
         RequestUploadMutation,
         {"input": {"key": key, "datalayer": datalayer}},
@@ -5610,7 +5734,8 @@ async def arequest_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        AccessCredentials
+    """
     return (
         await aexecute(
             RequestAccessMutation,
@@ -5633,7 +5758,8 @@ def request_access(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        AccessCredentials"""
+        AccessCredentials
+    """
     return execute(
         RequestAccessMutation,
         {"input": {"store": store, "duration": duration}},
@@ -5654,7 +5780,8 @@ async def acreate_era(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateEraMutationCreateera"""
+        CreateEraMutationCreateera
+    """
     return (
         await aexecute(
             CreateEraMutation, {"input": {"name": name, "begin": begin}}, rath=rath
@@ -5675,7 +5802,8 @@ def create_era(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateEraMutationCreateera"""
+        CreateEraMutationCreateera
+    """
     return execute(
         CreateEraMutation, {"input": {"name": name, "begin": begin}}, rath=rath
     ).create_era
@@ -5694,7 +5822,8 @@ async def acreate_snapshot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Snapshot"""
+        Snapshot
+    """
     return (
         await aexecute(
             CreateSnapshotMutation, {"input": {"file": file, "image": image}}, rath=rath
@@ -5715,7 +5844,8 @@ def create_snapshot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Snapshot"""
+        Snapshot
+    """
     return execute(
         CreateSnapshotMutation, {"input": {"file": file, "image": image}}, rath=rath
     ).create_snapshot
@@ -5774,7 +5904,8 @@ async def acreate_rgb_view(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRgbViewMutationCreatergbview"""
+        CreateRgbViewMutationCreatergbview
+    """
     return (
         await aexecute(
             CreateRgbViewMutation,
@@ -5861,7 +5992,8 @@ def create_rgb_view(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateRgbViewMutationCreatergbview"""
+        CreateRgbViewMutationCreatergbview
+    """
     return execute(
         CreateRgbViewMutation,
         {
@@ -5930,7 +6062,8 @@ async def acreate_label_view(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        LabelView"""
+        LabelView
+    """
     return (
         await aexecute(
             CreateLabelViewMutation,
@@ -5993,7 +6126,8 @@ def create_label_view(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        LabelView"""
+        LabelView
+    """
     return execute(
         CreateLabelViewMutation,
         {
@@ -6060,7 +6194,8 @@ async def acreate_histogram_view(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        HistogramView"""
+        HistogramView
+    """
     return (
         await aexecute(
             CreateHistogramViewMutation,
@@ -6132,7 +6267,8 @@ def create_histogram_view(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        HistogramView"""
+        HistogramView
+    """
     return execute(
         CreateHistogramViewMutation,
         {
@@ -6184,7 +6320,8 @@ async def acreate_rgb_context(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        RGBContext
+    """
     return (
         await aexecute(
             CreateRGBContextMutation,
@@ -6229,7 +6366,8 @@ def create_rgb_context(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        RGBContext
+    """
     return execute(
         CreateRGBContextMutation,
         {
@@ -6272,7 +6410,8 @@ async def aupdate_rgb_context(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        RGBContext
+    """
     return (
         await aexecute(
             UpdateRGBContextMutation,
@@ -6317,7 +6456,8 @@ def update_rgb_context(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        RGBContext
+    """
     return execute(
         UpdateRGBContextMutation,
         {
@@ -6347,7 +6487,8 @@ async def acreate_view_collection(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateViewCollectionMutationCreateviewcollection"""
+        CreateViewCollectionMutationCreateviewcollection
+    """
     return (
         await aexecute(
             CreateViewCollectionMutation, {"input": {"name": name}}, rath=rath
@@ -6367,7 +6508,8 @@ def create_view_collection(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateViewCollectionMutationCreateviewcollection"""
+        CreateViewCollectionMutationCreateviewcollection
+    """
     return execute(
         CreateViewCollectionMutation, {"input": {"name": name}}, rath=rath
     ).create_view_collection
@@ -6385,7 +6527,8 @@ async def acreate_channel(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateChannelMutationCreatechannel"""
+        CreateChannelMutationCreatechannel
+    """
     return (
         await aexecute(CreateChannelMutation, {"input": {"name": name}}, rath=rath)
     ).create_channel
@@ -6403,7 +6546,8 @@ def create_channel(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        CreateChannelMutationCreatechannel"""
+        CreateChannelMutationCreatechannel
+    """
     return execute(
         CreateChannelMutation, {"input": {"name": name}}, rath=rath
     ).create_channel
@@ -6421,7 +6565,8 @@ async def aensure_channel(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureChannelMutationEnsurechannel"""
+        EnsureChannelMutationEnsurechannel
+    """
     return (
         await aexecute(EnsureChannelMutation, {"input": {"name": name}}, rath=rath)
     ).ensure_channel
@@ -6439,7 +6584,8 @@ def ensure_channel(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        EnsureChannelMutationEnsurechannel"""
+        EnsureChannelMutationEnsurechannel
+    """
     return execute(
         EnsureChannelMutation, {"input": {"name": name}}, rath=rath
     ).ensure_channel
@@ -6458,7 +6604,8 @@ async def acreate_mesh(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Mesh"""
+        Mesh
+    """
     return (
         await aexecute(
             CreateMeshMutation, {"input": {"mesh": mesh, "name": name}}, rath=rath
@@ -6479,7 +6626,8 @@ def create_mesh(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Mesh"""
+        Mesh
+    """
     return execute(
         CreateMeshMutation, {"input": {"mesh": mesh, "name": name}}, rath=rath
     ).create_mesh
@@ -6498,7 +6646,8 @@ async def arequest_mesh_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        PresignedPostCredentials"""
+        PresignedPostCredentials
+    """
     return (
         await aexecute(
             RequestMeshUploadMutation,
@@ -6521,7 +6670,8 @@ def request_mesh_upload(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        PresignedPostCredentials"""
+        PresignedPostCredentials
+    """
     return execute(
         RequestMeshUploadMutation,
         {"input": {"key": key, "datalayer": datalayer}},
@@ -6538,7 +6688,8 @@ async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Camera"""
+        Camera
+    """
     return (await aexecute(GetCameraQuery, {"id": id}, rath=rath)).camera
 
 
@@ -6551,7 +6702,8 @@ def get_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Camera"""
+        Camera
+    """
     return execute(GetCameraQuery, {"id": id}, rath=rath).camera
 
 
@@ -6564,7 +6716,8 @@ async def aget_table(id: ID, rath: Optional[MikroNextRath] = None) -> Table:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Table"""
+        Table
+    """
     return (await aexecute(GetTableQuery, {"id": id}, rath=rath)).table
 
 
@@ -6577,7 +6730,8 @@ def get_table(id: ID, rath: Optional[MikroNextRath] = None) -> Table:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Table"""
+        Table
+    """
     return execute(GetTableQuery, {"id": id}, rath=rath).table
 
 
@@ -6595,7 +6749,8 @@ async def asearch_tables(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchTablesQueryTables]"""
+        List[SearchTablesQueryTables]
+    """
     return (
         await aexecute(
             SearchTablesQuery, {"search": search, "values": values}, rath=rath
@@ -6617,7 +6772,8 @@ def search_tables(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchTablesQueryTables]"""
+        List[SearchTablesQueryTables]
+    """
     return execute(
         SearchTablesQuery, {"search": search, "values": values}, rath=rath
     ).options
@@ -6634,7 +6790,8 @@ async def aget_rendered_plot(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RenderedPlot"""
+        RenderedPlot
+    """
     return (await aexecute(GetRenderedPlotQuery, {"id": id}, rath=rath)).rendered_plot
 
 
@@ -6647,7 +6804,8 @@ def get_rendered_plot(id: ID, rath: Optional[MikroNextRath] = None) -> RenderedP
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RenderedPlot"""
+        RenderedPlot
+    """
     return execute(GetRenderedPlotQuery, {"id": id}, rath=rath).rendered_plot
 
 
@@ -6661,7 +6819,8 @@ async def alist_rendered_plots(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ListRenderedPlot]"""
+        List[ListRenderedPlot]
+    """
     return (await aexecute(ListRenderedPlotsQuery, {}, rath=rath)).rendered_plots
 
 
@@ -6675,7 +6834,8 @@ def list_rendered_plots(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ListRenderedPlot]"""
+        List[ListRenderedPlot]
+    """
     return execute(ListRenderedPlotsQuery, {}, rath=rath).rendered_plots
 
 
@@ -6693,7 +6853,8 @@ async def asearch_rendered_plots(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchRenderedPlotsQueryRenderedplots]"""
+        List[SearchRenderedPlotsQueryRenderedplots]
+    """
     return (
         await aexecute(
             SearchRenderedPlotsQuery, {"search": search, "values": values}, rath=rath
@@ -6715,7 +6876,8 @@ def search_rendered_plots(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchRenderedPlotsQueryRenderedplots]"""
+        List[SearchRenderedPlotsQueryRenderedplots]
+    """
     return execute(
         SearchRenderedPlotsQuery, {"search": search, "values": values}, rath=rath
     ).options
@@ -6730,7 +6892,8 @@ async def aget_file(id: ID, rath: Optional[MikroNextRath] = None) -> File:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        File"""
+        File
+    """
     return (await aexecute(GetFileQuery, {"id": id}, rath=rath)).file
 
 
@@ -6743,7 +6906,8 @@ def get_file(id: ID, rath: Optional[MikroNextRath] = None) -> File:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        File"""
+        File
+    """
     return execute(GetFileQuery, {"id": id}, rath=rath).file
 
 
@@ -6763,7 +6927,8 @@ async def asearch_files(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchFilesQueryFiles]"""
+        List[SearchFilesQueryFiles]
+    """
     return (
         await aexecute(
             SearchFilesQuery,
@@ -6789,7 +6954,8 @@ def search_files(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchFilesQueryFiles]"""
+        List[SearchFilesQueryFiles]
+    """
     return execute(
         SearchFilesQuery,
         {"search": search, "values": values, "pagination": pagination},
@@ -6806,7 +6972,8 @@ async def aget_table_row(id: ID, rath: Optional[MikroNextRath] = None) -> TableR
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        TableRow"""
+        TableRow
+    """
     return (await aexecute(GetTableRowQuery, {"id": id}, rath=rath)).table_row
 
 
@@ -6819,7 +6986,8 @@ def get_table_row(id: ID, rath: Optional[MikroNextRath] = None) -> TableRow:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        TableRow"""
+        TableRow
+    """
     return execute(GetTableRowQuery, {"id": id}, rath=rath).table_row
 
 
@@ -6837,7 +7005,8 @@ async def asearch_table_rows(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchTableRowsQueryTablerows]"""
+        List[SearchTableRowsQueryTablerows]
+    """
     return (
         await aexecute(
             SearchTableRowsQuery, {"search": search, "values": values}, rath=rath
@@ -6859,7 +7028,8 @@ def search_table_rows(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchTableRowsQueryTablerows]"""
+        List[SearchTableRowsQueryTablerows]
+    """
     return execute(
         SearchTableRowsQuery, {"search": search, "values": values}, rath=rath
     ).options
@@ -6874,7 +7044,8 @@ async def aget_stage(id: ID, rath: Optional[MikroNextRath] = None) -> Stage:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Stage"""
+        Stage
+    """
     return (await aexecute(GetStageQuery, {"id": id}, rath=rath)).stage
 
 
@@ -6887,7 +7058,8 @@ def get_stage(id: ID, rath: Optional[MikroNextRath] = None) -> Stage:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Stage"""
+        Stage
+    """
     return execute(GetStageQuery, {"id": id}, rath=rath).stage
 
 
@@ -6907,7 +7079,8 @@ async def asearch_stages(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchStagesQueryStages]"""
+        List[SearchStagesQueryStages]
+    """
     return (
         await aexecute(
             SearchStagesQuery,
@@ -6933,7 +7106,8 @@ def search_stages(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchStagesQueryStages]"""
+        List[SearchStagesQueryStages]
+    """
     return execute(
         SearchStagesQuery,
         {"search": search, "values": values, "pagination": pagination},
@@ -6950,7 +7124,8 @@ async def aget_rois(image: ID, rath: Optional[MikroNextRath] = None) -> Tuple[RO
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ROI]"""
+        List[ROI]
+    """
     return (await aexecute(GetRoisQuery, {"image": image}, rath=rath)).rois
 
 
@@ -6963,7 +7138,8 @@ def get_rois(image: ID, rath: Optional[MikroNextRath] = None) -> Tuple[ROI, ...]
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[ROI]"""
+        List[ROI]
+    """
     return execute(GetRoisQuery, {"image": image}, rath=rath).rois
 
 
@@ -6976,7 +7152,8 @@ async def aget_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ROI:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        ROI
+    """
     return (await aexecute(GetRoiQuery, {"id": id}, rath=rath)).roi
 
 
@@ -6989,7 +7166,8 @@ def get_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ROI:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ROI"""
+        ROI
+    """
     return execute(GetRoiQuery, {"id": id}, rath=rath).roi
 
 
@@ -7007,7 +7185,8 @@ async def asearch_rois(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchRoisQueryRois]"""
+        List[SearchRoisQueryRois]
+    """
     return (
         await aexecute(SearchRoisQuery, {"search": search, "values": values}, rath=rath)
     ).options
@@ -7027,7 +7206,8 @@ def search_rois(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchRoisQueryRois]"""
+        List[SearchRoisQueryRois]
+    """
     return execute(
         SearchRoisQuery, {"search": search, "values": values}, rath=rath
     ).options
@@ -7042,7 +7222,8 @@ async def aget_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Objective"""
+        Objective
+    """
     return (await aexecute(GetObjectiveQuery, {"id": id}, rath=rath)).objective
 
 
@@ -7055,7 +7236,8 @@ def get_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Objective:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Objective"""
+        Objective
+    """
     return execute(GetObjectiveQuery, {"id": id}, rath=rath).objective
 
 
@@ -7068,7 +7250,8 @@ async def aget_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        Dataset
+    """
     return (await aexecute(GetDatasetQuery, {"id": id}, rath=rath)).dataset
 
 
@@ -7081,7 +7264,8 @@ def get_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Dataset"""
+        Dataset
+    """
     return execute(GetDatasetQuery, {"id": id}, rath=rath).dataset
 
 
@@ -7101,7 +7285,8 @@ async def asearch_datasets(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchDatasetsQueryDatasets]"""
+        List[SearchDatasetsQueryDatasets]
+    """
     return (
         await aexecute(
             SearchDatasetsQuery,
@@ -7127,7 +7312,8 @@ def search_datasets(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchDatasetsQueryDatasets]"""
+        List[SearchDatasetsQueryDatasets]
+    """
     return execute(
         SearchDatasetsQuery,
         {"search": search, "values": values, "pagination": pagination},
@@ -7144,7 +7330,8 @@ async def aget_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instr
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Instrument"""
+        Instrument
+    """
     return (await aexecute(GetInstrumentQuery, {"id": id}, rath=rath)).instrument
 
 
@@ -7157,7 +7344,8 @@ def get_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instrument:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Instrument"""
+        Instrument
+    """
     return execute(GetInstrumentQuery, {"id": id}, rath=rath).instrument
 
 
@@ -7170,7 +7358,8 @@ async def aget_table_cell(id: ID, rath: Optional[MikroNextRath] = None) -> Table
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        TableCell"""
+        TableCell
+    """
     return (await aexecute(GetTableCellQuery, {"id": id}, rath=rath)).table_cell
 
 
@@ -7183,7 +7372,8 @@ def get_table_cell(id: ID, rath: Optional[MikroNextRath] = None) -> TableCell:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        TableCell"""
+        TableCell
+    """
     return execute(GetTableCellQuery, {"id": id}, rath=rath).table_cell
 
 
@@ -7201,7 +7391,8 @@ async def asearch_table_cells(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchTableCellsQueryTablecells]"""
+        List[SearchTableCellsQueryTablecells]
+    """
     return (
         await aexecute(
             SearchTableCellsQuery, {"search": search, "values": values}, rath=rath
@@ -7223,7 +7414,8 @@ def search_table_cells(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchTableCellsQueryTablecells]"""
+        List[SearchTableCellsQueryTablecells]
+    """
     return execute(
         SearchTableCellsQuery, {"search": search, "values": values}, rath=rath
     ).options
@@ -7239,7 +7431,8 @@ async def aget_image(id: ID, rath: Optional[MikroNextRath] = None) -> Image:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        Image
+    """
     return (await aexecute(GetImageQuery, {"id": id}, rath=rath)).image
 
 
@@ -7253,7 +7446,8 @@ def get_image(id: ID, rath: Optional[MikroNextRath] = None) -> Image:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        Image
+    """
     return execute(GetImageQuery, {"id": id}, rath=rath).image
 
 
@@ -7265,7 +7459,8 @@ async def aget_random_image(rath: Optional[MikroNextRath] = None) -> Image:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        Image
+    """
     return (await aexecute(GetRandomImageQuery, {}, rath=rath)).random_image
 
 
@@ -7277,7 +7472,8 @@ def get_random_image(rath: Optional[MikroNextRath] = None) -> Image:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Image"""
+        Image
+    """
     return execute(GetRandomImageQuery, {}, rath=rath).random_image
 
 
@@ -7295,7 +7491,8 @@ async def asearch_images(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchImagesQueryImages]"""
+        List[SearchImagesQueryImages]
+    """
     return (
         await aexecute(
             SearchImagesQuery, {"search": search, "values": values}, rath=rath
@@ -7317,7 +7514,8 @@ def search_images(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchImagesQueryImages]"""
+        List[SearchImagesQueryImages]
+    """
     return execute(
         SearchImagesQuery, {"search": search, "values": values}, rath=rath
     ).options
@@ -7337,7 +7535,8 @@ async def aimages(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[Image]"""
+        List[Image]
+    """
     return (
         await aexecute(
             ImagesQuery, {"filter": filter, "pagination": pagination}, rath=rath
@@ -7359,7 +7558,8 @@ def images(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[Image]"""
+        List[Image]
+    """
     return execute(
         ImagesQuery, {"filter": filter, "pagination": pagination}, rath=rath
     ).images
@@ -7380,7 +7580,8 @@ async def aview_image(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ViewImageQueryImage"""
+        ViewImageQueryImage
+    """
     return (
         await aexecute(ViewImageQuery, {"id": id, "filtersggg": filtersggg}, rath=rath)
     ).image
@@ -7401,7 +7602,8 @@ def view_image(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        ViewImageQueryImage"""
+        ViewImageQueryImage
+    """
     return execute(
         ViewImageQuery, {"id": id, "filtersggg": filtersggg}, rath=rath
     ).image
@@ -7416,7 +7618,8 @@ async def aget_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> Snapsho
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Snapshot"""
+        Snapshot
+    """
     return (await aexecute(GetSnapshotQuery, {"id": id}, rath=rath)).snapshot
 
 
@@ -7429,7 +7632,8 @@ def get_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> Snapshot:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Snapshot"""
+        Snapshot
+    """
     return execute(GetSnapshotQuery, {"id": id}, rath=rath).snapshot
 
 
@@ -7447,7 +7651,8 @@ async def asearch_snapshots(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchSnapshotsQuerySnapshots]"""
+        List[SearchSnapshotsQuerySnapshots]
+    """
     return (
         await aexecute(
             SearchSnapshotsQuery, {"search": search, "values": values}, rath=rath
@@ -7469,7 +7674,8 @@ def search_snapshots(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchSnapshotsQuerySnapshots]"""
+        List[SearchSnapshotsQuerySnapshots]
+    """
     return execute(
         SearchSnapshotsQuery, {"search": search, "values": values}, rath=rath
     ).options
@@ -7484,7 +7690,8 @@ async def aget_rgb_context(id: ID, rath: Optional[MikroNextRath] = None) -> RGBC
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        RGBContext
+    """
     return (await aexecute(GetRGBContextQuery, {"id": id}, rath=rath)).rgbcontext
 
 
@@ -7497,7 +7704,8 @@ def get_rgb_context(id: ID, rath: Optional[MikroNextRath] = None) -> RGBContext:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        RGBContext"""
+        RGBContext
+    """
     return execute(GetRGBContextQuery, {"id": id}, rath=rath).rgbcontext
 
 
@@ -7510,7 +7718,8 @@ async def aget_mesh(id: ID, rath: Optional[MikroNextRath] = None) -> Mesh:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Mesh"""
+        Mesh
+    """
     return (await aexecute(GetMeshQuery, {"id": id}, rath=rath)).mesh
 
 
@@ -7523,7 +7732,8 @@ def get_mesh(id: ID, rath: Optional[MikroNextRath] = None) -> Mesh:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        Mesh"""
+        Mesh
+    """
     return execute(GetMeshQuery, {"id": id}, rath=rath).mesh
 
 
@@ -7543,7 +7753,8 @@ async def asearch_meshes(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchMeshesQueryMeshes]"""
+        List[SearchMeshesQueryMeshes]
+    """
     return (
         await aexecute(
             SearchMeshesQuery,
@@ -7569,7 +7780,8 @@ def search_meshes(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        List[SearchMeshesQueryMeshes]"""
+        List[SearchMeshesQueryMeshes]
+    """
     return execute(
         SearchMeshesQuery,
         {"search": search, "values": values, "pagination": pagination},
@@ -7589,7 +7801,8 @@ async def awatch_files(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        WatchFilesSubscriptionFiles"""
+        WatchFilesSubscriptionFiles
+    """
     async for event in asubscribe(
         WatchFilesSubscription, {"dataset": dataset}, rath=rath
     ):
@@ -7608,7 +7821,8 @@ def watch_files(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        WatchFilesSubscriptionFiles"""
+        WatchFilesSubscriptionFiles
+    """
     for event in subscribe(WatchFilesSubscription, {"dataset": dataset}, rath=rath):
         yield event.files
 
@@ -7625,7 +7839,8 @@ async def awatch_images(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        WatchImagesSubscriptionImages"""
+        WatchImagesSubscriptionImages
+    """
     async for event in asubscribe(
         WatchImagesSubscription, {"dataset": dataset}, rath=rath
     ):
@@ -7644,7 +7859,8 @@ def watch_images(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        WatchImagesSubscriptionImages"""
+        WatchImagesSubscriptionImages
+    """
     for event in subscribe(WatchImagesSubscription, {"dataset": dataset}, rath=rath):
         yield event.images
 
@@ -7661,7 +7877,8 @@ async def awatch_rois(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        WatchRoisSubscriptionRois"""
+        WatchRoisSubscriptionRois
+    """
     async for event in asubscribe(WatchRoisSubscription, {"image": image}, rath=rath):
         yield event.rois
 
@@ -7678,7 +7895,8 @@ def watch_rois(
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
-        WatchRoisSubscriptionRois"""
+        WatchRoisSubscriptionRois
+    """
     for event in subscribe(WatchRoisSubscription, {"image": image}, rath=rath):
         yield event.rois
 

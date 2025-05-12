@@ -1,3 +1,4 @@
+from types import TracebackType
 from pydantic import Field
 from .links.upload import UploadLink
 from rath import rath
@@ -46,15 +47,18 @@ class MikroNextRath(rath.Rath):
     This is a subclass of Rath that adds some default links to convert files and array to support
     the graphql multipart request spec."""
 
-    link: MikroNextLinkComposition
-
     async def __aenter__(self) -> "MikroNextRath":
         """Sets the current mikro_next rath to this instance"""
         await super().__aenter__()
         current_mikro_next_rath.set(self)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> Optional[bool]:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Resets the current mikro_next rath to None"""
         await super().__aexit__(exc_type, exc_val, exc_tb)
         current_mikro_next_rath.set(None)

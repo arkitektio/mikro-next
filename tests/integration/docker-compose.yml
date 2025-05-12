@@ -2,7 +2,7 @@ services:
   redis:
     image: redis:latest
   db:
-    image: jhnnsrs/daten:next
+    image: jhnnsrs/daten_next:nightly
     restart: always
     environment:
       POSTGRES_MULTIPLE_DATABASES: mikro

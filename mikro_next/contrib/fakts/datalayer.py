@@ -32,8 +32,7 @@ class FaktsDataLayer(DataLayer):
             return self.endpoint_url
 
     async def aconnect(self):
-        if self.fakts.has_changed(self._old_fakt, self.fakts_group):
-            self._old_fakt = await self.fakts.aget(self.fakts_group)
-            self.configure(DataLayerFakt(**self._old_fakt))
+        fakt = await self.fakts.aget(self.fakts_group)
+        self.configure(DataLayerFakt(**fakt))
 
         self._configured = True

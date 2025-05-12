@@ -20,8 +20,6 @@ if TYPE_CHECKING:
     from mikro_next.datalayer import DataLayer
 
 import dask.array as da
-    
-
 
 
 def _store_xarray_input(
@@ -38,21 +36,18 @@ def _store_xarray_input(
             "endpoint_url": endpoint_url,
             "aws_session_token": credentials.session_token,
         },
-        asynchronous=True
+        asynchronous=True,
     )
 
     # random_uuid = uuid.uuid4()
     # s3_path = f"zarr/{random_uuid}.zarr"
 
     array = xarray.value
-        
-
 
     s3_path = f"{credentials.bucket}/{credentials.key}"
-    store = FsspecStore(filesystem, read_only=False, path=s3_path )
-    
+    store = FsspecStore(filesystem, read_only=False, path=s3_path)
+
     assert isinstance(array.data, np.ndarray), "Array must be a numpy array"
-    
 
     try:
         zarr.save_array(store, array.data, zarr_version=3)
@@ -69,7 +64,9 @@ async def astore_xarray_input(
     """Stores an xarray in the DataLayer"""
 
     if endpoint_url.startswith("https://"):
-        os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = "when_required" #TODO: This is a workaround for a bug in aiobotocore and s3fs https://github.com/fsspec/s3fs/issues/931
+        os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = (
+            "when_required"  # TODO: This is a workaround for a bug in aiobotocore and s3fs https://github.com/fsspec/s3fs/issues/931
+        )
 
     filesystem = s3fs.S3FileSystem(
         secret=credentials.secret_key,
@@ -78,7 +75,7 @@ async def astore_xarray_input(
             "endpoint_url": endpoint_url,
             "aws_session_token": credentials.session_token,
         },
-        asynchronous=True
+        asynchronous=True,
     )
 
     # random_uuid = uuid.uuid4()
@@ -86,16 +83,16 @@ async def astore_xarray_input(
 
     array = xarray.value.transpose("c", "t", "z", "y", "x")
 
-
     s3_path = f"{credentials.bucket}/{credentials.key}"
-    store = FsspecStore(filesystem, read_only=False, path=s3_path )
-    
+    store = FsspecStore(filesystem, read_only=False, path=s3_path)
 
     try:
-        await async_api.save_array(store, array.to_numpy(), zarr_version=3)
+        await async_api.save_array(store, array.to_numpy(), zarr_version=3)  # type: ignore
         return credentials.store
     except Exception as e:
-        raise UploadError(f"Error while uploading to {s3_path} on {endpoint_url}") from e
+        raise UploadError(
+            f"Error while uploading to {s3_path} on {endpoint_url}"
+        ) from e
 
 
 def _store_parquet_input(
@@ -104,8 +101,8 @@ def _store_parquet_input(
     endpoint_url: str,
 ) -> str:
     """Stores an xarray in the DataLayer"""
-    import pyarrow.parquet as pq
-    from pyarrow import Table
+    import pyarrow.parquet as pq  # type: ignore
+    from pyarrow import Table  # type: ignore
     import aiohttp
 
     filesystem = s3fs.S3FileSystem(
@@ -117,11 +114,11 @@ def _store_parquet_input(
         },
     )
 
-    table: Table = Table.from_pandas(parquet_input.value)
+    table: Table = Table.from_pandas(parquet_input.value)  # type: ignore
 
+    s3_path = f"s3://{credentials.bucket}/{credentials.key}"
     try:
-        s3_path = f"s3://{credentials.bucket}/{credentials.key}"
-        pq.write_table(table, s3_path, filesystem=filesystem)
+        pq.write_table(table, s3_path, filesystem=filesystem)  # type: ignore
         return credentials.store
     except Exception as e:
         raise UploadError(f"Error while uploading to {s3_path}") from e
@@ -133,10 +130,8 @@ async def astore_mesh_file(
     datalayer: "DataLayer",
     endpoint_url: str,
 ):
-    
-    
     endpoint_url = await datalayer.get_endpoint_url()
-    
+
     async with aiohttp.ClientSession() as session:
         form_data = aiohttp.FormData()
         form_data.add_field("key", credentials.key)
@@ -145,25 +140,29 @@ async def astore_mesh_file(
         form_data.add_field("x-amz-credential", credentials.x_amz_credential)
         form_data.add_field("x-amz-date", credentials.x_amz_date)
         form_data.add_field("x-amz-signature", credentials.x_amz_signature)
-        form_data.add_field("file", mesh.value, filename="mesh.obj", content_type="application/octet-stream")
+        form_data.add_field(
+            "file",
+            mesh.value,
+            filename="mesh.obj",
+            content_type="application/octet-stream",
+        )
 
         url = endpoint_url + "/" + credentials.bucket
 
         async with session.post(url, data=form_data) as resp:
             if resp.status not in {200, 204}:
                 body = await resp.text()
-                raise UploadError(f"Error while uploading mesh: HTTP {resp.status}: {body}")
-    
-    
-    return credentials.store
+                raise UploadError(
+                    f"Error while uploading mesh: HTTP {resp.status}: {body}"
+                )
 
+    return credentials.store
 
 
 async def aupload_bigfile(
     file: FileLike,
     credentials: "Credentials",
     datalayer: "DataLayer",
-    executor: ThreadPoolExecutor = None,
 ) -> str:
     """Store a DataFrame in the DataLayer"""
     session = get_session()
@@ -201,7 +200,9 @@ async def aupload_xarray(
     executor: ThreadPoolExecutor,
 ) -> str:
     """Store a DataFrame in the DataLayer"""
-    return await astore_xarray_input(array, credentials, await datalayer.get_endpoint_url())
+    return await astore_xarray_input(
+        array, credentials, await datalayer.get_endpoint_url()
+    )
 
 
 async def aupload_parquet(
