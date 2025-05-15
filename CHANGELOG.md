@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.3.1 (2025-05-13)
+
+### Bug Fixes
+
+- Update dependencies for rath and koil to latest versions
+  ([`df36640`](https://github.com/arkitektio/mikro-next/commit/df36640eace76dc598e28c51aedf97b8cbf24753))
+
+
 ## v0.3.0 (2025-05-09)
 
 
