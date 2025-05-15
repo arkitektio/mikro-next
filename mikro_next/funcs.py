@@ -35,7 +35,7 @@ async def aexecute(
 
     x = await rath.aquery(
         operation.Meta.document,
-        operation.Arguments(**variables).model_dump(by_alias=True),
+        operation.Arguments(**variables).model_dump(by_alias=True, exclude_unset=True),
     )
     return operation(**x.data)
 

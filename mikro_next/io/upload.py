@@ -1,6 +1,6 @@
 import os
 from typing import TYPE_CHECKING
-from mikro_next.scalars import ArrayLike, MeshLike, ParquetLike, FileLike
+from mikro_next.scalars import ArrayLike, ImageFileLike, MeshLike, ParquetLike, FileLike
 import asyncio
 import s3fs
 from aiobotocore.session import get_session
@@ -128,7 +128,6 @@ async def astore_mesh_file(
     mesh: MeshLike,
     credentials: "PresignedPostCredentials",
     datalayer: "DataLayer",
-    endpoint_url: str,
 ):
     endpoint_url = await datalayer.get_endpoint_url()
 
@@ -159,8 +158,43 @@ async def astore_mesh_file(
     return credentials.store
 
 
+async def astore_media_file(
+    file: ImageFileLike,
+    credentials: "PresignedPostCredentials",
+    datalayer: "DataLayer",
+):
+    endpoint_url = await datalayer.get_endpoint_url()
+
+    async with aiohttp.ClientSession() as session:
+        form_data = aiohttp.FormData()
+        form_data.add_field("key", credentials.key)
+        form_data.add_field("policy", credentials.policy)
+        form_data.add_field("x-amz-algorithm", credentials.x_amz_algorithm)
+        form_data.add_field("x-amz-credential", credentials.x_amz_credential)
+        form_data.add_field("x-amz-date", credentials.x_amz_date)
+        form_data.add_field("x-amz-signature", credentials.x_amz_signature)
+        form_data.add_field(
+            "file",
+            file.value,
+            filename=file.file_name,
+            content_type="application/octet-stream",
+        )
+
+        url = endpoint_url + "/" + credentials.bucket
+
+        async with session.post(url, data=form_data) as resp:
+            if resp.status not in {200, 204}:
+                body = await resp.text()
+                raise UploadError(
+                    f"Error while uploading mesh: HTTP {resp.status}: {body}"
+                )
+
+    print("Successfully uploaded media file", credentials)
+    return credentials.store
+
+
 async def aupload_bigfile(
-    file: FileLike,
+    file: FileLike | ImageFileLike,
     credentials: "Credentials",
     datalayer: "DataLayer",
 ) -> str:
@@ -190,6 +224,7 @@ async def aupload_bigfile(
 
             raise e
 
+    print(credentials)
     return credentials.store
 
 
@@ -197,7 +232,6 @@ async def aupload_xarray(
     array: ArrayLike,
     credentials: "Credentials",
     datalayer: "DataLayer",
-    executor: ThreadPoolExecutor,
 ) -> str:
     """Store a DataFrame in the DataLayer"""
     return await astore_xarray_input(

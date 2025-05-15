@@ -15,7 +15,6 @@ type Query {
   scaleViews: [ScaleView!]!
   eras(filters: EraFilter, pagination: OffsetPaginationInput): [Era!]!
   myeras(filters: EraFilter, pagination: OffsetPaginationInput): [Era!]!
-  renderedPlots(filters: RenderedPlotFilter, pagination: OffsetPaginationInput): [RenderedPlot!]!
   stages(filters: StageFilter, pagination: OffsetPaginationInput): [Stage!]!
   renderTrees(filters: RenderTreeFilter, order: RenderTreeOrder, pagination: OffsetPaginationInput): [RenderTree!]!
   experiments(filters: ExperimentFilter, pagination: OffsetPaginationInput): [Experiment!]!
@@ -111,10 +110,6 @@ type Query {
     """The unique identifier of an object"""
     id: ID!
   ): Stage!
-  renderedPlot(
-    """The unique identifier of an object"""
-    id: ID!
-  ): RenderedPlot!
   experiment(
     """The unique identifier of an object"""
     id: ID!
@@ -1538,37 +1533,6 @@ type AcquisitionView implements View {
   operator: User
 }
 
-type RenderedPlot implements Plot {
-  entity: String!
-  id: ID!
-  store: MediaStore!
-  name: String!
-  description: String
-  overlays: [Overlay!]
-}
-
-interface Plot {
-  entity: String!
-}
-
-type Overlay {
-  object: String!
-  identifier: String!
-  color: String!
-  x: Int!
-  y: Int!
-}
-
-input RenderedPlotFilter {
-  ids: [ID!]
-  search: String
-  id: ID
-  AND: RenderedPlotFilter
-  OR: RenderedPlotFilter
-  NOT: RenderedPlotFilter
-  DISTINCT: Boolean
-}
-
 type RenderTree {
   id: ID!
   name: String!
@@ -1777,9 +1741,6 @@ type Mutation {
   """Delete an existing file"""
   deleteFile(input: DeleteFileInput!): ID!
 
-  """Create a new rendered plot"""
-  createRenderedPlot(input: RenderedPlotInput!): RenderedPlot!
-
   """Create a new channel"""
   createChannel(input: ChannelInput!): Channel!
 
@@ -1970,7 +1931,7 @@ type Mutation {
   createSnapshot(input: SnapshotInput!): Snapshot!
 
   """Delete an existing snapshot"""
-  deleteSnapshot(input: DeleteRenderedPlot!): ID!
+  deleteSnapshot(input: DeleteSnaphotInput!): ID!
 
   """Pin a snapshot for quick access"""
   pinSnapshot(input: PinSnapshotInput!): Snapshot!
@@ -2045,7 +2006,7 @@ type PresignedPostCredentials {
 }
 
 input RequestMediaUploadInput {
-  key: String!
+  fileName: String!
   datalayer: String!
 }
 
@@ -2780,22 +2741,6 @@ input DeleteFileInput {
   id: ID!
 }
 
-input RenderedPlotInput {
-  name: String!
-  plot: Upload!
-  overlays: [OverlayInput!]
-}
-
-scalar Upload
-
-input OverlayInput {
-  object: String!
-  identifier: String!
-  color: String!
-  x: Int!
-  y: Int!
-}
-
 input ChannelInput {
   name: String!
 }
@@ -3389,11 +3334,17 @@ input PinCameraInput {
 }
 
 input SnapshotInput {
-  file: Upload!
+  file: ImageFileLike!
   image: ID!
+  name: String = null
 }
 
-input DeleteRenderedPlot {
+"""
+The `ImageFileLike` scalar type represents a reference to a snapshot image previously created by the user n a datalayer
+"""
+scalar ImageFileLike
+
+input DeleteSnaphotInput {
   id: ID!
 }
 

@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from pyarrow.parquet import ParquetDataset
 
 
-
 class HasZarrStoreTrait(BaseModel):
     """Representation Trait
 
@@ -193,9 +192,9 @@ class IsVectorizableTrait:
 
     def get_vector_data(self, dims="yx") -> np.ndarray:
         vector_list = getattr(self, "vectors", None)
-        assert (
-            vector_list
-        ), "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
+        assert vector_list, (
+            "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
+        )
         vector_list: list
 
         mapper = {
@@ -219,9 +218,9 @@ class IsVectorizableTrait:
         """
         from mikro_next.api.schema import RoiTypeInput, InputVector
 
-        assert hasattr(
-            self, "type"
-        ), "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
+        assert hasattr(self, "type"), (
+            "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
+        )
         if self.type == RoiTypeInput.RECTANGLE:
             return InputVector.from_array(
                 self.get_vector_data(dims="ctzyx").mean(axis=0)
@@ -260,9 +259,9 @@ class IsVectorizableTrait:
         """
         from mikro_next.api.schema import RoiTypeInput
 
-        assert hasattr(
-            self, "type"
-        ), "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
+        assert hasattr(self, "type"), (
+            "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
+        )
         if self.type == RoiTypeInput.RECTANGLE:
             return self.get_vector_data(dims="ctzyx").mean(axis=0)
         if self.type == RoiTypeInput.POINT:
@@ -448,10 +447,7 @@ class HasFromNumpyArrayTrait:
         return cls(x=x[4], y=x[3], z=x[2], t=x[1], c=x[0])
 
 
-
 class FileTrait:
-    
     def download(self, file_name: str = None) -> "str":
-
         store = get_attributes_or_error(self, "store")
         return store.download(file_name=file_name)

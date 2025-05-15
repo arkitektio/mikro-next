@@ -58,15 +58,6 @@ structure_reg.register_as_structure(
     ashrink=id_shrink,
 )
 
-structure_reg.register_as_structure(
-    RenderedPlot,
-    identifier="@mikro/renderedplot",
-    aexpand=aget_rendered_plot,
-    ashrink=id_shrink,
-    default_widget=SearchWidget(
-        query=SearchRenderedPlotsQuery.Meta.document, ward="mikro"
-    ),
-)
 
 structure_reg.register_as_structure(
     Mesh,

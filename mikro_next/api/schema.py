@@ -1,42 +1,47 @@
 from mikro_next.traits import (
-    IsVectorizableTrait,
-    HasZarrStoreAccessor,
-    HasPresignedDownloadAccessor,
     HasZarrStoreTrait,
     HasParquetStoreAccesor,
-    HasParquestStoreTrait,
+    HasPresignedDownloadAccessor,
+    IsVectorizableTrait,
     HasDownloadAccessor,
     FileTrait,
+    HasParquestStoreTrait,
+    HasZarrStoreAccessor,
 )
-from pydantic import Field, ConfigDict, BaseModel
-from datetime import datetime
+from mikro_next.funcs import aexecute, subscribe, asubscribe, execute
 from mikro_next.scalars import (
-    Milliseconds,
-    Upload,
-    ParquetLike,
-    ArrayLike,
-    FourByFourMatrix,
-    FileLike,
     MeshLike,
-    FiveDVector,
+    ImageFileLike,
     Micrometers,
+    ImageFileCoercible,
+    ArrayLike,
+    FileLike,
+    ParquetCoercible,
+    ParquetLike,
+    ArrayCoercible,
+    IDCoercible,
+    FiveDVector,
+    Milliseconds,
+    MeshCoercible,
+    FourByFourMatrix,
 )
 from typing import (
     Iterable,
-    Tuple,
-    Literal,
-    Iterator,
-    AsyncIterator,
-    Union,
-    Any,
-    Optional,
     Annotated,
     List,
+    Union,
+    AsyncIterator,
+    Tuple,
+    Any,
+    Iterator,
+    Optional,
+    Literal,
 )
-from mikro_next.funcs import aexecute, execute, subscribe, asubscribe
 from rath.scalars import ID
 from enum import Enum
+from datetime import datetime
 from mikro_next.rath import MikroNextRath
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ColorMap(str, Enum):
@@ -326,6 +331,16 @@ class RequestAccessInput(BaseModel):
 
     store: ID
     duration: Optional[int] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestMediaUploadInput(BaseModel):
+    """No documentation"""
+
+    file_name: str = Field(alias="fileName")
+    datalayer: str
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -992,30 +1007,6 @@ class FromFileLike(BaseModel):
     )
 
 
-class RenderedPlotInput(BaseModel):
-    """No documentation"""
-
-    name: str
-    plot: Upload
-    overlays: Optional[Tuple["OverlayInput", ...]] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class OverlayInput(BaseModel):
-    """No documentation"""
-
-    object: str
-    identifier: str
-    color: str
-    x: int
-    y: int
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
 class ChannelInput(BaseModel):
     """No documentation"""
 
@@ -1232,8 +1223,9 @@ class CameraInput(BaseModel):
 class SnapshotInput(BaseModel):
     """No documentation"""
 
-    file: Upload
+    file: ImageFileLike
     image: ID
+    name: Optional[str] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -1449,50 +1441,6 @@ class Camera(BaseModel):
     pixel_size_y: Optional[Micrometers] = Field(default=None, alias="pixelSizeY")
     name: str
     serial_number: str = Field(alias="serialNumber")
-    model_config = ConfigDict(frozen=True)
-
-
-class RenderedPlotStore(HasPresignedDownloadAccessor, BaseModel):
-    """No documentation"""
-
-    typename: Literal["MediaStore"] = Field(
-        alias="__typename", default="MediaStore", exclude=True
-    )
-    id: ID
-    key: str
-    model_config = ConfigDict(frozen=True)
-
-
-class RenderedPlot(BaseModel):
-    """No documentation"""
-
-    typename: Literal["RenderedPlot"] = Field(
-        alias="__typename", default="RenderedPlot", exclude=True
-    )
-    id: ID
-    store: RenderedPlotStore
-    model_config = ConfigDict(frozen=True)
-
-
-class ListRenderedPlotStore(HasPresignedDownloadAccessor, BaseModel):
-    """No documentation"""
-
-    typename: Literal["MediaStore"] = Field(
-        alias="__typename", default="MediaStore", exclude=True
-    )
-    id: ID
-    key: str
-    model_config = ConfigDict(frozen=True)
-
-
-class ListRenderedPlot(BaseModel):
-    """No documentation"""
-
-    typename: Literal["RenderedPlot"] = Field(
-        alias="__typename", default="RenderedPlot", exclude=True
-    )
-    id: ID
-    store: ListRenderedPlotStore
     model_config = ConfigDict(frozen=True)
 
 
@@ -2560,24 +2508,6 @@ class RequestTableAccessMutation(BaseModel):
         document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestTableAccess($input: RequestTableAccessInput!) {\n  requestTableAccess(input: $input) {\n    ...AccessCredentials\n    __typename\n  }\n}"
 
 
-class CreateRenderedPlotMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    create_rendered_plot: RenderedPlot = Field(alias="createRenderedPlot")
-    "Create a new rendered plot"
-
-    class Arguments(BaseModel):
-        """Arguments for CreateRenderedPlot"""
-
-        input: RenderedPlotInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for CreateRenderedPlot"""
-
-        document = "fragment RenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n    __typename\n  }\n  __typename\n}\n\nmutation CreateRenderedPlot($input: RenderedPlotInput!) {\n  createRenderedPlot(input: $input) {\n    ...RenderedPlot\n    __typename\n  }\n}"
-
-
 class From_file_likeMutation(BaseModel):
     """No documentation found for this operation."""
 
@@ -2915,7 +2845,7 @@ class From_array_likeMutation(BaseModel):
     class Meta:
         """Meta class for from_array_like"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -2999,6 +2929,24 @@ class CreateSnapshotMutation(BaseModel):
         document = "fragment Snapshot on Snapshot {\n  id\n  store {\n    key\n    presignedUrl\n    __typename\n  }\n  name\n  __typename\n}\n\nmutation CreateSnapshot($input: SnapshotInput!) {\n  createSnapshot(input: $input) {\n    ...Snapshot\n    __typename\n  }\n}"
 
 
+class RequestMediaUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    request_media_upload: PresignedPostCredentials = Field(alias="requestMediaUpload")
+    "Request credentials for media file upload"
+
+    class Arguments(BaseModel):
+        """Arguments for RequestMediaUpload"""
+
+        input: RequestMediaUploadInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for RequestMediaUpload"""
+
+        document = "fragment PresignedPostCredentials on PresignedPostCredentials {\n  key\n  xAmzCredential\n  xAmzAlgorithm\n  xAmzDate\n  xAmzSignature\n  policy\n  datalayer\n  bucket\n  store\n  __typename\n}\n\nmutation RequestMediaUpload($input: RequestMediaUploadInput!) {\n  requestMediaUpload(input: $input) {\n    ...PresignedPostCredentials\n    __typename\n  }\n}"
+
+
 class CreateRgbViewMutationCreatergbview(BaseModel):
     """No documentation"""
 
@@ -3078,7 +3026,7 @@ class CreateRGBContextMutation(BaseModel):
     class Meta:
         """Meta class for CreateRGBContext"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class UpdateRGBContextMutation(BaseModel):
@@ -3096,7 +3044,7 @@ class UpdateRGBContextMutation(BaseModel):
     class Meta:
         """Meta class for UpdateRGBContext"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class CreateViewCollectionMutationCreateviewcollection(BaseModel):
@@ -3285,68 +3233,6 @@ class SearchTablesQuery(BaseModel):
         """Meta class for SearchTables"""
 
         document = "query SearchTables($search: String, $values: [ID!]) {\n  options: tables(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}"
-
-
-class GetRenderedPlotQuery(BaseModel):
-    """No documentation found for this operation."""
-
-    rendered_plot: RenderedPlot = Field(alias="renderedPlot")
-
-    class Arguments(BaseModel):
-        """Arguments for GetRenderedPlot"""
-
-        id: ID
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for GetRenderedPlot"""
-
-        document = "fragment RenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n    __typename\n  }\n  __typename\n}\n\nquery GetRenderedPlot($id: ID!) {\n  renderedPlot(id: $id) {\n    ...RenderedPlot\n    __typename\n  }\n}"
-
-
-class ListRenderedPlotsQuery(BaseModel):
-    """No documentation found for this operation."""
-
-    rendered_plots: Tuple[ListRenderedPlot, ...] = Field(alias="renderedPlots")
-
-    class Arguments(BaseModel):
-        """Arguments for ListRenderedPlots"""
-
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for ListRenderedPlots"""
-
-        document = "fragment ListRenderedPlot on RenderedPlot {\n  id\n  store {\n    id\n    key\n    __typename\n  }\n  __typename\n}\n\nquery ListRenderedPlots {\n  renderedPlots {\n    ...ListRenderedPlot\n    __typename\n  }\n}"
-
-
-class SearchRenderedPlotsQueryOptions(BaseModel):
-    """No documentation"""
-
-    typename: Literal["RenderedPlot"] = Field(
-        alias="__typename", default="RenderedPlot", exclude=True
-    )
-    value: ID
-    label: str
-    model_config = ConfigDict(frozen=True)
-
-
-class SearchRenderedPlotsQuery(BaseModel):
-    """No documentation found for this operation."""
-
-    options: Tuple[SearchRenderedPlotsQueryOptions, ...]
-
-    class Arguments(BaseModel):
-        """Arguments for SearchRenderedPlots"""
-
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for SearchRenderedPlots"""
-
-        document = "query SearchRenderedPlots($search: String, $values: [ID!]) {\n  options: renderedPlots(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}"
 
 
 class GetFileQuery(BaseModel):
@@ -3690,7 +3576,7 @@ class GetImageQuery(BaseModel):
     class Meta:
         """Meta class for GetImage"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -3706,7 +3592,7 @@ class GetRandomImageQuery(BaseModel):
     class Meta:
         """Meta class for GetRandomImage"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
@@ -3754,7 +3640,7 @@ class ImagesQuery(BaseModel):
     class Meta:
         """Meta class for Images"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class ViewImageQueryImageStore(HasZarrStoreAccessor, BaseModel):
@@ -4047,7 +3933,7 @@ class GetRGBContextQuery(BaseModel):
     class Meta:
         """Meta class for GetRGBContext"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class GetMeshQuery(BaseModel):
@@ -4152,7 +4038,7 @@ class WatchImagesSubscription(BaseModel):
     class Meta:
         """Meta class for WatchImages"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):
@@ -4201,7 +4087,7 @@ async def acreate_camera(
 
     Create a new camera configuration
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -4253,7 +4139,7 @@ def create_camera(
 
     Create a new camera configuration
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -4303,7 +4189,7 @@ async def aensure_camera(
 
     Ensure a camera exists, creating if needed
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -4355,7 +4241,7 @@ def ensure_camera(
 
     Ensure a camera exists, creating if needed
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         model: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -4396,7 +4282,7 @@ async def acreate_render_tree(
 
     Create a new render tree for image visualization
 
-    Arguments:
+    Args:
         tree:  (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4418,7 +4304,7 @@ def create_render_tree(
 
     Create a new render tree for image visualization
 
-    Arguments:
+    Args:
         tree:  (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4432,10 +4318,10 @@ def create_render_tree(
 
 
 async def afrom_parquet_like(
-    dataframe: ParquetLike,
+    dataframe: ParquetCoercible,
     name: str,
-    origins: Optional[Iterable[ID]] = None,
-    dataset: Optional[ID] = None,
+    origins: Optional[Iterable[IDCoercible]] = None,
+    dataset: Optional[IDCoercible] = None,
     label_accessors: Optional[Iterable[PartialLabelAccessorInput]] = None,
     image_accessors: Optional[Iterable[PartialImageAccessorInput]] = None,
     rath: Optional[MikroNextRath] = None,
@@ -4444,7 +4330,7 @@ async def afrom_parquet_like(
 
     Create a table from parquet-like data
 
-    Arguments:
+    Args:
         dataframe: The parquet dataframe to create the table from
         name: The name of the table
         origins: The IDs of tables this table was derived from
@@ -4475,10 +4361,10 @@ async def afrom_parquet_like(
 
 
 def from_parquet_like(
-    dataframe: ParquetLike,
+    dataframe: ParquetCoercible,
     name: str,
-    origins: Optional[Iterable[ID]] = None,
-    dataset: Optional[ID] = None,
+    origins: Optional[Iterable[IDCoercible]] = None,
+    dataset: Optional[IDCoercible] = None,
     label_accessors: Optional[Iterable[PartialLabelAccessorInput]] = None,
     image_accessors: Optional[Iterable[PartialImageAccessorInput]] = None,
     rath: Optional[MikroNextRath] = None,
@@ -4487,7 +4373,7 @@ def from_parquet_like(
 
     Create a table from parquet-like data
 
-    Arguments:
+    Args:
         dataframe: The parquet dataframe to create the table from
         name: The name of the table
         origins: The IDs of tables this table was derived from
@@ -4522,7 +4408,7 @@ async def arequest_table_upload(
 
     Request credentials to upload a new table
 
-    Arguments:
+    Args:
         key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4546,7 +4432,7 @@ def request_table_upload(
 
     Request credentials to upload a new table
 
-    Arguments:
+    Args:
         key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4562,13 +4448,15 @@ def request_table_upload(
 
 
 async def arequest_table_access(
-    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
+    store: IDCoercible,
+    duration: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> AccessCredentials:
     """RequestTableAccess
 
     Request credentials to access a table
 
-    Arguments:
+    Args:
         store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4586,13 +4474,15 @@ async def arequest_table_access(
 
 
 def request_table_access(
-    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
+    store: IDCoercible,
+    duration: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> AccessCredentials:
     """RequestTableAccess
 
     Request credentials to access a table
 
-    Arguments:
+    Args:
         store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4607,72 +4497,18 @@ def request_table_access(
     ).request_table_access
 
 
-async def acreate_rendered_plot(
-    name: str,
-    plot: Upload,
-    overlays: Optional[Iterable[OverlayInput]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> RenderedPlot:
-    """CreateRenderedPlot
-
-    Create a new rendered plot
-
-    Arguments:
-        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        plot:  (required)
-        overlays:  (required) (list)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        RenderedPlot
-    """
-    return (
-        await aexecute(
-            CreateRenderedPlotMutation,
-            {"input": {"name": name, "plot": plot, "overlays": overlays}},
-            rath=rath,
-        )
-    ).create_rendered_plot
-
-
-def create_rendered_plot(
-    name: str,
-    plot: Upload,
-    overlays: Optional[Iterable[OverlayInput]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> RenderedPlot:
-    """CreateRenderedPlot
-
-    Create a new rendered plot
-
-    Arguments:
-        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        plot:  (required)
-        overlays:  (required) (list)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        RenderedPlot
-    """
-    return execute(
-        CreateRenderedPlotMutation,
-        {"input": {"name": name, "plot": plot, "overlays": overlays}},
-        rath=rath,
-    ).create_rendered_plot
-
-
 async def afrom_file_like(
-    file: FileLike,
+    file: ImageFileCoercible,
     file_name: str,
-    dataset: Optional[ID] = None,
-    origins: Optional[Iterable[ID]] = None,
+    dataset: Optional[IDCoercible] = None,
+    origins: Optional[Iterable[IDCoercible]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> File:
     """from_file_like
 
     Create a file from file-like data
 
-    Arguments:
+    Args:
         file: The `FileLike` scalar type represents a reference to a big file storage previously created by the user n a datalayer (required)
         file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -4699,17 +4535,17 @@ async def afrom_file_like(
 
 
 def from_file_like(
-    file: FileLike,
+    file: ImageFileCoercible,
     file_name: str,
-    dataset: Optional[ID] = None,
-    origins: Optional[Iterable[ID]] = None,
+    dataset: Optional[IDCoercible] = None,
+    origins: Optional[Iterable[IDCoercible]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> File:
     """from_file_like
 
     Create a file from file-like data
 
-    Arguments:
+    Args:
         file: The `FileLike` scalar type represents a reference to a big file storage previously created by the user n a datalayer (required)
         file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -4740,7 +4576,7 @@ async def arequest_file_upload(
 
     Request credentials to upload a new file
 
-    Arguments:
+    Args:
         file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4764,7 +4600,7 @@ def request_file_upload(
 
     Request credentials to upload a new file
 
-    Arguments:
+    Args:
         file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4780,13 +4616,15 @@ def request_file_upload(
 
 
 async def arequest_file_access(
-    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
+    store: IDCoercible,
+    duration: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> AccessCredentials:
     """RequestFileAccess
 
     Request credentials to access a file
 
-    Arguments:
+    Args:
         store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4804,13 +4642,15 @@ async def arequest_file_access(
 
 
 def request_file_access(
-    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
+    store: IDCoercible,
+    duration: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> AccessCredentials:
     """RequestFileAccess
 
     Request credentials to access a file
 
-    Arguments:
+    Args:
         store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4826,13 +4666,15 @@ def request_file_access(
 
 
 async def acreate_stage(
-    name: str, instrument: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+    name: str,
+    instrument: Optional[IDCoercible] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> Stage:
     """CreateStage
 
     Create a new stage for organizing data
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         instrument: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4850,13 +4692,15 @@ async def acreate_stage(
 
 
 def create_stage(
-    name: str, instrument: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+    name: str,
+    instrument: Optional[IDCoercible] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> Stage:
     """CreateStage
 
     Create a new stage for organizing data
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         instrument: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -4872,7 +4716,7 @@ def create_stage(
 
 
 async def acreate_roi(
-    image: ID,
+    image: IDCoercible,
     vectors: Iterable[FiveDVector],
     kind: RoiKind,
     rath: Optional[MikroNextRath] = None,
@@ -4881,7 +4725,7 @@ async def acreate_roi(
 
     Create a new region of interest
 
-    Arguments:
+    Args:
         image: The image this ROI belongs to
         vectors: The vector coordinates defining the ROI
         kind: The type/kind of ROI
@@ -4900,7 +4744,7 @@ async def acreate_roi(
 
 
 def create_roi(
-    image: ID,
+    image: IDCoercible,
     vectors: Iterable[FiveDVector],
     kind: RoiKind,
     rath: Optional[MikroNextRath] = None,
@@ -4909,7 +4753,7 @@ def create_roi(
 
     Create a new region of interest
 
-    Arguments:
+    Args:
         image: The image this ROI belongs to
         vectors: The vector coordinates defining the ROI
         kind: The type/kind of ROI
@@ -4925,12 +4769,12 @@ def create_roi(
     ).create_roi
 
 
-async def adelete_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ID:
+async def adelete_roi(id: IDCoercible, rath: Optional[MikroNextRath] = None) -> ID:
     """DeleteRoi
 
     Delete an existing region of interest
 
-    Arguments:
+    Args:
         id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -4942,12 +4786,12 @@ async def adelete_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ID:
     ).delete_roi
 
 
-def delete_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ID:
+def delete_roi(id: IDCoercible, rath: Optional[MikroNextRath] = None) -> ID:
     """DeleteRoi
 
     Delete an existing region of interest
 
-    Arguments:
+    Args:
         id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -4958,20 +4802,20 @@ def delete_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ID:
 
 
 async def aupdate_roi(
-    roi: ID,
+    roi: IDCoercible,
     vectors: Optional[Iterable[FiveDVector]] = None,
     kind: Optional[RoiKind] = None,
-    entity: Optional[ID] = None,
-    entity_kind: Optional[ID] = None,
-    entity_group: Optional[ID] = None,
-    entity_parent: Optional[ID] = None,
+    entity: Optional[IDCoercible] = None,
+    entity_kind: Optional[IDCoercible] = None,
+    entity_group: Optional[IDCoercible] = None,
+    entity_parent: Optional[IDCoercible] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> ROI:
     """UpdateRoi
 
     Update an existing region of interest
 
-    Arguments:
+    Args:
         roi: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list)
         kind: RoiKind
@@ -5004,20 +4848,20 @@ async def aupdate_roi(
 
 
 def update_roi(
-    roi: ID,
+    roi: IDCoercible,
     vectors: Optional[Iterable[FiveDVector]] = None,
     kind: Optional[RoiKind] = None,
-    entity: Optional[ID] = None,
-    entity_kind: Optional[ID] = None,
-    entity_group: Optional[ID] = None,
-    entity_parent: Optional[ID] = None,
+    entity: Optional[IDCoercible] = None,
+    entity_kind: Optional[IDCoercible] = None,
+    entity_group: Optional[IDCoercible] = None,
+    entity_parent: Optional[IDCoercible] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> ROI:
     """UpdateRoi
 
     Update an existing region of interest
 
-    Arguments:
+    Args:
         roi: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list)
         kind: RoiKind
@@ -5059,7 +4903,7 @@ async def acreate_objective(
 
     Create a new microscope objective configuration
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         na: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
@@ -5099,7 +4943,7 @@ def create_objective(
 
     Create a new microscope objective configuration
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         na: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
@@ -5137,7 +4981,7 @@ async def aensure_objective(
 
     Ensure an objective exists, creating if needed
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         na: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
@@ -5177,7 +5021,7 @@ def ensure_objective(
 
     Ensure an objective exists, creating if needed
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         na: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
@@ -5204,13 +5048,15 @@ def ensure_objective(
 
 
 async def acreate_dataset(
-    name: str, parent: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+    name: str,
+    parent: Optional[IDCoercible] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> Dataset:
     """CreateDataset
 
     Create a new dataset to organize data
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5228,13 +5074,15 @@ async def acreate_dataset(
 
 
 def create_dataset(
-    name: str, parent: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+    name: str,
+    parent: Optional[IDCoercible] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> Dataset:
     """CreateDataset
 
     Create a new dataset to organize data
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5248,13 +5096,15 @@ def create_dataset(
 
 
 async def aensure_dataset(
-    name: str, parent: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+    name: str,
+    parent: Optional[IDCoercible] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> Dataset:
     """EnsureDataset
 
     Create a new dataset to organize data
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5272,13 +5122,15 @@ async def aensure_dataset(
 
 
 def ensure_dataset(
-    name: str, parent: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+    name: str,
+    parent: Optional[IDCoercible] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> Dataset:
     """EnsureDataset
 
     Create a new dataset to organize data
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5292,13 +5144,16 @@ def ensure_dataset(
 
 
 async def aupdate_dataset(
-    name: str, id: ID, parent: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+    name: str,
+    id: IDCoercible,
+    parent: Optional[IDCoercible] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> Dataset:
     """UpdateDataset
 
     Update dataset metadata
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -5317,13 +5172,16 @@ async def aupdate_dataset(
 
 
 def update_dataset(
-    name: str, id: ID, parent: Optional[ID] = None, rath: Optional[MikroNextRath] = None
+    name: str,
+    id: IDCoercible,
+    parent: Optional[IDCoercible] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> Dataset:
     """UpdateDataset
 
     Update dataset metadata
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -5340,13 +5198,13 @@ def update_dataset(
 
 
 async def arevert_dataset(
-    id: ID, history_id: ID, rath: Optional[MikroNextRath] = None
+    id: IDCoercible, history_id: IDCoercible, rath: Optional[MikroNextRath] = None
 ) -> Dataset:
     """RevertDataset
 
     Revert dataset to a previous version
 
-    Arguments:
+    Args:
         id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         history_id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5364,13 +5222,13 @@ async def arevert_dataset(
 
 
 def revert_dataset(
-    id: ID, history_id: ID, rath: Optional[MikroNextRath] = None
+    id: IDCoercible, history_id: IDCoercible, rath: Optional[MikroNextRath] = None
 ) -> Dataset:
     """RevertDataset
 
     Revert dataset to a previous version
 
-    Arguments:
+    Args:
         id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         history_id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5394,7 +5252,7 @@ async def acreate_instrument(
 
     Create a new instrument configuration
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -5431,7 +5289,7 @@ def create_instrument(
 
     Create a new instrument configuration
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -5466,7 +5324,7 @@ async def aensure_instrument(
 
     Ensure an instrument exists, creating if needed
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -5503,7 +5361,7 @@ def ensure_instrument(
 
     Ensure an instrument exists, creating if needed
 
-    Arguments:
+    Args:
         serial_number: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         manufacturer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -5528,9 +5386,9 @@ def ensure_instrument(
 
 
 async def afrom_array_like(
-    array: ArrayLike,
+    array: ArrayCoercible,
     name: str,
-    dataset: Optional[ID] = None,
+    dataset: Optional[IDCoercible] = None,
     channel_views: Optional[Iterable[PartialChannelViewInput]] = None,
     transformation_views: Optional[
         Iterable[PartialAffineTransformationViewInput]
@@ -5552,7 +5410,7 @@ async def afrom_array_like(
 
     Create an image from array-like data
 
-    Arguments:
+    Args:
         array: The array-like object to create the image from
         name: The name of the image
         dataset: Optional dataset ID to associate the image with
@@ -5603,9 +5461,9 @@ async def afrom_array_like(
 
 
 def from_array_like(
-    array: ArrayLike,
+    array: ArrayCoercible,
     name: str,
-    dataset: Optional[ID] = None,
+    dataset: Optional[IDCoercible] = None,
     channel_views: Optional[Iterable[PartialChannelViewInput]] = None,
     transformation_views: Optional[
         Iterable[PartialAffineTransformationViewInput]
@@ -5627,7 +5485,7 @@ def from_array_like(
 
     Create an image from array-like data
 
-    Arguments:
+    Args:
         array: The array-like object to create the image from
         name: The name of the image
         dataset: Optional dataset ID to associate the image with
@@ -5682,7 +5540,7 @@ async def arequest_upload(
 
     Request credentials to upload a new image
 
-    Arguments:
+    Args:
         key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5706,7 +5564,7 @@ def request_upload(
 
     Request credentials to upload a new image
 
-    Arguments:
+    Args:
         key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5722,13 +5580,15 @@ def request_upload(
 
 
 async def arequest_access(
-    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
+    store: IDCoercible,
+    duration: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> AccessCredentials:
     """RequestAccess
 
     Request credentials to access an image
 
-    Arguments:
+    Args:
         store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5746,13 +5606,15 @@ async def arequest_access(
 
 
 def request_access(
-    store: ID, duration: Optional[int] = None, rath: Optional[MikroNextRath] = None
+    store: IDCoercible,
+    duration: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> AccessCredentials:
     """RequestAccess
 
     Request credentials to access an image
 
-    Arguments:
+    Args:
         store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5774,7 +5636,7 @@ async def acreate_era(
 
     Create a new era for temporal organization
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         begin: Date with time (isoformat)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5796,7 +5658,7 @@ def create_era(
 
     Create a new era for temporal organization
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         begin: Date with time (isoformat)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -5810,15 +5672,19 @@ def create_era(
 
 
 async def acreate_snapshot(
-    file: Upload, image: ID, rath: Optional[MikroNextRath] = None
+    file: ImageFileCoercible,
+    image: IDCoercible,
+    name: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> Snapshot:
     """CreateSnapshot
 
     Create a new state snapshot
 
-    Arguments:
-        file:  (required)
+    Args:
+        file: The `ImageFileLike` scalar type represents a reference to a snapshot image previously created by the user n a datalayer (required)
         image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -5826,35 +5692,89 @@ async def acreate_snapshot(
     """
     return (
         await aexecute(
-            CreateSnapshotMutation, {"input": {"file": file, "image": image}}, rath=rath
+            CreateSnapshotMutation,
+            {"input": {"file": file, "image": image, "name": name}},
+            rath=rath,
         )
     ).create_snapshot
 
 
 def create_snapshot(
-    file: Upload, image: ID, rath: Optional[MikroNextRath] = None
+    file: ImageFileCoercible,
+    image: IDCoercible,
+    name: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> Snapshot:
     """CreateSnapshot
 
     Create a new state snapshot
 
-    Arguments:
-        file:  (required)
+    Args:
+        file: The `ImageFileLike` scalar type represents a reference to a snapshot image previously created by the user n a datalayer (required)
         image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         Snapshot
     """
     return execute(
-        CreateSnapshotMutation, {"input": {"file": file, "image": image}}, rath=rath
+        CreateSnapshotMutation,
+        {"input": {"file": file, "image": image, "name": name}},
+        rath=rath,
     ).create_snapshot
 
 
+async def arequest_media_upload(
+    file_name: str, datalayer: str, rath: Optional[MikroNextRath] = None
+) -> PresignedPostCredentials:
+    """RequestMediaUpload
+
+    Request credentials for media file upload
+
+    Args:
+        file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        PresignedPostCredentials
+    """
+    return (
+        await aexecute(
+            RequestMediaUploadMutation,
+            {"input": {"fileName": file_name, "datalayer": datalayer}},
+            rath=rath,
+        )
+    ).request_media_upload
+
+
+def request_media_upload(
+    file_name: str, datalayer: str, rath: Optional[MikroNextRath] = None
+) -> PresignedPostCredentials:
+    """RequestMediaUpload
+
+    Request credentials for media file upload
+
+    Args:
+        file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        PresignedPostCredentials
+    """
+    return execute(
+        RequestMediaUploadMutation,
+        {"input": {"fileName": file_name, "datalayer": datalayer}},
+        rath=rath,
+    ).request_media_upload
+
+
 async def acreate_rgb_view(
-    context: ID,
-    image: ID,
-    collection: Optional[ID] = None,
+    context: IDCoercible,
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
     z_min: Optional[int] = None,
     z_max: Optional[int] = None,
     x_min: Optional[int] = None,
@@ -5879,7 +5799,7 @@ async def acreate_rgb_view(
 
     Create a new view for RGB image data
 
-    Arguments:
+    Args:
         collection: The collection this view belongs to
         z_min: The minimum z coordinate of the view
         z_max: The maximum z coordinate of the view
@@ -5940,9 +5860,9 @@ async def acreate_rgb_view(
 
 
 def create_rgb_view(
-    context: ID,
-    image: ID,
-    collection: Optional[ID] = None,
+    context: IDCoercible,
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
     z_min: Optional[int] = None,
     z_max: Optional[int] = None,
     x_min: Optional[int] = None,
@@ -5967,7 +5887,7 @@ def create_rgb_view(
 
     Create a new view for RGB image data
 
-    Arguments:
+    Args:
         collection: The collection this view belongs to
         z_min: The minimum z coordinate of the view
         z_max: The maximum z coordinate of the view
@@ -6027,8 +5947,8 @@ def create_rgb_view(
 
 async def acreate_label_view(
     label: str,
-    image: ID,
-    collection: Optional[ID] = None,
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
     z_min: Optional[int] = None,
     z_max: Optional[int] = None,
     x_min: Optional[int] = None,
@@ -6045,7 +5965,7 @@ async def acreate_label_view(
 
     Create a new view for label data
 
-    Arguments:
+    Args:
         collection: The collection this view belongs to
         z_min: The minimum z coordinate of the view
         z_max: The maximum z coordinate of the view
@@ -6091,8 +6011,8 @@ async def acreate_label_view(
 
 def create_label_view(
     label: str,
-    image: ID,
-    collection: Optional[ID] = None,
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
     z_min: Optional[int] = None,
     z_max: Optional[int] = None,
     x_min: Optional[int] = None,
@@ -6109,7 +6029,7 @@ def create_label_view(
 
     Create a new view for label data
 
-    Arguments:
+    Args:
         collection: The collection this view belongs to
         z_min: The minimum z coordinate of the view
         z_max: The maximum z coordinate of the view
@@ -6156,8 +6076,8 @@ async def acreate_histogram_view(
     bins: Iterable[float],
     min: float,
     max: float,
-    image: ID,
-    collection: Optional[ID] = None,
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
     z_min: Optional[int] = None,
     z_max: Optional[int] = None,
     x_min: Optional[int] = None,
@@ -6174,7 +6094,7 @@ async def acreate_histogram_view(
 
     Create a new view for histogram data
 
-    Arguments:
+    Args:
         collection: The collection this view belongs to
         z_min: The minimum z coordinate of the view
         z_max: The maximum z coordinate of the view
@@ -6229,8 +6149,8 @@ def create_histogram_view(
     bins: Iterable[float],
     min: float,
     max: float,
-    image: ID,
-    collection: Optional[ID] = None,
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
     z_min: Optional[int] = None,
     z_max: Optional[int] = None,
     x_min: Optional[int] = None,
@@ -6247,7 +6167,7 @@ def create_histogram_view(
 
     Create a new view for histogram data
 
-    Arguments:
+    Args:
         collection: The collection this view belongs to
         z_min: The minimum z coordinate of the view
         z_max: The maximum z coordinate of the view
@@ -6296,9 +6216,9 @@ def create_histogram_view(
 
 
 async def acreate_rgb_context(
-    image: ID,
+    image: IDCoercible,
     name: Optional[str] = None,
-    thumbnail: Optional[ID] = None,
+    thumbnail: Optional[IDCoercible] = None,
     views: Optional[Iterable[PartialRGBViewInput]] = None,
     z: Optional[int] = None,
     t: Optional[int] = None,
@@ -6309,7 +6229,7 @@ async def acreate_rgb_context(
 
     Create a new RGB context for image visualization
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         thumbnail: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -6342,9 +6262,9 @@ async def acreate_rgb_context(
 
 
 def create_rgb_context(
-    image: ID,
+    image: IDCoercible,
     name: Optional[str] = None,
-    thumbnail: Optional[ID] = None,
+    thumbnail: Optional[IDCoercible] = None,
     views: Optional[Iterable[PartialRGBViewInput]] = None,
     z: Optional[int] = None,
     t: Optional[int] = None,
@@ -6355,7 +6275,7 @@ def create_rgb_context(
 
     Create a new RGB context for image visualization
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         thumbnail: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -6386,9 +6306,9 @@ def create_rgb_context(
 
 
 async def aupdate_rgb_context(
-    id: ID,
+    id: IDCoercible,
     name: Optional[str] = None,
-    thumbnail: Optional[ID] = None,
+    thumbnail: Optional[IDCoercible] = None,
     views: Optional[Iterable[PartialRGBViewInput]] = None,
     z: Optional[int] = None,
     t: Optional[int] = None,
@@ -6399,7 +6319,7 @@ async def aupdate_rgb_context(
 
     Update settings of an existing RGB context
 
-    Arguments:
+    Args:
         id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         thumbnail: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -6432,9 +6352,9 @@ async def aupdate_rgb_context(
 
 
 def update_rgb_context(
-    id: ID,
+    id: IDCoercible,
     name: Optional[str] = None,
-    thumbnail: Optional[ID] = None,
+    thumbnail: Optional[IDCoercible] = None,
     views: Optional[Iterable[PartialRGBViewInput]] = None,
     z: Optional[int] = None,
     t: Optional[int] = None,
@@ -6445,7 +6365,7 @@ def update_rgb_context(
 
     Update settings of an existing RGB context
 
-    Arguments:
+    Args:
         id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         thumbnail: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -6482,7 +6402,7 @@ async def acreate_view_collection(
 
     Create a new collection of views to organize related views
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6503,7 +6423,7 @@ def create_view_collection(
 
     Create a new collection of views to organize related views
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6522,7 +6442,7 @@ async def acreate_channel(
 
     Create a new channel
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6541,7 +6461,7 @@ def create_channel(
 
     Create a new channel
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6560,7 +6480,7 @@ async def aensure_channel(
 
     Ensure a channel exists, creating if needed
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6579,7 +6499,7 @@ def ensure_channel(
 
     Ensure a channel exists, creating if needed
 
-    Arguments:
+    Args:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6592,13 +6512,13 @@ def ensure_channel(
 
 
 async def acreate_mesh(
-    mesh: MeshLike, name: str, rath: Optional[MikroNextRath] = None
+    mesh: MeshCoercible, name: str, rath: Optional[MikroNextRath] = None
 ) -> Mesh:
     """CreateMesh
 
     Create a new mesh
 
-    Arguments:
+    Args:
         mesh: The `MeshLike` scalar type represents a reference to a mesh previously created by the user n a datalayer (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -6614,13 +6534,13 @@ async def acreate_mesh(
 
 
 def create_mesh(
-    mesh: MeshLike, name: str, rath: Optional[MikroNextRath] = None
+    mesh: MeshCoercible, name: str, rath: Optional[MikroNextRath] = None
 ) -> Mesh:
     """CreateMesh
 
     Create a new mesh
 
-    Arguments:
+    Args:
         mesh: The `MeshLike` scalar type represents a reference to a mesh previously created by the user n a datalayer (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -6640,7 +6560,7 @@ async def arequest_mesh_upload(
 
     Request presigned credentials for mesh upload
 
-    Arguments:
+    Args:
         key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -6664,7 +6584,7 @@ def request_mesh_upload(
 
     Request presigned credentials for mesh upload
 
-    Arguments:
+    Args:
         key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -6683,7 +6603,7 @@ async def aget_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
     """GetCamera
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6697,7 +6617,7 @@ def get_camera(id: ID, rath: Optional[MikroNextRath] = None) -> Camera:
     """GetCamera
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6711,7 +6631,7 @@ async def aget_table(id: ID, rath: Optional[MikroNextRath] = None) -> Table:
     """GetTable
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6725,7 +6645,7 @@ def get_table(id: ID, rath: Optional[MikroNextRath] = None) -> Table:
     """GetTable
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6743,7 +6663,7 @@ async def asearch_tables(
     """SearchTables
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -6766,7 +6686,7 @@ def search_tables(
     """SearchTables
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -6779,115 +6699,11 @@ def search_tables(
     ).options
 
 
-async def aget_rendered_plot(
-    id: ID, rath: Optional[MikroNextRath] = None
-) -> RenderedPlot:
-    """GetRenderedPlot
-
-
-    Arguments:
-        id (ID): The unique identifier of an object
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        RenderedPlot
-    """
-    return (await aexecute(GetRenderedPlotQuery, {"id": id}, rath=rath)).rendered_plot
-
-
-def get_rendered_plot(id: ID, rath: Optional[MikroNextRath] = None) -> RenderedPlot:
-    """GetRenderedPlot
-
-
-    Arguments:
-        id (ID): The unique identifier of an object
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        RenderedPlot
-    """
-    return execute(GetRenderedPlotQuery, {"id": id}, rath=rath).rendered_plot
-
-
-async def alist_rendered_plots(
-    rath: Optional[MikroNextRath] = None,
-) -> Tuple[ListRenderedPlot, ...]:
-    """ListRenderedPlots
-
-
-    Arguments:
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[ListRenderedPlot]
-    """
-    return (await aexecute(ListRenderedPlotsQuery, {}, rath=rath)).rendered_plots
-
-
-def list_rendered_plots(
-    rath: Optional[MikroNextRath] = None,
-) -> Tuple[ListRenderedPlot, ...]:
-    """ListRenderedPlots
-
-
-    Arguments:
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[ListRenderedPlot]
-    """
-    return execute(ListRenderedPlotsQuery, {}, rath=rath).rendered_plots
-
-
-async def asearch_rendered_plots(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> Tuple[SearchRenderedPlotsQueryOptions, ...]:
-    """SearchRenderedPlots
-
-
-    Arguments:
-        search (Optional[str], optional): No description.
-        values (Optional[List[ID]], optional): No description.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[SearchRenderedPlotsQueryRenderedplots]
-    """
-    return (
-        await aexecute(
-            SearchRenderedPlotsQuery, {"search": search, "values": values}, rath=rath
-        )
-    ).options
-
-
-def search_rendered_plots(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> Tuple[SearchRenderedPlotsQueryOptions, ...]:
-    """SearchRenderedPlots
-
-
-    Arguments:
-        search (Optional[str], optional): No description.
-        values (Optional[List[ID]], optional): No description.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        List[SearchRenderedPlotsQueryRenderedplots]
-    """
-    return execute(
-        SearchRenderedPlotsQuery, {"search": search, "values": values}, rath=rath
-    ).options
-
-
 async def aget_file(id: ID, rath: Optional[MikroNextRath] = None) -> File:
     """GetFile
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6901,7 +6717,7 @@ def get_file(id: ID, rath: Optional[MikroNextRath] = None) -> File:
     """GetFile
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6920,7 +6736,7 @@ async def asearch_files(
     """SearchFiles
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -6947,7 +6763,7 @@ def search_files(
     """SearchFiles
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -6967,7 +6783,7 @@ async def aget_table_row(id: ID, rath: Optional[MikroNextRath] = None) -> TableR
     """GetTableRow
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6981,7 +6797,7 @@ def get_table_row(id: ID, rath: Optional[MikroNextRath] = None) -> TableRow:
     """GetTableRow
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -6999,7 +6815,7 @@ async def asearch_table_rows(
     """SearchTableRows
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7022,7 +6838,7 @@ def search_table_rows(
     """SearchTableRows
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7039,7 +6855,7 @@ async def aget_stage(id: ID, rath: Optional[MikroNextRath] = None) -> Stage:
     """GetStage
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7053,7 +6869,7 @@ def get_stage(id: ID, rath: Optional[MikroNextRath] = None) -> Stage:
     """GetStage
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7072,7 +6888,7 @@ async def asearch_stages(
     """SearchStages
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -7099,7 +6915,7 @@ def search_stages(
     """SearchStages
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -7119,7 +6935,7 @@ async def aget_rois(image: ID, rath: Optional[MikroNextRath] = None) -> Tuple[RO
     """GetRois
 
 
-    Arguments:
+    Args:
         image (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7133,7 +6949,7 @@ def get_rois(image: ID, rath: Optional[MikroNextRath] = None) -> Tuple[ROI, ...]
     """GetRois
 
 
-    Arguments:
+    Args:
         image (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7147,7 +6963,7 @@ async def aget_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ROI:
     """GetRoi
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7161,7 +6977,7 @@ def get_roi(id: ID, rath: Optional[MikroNextRath] = None) -> ROI:
     """GetRoi
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7179,7 +6995,7 @@ async def asearch_rois(
     """SearchRois
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7200,7 +7016,7 @@ def search_rois(
     """SearchRois
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7217,7 +7033,7 @@ async def aget_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Object
     """GetObjective
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7231,7 +7047,7 @@ def get_objective(id: ID, rath: Optional[MikroNextRath] = None) -> Objective:
     """GetObjective
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7245,7 +7061,7 @@ async def aget_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
     """GetDataset
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7259,7 +7075,7 @@ def get_dataset(id: ID, rath: Optional[MikroNextRath] = None) -> Dataset:
     """GetDataset
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7278,7 +7094,7 @@ async def asearch_datasets(
     """SearchDatasets
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -7305,7 +7121,7 @@ def search_datasets(
     """SearchDatasets
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -7325,7 +7141,7 @@ async def aget_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instr
     """GetInstrument
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7339,7 +7155,7 @@ def get_instrument(id: ID, rath: Optional[MikroNextRath] = None) -> Instrument:
     """GetInstrument
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7353,7 +7169,7 @@ async def aget_table_cell(id: ID, rath: Optional[MikroNextRath] = None) -> Table
     """GetTableCell
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7367,7 +7183,7 @@ def get_table_cell(id: ID, rath: Optional[MikroNextRath] = None) -> TableCell:
     """GetTableCell
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7385,7 +7201,7 @@ async def asearch_table_cells(
     """SearchTableCells
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7408,7 +7224,7 @@ def search_table_cells(
     """SearchTableCells
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7426,7 +7242,7 @@ async def aget_image(id: ID, rath: Optional[MikroNextRath] = None) -> Image:
 
     Returns a single image by ID
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7441,7 +7257,7 @@ def get_image(id: ID, rath: Optional[MikroNextRath] = None) -> Image:
 
     Returns a single image by ID
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7455,7 +7271,7 @@ async def aget_random_image(rath: Optional[MikroNextRath] = None) -> Image:
     """GetRandomImage
 
 
-    Arguments:
+    Args:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -7468,7 +7284,7 @@ def get_random_image(rath: Optional[MikroNextRath] = None) -> Image:
     """GetRandomImage
 
 
-    Arguments:
+    Args:
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -7485,7 +7301,7 @@ async def asearch_images(
     """SearchImages
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7508,7 +7324,7 @@ def search_images(
     """SearchImages
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7529,7 +7345,7 @@ async def aimages(
     """Images
 
 
-    Arguments:
+    Args:
         filter (Optional[ImageFilter], optional): No description.
         pagination (Optional[OffsetPaginationInput], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7552,7 +7368,7 @@ def images(
     """Images
 
 
-    Arguments:
+    Args:
         filter (Optional[ImageFilter], optional): No description.
         pagination (Optional[OffsetPaginationInput], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7574,7 +7390,7 @@ async def aview_image(
 
     Returns a single image by ID
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         filtersggg (Optional[ViewFilter], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7596,7 +7412,7 @@ def view_image(
 
     Returns a single image by ID
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         filtersggg (Optional[ViewFilter], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7613,7 +7429,7 @@ async def aget_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> Snapsho
     """GetSnapshot
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7627,7 +7443,7 @@ def get_snapshot(id: ID, rath: Optional[MikroNextRath] = None) -> Snapshot:
     """GetSnapshot
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7645,7 +7461,7 @@ async def asearch_snapshots(
     """SearchSnapshots
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7668,7 +7484,7 @@ def search_snapshots(
     """SearchSnapshots
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7685,7 +7501,7 @@ async def aget_rgb_context(id: ID, rath: Optional[MikroNextRath] = None) -> RGBC
     """GetRGBContext
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7699,7 +7515,7 @@ def get_rgb_context(id: ID, rath: Optional[MikroNextRath] = None) -> RGBContext:
     """GetRGBContext
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7713,7 +7529,7 @@ async def aget_mesh(id: ID, rath: Optional[MikroNextRath] = None) -> Mesh:
     """GetMesh
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7727,7 +7543,7 @@ def get_mesh(id: ID, rath: Optional[MikroNextRath] = None) -> Mesh:
     """GetMesh
 
 
-    Arguments:
+    Args:
         id (ID): The unique identifier of an object
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7746,7 +7562,7 @@ async def asearch_meshes(
     """SearchMeshes
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -7773,7 +7589,7 @@ def search_meshes(
     """SearchMeshes
 
 
-    Arguments:
+    Args:
         search (Optional[str], optional): No description.
         values (Optional[List[ID]], optional): No description.
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -7796,7 +7612,7 @@ async def awatch_files(
 
     Subscribe to real-time file updates
 
-    Arguments:
+    Args:
         dataset (Optional[ID], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7816,7 +7632,7 @@ def watch_files(
 
     Subscribe to real-time file updates
 
-    Arguments:
+    Args:
         dataset (Optional[ID], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7834,7 +7650,7 @@ async def awatch_images(
 
     Subscribe to real-time image updates
 
-    Arguments:
+    Args:
         dataset (Optional[ID], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7854,7 +7670,7 @@ def watch_images(
 
     Subscribe to real-time image updates
 
-    Arguments:
+    Args:
         dataset (Optional[ID], optional): No description.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7872,7 +7688,7 @@ async def awatch_rois(
 
     Subscribe to real-time ROI updates
 
-    Arguments:
+    Args:
         image (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7890,7 +7706,7 @@ def watch_rois(
 
     Subscribe to real-time ROI updates
 
-    Arguments:
+    Args:
         image (ID): No description
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -7909,7 +7725,6 @@ FromParquetLike.model_rebuild()
 ImageFilter.model_rebuild()
 PartialPixelViewInput.model_rebuild()
 RenderTreeInput.model_rebuild()
-RenderedPlotInput.model_rebuild()
 StageFilter.model_rebuild()
 TimepointViewFilter.model_rebuild()
 TreeInput.model_rebuild()

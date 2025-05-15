@@ -28,6 +28,7 @@
                 "ParquetLike": "mikro_next.scalars.ParquetLike",
                 "FileLike": "mikro_next.scalars.FileLike",
                 "MeshLike": "mikro_next.scalars.MeshLike",
+                "ImageFileLike": "mikro_next.scalars.ImageFileLike",
                 "Upload": "mikro_next.scalars.Upload",
                 "Vector": "mikro_next.scalars.Vector",
                 "TwoDVector": "mikro_next.scalars.TwoDVector",
@@ -139,6 +140,14 @@
                 },
                 {
                     "type": "turms.plugins.funcs.FuncsPlugin",
+                    "coercible_scalars": {
+                        "ArrayLike": "mikro_next.scalars.ArrayCoercible",
+                        "ImageFileLike": "mikro_next.scalars.ImageFileCoercible",
+                        "FileLike": "mikro_next.scalars.ImageFileCoercible",
+                        "MeshLike": "mikro_next.scalars.MeshCoercible",
+                        "ParquetLike": "mikro_next.scalars.ParquetCoercible",
+                        "ID": "mikro_next.scalars.IDCoercible"
+                    },
                     "expand_input_types": [
                         "input"
                     ],

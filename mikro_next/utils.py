@@ -1,10 +1,12 @@
-from typing import Dict
+from typing import Dict, Hashable, Mapping
 import math
 
 
 def rechunk(
-    sizes: Dict[str, int], itemsize: int = 8, chunksize_in_bytes: int = 20_000_000
-) -> Dict[str, int]:
+    sizes: Mapping[Hashable, int],
+    itemsize: int = 8,
+    chunksize_in_bytes: int = 20_000_000,
+) -> Mapping[Hashable, int]:
     """Calculates Chunks for a given size
 
     Args:

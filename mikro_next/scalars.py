@@ -5,25 +5,68 @@ Custom scalars for mikro_next
 """
 
 import io
+from operator import is_
 import os
-from typing import Any, IO, List, Optional
+from typing import Any, IO, List, Optional, TypeAlias, cast
+from pydantic import GetCoreSchemaHandler
+from pydantic_core import CoreSchema
 import xarray as xr
 import pandas as pd
 import numpy as np
 import uuid
+from numpy.typing import NDArray
+
+
 from .utils import rechunk
 from collections.abc import Iterable
 import mimetypes
 from pathlib import Path
+from typing import Protocol
+from rath.scalars import ID
+from pydantic_core import CoreSchema, core_schema
 
 
-def is_dask_array(x):
+class WithId(Protocol):
+    id: ID
+
+
+IDCoercible = str | ID | WithId
+
+ArrayCoercible: TypeAlias = xr.DataArray | NDArray | List[float] | List[List[float]]
+""" A type alias for array-like structures that can be coerced into an xarray DataArray."""
+
+ImageFileCoercible: TypeAlias = str | bytes | Path
+""" A type alias for image file-like structures that can be coerced into an xarray DataArray."""
+
+ParquetCoercible: TypeAlias = pd.DataFrame
+""" A type alias for parquet-like structures that can be coerced into an xarray DataArray."""
+
+MeshCoercible: TypeAlias = str | bytes | Path
+""" A type alias for mesh-like structures that can be coerced into an xarray DataArray."""
+
+FileCoercible: TypeAlias = str | bytes | Path
+""" A type alias for file-like structures that can be coerced into an xarray DataArray."""
+
+FourByFourMatrixCoercible: TypeAlias = List[List[float]] | NDArray
+""" A type alias for 4x4 matrix-like structures that can be coerced into an xarray DataArray."""
+
+MillisecondsCoercible: TypeAlias = int | float
+""" A type alias for millisecond-like structures that can be coerced into an xarray DataArray."""
+
+MicrometersCoercible: TypeAlias = int | float
+""" A type alias for micrometer-like structures that can be coerced into an xarray DataArray."""
+
+
+def is_dask_array(v: Any) -> bool:
+    """Check if the input is a dask array."""
     try:
         import dask.array as da
 
-        return isinstance(x, da.Array)
+        return isinstance(v, da.Array)
     except ImportError:
         return False
+    except Exception as e:
+        raise ValueError(f"Error checking for dask array: {e}")
 
 
 class AssignationID(str):
@@ -254,7 +297,7 @@ class FiveDVector(list):
 
     @classmethod
     def list_from_numpyarray(
-        cls: "FiveDVector",
+        cls,
         x: np.ndarray,
         t: Optional[int] = None,
         c: Optional[int] = None,
@@ -287,12 +330,21 @@ class FiveDVector(list):
 class Matrix(list):
     """A custom scalar to represent an affine matrix."""
 
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get__(self, instance, owner) -> "Matrix": ...
+
+    def __set__(self, instance, value: FourByFourMatrixCoercible): ...
 
     @classmethod
-    def validate(cls, v, *info):
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(cls.validate, handler(list))
+
+    @classmethod
+    def validate(cls, v: FourByFourMatrixCoercible) -> "Matrix":
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
             assert v.ndim == 2
@@ -310,12 +362,21 @@ class Matrix(list):
 class FourByFourMatrix(list):
     """A custom scalar to represent a four by four matrix (e.g 3D affine matrix.)"""
 
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get__(self, instance, owner) -> "FourByFourMatrix": ...
+
+    def __set__(self, instance, value: ParquetCoercible): ...
 
     @classmethod
-    def validate(cls, v, *info):
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(cls.validate, handler(list))
+
+    @classmethod
+    def validate(cls, v: str) -> "FourByFourMatrix":
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
             assert v.ndim == 2
@@ -348,12 +409,23 @@ class ArrayLike:
         self.value = value
         self.key = str(uuid.uuid4())
 
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get__(self, instance, owner) -> float: ...
+
+    def __set__(self, instance, value: ArrayCoercible): ...
 
     @classmethod
-    def validate(cls, v: xr.DataArray, *info):
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
+
+    @classmethod
+    def validate(cls, v: ArrayCoercible) -> "ArrayLike":
         """Validate the input array and convert it to a xr.DataArray."""
         was_labeled = True
         # initial coercion checks, if a numpy array is passed, we need to convert it to a xarray
@@ -361,6 +433,7 @@ class ArrayLike:
         # but error if they do not make sense
 
         if isinstance(v, np.ndarray) or is_dask_array(v):
+            v = cast(np.ndarray, v)
             dims = ["c", "t", "z", "y", "x"]
             v = xr.DataArray(v, dims=dims[5 - v.ndim :])
             was_labeled = False
@@ -422,12 +495,23 @@ class BigFile:
         self.value = value
         self.key = str(value.name)
 
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get__(self, instance, owner) -> "BigFile": ...
+
+    def __set__(self, instance, value: FileCoercible): ...
 
     @classmethod
-    def validate(cls, v, *info):
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
+
+    @classmethod
+    def validate(cls, v: FileCoercible) -> "BigFile":
         """Validate the input array and convert it to a xr.DataArray."""
 
         if isinstance(v, str):
@@ -451,25 +535,35 @@ class ParquetLike:
         self.value = value
         self.key = str(uuid.uuid4())
 
-    @classmethod
-    def __get_validators__(cls):
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield cls.validate
+    def __get__(self, instance, owner) -> "ParquetLike": ...
+
+    def __set__(self, instance, value: ParquetCoercible): ...
 
     @classmethod
-    def validate(cls, v, *info):
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
+
+    @classmethod
+    def validate(cls, v: str) -> "ParquetLike":
+        """Validate the validator function"""
+
         if not isinstance(v, pd.DataFrame):
             raise ValueError("This needs to be a instance of pandas DataFrame")
 
         return cls(v)
 
     def __repr__(self):
-        return f"ParquetInput({self.value})"
+        return f"ParquetLike({self.value})"
 
 
-class FileLike:
+class ImageFileLike:
     """A custom scalar for ensuring a common format to support write to the
     parquet api supported by mikro_next It converts the passed value into
     a compliant format.."""
@@ -479,13 +573,24 @@ class FileLike:
         self.file_name = os.path.basename(name)
         self.mime_type = mimetypes.guess_type(self.file_name)[0]
 
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get__(self, instance, owner) -> "FileLike": ...
+
+    def __set__(self, instance, value: FileCoercible): ...
 
     @classmethod
-    def validate(cls, v, *info):
-        """Validate the input array and convert it to a xr.DataArray."""
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
+
+    @classmethod
+    def validate(cls, v: FileCoercible) -> "FileLike":
+        """Validate the validator function"""
 
         if isinstance(v, str):
             file = open(v, "rb")
@@ -507,7 +612,59 @@ class FileLike:
         return cls(file, name=name)
 
     def __repr__(self):
-        return f"FileLikeInput({self.value})"
+        return f"FileLike({self.value})"
+
+
+class FileLike:
+    """A custom scalar for ensuring a common format to support write to the
+    parquet api supported by mikro_next It converts the passed value into
+    a compliant format.."""
+
+    def __init__(self, value: IO, name="") -> None:
+        self.value = value
+        self.file_name = os.path.basename(name)
+        self.mime_type = mimetypes.guess_type(self.file_name)[0]
+
+    def __get__(self, instance, owner) -> "FileLike": ...
+
+    def __set__(self, instance, value: FileCoercible): ...
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
+
+    @classmethod
+    def validate(cls, v: FileCoercible) -> "FileLike":
+        """Validate the validator function"""
+
+        if isinstance(v, str):
+            file = open(v, "rb")
+            name = v
+        elif isinstance(v, io.IOBase):
+            file = v
+            name = v.name
+        elif isinstance(v, Path):
+            file = open(v, "rb")
+            name = str(v)
+        else:
+            raise ValueError(
+                f"Unsupported type {type(v)}. Please provide a string or a Path object. Or a file object that is opened in binary mode."
+            )
+
+        if not isinstance(file, io.IOBase):
+            raise ValueError("This needs to be a instance of a file")
+
+        return cls(file, name=name)
+
+    def __repr__(self):
+        return f"FileLike({self.value})"
 
 
 class MeshLike:
@@ -519,20 +676,34 @@ class MeshLike:
         self.value = value
         self.key = str(name)
 
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get__(self, instance, owner) -> "MeshLike": ...
+
+    def __set__(self, instance, value: MeshCoercible): ...
 
     @classmethod
-    def validate(cls, v, *info):
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
+
+    @classmethod
+    def validate(cls, v: MeshCoercible) -> "MeshLike":
         """Validate the input array and convert it to a xr.DataArray."""
 
         if isinstance(v, str):
             file = open(v, "rb")
             name = v
+        elif isinstance(v, io.IOBase):
+            file = v
+            name = "Random Name"
         else:
             file = v
-            name = v.name
+            name = str(v)
 
         if not isinstance(file, io.IOBase):
             raise ValueError("This needs to be a instance of a file")
