@@ -1,4 +1,4 @@
-from typing import Dict, Hashable, Mapping
+from typing import Hashable, Mapping, cast
 import math
 
 
@@ -10,10 +10,10 @@ def rechunk(
     """Calculates Chunks for a given size
 
     Args:
-        sizes (Dict): The sizes of the image
+        sizes (Mapping[Hashable, int]): The sizes of the image
 
     Returns:
-        The chunks(dict): The chunks
+        The chunks (Mapping[Hashable, int]): The chunks
     """
     assert "c" in sizes, "c must be in sizes"
     assert "z" in sizes, "z must be in sizes"
@@ -48,4 +48,4 @@ def rechunk(
         "t": t,
     }
 
-    return chunk
+    return cast(Mapping[Hashable, int], chunk)

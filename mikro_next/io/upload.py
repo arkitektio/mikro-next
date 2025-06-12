@@ -12,14 +12,11 @@ from zarr.storage import FsspecStore
 import zarr
 import zarr.api.asynchronous as async_api
 import aiohttp
-import dask
 import numpy as np
 
 if TYPE_CHECKING:
     from mikro_next.api.schema import Credentials, PresignedPostCredentials
     from mikro_next.datalayer import DataLayer
-
-import dask.array as da
 
 
 def _store_xarray_input(
@@ -215,12 +212,12 @@ async def aupload_bigfile(
             print(credentials, file.value)
             await client.put_object(
                 Bucket=credentials.bucket, Key=credentials.key, Body=file.value
-            )
-        except botocore.exceptions.ClientError as e:
+            )  # type: ignore
+        except botocore.exceptions.ClientError as e:  # type: ignore
             if e.response["Error"]["Code"] == "InvalidAccessKeyId":
                 return PermissionsError(
                     "Access Key is invalid, trying to get new credentials"
-                )
+                )  # type: ignore
 
             raise e
 

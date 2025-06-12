@@ -4,7 +4,6 @@ import asyncio
 from mikro_next.scalars import ArrayLike, ImageFileLike, MeshLike, ParquetLike, FileLike
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation, opify
-from mikro_next.io.types import Uploader
 from typing import Any, Tuple, Type, Union
 from mikro_next.io.upload import (
     aupload_bigfile,
@@ -20,7 +19,9 @@ from functools import partial
 from mikro_next.datalayer import DataLayer
 
 
-async def apply_recursive(func, obj, typeguard: Union[Type[Any], Tuple[Type[Any], ...]]) -> Any:
+async def apply_recursive(
+    func, obj, typeguard: Union[Type[Any], Tuple[Type[Any], ...]]
+) -> Any:
     """
     Recursively applies an asynchronous function to elements in a nested structure.
 
@@ -32,15 +33,21 @@ async def apply_recursive(func, obj, typeguard: Union[Type[Any], Tuple[Type[Any]
     Returns:
         any: The nested structure with the function applied to elements of the specified type.
     """
-    if isinstance(obj, dict):  # If obj is a dictionary, recursively apply to each key-value pair
+    if isinstance(
+        obj, dict
+    ):  # If obj is a dictionary, recursively apply to each key-value pair
         return {k: await apply_recursive(func, v, typeguard) for k, v in obj.items()}
     elif isinstance(obj, list):  # If obj is a list, recursively apply to each element
-        return await asyncio.gather(*[apply_recursive(func, elem, typeguard) for elem in obj])
+        return await asyncio.gather(
+            *[apply_recursive(func, elem, typeguard) for elem in obj]
+        )
     elif isinstance(
         obj, tuple
     ):  # If obj is a tuple, recursively apply to each element and convert back to tuple
         return tuple(
-            await asyncio.gather(*[apply_recursive(func, elem, typeguard) for elem in obj])
+            await asyncio.gather(
+                *[apply_recursive(func, elem, typeguard) for elem in obj]
+            )
         )
     elif isinstance(obj, typeguard):
         return await func(obj)
@@ -75,13 +82,16 @@ class UploadLink(ParsingLink):
 
     async def __aenter__(self):
         self._executor_session = self.executor.__enter__()
+        return self
 
     async def aget_image_credentials(self, key, datalayer) -> Any:
         from mikro_next.api.schema import RequestUploadMutation, RequestUploadInput
 
         operation = opify(
             RequestUploadMutation.Meta.document,
-            variables={"input": RequestUploadInput(key=key, datalayer=datalayer).model_dump()},
+            variables={
+                "input": RequestUploadInput(key=key, datalayer=datalayer).model_dump()
+            },
         )
 
         if not self.next:
@@ -102,9 +112,9 @@ class UploadLink(ParsingLink):
         operation = opify(
             RequestTableUploadMutation.Meta.document,
             variables={
-                "input": RequestTableUploadInput(key=key, datalayer=datalayer).model_dump(
-                    by_alias=True, exclude_unset=True
-                )
+                "input": RequestTableUploadInput(
+                    key=key, datalayer=datalayer
+                ).model_dump(by_alias=True, exclude_unset=True)
             },
         )
 
@@ -144,9 +154,9 @@ class UploadLink(ParsingLink):
         operation = opify(
             RequestMeshUploadMutation.Meta.document,
             variables={
-                "input": RequestMeshUploadInput(key=key, datalayer=datalayer).model_dump(
-                    by_alias=True, exclude_unset=True
-                )
+                "input": RequestMeshUploadInput(
+                    key=key, datalayer=datalayer
+                ).model_dump(by_alias=True, exclude_unset=True)
             },
         )
 
@@ -174,7 +184,9 @@ class UploadLink(ParsingLink):
         async for result in self.next.aexecute(operation):
             return RequestMediaUploadMutation(**result.data).request_media_upload
 
-    async def aupload_parquet(self, datalayer: "DataLayer", parquet_input: ParquetLike) -> str:
+    async def aupload_parquet(
+        self, datalayer: "DataLayer", parquet_input: ParquetLike
+    ) -> str:
         assert datalayer is not None, "Datalayer must be set"
         endpoint_url = await datalayer.get_endpoint_url()
 
@@ -208,11 +220,15 @@ class UploadLink(ParsingLink):
             datalayer,
         )
 
-    async def aupload_mediafile(self, datalayer: "DataLayer", file: ImageFileLike) -> str:
+    async def aupload_mediafile(
+        self, datalayer: "DataLayer", file: ImageFileLike
+    ) -> str:
         assert datalayer is not None, "Datalayer must be set"
         endpoint_url = await datalayer.get_endpoint_url()
 
-        credentials = await self.arequest_media_credentials(file.file_name, endpoint_url)
+        credentials = await self.arequest_media_credentials(
+            file.file_name, endpoint_url
+        )
         return await astore_media_file(
             file,
             credentials,

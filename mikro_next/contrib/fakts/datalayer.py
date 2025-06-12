@@ -33,6 +33,7 @@ class FaktsDataLayer(DataLayer):
 
     async def aconnect(self):
         fakt = await self.fakts.aget(self.fakts_group)
+        assert isinstance(fakt, dict), "Fakt must be a dict"
         self.configure(DataLayerFakt(**fakt))
 
         self._configured = True

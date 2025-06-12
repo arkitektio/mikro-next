@@ -146,7 +146,7 @@
                         "FileLike": "mikro_next.scalars.ImageFileCoercible",
                         "MeshLike": "mikro_next.scalars.MeshCoercible",
                         "ParquetLike": "mikro_next.scalars.ParquetCoercible",
-                        "ID": "mikro_next.scalars.IDCoercible"
+                        "ID": "rath.scalars.IDCoercible"
                     },
                     "expand_input_types": [
                         "input"

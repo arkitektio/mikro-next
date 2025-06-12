@@ -11,23 +11,23 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 
 """
 
-from typing import Awaitable, List, TypeVar, Tuple, Protocol, Optional
+from typing import Awaitable, List, Type, TypeVar, Tuple, Protocol, Optional
 import numpy as np
 from pydantic import BaseModel
 import xarray as xr
 import pandas as pd
 from typing import TYPE_CHECKING
-from dask.array import from_zarr
+from dask.array.core import from_zarr
 import zarr
 from .scalars import FiveDVector
-from .utils import rechunk
 from rath.scalars import ID
 from typing import Any
 from rath.turms.utils import get_attributes_or_error
-import dataclasses
+
 
 if TYPE_CHECKING:
     from pyarrow.parquet import ParquetDataset
+    from mikro_next.api.schema import HasZarrStoreAccessor
 
 
 class HasZarrStoreTrait(BaseModel):
@@ -43,9 +43,11 @@ class HasZarrStoreTrait(BaseModel):
 
     @property
     def data(self) -> xr.DataArray:
-        store = get_attributes_or_error(self, "store")
+        from dask.array.core import Array
 
-        array: zarr.Array = from_zarr(store.zarr_store)
+        store: HasZarrStoreAccessor = get_attributes_or_error(self, "store")
+
+        array: Array = from_zarr(store.zarr_store)
 
         return xr.DataArray(array, dims=["c", "t", "z", "y", "x"])
 
@@ -73,21 +75,23 @@ class HasZarrStoreTrait(BaseModel):
         pstore = get_attributes_or_error(self, "store")
         return await pstore.aopen()
 
-    def get_pixel_size(self, stage: ID = None) -> Tuple[float, float, float]:
+    def get_pixel_size(self, stage: ID | None = None) -> Tuple[float, float, float]:
         """The pixel size of the representation
 
         Returns:
             Tuple[float, float, float]: The pixel size
         """
+        from mikro_next.api.schema import AffineTransformationView
+
         views = get_attributes_or_error(self, "views")
 
         for view in views:
-            if isinstance(view, PixelTranslatable):
+            if isinstance(view, AffineTransformationView):
                 if stage is None:
-                    return view.pixel_size
+                    return view.affine_matrix.as_matrix().diagonal()[:3]  # type: ignore
                 else:
                     if get_attributes_or_error(view, "stage.id") == stage:
-                        return view.pixel_size
+                        return view.affine_matrix.as_matrix().diagonal()[:3]  # type: ignore
 
         raise NotImplementedError(
             f"No pixel size found for this representation {self}. Have you attached any views?"
@@ -127,7 +131,7 @@ class PhysicalSizeTrait:
     def is_similar(
         self: PhysicalSizeProtocol,
         other: PhysicalSizeProtocol,
-        tolerance: Optional[float] = 0.02,
+        tolerance: float = 0.02,
         raise_exception: Optional[bool] = False,
     ) -> bool:
         if hasattr(self, "x") and self.x is not None and other.x is not None:
@@ -191,7 +195,7 @@ class IsVectorizableTrait:
         return self.get_vector_data(dims="yx")
 
     def get_vector_data(self, dims="yx") -> np.ndarray:
-        vector_list = getattr(self, "vectors", None)
+        vector_list = get_attributes_or_error(self, "vectors")
         assert vector_list, (
             "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
         )
@@ -216,18 +220,16 @@ class IsVectorizableTrait:
         Returns:
             InputVector: The center of the ROI
         """
-        from mikro_next.api.schema import RoiTypeInput, InputVector
+        from mikro_next.api.schema import RoiKind, FiveDVector
 
-        assert hasattr(self, "type"), (
-            "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
-        )
-        if self.type == RoiTypeInput.RECTANGLE:
-            return InputVector.from_array(
+        kind = get_attributes_or_error(self, "kind")
+        if kind == RoiKind.RECTANGLE:
+            return FiveDVector.list_from_numpyarray(
                 self.get_vector_data(dims="ctzyx").mean(axis=0)
             )
 
         raise NotImplementedError(
-            f"Center calculation not implemented for this ROI type {self.type}"
+            f"Center calculation not implemented for this ROI type {kind}"
         )
 
     def crop(self, data: xr.DataArray) -> xr.DataArray:
@@ -257,18 +259,16 @@ class IsVectorizableTrait:
         Returns:
             InputVector: The center of the ROI
         """
-        from mikro_next.api.schema import RoiTypeInput
+        from mikro_next.api.schema import RoiKind
 
-        assert hasattr(self, "type"), (
-            "Please query 'type' in your request on 'ROI'. Center is not accessible otherwise"
-        )
-        if self.type == RoiTypeInput.RECTANGLE:
+        kind = get_attributes_or_error(self, "kind")
+        if kind == RoiKind.RECTANGLE:
             return self.get_vector_data(dims="ctzyx").mean(axis=0)
-        if self.type == RoiTypeInput.POINT:
+        if kind == RoiKind.POINT:
             return self.get_vector_data(dims="ctzyx")[0]
 
         raise NotImplementedError(
-            f"Center calculation not implemented for this ROI type {self.type}"
+            f"Center calculation not implemented for this ROI kind {kind}"
         )
 
 
@@ -290,7 +290,7 @@ class HasParquestStoreTrait(BaseModel):
         Returns:
             pd.DataFrame: The Dataframe
         """
-        store: "ParquetStore" = get_attributes_or_error(self, "store")
+        store: "HasParquetStoreAccesor" = get_attributes_or_error(self, "store")
         return store.parquet_dataset.read_pandas().to_pandas()
 
 
@@ -327,7 +327,7 @@ class HasParquetStoreAccesor(BaseModel):
 class HasDownloadAccessor(BaseModel):
     _dataset: Any = None
 
-    def download(self, file_name: str = None) -> "str":
+    def download(self, file_name: str | None = None) -> "str":
         from mikro_next.io.download import download_file
 
         url, key = get_attributes_or_error(self, "presigned_url", "key")
@@ -337,7 +337,7 @@ class HasDownloadAccessor(BaseModel):
 class HasPresignedDownloadAccessor(BaseModel):
     _dataset: Any = None
 
-    def download(self, file_name: str = None) -> str:
+    def download(self, file_name: str | None = None) -> str:
         from mikro_next.io.download import download_file
 
         url, key = get_attributes_or_error(self, "presigned_url", "key")
@@ -361,14 +361,14 @@ class Vector(Protocol):
     t: float
     c: float
 
-    def __call__(
-        self: V,
+    def __init__(
+        self,
         x: Optional[int] = None,
         y: Optional[int] = None,
         z: Optional[int] = None,
         t: Optional[int] = None,
         c: Optional[int] = None,
-    ) -> V: ...
+    ) -> None: ...
 
 
 T = TypeVar("T", bound=Vector)
@@ -413,7 +413,7 @@ class HasFromNumpyArrayTrait:
 
     @classmethod
     def list_from_numpyarray(
-        cls: T,
+        cls: Type[T],
         x: np.ndarray,
         t: Optional[int] = None,
         c: Optional[int] = None,
@@ -441,13 +441,13 @@ class HasFromNumpyArrayTrait:
 
     @classmethod
     def from_array(
-        cls: T,
+        cls: Type[T],
         x: np.ndarray,
     ) -> T:
         return cls(x=x[4], y=x[3], z=x[2], t=x[1], c=x[0])
 
 
 class FileTrait:
-    def download(self, file_name: str = None) -> "str":
-        store = get_attributes_or_error(self, "store")
+    def download(self, file_name: str | None = None) -> "str":
+        store: "HasPresignedDownloadAccessor" = get_attributes_or_error(self, "store")
         return store.download(file_name=file_name)

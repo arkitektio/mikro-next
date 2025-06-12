@@ -5,7 +5,6 @@ Custom scalars for mikro_next
 """
 
 import io
-from operator import is_
 import os
 from typing import Any, IO, List, Optional, TypeAlias, cast
 from pydantic import GetCoreSchemaHandler
@@ -23,7 +22,7 @@ import mimetypes
 from pathlib import Path
 from typing import Protocol
 from rath.scalars import ID
-from pydantic_core import CoreSchema, core_schema
+from pydantic_core import core_schema
 
 
 class WithId(Protocol):
@@ -35,19 +34,19 @@ IDCoercible = str | ID | WithId
 ArrayCoercible: TypeAlias = xr.DataArray | NDArray | List[float] | List[List[float]]
 """ A type alias for array-like structures that can be coerced into an xarray DataArray."""
 
-ImageFileCoercible: TypeAlias = str | bytes | Path
+ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for image file-like structures that can be coerced into an xarray DataArray."""
 
 ParquetCoercible: TypeAlias = pd.DataFrame
 """ A type alias for parquet-like structures that can be coerced into an xarray DataArray."""
 
-MeshCoercible: TypeAlias = str | bytes | Path
+MeshCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for mesh-like structures that can be coerced into an xarray DataArray."""
 
-FileCoercible: TypeAlias = str | bytes | Path
+FileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for file-like structures that can be coerced into an xarray DataArray."""
 
-FourByFourMatrixCoercible: TypeAlias = List[List[float]] | NDArray
+FourByFourMatrixCoercible: TypeAlias = List[List[float]] | NDArray | List[List[int]] 
 """ A type alias for 4x4 matrix-like structures that can be coerced into an xarray DataArray."""
 
 MillisecondsCoercible: TypeAlias = int | float
@@ -60,7 +59,7 @@ MicrometersCoercible: TypeAlias = int | float
 def is_dask_array(v: Any) -> bool:
     """Check if the input is a dask array."""
     try:
-        import dask.array as da
+        import dask.array.core as da
 
         return isinstance(v, da.Array)
     except ImportError:
@@ -115,9 +114,6 @@ class Upload:
 
     def __init__(self, value) -> None:
         self.value = value
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        os.remove(self.local_file)
 
     @classmethod
     def __get_validators__(cls):
@@ -364,7 +360,7 @@ class FourByFourMatrix(list):
 
     def __get__(self, instance, owner) -> "FourByFourMatrix": ...
 
-    def __set__(self, instance, value: ParquetCoercible): ...
+    def __set__(self, instance, value: FourByFourMatrixCoercible): ...
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -568,7 +564,7 @@ class ImageFileLike:
     parquet api supported by mikro_next It converts the passed value into
     a compliant format.."""
 
-    def __init__(self, value: IO, name="") -> None:
+    def __init__(self, value: io.BufferedReader, name="") -> None:
         self.value = value
         self.file_name = os.path.basename(name)
         self.mime_type = mimetypes.guess_type(self.file_name)[0]
@@ -589,7 +585,7 @@ class ImageFileLike:
         )
 
     @classmethod
-    def validate(cls, v: FileCoercible) -> "FileLike":
+    def validate(cls, v: FileCoercible) -> "ImageFileLike":
         """Validate the validator function"""
 
         if isinstance(v, str):
@@ -606,7 +602,7 @@ class ImageFileLike:
                 f"Unsupported type {type(v)}. Please provide a string or a Path object. Or a file object that is opened in binary mode."
             )
 
-        if not isinstance(file, io.IOBase):
+        if not isinstance(file, io.BufferedReader):
             raise ValueError("This needs to be a instance of a file")
 
         return cls(file, name=name)
@@ -705,7 +701,7 @@ class MeshLike:
             file = v
             name = str(v)
 
-        if not isinstance(file, io.IOBase):
+        if not isinstance(file, io.BufferedReader):
             raise ValueError("This needs to be a instance of a file")
 
         return cls(file, name=name)
