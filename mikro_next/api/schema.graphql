@@ -3392,6 +3392,9 @@ type Subscription {
 
   """Subscribe to real-time file updates"""
   files(dataset: ID = null): FileEvent!
+
+  """Subscribe to real-time affine transformation view updatess"""
+  affineTransformationViews(stage: ID!): AffineTransformationViewEvent!
 }
 
 type RoiEvent {
@@ -3411,4 +3414,10 @@ type FileEvent {
   delete: ID
   update: File
   moved: File
+}
+
+type AffineTransformationViewEvent {
+  create: AffineTransformationView
+  delete: ID
+  update: AffineTransformationView
 }

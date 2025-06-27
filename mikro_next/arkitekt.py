@@ -1,19 +1,18 @@
 import json
 import os
+from fakts_next.contrib.rath.auth import FaktsAuthLink
 from rath.links.dictinglink import DictingLink
 from rath.links.file import FileExtraction
 from rath.links.split import SplitLink
 from fakts_next import Fakts
-from herre_next import Herre
 from arkitekt_next.service_registry import BaseArkitektService, Params
-from arkitekt_next.base_models import Requirement
+from fakts_next.models import Requirement
 
 from mikro_next.mikro_next import MikroNext
 from mikro_next.rath import MikroNextRath
 from rath.links.compose import compose
 from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
 from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
-from herre_next.contrib.rath.auth_link import HerreAuthLink
 from mikro_next.contrib.fakts.datalayer import FaktsDataLayer
 from mikro_next.links.upload import UploadLink
 from graphql import OperationType
@@ -21,7 +20,6 @@ from arkitekt_next.service_registry import (
     get_default_service_registry,
 )
 
-from arkitekt_next.base_models import Manifest
 from rekuest_next.links.context import ContextLink
 
 
@@ -33,9 +31,7 @@ class MikroService(BaseArkitektService):
     def get_service_name(self):
         return "mikro"
 
-    def build_service(
-        self, fakts: Fakts, herre: Herre, params: Params, manifest: Manifest
-    ):
+    def build_service(self, fakts: Fakts, params: Params):
         datalayer = FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
 
         return MikroNext(
@@ -43,17 +39,23 @@ class MikroService(BaseArkitektService):
                 link=compose(
                     FileExtraction(),
                     DictingLink(),
-                    HerreAuthLink(herre=herre),
+                    FaktsAuthLink(
+                        fakts=fakts,
+                    ),
                     ContextLink(),
                     UploadLink(
                         datalayer=datalayer,
                     ),
                     SplitLink(
                         left=FaktsAIOHttpLink(
-                            fakts_group="mikro", fakts=fakts, endpoint_url="FAKE_URL"
+                            fakts_group="mikro",
+                            fakts=fakts,
+                            endpoint_url="FAKE_URL",
                         ),
                         right=FaktsGraphQLWSLink(
-                            fakts_group="mikro", fakts=fakts, ws_endpoint_url="FAKE_URL"
+                            fakts_group="mikro",
+                            fakts=fakts,
+                            ws_endpoint_url="FAKE_URL",
                         ),
                         split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
                     ),

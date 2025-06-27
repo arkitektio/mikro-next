@@ -21,9 +21,6 @@ class FaktsDataLayer(DataLayer):
     _old_fakt: Dict[str, Any] = {}
     _configured = False
 
-    def configure(self, fakt: DataLayerFakt) -> None:
-        self.endpoint_url = fakt.endpoint_url
-
     async def get_endpoint_url(self):
         if self._configured:
             return self.endpoint_url
@@ -32,8 +29,7 @@ class FaktsDataLayer(DataLayer):
             return self.endpoint_url
 
     async def aconnect(self):
-        fakt = await self.fakts.aget(self.fakts_group)
-        assert isinstance(fakt, dict), "Fakt must be a dict"
-        self.configure(DataLayerFakt(**fakt))
+        alias = await self.fakts.aget_alias(self.fakts_group)
+        self.endpoint_url = alias.to_http_path()
 
         self._configured = True

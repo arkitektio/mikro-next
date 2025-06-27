@@ -1,0 +1,9 @@
+query ArtemiyImages {
+  images {
+    id
+    name
+    channels {
+      label
+    }
+  }
+}
