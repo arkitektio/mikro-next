@@ -835,7 +835,7 @@ wheels = [
 
 [[package]]
 name = "mikro-next"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "dask" },
@@ -881,11 +881,11 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2" },
     { name = "pyarrow", marker = "extra == 'complete'", specifier = ">=12.0.1" },
     { name = "pyarrow", marker = "extra == 'table'", specifier = ">=12.0.1" },
-    { name = "rath", specifier = ">=3.4" },
+    { name = "rath", specifier = ">=3.5" },
     { name = "s3fs", specifier = ">=2024.10.0" },
     { name = "websockets", specifier = ">=15.0.1" },
     { name = "xarray", specifier = ">=2024.11.0" },
-    { name = "zarr", specifier = ">3" },
+    { name = "zarr", specifier = ">=3.0.8" },
 ]
 
 [package.metadata.requires-dev]
@@ -1554,16 +1554,16 @@ wheels = [
 
 [[package]]
 name = "rath"
-version = "3.4.0"
+version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "graphql-core" },
     { name = "koil" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/24/af/0fbf6bdad464fc9b5dbfc6991dcedb0d1dfb4a28c1cacea6c90f4195df09/rath-3.4.0.tar.gz", hash = "sha256:8a48614db2981f3e28c518eb04d02744fbb2f2e7e59db1c464f7fde8e6abe3ae", size = 33328 }
+sdist = { url = "https://files.pythonhosted.org/packages/56/71/ac0ed6075b6c5a85e53132df4dd0139de26e1292a7ce019b1f9ec3e476c9/rath-3.5.0.tar.gz", hash = "sha256:f26ebe6cca048e91e628eb9906f30619b4505832fa0a205ed40d56b2d7d816f5", size = 32691 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/73/9a/2ed456f855b5172ed387a0e9fbdd5c519b9c707ca985b1622ab194ce94e3/rath-3.4.0-py3-none-any.whl", hash = "sha256:abceea721eb51e44defb57127d6f0c07859ff16dfd42afd76f390265ca80a73f", size = 49479 },
+    { url = "https://files.pythonhosted.org/packages/1a/fb/fffe48dc3e6eb47695c6290b93df3a9d0010d5fe25c7c5ecf23b0d7d8d84/rath-3.5.0-py3-none-any.whl", hash = "sha256:65a616b512dd95bf04f56a48ac112154d2e6f1ddb4ec4cb96e5b42d2f68b3445", size = 48176 },
 ]
 
 [[package]]
@@ -1934,7 +1934,7 @@ wheels = [
 
 [[package]]
 name = "zarr"
-version = "3.0.2"
+version = "3.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "donfig" },
@@ -1943,9 +1943,9 @@ dependencies = [
     { name = "packaging" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/3b/8b7f89229d010d3b7c90893b85dde006cf69b097a5c9deb720abdeb469ab/zarr-3.0.2.tar.gz", hash = "sha256:036b2dabffa9f0148cad57a7be6c69d9761f6b3b833b61b7d29c2ee8a836b46c", size = 220048 }
+sdist = { url = "https://files.pythonhosted.org/packages/52/60/9652fd0536fbaca8d08cbc1a5572c52e0ce01773297df75da8bb47e45907/zarr-3.0.8.tar.gz", hash = "sha256:88505d095af899a88ae8ac4db02f4650ef0801d2ff6f65b6d1f0a45dcf760a6d", size = 256825 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/83/4316503558c57a2d1928afaf0e77f47cf00d394347c88aaafbf0efaf5685/zarr-3.0.2-py3-none-any.whl", hash = "sha256:cd57949934a339cddc4853c0e819fd7f8e0370022e8eeddec2e56a6b13dc5021", size = 184410 },
+    { url = "https://files.pythonhosted.org/packages/00/3b/e20bdf84088c11f2c396d034506cbffadd53e024111c1aa4585c2aba1523/zarr-3.0.8-py3-none-any.whl", hash = "sha256:7f81e7aec086437d98882aa432209107114bd7f3a9f4958b2af9c6b5928a70a7", size = 205364 },
 ]
 
 [[package]]
