@@ -1,6 +1,9 @@
 # CHANGELOG
 
 
+## v0.6.0 (2025-07-02)
+
+
 ## v0.5.0 (2025-06-27)
 
 ### Bug Fixes
@@ -9,6 +12,9 @@
   ([`bfb960d`](https://github.com/arkitektio/mikro-next/commit/bfb960db276a77058163949e93a5008911e4a5a7))
 
 ### Features
+
+- Add validation tests for FourByFourMatrix and PartialAffineTransformationViewInput
+  ([`8a851b8`](https://github.com/arkitektio/mikro-next/commit/8a851b85fc3d4adf8798d62bb3cc0df024b8be68))
 
 - Enhance data layer and upload functionality
   ([`f6faca7`](https://github.com/arkitektio/mikro-next/commit/f6faca76142726e7e74d4c50b24ce1b79923967b))
