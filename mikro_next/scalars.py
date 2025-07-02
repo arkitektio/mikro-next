@@ -46,7 +46,7 @@ MeshCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 FileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for file-like structures that can be coerced into an xarray DataArray."""
 
-FourByFourMatrixCoercible: TypeAlias = List[List[float]] | NDArray | List[List[int]] 
+FourByFourMatrixCoercible: TypeAlias = List[List[float]] | NDArray | List[List[int]]
 """ A type alias for 4x4 matrix-like structures that can be coerced into an xarray DataArray."""
 
 MillisecondsCoercible: TypeAlias = int | float
@@ -337,7 +337,9 @@ class Matrix(list):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(list))
+        return core_schema.no_info_before_validator_function(
+            cls.validate, handler(list)
+        )
 
     @classmethod
     def validate(cls, v: FourByFourMatrixCoercible) -> "Matrix":
@@ -369,19 +371,42 @@ class FourByFourMatrix(list):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(list))
+        return core_schema.no_info_before_validator_function(
+            cls.validate, handler(list)
+        )
 
     @classmethod
-    def validate(cls, v: str) -> "FourByFourMatrix":
+    def validate(cls, v: np.ndarray) -> "FourByFourMatrix":
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
-            assert v.ndim == 2
-            assert v.shape[0] == v.shape[1]
-            assert v.shape == (4, 4)
-            v = v.tolist()
+            if not v.ndim == 2:
+                raise ValueError("The input array must be a 2D array")
+            if not v.shape[0] == v.shape[1]:
+                raise ValueError("The input array must be a square matrix")
+            if not v.shape == (4, 4):
+                raise ValueError("The input array must be a 4x4 matrix")
+            clean = [[float(v[i, j]) for j in range(4)] for i in range(4)]
+        else:
+            clean = v
 
-        assert isinstance(v, list)
-        return cls(v)
+        if not isinstance(clean, list):
+            raise ValueError(
+                f"Expected a list or numpy array, got {type(clean)}. Please provide a 4x4 matrix."
+            )
+
+        if len(clean) != 4 or any(len(row) != 4 for row in clean):
+            raise ValueError(
+                f"Expected a 4x4 matrix, got {len(clean)} rows and {[len(row) for row in clean]} columns."
+            )
+
+        for row in clean:
+            if not all(isinstance(x, (int, float)) for x in row):
+                raise ValueError(
+                    "All elements of the 4x4 matrix must be integers or floats."
+                )
+
+        print(f"Validating FourByFourMatrix: {clean}")
+        return cls(clean)
 
     def as_matrix(self):
         return np.array(self).reshape(3, 3)
