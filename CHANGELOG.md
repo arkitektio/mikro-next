@@ -1,6 +1,28 @@
 # CHANGELOG
 
 
+## v0.5.0 (2025-06-27)
+
+### Bug Fixes
+
+- Zarr update plus down
+  ([`bfb960d`](https://github.com/arkitektio/mikro-next/commit/bfb960db276a77058163949e93a5008911e4a5a7))
+
+### Features
+
+- Enhance data layer and upload functionality
+  ([`f6faca7`](https://github.com/arkitektio/mikro-next/commit/f6faca76142726e7e74d4c50b24ce1b79923967b))
+
+- Added assertion to ensure `fakt` is a dictionary in `FaktsDataLayer`. - Removed unused imports and
+  improved type hints in `upload.py`. - Refactored `apply_recursive` function for better
+  readability. - Updated `ImageFileLike`, `MeshLike`, and `FileCoercible` to support
+  `io.BufferedReader`. - Deleted unused testing files and directories. - Improved type hinting and
+  error handling in `traits.py`. - Refined `rechunk` function in `utils.py` for better type safety.
+
+- Updated arkitekt stack
+  ([`32f0f90`](https://github.com/arkitektio/mikro-next/commit/32f0f909daa3c0726cb6339fc32a3ee035c064e7))
+
+
 ## v0.4.0 (2025-05-15)
 
 
