@@ -1,6 +1,6 @@
 # mikro
 
-[![codecov](https://codecov.io/gh/arkitektio/mikro-enext/branch/master/graph/badge.svg?token=UGXEA2THBV)](https://codecov.io/gh/arkitektio/mikro-next)
+[![codecov](https://codecov.io/gh/arkitektio/mikro-next/graph/badge.svg?token=PRoouTwAGx)](https://codecov.io/gh/arkitektio/mikro-next)
 [![PyPI version](https://badge.fury.io/py/mikro-next.svg)](https://pypi.org/project/mikro-next/)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/mikro-next/)
 ![Maintainer](https://img.shields.io/badge/maintainer-jhnnsrs-blue)
