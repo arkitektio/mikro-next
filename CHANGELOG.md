@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.7.0 (2025-07-08)
+
+### Bug Fixes
+
+- Added new dev deployment to test
+  ([`d355391`](https://github.com/arkitektio/mikro-next/commit/d3553913e47f5fe21e38b359f359d98e41b38043))
+
+### Features
+
+- Typing update
+  ([`4aa0035`](https://github.com/arkitektio/mikro-next/commit/4aa0035dbe086f143cde3dff370b53e4f87c0011))
+
+
 ## v0.6.0 (2025-07-02)
 
 
