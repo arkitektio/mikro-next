@@ -15,23 +15,30 @@ import numpy as np
 import uuid
 from numpy.typing import NDArray
 
-
 from .utils import rechunk
 from collections.abc import Iterable
 import mimetypes
 from pathlib import Path
-from typing import Protocol
-from rath.scalars import ID
 from pydantic_core import core_schema
 
 
-class WithId(Protocol):
-    id: ID
+OneDArray = NDArray[np.generic]
+TwoDArray = NDArray[np.generic]
 
 
-IDCoercible = str | ID | WithId
+TwoDVectorCoercible: TypeAlias = List[float] | OneDArray | List[int]
+""" A type alias for 2D vector-like structures that can be coerced into a TwoDVector."""
 
-ArrayCoercible: TypeAlias = xr.DataArray | NDArray | List[float] | List[List[float]]
+ThreeDVectorCoercible: TypeAlias = List[float] | OneDArray | List[int]
+""" A type alias for 3D vector-like structures that can be coerced into a ThreeDVector."""
+
+FourDVectorCoercible: TypeAlias = List[float] | OneDArray | List[int]
+""" A type alias for 4D vector-like structures that can be coerced into a FourDVector."""
+
+FiveDVectorCoercible: TypeAlias = List[float] | OneDArray | List[List[float]] | List[List[int]]
+""" A type alias for 5D vector-like structures that can be coerced into a FiveDVector."""
+
+ArrayCoercible: TypeAlias = xr.DataArray | OneDArray | List[float] | List[List[float]]
 """ A type alias for array-like structures that can be coerced into an xarray DataArray."""
 
 ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
@@ -46,7 +53,7 @@ MeshCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 FileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for file-like structures that can be coerced into an xarray DataArray."""
 
-FourByFourMatrixCoercible: TypeAlias = List[List[float]] | NDArray | List[List[int]]
+FourByFourMatrixCoercible: TypeAlias = list[list[float]] | TwoDArray | list[list[int]]
 """ A type alias for 4x4 matrix-like structures that can be coerced into an xarray DataArray."""
 
 MillisecondsCoercible: TypeAlias = int | float
@@ -55,8 +62,11 @@ MillisecondsCoercible: TypeAlias = int | float
 MicrometersCoercible: TypeAlias = int | float
 """ A type alias for micrometer-like structures that can be coerced into an xarray DataArray."""
 
+RGBAColorCoercible: TypeAlias = List[float] | List[int] | OneDArray
+""" A type alias for RGBA color-like structures that can be coerced into an RGBA Value"""
 
-def is_dask_array(v: Any) -> bool:
+
+def is_dask_array(v: Any) -> bool:  # noqa: ANN401
     """Check if the input is a dask array."""
     try:
         import dask.array.core as da
@@ -68,29 +78,40 @@ def is_dask_array(v: Any) -> bool:
         raise ValueError(f"Error checking for dask array: {e}")
 
 
-class AssignationID(str):
+class RGBAColor(list[float]):
     """A custom scalar to represent an affine matrix."""
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_before_validator_function(cls.validate, handler(float))
 
     @classmethod
-    def validate(cls, v, *info):
+    def validate(cls, v: RGBAColorCoercible) -> "RGBAColor":
         """Validate the input array and convert it to a xr.DataArray."""
-        return cls(v)
+        if isinstance(v, np.ndarray):
+            if v.ndim == 1:
+                v = v.tolist()
+            else:
+                raise ValueError("The input array must be a 1D array")
 
+        if not isinstance(v, list):
+            raise ValueError("The input must be a list or a 1-D numpy array.")
 
-class RGBAColor(list):
-    """A custom scalar to represent an affine matrix."""
+        v = [float(i) for i in v]  # Convert all elements to float
 
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+        if len(v) == 3:
+            v.append(1.0)  # Add alpha channel if not present
 
-    @classmethod
-    def validate(cls, v, *info):
-        """Validate the input array and convert it to a xr.DataArray."""
+        if len(v) != 4:
+            raise ValueError(
+                f"The input must be a list of 3 or 4 elements (R, G, B, [A]). You provided a list of {len(v)} elements"
+            )
+
         return cls(v)
 
 
@@ -104,97 +125,84 @@ MetricValue = Any
 FeatureValue = Any
 
 
-class Upload:
-    """A custom scalar for ensuring an interface to files api supported by mikro_next It converts the graphql value
-    (a string pointed to a zarr store) into a downloadable file. To access the file you need to call the download
-    method. This is done to avoid unnecessary requests to the datalayer api.
-    """
-
-    __file__ = True
-
-    def __init__(self, value) -> None:
-        self.value = value
-
-    @classmethod
-    def __get_validators__(cls):
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v, *info):
-        # you could also return a string here which would mean model.post_code
-        # would be a string, pydantic won't care but you could end up with some
-        # confusion since the value's type won't match the type annotation
-        # exactly
-        return cls(v)
-
-    def __repr__(self):
-        return f"Upload({self.value})"
-
-
 class Micrometers(float):
     """A custom scalar to represent a micrometer."""
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_before_validator_function(cls.validate, handler(float))
 
     @classmethod
-    def validate(cls, v, *info):
-        """Validate the input array and convert it to a xr.DataArray."""
-        return cls(v)
-
-
-class Microliters(float):
-    """A custom scalar to represent a a microliter."""
-
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v, *info):
-        """Validate the input array and convert it to a xr.DataArray."""
-        return cls(v)
-
-
-class Micrograms(float):
-    """A custom scalar to represent a a microgram."""
-
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v, *info):
+    def validate(cls, v: MicrometersCoercible) -> "Micrometers":
         """Validate the input array and convert it to a xr.DataArray."""
         return cls(v)
 
 
 class Milliseconds(float):
-    """A custom scalar to represent a micrometer."""
+    """A custom scalar to represent a millisecond."""
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_before_validator_function(cls.validate, handler(float))
 
     @classmethod
-    def validate(cls, v, *info):
+    def validate(cls, v: MillisecondsCoercible) -> "Milliseconds":
         """Validate the input array and convert it to a xr.DataArray."""
         return cls(v)
 
 
-class TwoDVector(list):
+class TwoDVector(list[float]):
     """A custom scalar to represent a vector."""
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
 
     @classmethod
-    def validate(cls, v, *info):
+    def validate(cls, v: TwoDVectorCoercible) -> "TwoDVector":
+        """Validate the input array and convert it to a xr.DataArray."""
+        if isinstance(v, np.ndarray):
+            assert v.ndim == 1
+            v = v.tolist()  # Convert numpy array to list #type: ignore
+
+        assert isinstance(v, list)
+        assert len(v) == 3
+        return cls(v)
+
+    def as_vector(self) -> OneDArray:
+        """Convert the TwoDVector to a numpy array."""
+        return np.array(self)
+
+
+class ThreeDVector(list[float]):
+    """A custom scalar to represent a vector."""
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
+
+    @classmethod
+    def validate(cls, v: ThreeDVectorCoercible) -> "ThreeDVector":
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
             assert v.ndim == 1
@@ -204,41 +212,25 @@ class TwoDVector(list):
         assert len(v) == 3
         return cls(v)
 
-    def as_vector(self):
-        return np.array(self).reshape(-1)
+    def as_vector(self) -> OneDArray:
+        """Convert the ThreeDVector to a numpy array."""
+        return np.array(self)
 
 
-class ThreeDVector(list):
+class FourDVector(list[float]):
     """A custom scalar to represent a vector."""
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
 
     @classmethod
-    def validate(cls, v, *info):
-        """Validate the input array and convert it to a xr.DataArray."""
-        if isinstance(v, np.ndarray):
-            assert v.ndim == 1
-            v = v.tolist()
-
-        assert isinstance(v, list)
-        assert len(v) == 3
-        return cls(v)
-
-    def as_vector(self):
-        return np.array(self).reshape(-1)
-
-
-class FourDVector(list):
-    """A custom scalar to represent a vector."""
-
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v, *info):
+    def validate(cls, v: FourDVectorCoercible) -> "FourDVector":
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
             assert v.ndim == 1
@@ -248,19 +240,25 @@ class FourDVector(list):
         assert len(v) == 4
         return cls(v)
 
-    def as_vector(self):
+    def as_vector(self) -> OneDArray:
+        """Convert the FourDVector to a numpy array."""
         return np.array(self).reshape(-1)
 
 
-class FiveDVector(list):
+class FiveDVector(list[float]):
     """A custom scalar to represent a vector."""
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
 
     @classmethod
-    def validate(cls, v, *info):
+    def validate(cls, v: FiveDVectorCoercible) -> "FiveDVector":
         """Validate the input array and convert it to a xr.DataArray."""
 
         if isinstance(v, np.ndarray):
@@ -268,7 +266,7 @@ class FiveDVector(list):
                 raise ValueError("The input array must be a 1D array")
             v = v.tolist()
 
-        if not isinstance(v, Iterable):
+        if not isinstance(v, Iterable):  # type: ignore
             raise ValueError("The input must be a list or a 1-D numpy array.")
 
         if not isinstance(v, list):
@@ -285,16 +283,12 @@ class FiveDVector(list):
                 f"The input must be a list or at least 2 elements (x, y) but not more than 5e lements (c, t, z, x, y). Every additional element is a z value (c, t, z, x, y). You provided a list o {len(v)} elements"
             )
 
-        # prepend list with zeros
-        if len(v) < 5:
-            v = [0] * (5 - len(v)) + v
-
-        return v
+        return v  # type: ignore
 
     @classmethod
     def list_from_numpyarray(
         cls,
-        x: np.ndarray,
+        x: OneDArray,
         t: Optional[int] = None,
         c: Optional[int] = None,
         z: Optional[int] = None,
@@ -319,50 +313,17 @@ class FiveDVector(list):
                 f"Incompatible shape {x.shape} of {x}. List dimension needs to either be of size 2 or 3"
             )
 
-    def as_vector(self):
-        return np.array(self).reshape(-1)
+    def as_vector(self) -> OneDArray:
+        """Convert the FiveDVector to a numpy array."""
+        return np.array(self)
 
 
-class Matrix(list):
-    """A custom scalar to represent an affine matrix."""
-
-    def __get__(self, instance, owner) -> "Matrix": ...
-
-    def __set__(self, instance, value: FourByFourMatrixCoercible): ...
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls,
-        source_type: Any,  # noqa: ANN401
-        handler: GetCoreSchemaHandler,  # noqa: ANN401
-    ) -> CoreSchema:
-        """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(
-            cls.validate, handler(list)
-        )
-
-    @classmethod
-    def validate(cls, v: FourByFourMatrixCoercible) -> "Matrix":
-        """Validate the input array and convert it to a xr.DataArray."""
-        if isinstance(v, np.ndarray):
-            assert v.ndim == 2
-            assert v.shape[0] == v.shape[1]
-            assert v.shape == (3, 3)
-            v = v.tolist()
-
-        assert isinstance(v, list)
-        return cls(v)
-
-    def as_matrix(self):
-        return np.array(self).reshape(3, 3)
-
-
-class FourByFourMatrix(list):
+class FourByFourMatrix(list[list[float]]):
     """A custom scalar to represent a four by four matrix (e.g 3D affine matrix.)"""
 
-    def __get__(self, instance, owner) -> "FourByFourMatrix": ...
+    def __get__(self, instance, owner) -> "FourByFourMatrix": ...  # type: ignore # noqa: ANN001, D105
 
-    def __set__(self, instance, value: FourByFourMatrixCoercible): ...
+    def __set__(self, instance, value: FourByFourMatrixCoercible) -> None: ...  # type: ignore # noqa: ANN001, D105
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -371,12 +332,10 @@ class FourByFourMatrix(list):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(
-            cls.validate, handler(list)
-        )
+        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
 
     @classmethod
-    def validate(cls, v: np.ndarray) -> "FourByFourMatrix":
+    def validate(cls, v: FourByFourMatrixCoercible) -> "FourByFourMatrix":
         """Validate the input array and convert it to a xr.DataArray."""
         if isinstance(v, np.ndarray):
             if not v.ndim == 2:
@@ -389,7 +348,7 @@ class FourByFourMatrix(list):
         else:
             clean = v
 
-        if not isinstance(clean, list):
+        if not isinstance(clean, list):  # type: ignore
             raise ValueError(
                 f"Expected a list or numpy array, got {type(clean)}. Please provide a 4x4 matrix."
             )
@@ -400,25 +359,20 @@ class FourByFourMatrix(list):
             )
 
         for row in clean:
-            if not all(isinstance(x, (int, float)) for x in row):
-                raise ValueError(
-                    "All elements of the 4x4 matrix must be integers or floats."
-                )
+            if not all(isinstance(x, (int, float)) for x in row):  # type: ignore
+                raise ValueError("All elements of the 4x4 matrix must be integers or floats.")
 
         print(f"Validating FourByFourMatrix: {clean}")
-        return cls(clean)
+        return cls(clean)  # type: ignore
 
-    def as_matrix(self):
-        return np.array(self).reshape(3, 3)
+    def as_matrix(self) -> TwoDArray:
+        """Convert the FourByFourMatrix to a numpy array."""
+        return np.array(self).reshape(4, 4)
 
     @classmethod
-    def from_np(cls, v: np.ndarray):
+    def from_np(cls, v: TwoDArray) -> "FourByFourMatrix":
         """Validate the input array and convert it to a xr.DataArray."""
-        assert v.ndim == 2
-        assert v.shape[0] == v.shape[1]
-        assert v.shape == (4, 4)
-        v = v.tolist()
-        return cls(v)
+        return cls.validate(v)
 
 
 class ArrayLike:
@@ -427,12 +381,13 @@ class ArrayLike:
     into a mikro api compliant xr.DataArray.."""
 
     def __init__(self, value: xr.DataArray) -> None:
+        """Initialize the ArrayLike scalar with an xarray DataArray."""
         self.value = value
         self.key = str(uuid.uuid4())
 
-    def __get__(self, instance, owner) -> float: ...
+    def __get__(self, instance, owner) -> "ArrayLike": ...  # noqa: ANN001, D105 #type: ignore
 
-    def __set__(self, instance, value: ArrayCoercible): ...
+    def __set__(self, instance, value: ArrayCoercible) -> None: ...  # noqa: ANN001, D105 #type: ignore
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -441,9 +396,7 @@ class ArrayLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: ArrayCoercible) -> "ArrayLike":
@@ -454,7 +407,7 @@ class ArrayLike:
         # but error if they do not make sense
 
         if isinstance(v, np.ndarray) or is_dask_array(v):
-            v = cast(np.ndarray, v)
+            v = cast(NDArray[np.float_], v)  # type: ignore
             dims = ["c", "t", "z", "y", "x"]
             v = xr.DataArray(v, dims=dims[5 - v.ndim :])
             was_labeled = False
@@ -475,9 +428,7 @@ class ArrayLike:
         if "z" not in v.dims:
             v = v.expand_dims("z")
 
-        chunks = rechunk(
-            v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000
-        )
+        chunks = rechunk(v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000)
         if not was_labeled:
             if v.sizes["t"] > v.sizes["x"] or v.sizes["t"] > v.sizes["y"]:
                 raise ValueError(
@@ -492,18 +443,17 @@ class ArrayLike:
                     f"Probably Non sensical dimensions. C is bigger than x or y: Sizes {v.sizes}"
                 )
 
-        v = v.chunk(
-            {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
-        )
+        v = v.chunk({key: chunksize for key, chunksize in chunks.items() if key in v.dims})  # type: ignore
 
         v = v.transpose(*"ctzyx")
 
         if is_dask_array(v.data):
-            v = v.compute()
+            v = v.compute()  # type: ignore
 
         return cls(v)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """Return a string representation of the ArrayLike scalar."""
         return f"InputArray({self.value})"
 
 
@@ -512,13 +462,14 @@ class BigFile:
     the mikro platform. This scalar enables validation of various array formats
     into a mikro api compliant xr.DataArray.."""
 
-    def __init__(self, value: IO) -> None:
+    def __init__(self, value: IO[bytes]) -> None:
+        """Initialize the BigFile scalar with a file-like object."""
         self.value = value
         self.key = str(value.name)
 
-    def __get__(self, instance, owner) -> "BigFile": ...
+    def __get__(self, instance, owner) -> "BigFile": ...  # noqa: ANN001, D105 # type: ignore
 
-    def __set__(self, instance, value: FileCoercible): ...
+    def __set__(self, instance, value: FileCoercible) -> None: ...  # noqa: ANN001, D105 # type: ignore
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -527,9 +478,7 @@ class BigFile:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: FileCoercible) -> "BigFile":
@@ -543,7 +492,8 @@ class BigFile:
 
         return cls(v)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """Return a string representation of the BigFile scalar."""
         return f"BigFile({self.value})"
 
 
@@ -553,12 +503,13 @@ class ParquetLike:
     a compliant format.."""
 
     def __init__(self, value: pd.DataFrame) -> None:
+        """Initialize the ParquetLike scalar with a pandas DataFrame."""
         self.value = value
         self.key = str(uuid.uuid4())
 
-    def __get__(self, instance, owner) -> "ParquetLike": ...
+    def __get__(self, instance, owner) -> "ParquetLike": ...  # noqa: ANN001, D105 # type: ignore
 
-    def __set__(self, instance, value: ParquetCoercible): ...
+    def __set__(self, instance, value: ParquetCoercible) -> None: ...  # noqa: ANN001, D105 # type: ignore
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -567,20 +518,19 @@ class ParquetLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
-    def validate(cls, v: str) -> "ParquetLike":
+    def validate(cls, v: ParquetCoercible) -> "ParquetLike":
         """Validate the validator function"""
 
-        if not isinstance(v, pd.DataFrame):
+        if not isinstance(v, pd.DataFrame):  # type: ignore
             raise ValueError("This needs to be a instance of pandas DataFrame")
 
         return cls(v)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """Return a string representation of the ParquetLike scalar."""
         return f"ParquetLike({self.value})"
 
 
@@ -589,14 +539,15 @@ class ImageFileLike:
     parquet api supported by mikro_next It converts the passed value into
     a compliant format.."""
 
-    def __init__(self, value: io.BufferedReader, name="") -> None:
+    def __init__(self, value: io.BufferedReader, name: str = "") -> None:
+        """Initialize the ImageFileLike scalar with a file-like object."""
         self.value = value
         self.file_name = os.path.basename(name)
         self.mime_type = mimetypes.guess_type(self.file_name)[0]
 
-    def __get__(self, instance, owner) -> "FileLike": ...
+    def __get__(self, instance, owner) -> "FileLike": ...  # noqa: ANN001, D105 # type: ignore
 
-    def __set__(self, instance, value: FileCoercible): ...
+    def __set__(self, instance, value: FileCoercible) -> None: ...  # noqa: ANN001, D105 # type: ignore
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -605,9 +556,7 @@ class ImageFileLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: FileCoercible) -> "ImageFileLike":
@@ -627,12 +576,13 @@ class ImageFileLike:
                 f"Unsupported type {type(v)}. Please provide a string or a Path object. Or a file object that is opened in binary mode."
             )
 
-        if not isinstance(file, io.BufferedReader):
+        if not isinstance(file, io.BufferedReader):  # type: ignore
             raise ValueError("This needs to be a instance of a file")
 
         return cls(file, name=name)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """Return a string representation of the ImageFileLike scalar."""
         return f"FileLike({self.value})"
 
 
@@ -641,14 +591,15 @@ class FileLike:
     parquet api supported by mikro_next It converts the passed value into
     a compliant format.."""
 
-    def __init__(self, value: IO, name="") -> None:
+    def __init__(self, value: IO[bytes], name: str = "") -> None:
+        """Initialize the FileLike scalar with a file-like object."""
         self.value = value
         self.file_name = os.path.basename(name)
         self.mime_type = mimetypes.guess_type(self.file_name)[0]
 
-    def __get__(self, instance, owner) -> "FileLike": ...
+    def __get__(self, instance, owner) -> "FileLike": ...  # noqa: ANN001, D105 # type: ignore
 
-    def __set__(self, instance, value: FileCoercible): ...
+    def __set__(self, instance, value: FileCoercible) -> None: ...  # noqa: ANN001, D105 # type: ignore
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -657,9 +608,7 @@ class FileLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: FileCoercible) -> "FileLike":
@@ -679,12 +628,13 @@ class FileLike:
                 f"Unsupported type {type(v)}. Please provide a string or a Path object. Or a file object that is opened in binary mode."
             )
 
-        if not isinstance(file, io.IOBase):
+        if not isinstance(file, io.IOBase):  # type: ignore
             raise ValueError("This needs to be a instance of a file")
 
         return cls(file, name=name)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """Return a string representation of the FileLike scalar."""
         return f"FileLike({self.value})"
 
 
@@ -694,12 +644,17 @@ class MeshLike:
     a compliant format.."""
 
     def __init__(self, value: IO[bytes], name: str = "") -> None:
+        """Initialize the MeshLike scalar with a file-like object."""
         self.value = value
         self.key = str(name)
 
-    def __get__(self, instance, owner) -> "MeshLike": ...
+    def __get__(self, instance, owner) -> "MeshLike":  # noqa: ANN001 # type: ignore
+        """Get the MeshLike scalar from the instance."""
+        ...
 
-    def __set__(self, instance, value: MeshCoercible): ...
+    def __set__(self, instance, value: MeshCoercible):  # noqa: ANN001, ANN204 # type: ignore
+        """Set the MeshLike scalar on the instance."""
+        ...  # noqa: ANN001
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -708,9 +663,7 @@ class MeshLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: MeshCoercible) -> "MeshLike":
@@ -731,5 +684,6 @@ class MeshLike:
 
         return cls(file, name=name)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """Return a string representation of the MeshLike scalar."""
         return f"MeshLike({self.value})"

@@ -21,14 +21,19 @@ class FaktsDataLayer(DataLayer):
     _old_fakt: Dict[str, Any] = {}
     _configured = False
 
-    async def get_endpoint_url(self):
+    async def get_endpoint_url(self) -> str:
+        """Get the endpoint URL for the datalayer. This will connect to the fakts group and get the
+        endpoint URL from the fakts group. If the datalayer is already configured, it will return the
+        endpoint URL. If not, it will connect to the fakts group and get the endpoint URL."""
         if self._configured:
             return self.endpoint_url
         else:
             await self.aconnect()
             return self.endpoint_url
 
-    async def aconnect(self):
+    async def aconnect(self) -> None:
+        """Connect to the fakts group and get the endpoint URL. This will set the endpoint URL to the
+        fakts group alias. If the fakts group is not configured, it will raise an error."""
         alias = await self.fakts.aget_alias(self.fakts_group)
         self.endpoint_url = alias.to_http_path()
 

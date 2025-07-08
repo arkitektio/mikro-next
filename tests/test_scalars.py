@@ -1,3 +1,5 @@
+"""Test cases for the FourByFourMatrix scalar and PartialAffineTransformationViewInput schema."""
+
 import numpy as np
 import pytest
 from mikro_next.scalars import FourByFourMatrix
@@ -21,13 +23,11 @@ def test_four_by_four_matrix() -> None:
 def test_partial_affine_transformation_view_input() -> None:
     """Test the PartialAffineTransformationViewInput schema for valid and invalid inputs."""
     # Test valid PartialAffineTransformationViewInput
-    valid_input = PartialAffineTransformationViewInput(
+    PartialAffineTransformationViewInput(
         affineMatrix=np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
     )
 
     # Test invalid PartialAffineTransformationViewInput (non-4x4 matrix)
 
     with pytest.raises(ValueError):
-        invalid_input = PartialAffineTransformationViewInput(
-            affineMatrix=np.array([[1, 2], [3, 4]])
-        )
+        PartialAffineTransformationViewInput(affineMatrix=np.array([[1, 2], [3, 4]]))

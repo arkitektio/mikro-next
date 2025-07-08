@@ -1,56 +1,22 @@
+"""Module for uploading various data types to a DataLayer using asynchronous methods."""
+
 import os
 from typing import TYPE_CHECKING
 from mikro_next.scalars import ArrayLike, ImageFileLike, MeshLike, ParquetLike, FileLike
 import asyncio
-import s3fs
-from aiobotocore.session import get_session
-import botocore
+import s3fs  # type: ignore
+from aiobotocore.session import get_session  # type: ignore
+import botocore  # type: ignore
 from concurrent.futures import ThreadPoolExecutor
 
 from .errors import PermissionsError, UploadError
 from zarr.storage import FsspecStore
-import zarr
 import zarr.api.asynchronous as async_api
 import aiohttp
-import numpy as np
 
 if TYPE_CHECKING:
     from mikro_next.api.schema import Credentials, PresignedPostCredentials
     from mikro_next.datalayer import DataLayer
-
-
-def _store_xarray_input(
-    xarray: ArrayLike,
-    credentials: "Credentials",
-    endpoint_url: "DataLayer",
-) -> str:
-    """Stores an xarray in the DataLayer"""
-
-    filesystem = s3fs.S3FileSystem(
-        secret=credentials.secret_key,
-        key=credentials.access_key,
-        client_kwargs={
-            "endpoint_url": endpoint_url,
-            "aws_session_token": credentials.session_token,
-        },
-        asynchronous=True,
-    )
-
-    # random_uuid = uuid.uuid4()
-    # s3_path = f"zarr/{random_uuid}.zarr"
-
-    array = xarray.value
-
-    s3_path = f"{credentials.bucket}/{credentials.key}"
-    store = FsspecStore(filesystem, read_only=False, path=s3_path)
-
-    assert isinstance(array.data, np.ndarray), "Array must be a numpy array"
-
-    try:
-        zarr.save_array(store, array.data, zarr_version=3)
-        return credentials.store
-    except Exception as e:
-        raise UploadError(f"Error while uploading to {s3_path}") from e
 
 
 async def astore_xarray_input(
@@ -87,9 +53,7 @@ async def astore_xarray_input(
         await async_api.save_array(store, array.to_numpy(), zarr_version=3)  # type: ignore
         return credentials.store
     except Exception as e:
-        raise UploadError(
-            f"Error while uploading to {s3_path} on {endpoint_url}"
-        ) from e
+        raise UploadError(f"Error while uploading to {s3_path} on {endpoint_url}") from e
 
 
 def _store_parquet_input(
@@ -100,7 +64,6 @@ def _store_parquet_input(
     """Stores an xarray in the DataLayer"""
     import pyarrow.parquet as pq  # type: ignore
     from pyarrow import Table  # type: ignore
-    import aiohttp
 
     filesystem = s3fs.S3FileSystem(
         secret=credentials.secret_key,
@@ -125,7 +88,8 @@ async def astore_mesh_file(
     mesh: MeshLike,
     credentials: "PresignedPostCredentials",
     datalayer: "DataLayer",
-):
+) -> str:
+    """Store a mesh file in the DataLayer using presigned POST credentials."""
     endpoint_url = await datalayer.get_endpoint_url()
 
     async with aiohttp.ClientSession() as session:
@@ -148,9 +112,7 @@ async def astore_mesh_file(
         async with session.post(url, data=form_data) as resp:
             if resp.status not in {200, 204}:
                 body = await resp.text()
-                raise UploadError(
-                    f"Error while uploading mesh: HTTP {resp.status}: {body}"
-                )
+                raise UploadError(f"Error while uploading mesh: HTTP {resp.status}: {body}")
 
     return credentials.store
 
@@ -159,7 +121,8 @@ async def astore_media_file(
     file: ImageFileLike,
     credentials: "PresignedPostCredentials",
     datalayer: "DataLayer",
-):
+) -> str:
+    """Store a media file in the DataLayer using presigned POST credentials."""
     endpoint_url = await datalayer.get_endpoint_url()
 
     async with aiohttp.ClientSession() as session:
@@ -182,9 +145,7 @@ async def astore_media_file(
         async with session.post(url, data=form_data) as resp:
             if resp.status not in {200, 204}:
                 body = await resp.text()
-                raise UploadError(
-                    f"Error while uploading mesh: HTTP {resp.status}: {body}"
-                )
+                raise UploadError(f"Error while uploading mesh: HTTP {resp.status}: {body}")
 
     print("Successfully uploaded media file", credentials)
     return credentials.store
@@ -200,7 +161,7 @@ async def aupload_bigfile(
 
     endpoint_url = await datalayer.get_endpoint_url()
 
-    async with session.create_client(
+    async with session.create_client(  # type: ignore
         "s3",
         region_name="us-west-2",
         endpoint_url=endpoint_url,
@@ -210,14 +171,10 @@ async def aupload_bigfile(
     ) as client:
         try:
             print(credentials, file.value)
-            await client.put_object(
-                Bucket=credentials.bucket, Key=credentials.key, Body=file.value
-            )  # type: ignore
+            await client.put_object(Bucket=credentials.bucket, Key=credentials.key, Body=file.value)  # type: ignore
         except botocore.exceptions.ClientError as e:  # type: ignore
-            if e.response["Error"]["Code"] == "InvalidAccessKeyId":
-                return PermissionsError(
-                    "Access Key is invalid, trying to get new credentials"
-                )  # type: ignore
+            if e.response["Error"]["Code"] == "InvalidAccessKeyId":  # type: ignore
+                return PermissionsError("Access Key is invalid, trying to get new credentials")  # type: ignore
 
             raise e
 
@@ -231,9 +188,7 @@ async def aupload_xarray(
     datalayer: "DataLayer",
 ) -> str:
     """Store a DataFrame in the DataLayer"""
-    return await astore_xarray_input(
-        array, credentials, await datalayer.get_endpoint_url()
-    )
+    return await astore_xarray_input(array, credentials, await datalayer.get_endpoint_url())
 
 
 async def aupload_parquet(

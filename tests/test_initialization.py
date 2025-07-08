@@ -7,13 +7,13 @@ from PIL import Image
 
 
 @pytest.mark.integration
-def test_create_array(deployed_app: MikroNext):
-    
-    l = from_array_like(
+def test_create_array(deployed_app: MikroNext) -> None:
+    """Test the creation of an array-like object."""
+    image = from_array_like(
         xr.DataArray(np.zeros((1000, 1000, 10)), dims=["x", "y", "z"]),
         name="Farter 1",
     )
-    assert l.data.shape == (
+    assert image.data.shape == (
         1,
         1,
         10,
@@ -23,28 +23,20 @@ def test_create_array(deployed_app: MikroNext):
     pass
 
 
-
 @pytest.mark.integration
-def upload_file(deployed_app: MikroNext):
+def upload_file(deployed_app: MikroNext) -> None:
+    """Test the upload of a file to the MikroNext instance."""
     # Create an image file
     image_data = np.random.rand(100, 100, 3) * 255
     image_data = image_data.astype(np.uint8)
     image = xr.DataArray(image_data, dims=["x", "y", "color"])
-    
+
     # Save the image to a temporary file
     image_file_path = "test_image.png"
     image_pil = Image.fromarray(image_data)
-    
+
     image_pil.save(image_file_path)
-    
-    image = from_array_like(
-        image_data,
-        name="The image name"
-    )
-    
-    t = create_snapshot(
-        image_file_path,
-        image 
-    )
-    return t
-        
+
+    image = from_array_like(image_data, name="The image name")
+
+    create_snapshot(image_file_path, image)

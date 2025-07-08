@@ -13,25 +13,30 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 
 from typing import Awaitable, List, Type, TypeVar, Tuple, Protocol, Optional
 import numpy as np
+from numpy.typing import NDArray
 from pydantic import BaseModel
 import xarray as xr
 import pandas as pd
 from typing import TYPE_CHECKING
-from dask.array.core import from_zarr
-import zarr
+from dask.array.core import from_zarr  # type: ignore
+from zarr.storage import FsspecStore
 from .scalars import FiveDVector
 from rath.scalars import ID
 from typing import Any
 from rath.turms.utils import get_attributes_or_error
 
 
+TwoDArray = NDArray[np.float_]
+OneDArray = NDArray[np.float_]
+
+
 if TYPE_CHECKING:
-    from pyarrow.parquet import ParquetDataset
+    from pyarrow.parquet import ParquetDataset  # type: ignore
     from mikro_next.api.schema import HasZarrStoreAccessor
 
 
 class HasZarrStoreTrait(BaseModel):
-    """Representation Trait
+    """Image Trait
 
     Implements both identifier and shrinking methods.
     Also Implements the data attribute
@@ -43,6 +48,7 @@ class HasZarrStoreTrait(BaseModel):
 
     @property
     def data(self) -> xr.DataArray:
+        """The data of this image as an xarray.DataArray"""
         from dask.array.core import Array
 
         store: HasZarrStoreAccessor = get_attributes_or_error(self, "store")
@@ -53,12 +59,11 @@ class HasZarrStoreTrait(BaseModel):
 
     @property
     def multi_scale_data(self) -> List[xr.DataArray]:
+        """The multi-scale data of this image as a list of xarray.DataArray"""
         scale_views = get_attributes_or_error(self, "derived_scale_views")
 
         if len(scale_views) == 0:
-            raise ValueError(
-                "No ScaleView found in views. Please create a ScaleView first."
-            )
+            raise ValueError("No ScaleView found in views. Please create a ScaleView first.")
 
         sorted_views = sorted(scale_views, key=lambda image: image.scale_x)
         return [x.image.data for x in sorted_views]
@@ -109,20 +114,22 @@ class PhysicalSizeProtocol(Protocol):
         c (float): The c value
     """
 
-    x: float
-    y: float
-    z: float
-    t: float
-    c: float
+    x: float | None
+    y: float | None
+    z: float | None
+    t: float | None
+    c: float | None
 
-    def __call__(
+    def __init__(
         self,
-        x: Optional[int] = None,
-        y: Optional[int] = None,
-        z: Optional[int] = None,
-        t: Optional[int] = None,
-        c: Optional[int] = None,
-    ): ...
+        x: Optional[float] = None,
+        y: Optional[float] = None,
+        z: Optional[float] = None,
+        t: Optional[float] = None,
+        c: Optional[float] = None,
+    ) -> None:
+        """Initialize the PhysicalSizeProtocol."""
+        ...
 
 
 class PhysicalSizeTrait:
@@ -172,7 +179,11 @@ class PhysicalSizeTrait:
 
         return True
 
-    def to_scale(self):
+    def to_scale(self) -> List[float]:
+        """Get the scale of the physical size
+        Returns:
+            List[float]: The scale of the physical size
+        """
         return [
             getattr(self, "t", 1),
             getattr(self, "c", 1),
@@ -186,7 +197,7 @@ class IsVectorizableTrait:
     """Additional Methods for ROI"""
 
     @property
-    def vector_data(self) -> np.ndarray:
+    def vector_data(self) -> TwoDArray:
         """A numpy array of the vectors of the ROI
 
         Returns:
@@ -194,12 +205,13 @@ class IsVectorizableTrait:
         """
         return self.get_vector_data(dims="yx")
 
-    def get_vector_data(self, dims="yx") -> np.ndarray:
+    def get_vector_data(self, dims: str | list[str] = "yx") -> TwoDArray:
+        """Get the vector data of the ROI as a numpy array"""
         vector_list = get_attributes_or_error(self, "vectors")
         assert vector_list, (
             "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
         )
-        vector_list: list
+        vector_list: list[list[float]]
 
         mapper = {
             "y": 4,
@@ -224,13 +236,9 @@ class IsVectorizableTrait:
 
         kind = get_attributes_or_error(self, "kind")
         if kind == RoiKind.RECTANGLE:
-            return FiveDVector.list_from_numpyarray(
-                self.get_vector_data(dims="ctzyx").mean(axis=0)
-            )
+            return FiveDVector.validate(self.get_vector_data(dims="ctzyx").mean(axis=0))
 
-        raise NotImplementedError(
-            f"Center calculation not implemented for this ROI type {kind}"
-        )
+        raise NotImplementedError(f"Center calculation not implemented for this ROI type {kind}")
 
     def crop(self, data: xr.DataArray) -> xr.DataArray:
         """Crop the data to the ROI
@@ -242,15 +250,15 @@ class IsVectorizableTrait:
             xr.DataArray: The cropped data
         """
         vector_data = self.get_vector_data(dims="ctzyx")
-        return data.sel(
+        return data.sel(  # type: ignore
             x=slice(vector_data[:, 3].min(), vector_data[:, 3].max()),
             y=slice(vector_data[:, 4].min(), vector_data[:, 4].max()),
             z=slice(vector_data[:, 2].min(), vector_data[:, 2].max()),
             t=slice(vector_data[:, 1].min(), vector_data[:, 1].max()),
             c=slice(vector_data[:, 0].min(), vector_data[:, 0].max()),
-        )
+        )  # type: ignore
 
-    def center_as_array(self) -> np.ndarray:
+    def center_as_array(self) -> OneDArray:
         """The center of the ROI
 
         Caluclates the geometrical center of the ROI according to its type
@@ -267,9 +275,7 @@ class IsVectorizableTrait:
         if kind == RoiKind.POINT:
             return self.get_vector_data(dims="ctzyx")[0]
 
-        raise NotImplementedError(
-            f"Center calculation not implemented for this ROI kind {kind}"
-        )
+        raise NotImplementedError(f"Center calculation not implemented for this ROI kind {kind}")
 
 
 class HasParquestStoreTrait(BaseModel):
@@ -291,17 +297,26 @@ class HasParquestStoreTrait(BaseModel):
             pd.DataFrame: The Dataframe
         """
         store: "HasParquetStoreAccesor" = get_attributes_or_error(self, "store")
-        return store.parquet_dataset.read_pandas().to_pandas()
+        return store.parquet_dataset.read_pandas().to_pandas()  # type: ignore
 
 
 V = TypeVar("V")
 
 
 class HasZarrStoreAccessor(BaseModel):
+    """Zarr Store Accessor
+
+    Allows to access the python zarr store of
+    a ZarrStore object.
+
+
+    """
+
     _openstore: Any = None
 
     @property
-    def zarr_store(self):
+    def zarr_store(self) -> FsspecStore:
+        """The zarr store of the ZarrStore object"""
         from mikro_next.io.download import open_zarr_store
 
         if self._openstore is None:
@@ -311,11 +326,13 @@ class HasZarrStoreAccessor(BaseModel):
 
 
 class HasParquetStoreAccesor(BaseModel):
+    """Parquet Store Accessor"""
+
     _dataset: Any = None
 
     @property
     def parquet_dataset(self) -> "ParquetDataset":
-        import pyarrow.parquet as pq
+        """The Parquet Dataset of the ParquetStore object"""
         from mikro_next.io.download import open_parquet_filesystem
 
         if self._dataset is None:
@@ -325,9 +342,19 @@ class HasParquetStoreAccesor(BaseModel):
 
 
 class HasDownloadAccessor(BaseModel):
+    """Download Accessor"""
+
     _dataset: Any = None
 
     def download(self, file_name: str | None = None) -> "str":
+        """Download the file from the presigned URL
+
+        Args:
+            file_name (str | None): The name of the file to save the downloaded file as
+                If None, the key from the presigned URL will be used as the file name.
+        Returns:
+            str: The path to the downloaded file
+        """
         from mikro_next.io.download import download_file
 
         url, key = get_attributes_or_error(self, "presigned_url", "key")
@@ -335,9 +362,23 @@ class HasDownloadAccessor(BaseModel):
 
 
 class HasPresignedDownloadAccessor(BaseModel):
+    """Presigned Download Accessor
+
+    TODO: THis should probablry bre refactored to a more generic download accessor
+
+    """
+
     _dataset: Any = None
 
     def download(self, file_name: str | None = None) -> str:
+        """Download the file from the presigned URL
+
+        Args:
+            file_name (str | None): The name of the file to save the downloaded file as
+                If None, the key from the presigned URL will be used as the file name.
+        Returns:
+            str: The path to the downloaded file
+        """
         from mikro_next.io.download import download_file
 
         url, key = get_attributes_or_error(self, "presigned_url", "key")
@@ -414,7 +455,7 @@ class HasFromNumpyArrayTrait:
     @classmethod
     def list_from_numpyarray(
         cls: Type[T],
-        x: np.ndarray,
+        x: TwoDArray,
         t: Optional[int] = None,
         c: Optional[int] = None,
         z: Optional[int] = None,
@@ -442,12 +483,26 @@ class HasFromNumpyArrayTrait:
     @classmethod
     def from_array(
         cls: Type[T],
-        x: np.ndarray,
+        x: OneDArray,
     ) -> T:
+        """Creates a InputVector from a numpy array"""
+        assert x.ndim == 1, "Needs to be a 1D array of floats"
         return cls(x=x[4], y=x[3], z=x[2], t=x[1], c=x[0])
 
 
 class FileTrait:
+    """A trait for file-like objects that can be downloaded
+    because they have a big file store attached to them.
+    """
+
     def download(self, file_name: str | None = None) -> "str":
+        """Download the file from the store
+
+        Args:
+            file_name (str | None): The name of the file to save the downloaded file as
+                If None, the key from the store will be used as the file name.
+        Returns:
+            str: The path to the downloaded file
+        """
         store: "HasPresignedDownloadAccessor" = get_attributes_or_error(self, "store")
         return store.download(file_name=file_name)

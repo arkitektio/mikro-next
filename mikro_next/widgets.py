@@ -9,7 +9,7 @@ Attributes:
 """
 
 
-def build_column_query(for_input: str):
+def build_column_query(for_input: str) -> str:
     """Builds a query for a column widget. (Which is a search widget with a specific column query that
     adsjust to the input variable name)"""
     return """
@@ -26,7 +26,7 @@ def build_column_query(for_input: str):
     )
 
 
-def build_roi_query(for_input: str):
+def build_roi_query(for_input: str) -> str:
     """Builds a query for a column widget. (Which is a search widget with a specific column query that
     adsjust to the input variable name)"""
     return """
@@ -45,12 +45,19 @@ def build_roi_query(for_input: str):
 
 try:
     from rekuest_next.widgets import SearchWidget
-    
-    def ColumnWidget(for_input: str, **kwargs):
-        return SearchWidget(query=build_column_query(for_input), ward="mikro", **kwargs)
+    from rekuest_next.api.schema import (
+        AssignWidgetInput,
+    )
 
-    def RoiWidget(for_input: str, **kwargs):
-        return SearchWidget(query=build_roi_query(for_input), ward="mikro", **kwargs)
+    def ColumnWidget(
+        for_input: str, **kwargs
+    ) -> AssignWidgetInput:  #  # noqa: ANN003 #type: ignore
+        """Generates a column widget for the given input variable name."""
+        return SearchWidget(query=build_column_query(for_input), ward="mikro", **kwargs)  # type: ignore
+
+    def RoiWidget(for_input: str, **kwargs) -> AssignWidgetInput:  # noqa: ANN003 #type: ignore
+        """Generates a ROI widget for the given input variable name."""
+        return SearchWidget(query=build_roi_query(for_input), ward="mikro", **kwargs)  # type: ignore
 
 except ImportError:
     pass
