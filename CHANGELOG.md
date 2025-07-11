@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v0.7.1 (2025-07-11)
+
+### Bug Fixes
+
+- Fixed auth link order after datalayer
+  ([`ddb4a8c`](https://github.com/arkitektio/mikro-next/commit/ddb4a8c982209cff82c94903be89b2a3084c5122))
+
+### Chores
+
+- Add some Documentation
+  ([`a146601`](https://github.com/arkitektio/mikro-next/commit/a1466012d8bd773abb0afc97c92e00b6974a3456))
+
+- Add token
+  ([`4470a23`](https://github.com/arkitektio/mikro-next/commit/4470a2397d26c93a9716d77a0391ceb88c28ef1b))
+
+
 ## v0.7.0 (2025-07-08)
 
 ### Bug Fixes
