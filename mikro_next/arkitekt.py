@@ -53,13 +53,13 @@ class MikroService(BaseArkitektService):
                 link=compose(
                     FileExtraction(),
                     DictingLink(),
-                    FaktsAuthLink(
-                        fakts=fakts,
-                    ),
                     ContextLink(),
                     UploadLink(
                         datalayer=datalayer,
                     ),
+                    FaktsAuthLink(
+                        fakts=fakts,
+                    ),  # needs to be after the UploadLink as the upload link will also use the auth link
                     SplitLink(
                         left=FaktsAIOHttpLink(
                             fakts_group="mikro",
