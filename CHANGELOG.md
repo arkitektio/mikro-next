@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.7.2 (2025-07-18)
+
+### Bug Fixes
+
+- Delete all widgets
+  ([`b977739`](https://github.com/arkitektio/mikro-next/commit/b977739e947c44cf5edab5ce28b14748aa932f24))
+
+
 ## v0.7.1 (2025-07-11)
 
 ### Bug Fixes
