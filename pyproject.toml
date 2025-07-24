@@ -3,7 +3,7 @@ name = "mikro-next"
 version = "0.7.2"
 description = "next images for arkitekt"
 authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
-requires-python = "~=3.11"
+requires-python = ">=3.11"
 readme = "README.md"
 license = "MIT"
 dependencies = [
