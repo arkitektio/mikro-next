@@ -71,7 +71,6 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
     minio_watcher = setup.create_watcher("minio")
 
     with setup:
-        setup.pull()
         setup.down()
 
         minio_url = f"http://localhost:{setup.spec.find_service('minio').get_port_for_internal(9000).published}"

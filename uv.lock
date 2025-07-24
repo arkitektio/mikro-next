@@ -583,7 +583,7 @@ wheels = [
 
 [[package]]
 name = "dokker"
-version = "2.1.2"
+version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -591,9 +591,9 @@ dependencies = [
     { name = "koil" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ae/4e/4352a17832fbacfce2ddfd01b6497182c5fc211c018efaaabde101772770/dokker-2.1.2.tar.gz", hash = "sha256:91357a2b5013f466217d3818723540e9b81dc29bd7a8851eb9273c1990b537f2", size = 16246 }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/cc/396acef6a85fa9d19f3193ceed890fce08e4ecb4880c5675395fcce560b6/dokker-2.3.0.tar.gz", hash = "sha256:a08d427c9db5a5266ffa91a8f6ebcf39fbc534ea971a1da0d4f0e160cc7a2103", size = 16448 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/31/d7/bf512ffe0f7c6f0845f21f372020d9831e650832c288d1ff5df86ed43432/dokker-2.1.2-py3-none-any.whl", hash = "sha256:16d1296a623b2972d2f14d0cec058e8430d062c1e5099c61f2780e0f001294af", size = 21488 },
+    { url = "https://files.pythonhosted.org/packages/55/56/5678ae614a78b17bd736adbba4373b27cc3eb7d9fb7d98d070361f4c1d16/dokker-2.3.0-py3-none-any.whl", hash = "sha256:307ef20ebaf5a3014f32b503e629957b112b1466888bdf8ae05a39dcb523cc00", size = 21725 },
 ]
 
 [[package]]
@@ -947,7 +947,7 @@ wheels = [
 
 [[package]]
 name = "mikro-next"
-version = "0.7.0"
+version = "0.7.2"
 source = { editable = "." }
 dependencies = [
     { name = "dask" },
@@ -1005,7 +1005,7 @@ requires-dist = [
     { name = "s3fs", specifier = ">=2024.10.0" },
     { name = "websockets", specifier = ">=15.0.1" },
     { name = "xarray", specifier = ">=2024.11.0" },
-    { name = "zarr", specifier = ">=3.0.8" },
+    { name = "zarr", specifier = ">=3.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -1015,7 +1015,7 @@ dev = [
     { name = "autoflake", specifier = ">=1.7.7,<2" },
     { name = "black", specifier = ">=23.1.0,<24" },
     { name = "cryptography", specifier = ">=44.0.3" },
-    { name = "dokker", specifier = ">=2" },
+    { name = "dokker", specifier = ">=2.3" },
     { name = "fakts-next", specifier = ">=1.1.0" },
     { name = "pillow", specifier = ">=11.2.1" },
     { name = "pyarrow", specifier = ">=18.1.0" },
@@ -2178,7 +2178,7 @@ wheels = [
 
 [[package]]
 name = "zarr"
-version = "3.0.8"
+version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "donfig" },
@@ -2187,9 +2187,9 @@ dependencies = [
     { name = "packaging" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/52/60/9652fd0536fbaca8d08cbc1a5572c52e0ce01773297df75da8bb47e45907/zarr-3.0.8.tar.gz", hash = "sha256:88505d095af899a88ae8ac4db02f4650ef0801d2ff6f65b6d1f0a45dcf760a6d", size = 256825 }
+sdist = { url = "https://files.pythonhosted.org/packages/71/66/852aa0905f906bc8ef0a6eb686d50c7ca8c46a38677c32152a8003bcce37/zarr-3.1.0.tar.gz", hash = "sha256:ace5b111dc69d5315cb1655dfd0f816c5acf9798d2ad92f43b608a52c8c8ac2b", size = 312546 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/00/3b/e20bdf84088c11f2c396d034506cbffadd53e024111c1aa4585c2aba1523/zarr-3.0.8-py3-none-any.whl", hash = "sha256:7f81e7aec086437d98882aa432209107114bd7f3a9f4958b2af9c6b5928a70a7", size = 205364 },
+    { url = "https://files.pythonhosted.org/packages/94/72/c5fd70742126cab7403126a1719b4161a81b816d83a2fdb78b390d8ecc47/zarr-3.1.0-py3-none-any.whl", hash = "sha256:bd3d2f88d602d43f81df82e26dd115ea66635a2af5bf6da261d3c640bb4c1ce4", size = 254089 },
 ]
 
 [[package]]
