@@ -17,6 +17,7 @@ dependencies = [
     "websockets>=15.0.1",
     "pytest>=8.3.5",
     "fakts-next>=2",
+    "numcodecs>=0.16.1",
 ]
 
 [project.optional-dependencies]

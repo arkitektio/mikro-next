@@ -50,7 +50,7 @@ async def astore_xarray_input(
     store = FsspecStore(filesystem, read_only=False, path=s3_path)
 
     try:
-        await async_api.save_array(store, array.to_numpy(), zarr_version=3)  # type: ignore
+        await async_api.save_array(store, array.to_numpy(), zarr_format=3)  # type: ignore
         return credentials.store
     except Exception as e:
         raise UploadError(f"Error while uploading to {s3_path} on {endpoint_url}") from e
