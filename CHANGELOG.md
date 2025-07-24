@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.8.1 (2025-07-24)
+
+
 ## v0.8.0 (2025-07-24)
+
+### Bug Fixes
+
+- Remove python verison constraints
+  ([`e9aec80`](https://github.com/arkitektio/mikro-next/commit/e9aec80444a7e96aefe0215cae7cdf13f1076e64))
 
 ### Features
 
