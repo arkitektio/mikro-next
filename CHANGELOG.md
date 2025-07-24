@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.8.0 (2025-07-24)
+
+### Features
+
+- Update zarr
+  ([`d2e8c10`](https://github.com/arkitektio/mikro-next/commit/d2e8c1008c62f8127ed3124ab625459f37b89cb6))
+
+
 ## v0.7.2 (2025-07-18)
 
 ### Bug Fixes
