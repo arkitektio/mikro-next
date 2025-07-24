@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.8.2 (2025-07-24)
+
+
 ## v0.8.1 (2025-07-24)
+
+### Bug Fixes
+
+- Force numocdes update?
+  ([`f1204f1`](https://github.com/arkitektio/mikro-next/commit/f1204f1f23ab4e6b9e6c4f3cf3cf3c244029069a))
 
 
 ## v0.8.0 (2025-07-24)
