@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.9.0 (2025-07-25)
+
+### Features
+
+- Fix tests plus potential numpy errors
+  ([`958724a`](https://github.com/arkitektio/mikro-next/commit/958724ab4c4888df5687adeee358e3d1f52d73a0))
+
+
 ## v0.8.2 (2025-07-24)
+
+### Refactoring
+
+- Organize imports and streamline structure registration
+  ([`43088e1`](https://github.com/arkitektio/mikro-next/commit/43088e19eae6aeace610095492bf3116728a5923))
 
 
 ## v0.8.1 (2025-07-24)
