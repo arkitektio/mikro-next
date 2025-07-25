@@ -72,6 +72,7 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
 
     with setup:
         setup.down()
+        setup.pull()
 
         minio_url = f"http://localhost:{setup.spec.find_service('minio').get_port_for_internal(9000).published}"
         mikro_http_url = f"http://localhost:{setup.spec.find_service('mikro').get_port_for_internal(80).published}/graphql"

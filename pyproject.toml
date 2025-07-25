@@ -13,7 +13,7 @@ dependencies = [
     "pandas>=2.2",
     "dask>=2024.12.1",
     "rath>=3.5",
-    "numpy>=1.26 ; python_version ~= '3.12'",
+    "numpy>=1.26; python_version ~= '3.12'",
     "websockets>=15.0.1",
     "pytest>=8.3.5",
     "fakts-next>=2",

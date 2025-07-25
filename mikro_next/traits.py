@@ -26,8 +26,8 @@ from typing import Any
 from rath.turms.utils import get_attributes_or_error
 
 
-TwoDArray = NDArray[np.float_]
-OneDArray = NDArray[np.float_]
+TwoDArray = NDArray[np.generic]
+OneDArray = NDArray[np.generic]
 
 
 if TYPE_CHECKING:
