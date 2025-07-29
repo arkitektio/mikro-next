@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.10.0 (2025-07-29)
+
+### Features
+
+- Update to the new mikro schema
+  ([`acc0be9`](https://github.com/arkitektio/mikro-next/commit/acc0be968f273164c33cec49fe69abe2d00767be))
+
+
 ## v0.9.0 (2025-07-25)
 
 ### Features
