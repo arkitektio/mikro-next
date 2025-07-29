@@ -4,14 +4,29 @@ mutation CreateRgbView($input: RGBViewInput!) {
   }
 }
 
-mutation CreateLabelView($input: LabelViewInput!) {
-  createLabelView(input: $input) {
-    ...LabelView
-  }
-}
+
 
 mutation CreateHistogramView($input: HistogramViewInput!) {
   createHistogramView(input: $input) {
     ...HistogramView
+  }
+}
+
+
+mutation CreateMaskView($input: MaskViewInput!) {
+  createMaskView(input: $input) {
+    ...MaskView
+  }
+}
+
+mutation CreateInstanceMaskView($input: InstanceMaskViewInput!) {
+  createInstanceMaskView(input: $input) {
+    ...InstanceMaskView
+  }
+}
+
+mutation CreateReferenceView($input: ReferenceViewInput!) {
+  createReferenceView(input: $input) {
+    ...ReferenceView
   }
 }

@@ -1,45 +1,45 @@
+from datetime import datetime
 from mikro_next.traits import (
-    HasDownloadAccessor,
-    HasParquestStoreTrait,
-    IsVectorizableTrait,
     HasParquetStoreAccesor,
+    HasParquestStoreTrait,
+    HasDownloadAccessor,
     HasZarrStoreTrait,
-    HasZarrStoreAccessor,
-    FileTrait,
     HasPresignedDownloadAccessor,
+    HasZarrStoreAccessor,
+    IsVectorizableTrait,
+    FileTrait,
 )
-from mikro_next.funcs import subscribe, aexecute, execute, asubscribe
 from mikro_next.scalars import (
-    ArrayCoercible,
-    Milliseconds,
-    FiveDVector,
-    ImageFileCoercible,
-    ArrayLike,
-    FourByFourMatrix,
-    FileLike,
-    ImageFileLike,
-    ParquetCoercible,
-    MeshLike,
     ParquetLike,
+    MeshLike,
+    Milliseconds,
+    ParquetCoercible,
     MeshCoercible,
+    FourByFourMatrix,
+    FiveDVector,
+    FileLike,
+    ArrayCoercible,
+    ArrayLike,
     Micrometers,
+    ImageFileLike,
+    ImageFileCoercible,
 )
 from typing import (
-    Annotated,
-    Iterator,
-    Optional,
-    Any,
-    List,
     Tuple,
     Union,
-    Iterable,
+    Any,
+    List,
+    Optional,
     AsyncIterator,
     Literal,
+    Iterable,
+    Iterator,
+    Annotated,
 )
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict, BaseModel
 from rath.scalars import IDCoercible, ID
+from mikro_next.funcs import asubscribe, execute, subscribe, aexecute
 from enum import Enum
-from datetime import datetime
 from mikro_next.rath import MikroNextRath
 
 
@@ -154,6 +154,7 @@ class OffsetPaginationInput(BaseModel):
 class ImageFilter(BaseModel):
     """No documentation"""
 
+    scope: Optional["ScopeFilter"] = None
     name: Optional[StrFilterLookup] = None
     ids: Optional[Tuple[ID, ...]] = None
     store: Optional["ZarrStoreFilter"] = None
@@ -169,6 +170,18 @@ class ImageFilter(BaseModel):
     or_: Optional["ImageFilter"] = Field(alias="OR", default=None)
     not_: Optional["ImageFilter"] = Field(alias="NOT", default=None)
     distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ScopeFilter(BaseModel):
+    """No documentation"""
+
+    public: Optional[bool] = None
+    org: Optional[bool] = None
+    shared: Optional[bool] = None
+    me: Optional[bool] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -451,14 +464,18 @@ class FromArrayLikeInput(BaseModel):
         alias="acquisitionViews", default=None
     )
     "Optional list of acquisition views"
-    pixel_views: Optional[Tuple["PartialPixelViewInput", ...]] = Field(
-        alias="pixelViews", default=None
+    mask_views: Optional[Tuple["PartialMaskViewInput", ...]] = Field(
+        alias="maskViews", default=None
     )
-    "Optional list of pixel views"
-    structure_views: Optional[Tuple["PartialStructureViewInput", ...]] = Field(
-        alias="structureViews", default=None
+    "Optional list of mask views"
+    reference_views: Optional[Tuple["PartialReferenceViewInput", ...]] = Field(
+        alias="referenceViews", default=None
     )
-    "Optional list of structure views"
+    "Optional list of reference views"
+    instance_mask_views: Optional[Tuple["PartialInstanceMaskViewInput", ...]] = Field(
+        alias="instanceMaskViews", default=None
+    )
+    "Optional list of instance mask views"
     rgb_views: Optional[Tuple["PartialRGBViewInput", ...]] = Field(
         alias="rgbViews", default=None
     )
@@ -591,7 +608,7 @@ class PartialAcquisitionViewInput(BaseModel):
     )
 
 
-class PartialPixelViewInput(BaseModel):
+class PartialMaskViewInput(BaseModel):
     """No documentation"""
 
     collection: Optional[ID] = None
@@ -616,28 +633,13 @@ class PartialPixelViewInput(BaseModel):
     "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
     "The maximum c (channel) coordinate of the view"
-    linked_view: Optional[ID] = Field(alias="linkedView", default=None)
-    range_labels: Optional[Tuple["RangePixelLabel", ...]] = Field(
-        alias="rangeLabels", default=None
-    )
+    reference_view: Optional[ID] = Field(alias="referenceView", default=None)
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
 
 
-class RangePixelLabel(BaseModel):
-    """No documentation"""
-
-    group: Optional[ID] = None
-    entity_kind: ID = Field(alias="entityKind")
-    min: int
-    max: int
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class PartialStructureViewInput(BaseModel):
+class PartialReferenceViewInput(BaseModel):
     """No documentation"""
 
     collection: Optional[ID] = None
@@ -662,7 +664,37 @@ class PartialStructureViewInput(BaseModel):
     "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
     "The maximum c (channel) coordinate of the view"
-    structure: str
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class PartialInstanceMaskViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    reference_view: Optional[ID] = Field(alias="referenceView", default=None)
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -1006,15 +1038,6 @@ class FromFileLike(BaseModel):
     )
 
 
-class ChannelInput(BaseModel):
-    """No documentation"""
-
-    name: str
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
 class StageInput(BaseModel):
     """No documentation"""
 
@@ -1105,38 +1128,6 @@ class EraInput(BaseModel):
     )
 
 
-class LabelViewInput(BaseModel):
-    """No documentation"""
-
-    collection: Optional[ID] = None
-    "The collection this view belongs to"
-    z_min: Optional[int] = Field(alias="zMin", default=None)
-    "The minimum z coordinate of the view"
-    z_max: Optional[int] = Field(alias="zMax", default=None)
-    "The maximum z coordinate of the view"
-    x_min: Optional[int] = Field(alias="xMin", default=None)
-    "The minimum x coordinate of the view"
-    x_max: Optional[int] = Field(alias="xMax", default=None)
-    "The maximum x coordinate of the view"
-    y_min: Optional[int] = Field(alias="yMin", default=None)
-    "The minimum y coordinate of the view"
-    y_max: Optional[int] = Field(alias="yMax", default=None)
-    "The maximum y coordinate of the view"
-    t_min: Optional[int] = Field(alias="tMin", default=None)
-    "The minimum t coordinate of the view"
-    t_max: Optional[int] = Field(alias="tMax", default=None)
-    "The maximum t coordinate of the view"
-    c_min: Optional[int] = Field(alias="cMin", default=None)
-    "The minimum c (channel) coordinate of the view"
-    c_max: Optional[int] = Field(alias="cMax", default=None)
-    "The maximum c (channel) coordinate of the view"
-    label: str
-    image: ID
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
 class RGBViewInput(BaseModel):
     """No documentation"""
 
@@ -1171,6 +1162,105 @@ class RGBViewInput(BaseModel):
     active: Optional[bool] = None
     color_map: Optional[ColorMap] = Field(alias="colorMap", default=None)
     base_color: Optional[Tuple[float, ...]] = Field(alias="baseColor", default=None)
+    image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class MaskViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    reference_view: Optional[ID] = Field(alias="referenceView", default=None)
+    image: ID
+    labels: Optional[Tuple[ID, ...]] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class InstanceMaskViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    reference_view: Optional[ID] = Field(alias="referenceView", default=None)
+    image: ID
+    instance_labels: Optional[Tuple[ID, ...]] = Field(
+        alias="instanceLabels", default=None
+    )
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ReferenceViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
     image: ID
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
@@ -1348,11 +1438,27 @@ class ViewOpticsView(ViewBase, BaseModel):
     )
 
 
-class ViewStructureView(ViewBase, BaseModel):
+class ViewMaskView(ViewBase, BaseModel):
     """No documentation"""
 
-    typename: Literal["StructureView"] = Field(
-        alias="__typename", default="StructureView", exclude=True
+    typename: Literal["MaskView"] = Field(
+        alias="__typename", default="MaskView", exclude=True
+    )
+
+
+class ViewReferenceView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ReferenceView"] = Field(
+        alias="__typename", default="ReferenceView", exclude=True
+    )
+
+
+class ViewInstanceMaskView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["InstanceMaskView"] = Field(
+        alias="__typename", default="InstanceMaskView", exclude=True
     )
 
 
@@ -1393,14 +1499,6 @@ class ViewROIView(ViewBase, BaseModel):
 
     typename: Literal["ROIView"] = Field(
         alias="__typename", default="ROIView", exclude=True
-    )
-
-
-class ViewPixelView(ViewBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["PixelView"] = Field(
-        alias="__typename", default="PixelView", exclude=True
     )
 
 
@@ -1729,17 +1827,31 @@ class BigFileStore(HasDownloadAccessor, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class Channel(BaseModel):
+class ChannelView(ViewChannelView, BaseModel):
     """No documentation"""
 
-    typename: Literal["Channel"] = Field(
-        alias="__typename", default="Channel", exclude=True
+    typename: Literal["ChannelView"] = Field(
+        alias="__typename", default="ChannelView", exclude=True
     )
     id: ID
-    name: str
+    emission_wavelength: Optional[float] = Field(
+        default=None, alias="emissionWavelength"
+    )
+    "The emission wavelength of the channel in nanometers"
     excitation_wavelength: Optional[float] = Field(
         default=None, alias="excitationWavelength"
     )
+    "The excitation wavelength of the channel in nanometers"
+    model_config = ConfigDict(frozen=True)
+
+
+class ReferenceView(ViewReferenceView, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ReferenceView"] = Field(
+        alias="__typename", default="ReferenceView", exclude=True
+    )
+    id: ID
     model_config = ConfigDict(frozen=True)
 
 
@@ -1891,28 +2003,6 @@ class OpticsView(ViewOpticsView, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class LabelView(ViewLabelView, BaseModel):
-    """No documentation"""
-
-    typename: Literal["LabelView"] = Field(
-        alias="__typename", default="LabelView", exclude=True
-    )
-    id: ID
-    label: str
-    model_config = ConfigDict(frozen=True)
-
-
-class StructureView(ViewStructureView, BaseModel):
-    """No documentation"""
-
-    typename: Literal["StructureView"] = Field(
-        alias="__typename", default="StructureView", exclude=True
-    )
-    id: ID
-    structure: str
-    model_config = ConfigDict(frozen=True)
-
-
 class AcquisitionViewOperator(BaseModel):
     """No documentation"""
 
@@ -1968,16 +2058,6 @@ class ContinousScanView(ViewContinousScanView, BaseModel):
     )
     id: ID
     direction: ScanDirection
-    model_config = ConfigDict(frozen=True)
-
-
-class PixelView(ViewPixelView, BaseModel):
-    """No documentation"""
-
-    typename: Literal["PixelView"] = Field(
-        alias="__typename", default="PixelView", exclude=True
-    )
-    id: ID
     model_config = ConfigDict(frozen=True)
 
 
@@ -2063,7 +2143,6 @@ class RGBView(ViewRGBView, BaseModel):
     contrast_limit_min: Optional[float] = Field(default=None, alias="contrastLimitMin")
     contrast_limit_max: Optional[float] = Field(default=None, alias="contrastLimitMax")
     gamma: Optional[float] = Field(default=None)
-    rescale: bool
     active: bool
     full_colour: str = Field(alias="fullColour")
     base_color: Optional[Tuple[int, ...]] = Field(default=None, alias="baseColor")
@@ -2124,14 +2203,25 @@ class File(FileTrait, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class ChannelView(ViewChannelView, BaseModel):
+class MaskView(ViewMaskView, BaseModel):
     """No documentation"""
 
-    typename: Literal["ChannelView"] = Field(
-        alias="__typename", default="ChannelView", exclude=True
+    typename: Literal["MaskView"] = Field(
+        alias="__typename", default="MaskView", exclude=True
     )
     id: ID
-    channel: Channel
+    reference_view: ReferenceView = Field(alias="referenceView")
+    model_config = ConfigDict(frozen=True)
+
+
+class InstanceMaskView(ViewInstanceMaskView, BaseModel):
+    """No documentation"""
+
+    typename: Literal["InstanceMaskView"] = Field(
+        alias="__typename", default="InstanceMaskView", exclude=True
+    )
+    id: ID
+    reference_view: ReferenceView = Field(alias="referenceView")
     model_config = ConfigDict(frozen=True)
 
 
@@ -2189,7 +2279,7 @@ class ImageViewsBaseAffineTransformationView(
     )
 
 
-class ImageViewsBaseLabelView(LabelView, ImageViewsBase, BaseModel):
+class ImageViewsBaseLabelView(ImageViewsBase, BaseModel):
     """No documentation"""
 
     typename: Literal["LabelView"] = Field(
@@ -2221,11 +2311,27 @@ class ImageViewsBaseOpticsView(OpticsView, ImageViewsBase, BaseModel):
     )
 
 
-class ImageViewsBaseStructureView(StructureView, ImageViewsBase, BaseModel):
+class ImageViewsBaseMaskView(ImageViewsBase, BaseModel):
     """No documentation"""
 
-    typename: Literal["StructureView"] = Field(
-        alias="__typename", default="StructureView", exclude=True
+    typename: Literal["MaskView"] = Field(
+        alias="__typename", default="MaskView", exclude=True
+    )
+
+
+class ImageViewsBaseReferenceView(ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ReferenceView"] = Field(
+        alias="__typename", default="ReferenceView", exclude=True
+    )
+
+
+class ImageViewsBaseInstanceMaskView(ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["InstanceMaskView"] = Field(
+        alias="__typename", default="InstanceMaskView", exclude=True
     )
 
 
@@ -2266,14 +2372,6 @@ class ImageViewsBaseROIView(ROIView, ImageViewsBase, BaseModel):
 
     typename: Literal["ROIView"] = Field(
         alias="__typename", default="ROIView", exclude=True
-    )
-
-
-class ImageViewsBasePixelView(ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["PixelView"] = Field(
-        alias="__typename", default="PixelView", exclude=True
     )
 
 
@@ -2340,13 +2438,14 @@ class Image(HasZarrStoreTrait, BaseModel):
                     ImageViewsBaseChannelView,
                     ImageViewsBaseTimepointView,
                     ImageViewsBaseOpticsView,
-                    ImageViewsBaseStructureView,
+                    ImageViewsBaseMaskView,
+                    ImageViewsBaseReferenceView,
+                    ImageViewsBaseInstanceMaskView,
                     ImageViewsBaseScaleView,
                     ImageViewsBaseHistogramView,
                     ImageViewsBaseRGBView,
                     ImageViewsBaseDerivedView,
                     ImageViewsBaseROIView,
-                    ImageViewsBasePixelView,
                     ImageViewsBaseContinousScanView,
                     ImageViewsBaseWellPositionView,
                     ImageViewsBaseAcquisitionView,
@@ -2358,8 +2457,10 @@ class Image(HasZarrStoreTrait, BaseModel):
         ...,
     ]
     "All views of this image"
-    pixel_views: Tuple[PixelView, ...] = Field(alias="pixelViews")
-    "Pixel views describing pixel value semantics"
+    mask_views: Tuple[MaskView, ...] = Field(alias="maskViews")
+    "Structure views relating other Arkitekt types to a subsection of the image"
+    instance_mask_views: Tuple[InstanceMaskView, ...] = Field(alias="instanceMaskViews")
+    "Instance mask views relating other Arkitekt types to a subsection of the image"
     rgb_contexts: Tuple[ImageRgbcontexts, ...] = Field(alias="rgbContexts")
     "RGB rendering contexts"
     model_config = ConfigDict(frozen=True)
@@ -2844,7 +2945,7 @@ class From_array_likeMutation(BaseModel):
     class Meta:
         """Meta class for from_array_like"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -2974,24 +3075,6 @@ class CreateRgbViewMutation(BaseModel):
         document = "mutation CreateRgbView($input: RGBViewInput!) {\n  createRgbView(input: $input) {\n    id\n    __typename\n  }\n}"
 
 
-class CreateLabelViewMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    create_label_view: LabelView = Field(alias="createLabelView")
-    "Create a new view for label data"
-
-    class Arguments(BaseModel):
-        """Arguments for CreateLabelView"""
-
-        input: LabelViewInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for CreateLabelView"""
-
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nmutation CreateLabelView($input: LabelViewInput!) {\n  createLabelView(input: $input) {\n    ...LabelView\n    __typename\n  }\n}"
-
-
 class CreateHistogramViewMutation(BaseModel):
     """No documentation found for this operation."""
 
@@ -3010,6 +3093,60 @@ class CreateHistogramViewMutation(BaseModel):
         document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment HistogramView on HistogramView {\n  ...View\n  id\n  histogram\n  bins\n  __typename\n}\n\nmutation CreateHistogramView($input: HistogramViewInput!) {\n  createHistogramView(input: $input) {\n    ...HistogramView\n    __typename\n  }\n}"
 
 
+class CreateMaskViewMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    create_mask_view: MaskView = Field(alias="createMaskView")
+    "Create a new view for masked data"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateMaskView"""
+
+        input: MaskViewInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateMaskView"""
+
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMaskView($input: MaskViewInput!) {\n  createMaskView(input: $input) {\n    ...MaskView\n    __typename\n  }\n}"
+
+
+class CreateInstanceMaskViewMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    create_instance_mask_view: InstanceMaskView = Field(alias="createInstanceMaskView")
+    "Create a new view for instance mask data"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateInstanceMaskView"""
+
+        input: InstanceMaskViewInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateInstanceMaskView"""
+
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nmutation CreateInstanceMaskView($input: InstanceMaskViewInput!) {\n  createInstanceMaskView(input: $input) {\n    ...InstanceMaskView\n    __typename\n  }\n}"
+
+
+class CreateReferenceViewMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    create_reference_view: ReferenceView = Field(alias="createReferenceView")
+    "Create a new reference view for image data"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateReferenceView"""
+
+        input: ReferenceViewInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateReferenceView"""
+
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nmutation CreateReferenceView($input: ReferenceViewInput!) {\n  createReferenceView(input: $input) {\n    ...ReferenceView\n    __typename\n  }\n}"
+
+
 class CreateRGBContextMutation(BaseModel):
     """No documentation found for this operation."""
 
@@ -3025,7 +3162,7 @@ class CreateRGBContextMutation(BaseModel):
     class Meta:
         """Meta class for CreateRGBContext"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class UpdateRGBContextMutation(BaseModel):
@@ -3043,7 +3180,7 @@ class UpdateRGBContextMutation(BaseModel):
     class Meta:
         """Meta class for UpdateRGBContext"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class CreateViewCollectionMutationCreateviewcollection(BaseModel):
@@ -3075,64 +3212,6 @@ class CreateViewCollectionMutation(BaseModel):
         """Meta class for CreateViewCollection"""
 
         document = "mutation CreateViewCollection($input: ViewCollectionInput!) {\n  createViewCollection(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
-
-
-class CreateChannelMutationCreatechannel(BaseModel):
-    """No documentation"""
-
-    typename: Literal["Channel"] = Field(
-        alias="__typename", default="Channel", exclude=True
-    )
-    id: ID
-    name: str
-    model_config = ConfigDict(frozen=True)
-
-
-class CreateChannelMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    create_channel: CreateChannelMutationCreatechannel = Field(alias="createChannel")
-    "Create a new channel"
-
-    class Arguments(BaseModel):
-        """Arguments for CreateChannel"""
-
-        input: ChannelInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for CreateChannel"""
-
-        document = "mutation CreateChannel($input: ChannelInput!) {\n  createChannel(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
-
-
-class EnsureChannelMutationEnsurechannel(BaseModel):
-    """No documentation"""
-
-    typename: Literal["Channel"] = Field(
-        alias="__typename", default="Channel", exclude=True
-    )
-    id: ID
-    name: str
-    model_config = ConfigDict(frozen=True)
-
-
-class EnsureChannelMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    ensure_channel: EnsureChannelMutationEnsurechannel = Field(alias="ensureChannel")
-    "Ensure a channel exists, creating if needed"
-
-    class Arguments(BaseModel):
-        """Arguments for EnsureChannel"""
-
-        input: ChannelInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for EnsureChannel"""
-
-        document = "mutation EnsureChannel($input: ChannelInput!) {\n  ensureChannel(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class CreateMeshMutation(BaseModel):
@@ -3615,7 +3694,7 @@ class GetImageQuery(BaseModel):
     class Meta:
         """Meta class for GetImage"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -3631,7 +3710,7 @@ class GetRandomImageQuery(BaseModel):
     class Meta:
         """Meta class for GetRandomImage"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
@@ -3679,7 +3758,7 @@ class ImagesQuery(BaseModel):
     class Meta:
         """Meta class for Images"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class ViewImageQueryImageStore(HasZarrStoreAccessor, BaseModel):
@@ -3754,13 +3833,31 @@ class ViewImageQueryImageViewsBaseOpticsView(ViewImageQueryImageViewsBase, BaseM
     )
 
 
-class ViewImageQueryImageViewsBaseStructureView(
+class ViewImageQueryImageViewsBaseMaskView(ViewImageQueryImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["MaskView"] = Field(
+        alias="__typename", default="MaskView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseReferenceView(
     ViewImageQueryImageViewsBase, BaseModel
 ):
     """No documentation"""
 
-    typename: Literal["StructureView"] = Field(
-        alias="__typename", default="StructureView", exclude=True
+    typename: Literal["ReferenceView"] = Field(
+        alias="__typename", default="ReferenceView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseInstanceMaskView(
+    ViewImageQueryImageViewsBase, BaseModel
+):
+    """No documentation"""
+
+    typename: Literal["InstanceMaskView"] = Field(
+        alias="__typename", default="InstanceMaskView", exclude=True
     )
 
 
@@ -3788,9 +3885,7 @@ class ViewImageQueryImageViewsBaseRGBView(ViewImageQueryImageViewsBase, BaseMode
     typename: Literal["RGBView"] = Field(
         alias="__typename", default="RGBView", exclude=True
     )
-    typename: Literal["RGBView"] = Field(
-        alias="__typename", default="RGBView", exclude=True
-    )
+    id: ID
 
 
 class ViewImageQueryImageViewsBaseDerivedView(ViewImageQueryImageViewsBase, BaseModel):
@@ -3806,14 +3901,6 @@ class ViewImageQueryImageViewsBaseROIView(ViewImageQueryImageViewsBase, BaseMode
 
     typename: Literal["ROIView"] = Field(
         alias="__typename", default="ROIView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBasePixelView(ViewImageQueryImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["PixelView"] = Field(
-        alias="__typename", default="PixelView", exclude=True
     )
 
 
@@ -3872,13 +3959,14 @@ class ViewImageQueryImage(HasZarrStoreTrait, BaseModel):
                     ViewImageQueryImageViewsBaseChannelView,
                     ViewImageQueryImageViewsBaseTimepointView,
                     ViewImageQueryImageViewsBaseOpticsView,
-                    ViewImageQueryImageViewsBaseStructureView,
+                    ViewImageQueryImageViewsBaseMaskView,
+                    ViewImageQueryImageViewsBaseReferenceView,
+                    ViewImageQueryImageViewsBaseInstanceMaskView,
                     ViewImageQueryImageViewsBaseScaleView,
                     ViewImageQueryImageViewsBaseHistogramView,
                     ViewImageQueryImageViewsBaseRGBView,
                     ViewImageQueryImageViewsBaseDerivedView,
                     ViewImageQueryImageViewsBaseROIView,
-                    ViewImageQueryImageViewsBasePixelView,
                     ViewImageQueryImageViewsBaseContinousScanView,
                     ViewImageQueryImageViewsBaseWellPositionView,
                     ViewImageQueryImageViewsBaseAcquisitionView,
@@ -3972,7 +4060,7 @@ class GetRGBContextQuery(BaseModel):
     class Meta:
         """Meta class for GetRGBContext"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class GetMeshQuery(BaseModel):
@@ -4077,7 +4165,7 @@ class WatchImagesSubscription(BaseModel):
     class Meta:
         """Meta class for WatchImages"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment Channel on Channel {\n  id\n  name\n  excitationWavelength\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  rescale\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment StructureView on StructureView {\n  ...View\n  id\n  structure\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment PixelView on PixelView {\n  ...View\n  id\n  __typename\n}\n\nfragment LabelView on LabelView {\n  ...View\n  id\n  label\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  channel {\n    ...Channel\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...LabelView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...StructureView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  pixelViews {\n    ...PixelView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):
@@ -5433,8 +5521,9 @@ async def afrom_array_like(
         Iterable[PartialAffineTransformationViewInput]
     ] = None,
     acquisition_views: Optional[Iterable[PartialAcquisitionViewInput]] = None,
-    pixel_views: Optional[Iterable[PartialPixelViewInput]] = None,
-    structure_views: Optional[Iterable[PartialStructureViewInput]] = None,
+    mask_views: Optional[Iterable[PartialMaskViewInput]] = None,
+    reference_views: Optional[Iterable[PartialReferenceViewInput]] = None,
+    instance_mask_views: Optional[Iterable[PartialInstanceMaskViewInput]] = None,
     rgb_views: Optional[Iterable[PartialRGBViewInput]] = None,
     timepoint_views: Optional[Iterable[PartialTimepointViewInput]] = None,
     optics_views: Optional[Iterable[PartialOpticsViewInput]] = None,
@@ -5456,8 +5545,9 @@ async def afrom_array_like(
         channel_views: Optional list of channel views
         transformation_views: Optional list of affine transformation views
         acquisition_views: Optional list of acquisition views
-        pixel_views: Optional list of pixel views
-        structure_views: Optional list of structure views
+        mask_views: Optional list of mask views
+        reference_views: Optional list of reference views
+        instance_mask_views: Optional list of instance mask views
         rgb_views: Optional list of RGB views
         timepoint_views: Optional list of timepoint views
         optics_views: Optional list of optics views
@@ -5482,8 +5572,9 @@ async def afrom_array_like(
                     "channelViews": channel_views,
                     "transformationViews": transformation_views,
                     "acquisitionViews": acquisition_views,
-                    "pixelViews": pixel_views,
-                    "structureViews": structure_views,
+                    "maskViews": mask_views,
+                    "referenceViews": reference_views,
+                    "instanceMaskViews": instance_mask_views,
                     "rgbViews": rgb_views,
                     "timepointViews": timepoint_views,
                     "opticsViews": optics_views,
@@ -5508,8 +5599,9 @@ def from_array_like(
         Iterable[PartialAffineTransformationViewInput]
     ] = None,
     acquisition_views: Optional[Iterable[PartialAcquisitionViewInput]] = None,
-    pixel_views: Optional[Iterable[PartialPixelViewInput]] = None,
-    structure_views: Optional[Iterable[PartialStructureViewInput]] = None,
+    mask_views: Optional[Iterable[PartialMaskViewInput]] = None,
+    reference_views: Optional[Iterable[PartialReferenceViewInput]] = None,
+    instance_mask_views: Optional[Iterable[PartialInstanceMaskViewInput]] = None,
     rgb_views: Optional[Iterable[PartialRGBViewInput]] = None,
     timepoint_views: Optional[Iterable[PartialTimepointViewInput]] = None,
     optics_views: Optional[Iterable[PartialOpticsViewInput]] = None,
@@ -5531,8 +5623,9 @@ def from_array_like(
         channel_views: Optional list of channel views
         transformation_views: Optional list of affine transformation views
         acquisition_views: Optional list of acquisition views
-        pixel_views: Optional list of pixel views
-        structure_views: Optional list of structure views
+        mask_views: Optional list of mask views
+        reference_views: Optional list of reference views
+        instance_mask_views: Optional list of instance mask views
         rgb_views: Optional list of RGB views
         timepoint_views: Optional list of timepoint views
         optics_views: Optional list of optics views
@@ -5556,8 +5649,9 @@ def from_array_like(
                 "channelViews": channel_views,
                 "transformationViews": transformation_views,
                 "acquisitionViews": acquisition_views,
-                "pixelViews": pixel_views,
-                "structureViews": structure_views,
+                "maskViews": mask_views,
+                "referenceViews": reference_views,
+                "instanceMaskViews": instance_mask_views,
                 "rgbViews": rgb_views,
                 "timepointViews": timepoint_views,
                 "opticsViews": optics_views,
@@ -5984,132 +6078,6 @@ def create_rgb_view(
     ).create_rgb_view
 
 
-async def acreate_label_view(
-    label: str,
-    image: IDCoercible,
-    collection: Optional[IDCoercible] = None,
-    z_min: Optional[int] = None,
-    z_max: Optional[int] = None,
-    x_min: Optional[int] = None,
-    x_max: Optional[int] = None,
-    y_min: Optional[int] = None,
-    y_max: Optional[int] = None,
-    t_min: Optional[int] = None,
-    t_max: Optional[int] = None,
-    c_min: Optional[int] = None,
-    c_max: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> LabelView:
-    """CreateLabelView
-
-    Create a new view for label data
-
-    Args:
-        collection: The collection this view belongs to
-        z_min: The minimum z coordinate of the view
-        z_max: The maximum z coordinate of the view
-        x_min: The minimum x coordinate of the view
-        x_max: The maximum x coordinate of the view
-        y_min: The minimum y coordinate of the view
-        y_max: The maximum y coordinate of the view
-        t_min: The minimum t coordinate of the view
-        t_max: The maximum t coordinate of the view
-        c_min: The minimum c (channel) coordinate of the view
-        c_max: The maximum c (channel) coordinate of the view
-        label: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        LabelView
-    """
-    return (
-        await aexecute(
-            CreateLabelViewMutation,
-            {
-                "input": {
-                    "collection": collection,
-                    "zMin": z_min,
-                    "zMax": z_max,
-                    "xMin": x_min,
-                    "xMax": x_max,
-                    "yMin": y_min,
-                    "yMax": y_max,
-                    "tMin": t_min,
-                    "tMax": t_max,
-                    "cMin": c_min,
-                    "cMax": c_max,
-                    "label": label,
-                    "image": image,
-                }
-            },
-            rath=rath,
-        )
-    ).create_label_view
-
-
-def create_label_view(
-    label: str,
-    image: IDCoercible,
-    collection: Optional[IDCoercible] = None,
-    z_min: Optional[int] = None,
-    z_max: Optional[int] = None,
-    x_min: Optional[int] = None,
-    x_max: Optional[int] = None,
-    y_min: Optional[int] = None,
-    y_max: Optional[int] = None,
-    t_min: Optional[int] = None,
-    t_max: Optional[int] = None,
-    c_min: Optional[int] = None,
-    c_max: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> LabelView:
-    """CreateLabelView
-
-    Create a new view for label data
-
-    Args:
-        collection: The collection this view belongs to
-        z_min: The minimum z coordinate of the view
-        z_max: The maximum z coordinate of the view
-        x_min: The minimum x coordinate of the view
-        x_max: The maximum x coordinate of the view
-        y_min: The minimum y coordinate of the view
-        y_max: The maximum y coordinate of the view
-        t_min: The minimum t coordinate of the view
-        t_max: The maximum t coordinate of the view
-        c_min: The minimum c (channel) coordinate of the view
-        c_max: The maximum c (channel) coordinate of the view
-        label: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        LabelView
-    """
-    return execute(
-        CreateLabelViewMutation,
-        {
-            "input": {
-                "collection": collection,
-                "zMin": z_min,
-                "zMax": z_max,
-                "xMin": x_min,
-                "xMax": x_max,
-                "yMin": y_min,
-                "yMax": y_max,
-                "tMin": t_min,
-                "tMax": t_max,
-                "cMin": c_min,
-                "cMax": c_max,
-                "label": label,
-                "image": image,
-            }
-        },
-        rath=rath,
-    ).create_label_view
-
-
 async def acreate_histogram_view(
     histogram: Iterable[float],
     bins: Iterable[float],
@@ -6252,6 +6220,390 @@ def create_histogram_view(
         },
         rath=rath,
     ).create_histogram_view
+
+
+async def acreate_mask_view(
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
+    reference_view: Optional[IDCoercible] = None,
+    labels: Optional[Iterable[IDCoercible]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> MaskView:
+    """CreateMaskView
+
+    Create a new view for masked data
+
+    Args:
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        reference_view: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        labels: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        MaskView
+    """
+    return (
+        await aexecute(
+            CreateMaskViewMutation,
+            {
+                "input": {
+                    "collection": collection,
+                    "zMin": z_min,
+                    "zMax": z_max,
+                    "xMin": x_min,
+                    "xMax": x_max,
+                    "yMin": y_min,
+                    "yMax": y_max,
+                    "tMin": t_min,
+                    "tMax": t_max,
+                    "cMin": c_min,
+                    "cMax": c_max,
+                    "referenceView": reference_view,
+                    "image": image,
+                    "labels": labels,
+                }
+            },
+            rath=rath,
+        )
+    ).create_mask_view
+
+
+def create_mask_view(
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
+    reference_view: Optional[IDCoercible] = None,
+    labels: Optional[Iterable[IDCoercible]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> MaskView:
+    """CreateMaskView
+
+    Create a new view for masked data
+
+    Args:
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        reference_view: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        labels: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        MaskView
+    """
+    return execute(
+        CreateMaskViewMutation,
+        {
+            "input": {
+                "collection": collection,
+                "zMin": z_min,
+                "zMax": z_max,
+                "xMin": x_min,
+                "xMax": x_max,
+                "yMin": y_min,
+                "yMax": y_max,
+                "tMin": t_min,
+                "tMax": t_max,
+                "cMin": c_min,
+                "cMax": c_max,
+                "referenceView": reference_view,
+                "image": image,
+                "labels": labels,
+            }
+        },
+        rath=rath,
+    ).create_mask_view
+
+
+async def acreate_instance_mask_view(
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
+    reference_view: Optional[IDCoercible] = None,
+    instance_labels: Optional[Iterable[IDCoercible]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> InstanceMaskView:
+    """CreateInstanceMaskView
+
+    Create a new view for instance mask data
+
+    Args:
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        reference_view: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        instance_labels: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        InstanceMaskView
+    """
+    return (
+        await aexecute(
+            CreateInstanceMaskViewMutation,
+            {
+                "input": {
+                    "collection": collection,
+                    "zMin": z_min,
+                    "zMax": z_max,
+                    "xMin": x_min,
+                    "xMax": x_max,
+                    "yMin": y_min,
+                    "yMax": y_max,
+                    "tMin": t_min,
+                    "tMax": t_max,
+                    "cMin": c_min,
+                    "cMax": c_max,
+                    "referenceView": reference_view,
+                    "image": image,
+                    "instanceLabels": instance_labels,
+                }
+            },
+            rath=rath,
+        )
+    ).create_instance_mask_view
+
+
+def create_instance_mask_view(
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
+    reference_view: Optional[IDCoercible] = None,
+    instance_labels: Optional[Iterable[IDCoercible]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> InstanceMaskView:
+    """CreateInstanceMaskView
+
+    Create a new view for instance mask data
+
+    Args:
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        reference_view: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        instance_labels: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        InstanceMaskView
+    """
+    return execute(
+        CreateInstanceMaskViewMutation,
+        {
+            "input": {
+                "collection": collection,
+                "zMin": z_min,
+                "zMax": z_max,
+                "xMin": x_min,
+                "xMax": x_max,
+                "yMin": y_min,
+                "yMax": y_max,
+                "tMin": t_min,
+                "tMax": t_max,
+                "cMin": c_min,
+                "cMax": c_max,
+                "referenceView": reference_view,
+                "image": image,
+                "instanceLabels": instance_labels,
+            }
+        },
+        rath=rath,
+    ).create_instance_mask_view
+
+
+async def acreate_reference_view(
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> ReferenceView:
+    """CreateReferenceView
+
+    Create a new reference view for image data
+
+    Args:
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ReferenceView
+    """
+    return (
+        await aexecute(
+            CreateReferenceViewMutation,
+            {
+                "input": {
+                    "collection": collection,
+                    "zMin": z_min,
+                    "zMax": z_max,
+                    "xMin": x_min,
+                    "xMax": x_max,
+                    "yMin": y_min,
+                    "yMax": y_max,
+                    "tMin": t_min,
+                    "tMax": t_max,
+                    "cMin": c_min,
+                    "cMax": c_max,
+                    "image": image,
+                }
+            },
+            rath=rath,
+        )
+    ).create_reference_view
+
+
+def create_reference_view(
+    image: IDCoercible,
+    collection: Optional[IDCoercible] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> ReferenceView:
+    """CreateReferenceView
+
+    Create a new reference view for image data
+
+    Args:
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        image: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ReferenceView
+    """
+    return execute(
+        CreateReferenceViewMutation,
+        {
+            "input": {
+                "collection": collection,
+                "zMin": z_min,
+                "zMax": z_max,
+                "xMin": x_min,
+                "xMax": x_max,
+                "yMin": y_min,
+                "yMax": y_max,
+                "tMin": t_min,
+                "tMax": t_max,
+                "cMin": c_min,
+                "cMax": c_max,
+                "image": image,
+            }
+        },
+        rath=rath,
+    ).create_reference_view
 
 
 async def acreate_rgb_context(
@@ -6472,82 +6824,6 @@ def create_view_collection(
     return execute(
         CreateViewCollectionMutation, {"input": {"name": name}}, rath=rath
     ).create_view_collection
-
-
-async def acreate_channel(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> CreateChannelMutationCreatechannel:
-    """CreateChannel
-
-    Create a new channel
-
-    Args:
-        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateChannelMutationCreatechannel
-    """
-    return (
-        await aexecute(CreateChannelMutation, {"input": {"name": name}}, rath=rath)
-    ).create_channel
-
-
-def create_channel(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> CreateChannelMutationCreatechannel:
-    """CreateChannel
-
-    Create a new channel
-
-    Args:
-        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        CreateChannelMutationCreatechannel
-    """
-    return execute(
-        CreateChannelMutation, {"input": {"name": name}}, rath=rath
-    ).create_channel
-
-
-async def aensure_channel(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> EnsureChannelMutationEnsurechannel:
-    """EnsureChannel
-
-    Ensure a channel exists, creating if needed
-
-    Args:
-        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EnsureChannelMutationEnsurechannel
-    """
-    return (
-        await aexecute(EnsureChannelMutation, {"input": {"name": name}}, rath=rath)
-    ).ensure_channel
-
-
-def ensure_channel(
-    name: str, rath: Optional[MikroNextRath] = None
-) -> EnsureChannelMutationEnsurechannel:
-    """EnsureChannel
-
-    Ensure a channel exists, creating if needed
-
-    Args:
-        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        EnsureChannelMutationEnsurechannel
-    """
-    return execute(
-        EnsureChannelMutation, {"input": {"name": name}}, rath=rath
-    ).ensure_channel
 
 
 async def acreate_mesh(
@@ -7792,7 +8068,6 @@ EraFilter.model_rebuild()
 FromArrayLikeInput.model_rebuild()
 FromParquetLike.model_rebuild()
 ImageFilter.model_rebuild()
-PartialPixelViewInput.model_rebuild()
 RenderTreeInput.model_rebuild()
 StageFilter.model_rebuild()
 TimepointViewFilter.model_rebuild()

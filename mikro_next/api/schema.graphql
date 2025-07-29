@@ -18,14 +18,11 @@ type Query {
   stages(filters: StageFilter, pagination: OffsetPaginationInput): [Stage!]!
   renderTrees(filters: RenderTreeFilter, order: RenderTreeOrder, pagination: OffsetPaginationInput): [RenderTree!]!
   experiments(filters: ExperimentFilter, pagination: OffsetPaginationInput): [Experiment!]!
-  channels: [Channel!]!
   rgbcontexts(filters: RGBContextFilter, pagination: OffsetPaginationInput): [RGBContext!]!
-  mychannels: [Channel!]!
   instruments: [Instrument!]!
   multiWellPlates(filters: MultiWellPlateFilter, pagination: OffsetPaginationInput): [MultiWellPlate!]!
   objectives: [Objective!]!
   myobjectives: [Objective!]!
-  specimenViews(filters: StructureViewFilter, pagination: OffsetPaginationInput): [StructureView!]!
   tables(filters: TableFilter, pagination: OffsetPaginationInput): [Table!]!
   mytables(filters: TableFilter, pagination: OffsetPaginationInput): [Table!]!
   snapshots(filters: SnapshotFilter, pagination: OffsetPaginationInput): [Snapshot!]!
@@ -38,16 +35,22 @@ type Query {
   meshes(filters: MeshFilter, pagination: OffsetPaginationInput): [Mesh!]!
   children(parent: ID!, filters: DatasetChildrenFilter = null, pagination: ChildrenPaginationInput = null): [DatasetImageFile!]!
   rows(table: ID!, filters: RowFilter = null, pagination: TablePaginationInput = null): [MetricMap!]!
+
+  """Get permissions for a specific object"""
+  permissions(identifier: String!, object: ID!): [UserObjectPermission!]!
+
+  """Get available permissions for a specific identifier"""
+  availablePermissions(identifier: String!, search: String = null, values: [ID!] = null): [PermissionOption!]!
   tableRows(filters: TableRowFilter!, pagination: OffsetPaginationInput!): [TableRow!]!
   tableCells(filters: TableCellFilter!, pagination: OffsetPaginationInput!): [TableCell!]!
   mesh(
     """The unique identifier of an object"""
     id: ID!
   ): Mesh!
-  pixelView(
+  maskedPixelInfo(
     """The unique identifier of an object"""
     id: ID!
-  ): PixelView!
+  ): MaskedPixelInfo!
 
   """Returns a single image by ID"""
   image(
@@ -114,6 +117,11 @@ type Query {
     """The unique identifier of an object"""
     id: ID!
   ): Experiment!
+  channelsFor(
+    """The unique identifier of an object"""
+    image: ID!
+    filters: ChannelInfoFilter = null
+  ): [ChannelInfo!]!
 }
 
 type Image {
@@ -162,13 +170,21 @@ type Image {
   """
   Structure views relating other Arkitekt types to a subsection of the image
   """
-  structureViews(filters: StructureViewFilter, pagination: OffsetPaginationInput): [StructureView!]!
+  maskViews(filters: MaskViewFilter, pagination: OffsetPaginationInput): [MaskView!]!
+
+  """
+  Instance mask views relating other Arkitekt types to a subsection of the image
+  """
+  instanceMaskViews(filters: InstanceMaskViewFilter, pagination: OffsetPaginationInput): [InstanceMaskView!]!
 
   """Scale views describing physical dimensions"""
   scaleViews: [ScaleView!]!
 
   """Histogram views describing pixel value distribution"""
   histogramViews: [HistogramView!]!
+
+  """Reference views describing relationships to other views"""
+  referenceViews(filters: ReferenceViewFilter, pagination: OffsetPaginationInput): [ReferenceView!]!
 
   """When this image was created"""
   createdAt: DateTime!
@@ -190,9 +206,6 @@ type Image {
 
   """File views relating to source files"""
   fileViews: [FileView!]!
-
-  """Pixel views describing pixel value semantics"""
-  pixelViews(filters: PixelViewFilter, pagination: OffsetPaginationInput): [PixelView!]!
 
   """Views this image was derived from"""
   derivedFromViews: [DerivedView!]!
@@ -286,6 +299,9 @@ enum ViewKind {
   TIMEPOINT
   OPTICS
   HISTOGRAM
+  MASK_VIEW
+  INSTANCE_MASK_VIEW
+  REFERENCE
 }
 
 type Snapshot implements Render {
@@ -307,7 +323,12 @@ scalar DateTime
 type User {
   sub: String!
   preferredUsername: String!
-  roles: [String!]!
+  activeOrganization: Organization
+}
+
+type Organization {
+  id: String!
+  slug: String!
 }
 
 type MediaStore {
@@ -379,6 +400,7 @@ type Dataset {
 }
 
 input ImageFilter {
+  scope: ScopeFilter = null
   name: StrFilterLookup
   ids: [ID!]
   store: ZarrStoreFilter
@@ -390,6 +412,13 @@ input ImageFilter {
   OR: ImageFilter
   NOT: ImageFilter
   DISTINCT: Boolean
+}
+
+input ScopeFilter {
+  public: Boolean = null
+  org: Boolean = null
+  shared: Boolean = null
+  me: Boolean = null
 }
 
 input ZarrStoreFilter {
@@ -515,6 +544,12 @@ type File {
 
   """Provenance entries for this camera"""
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
+
+  """The user who created this file"""
+  creator: User!
+
+  """The organization this file belongs to"""
+  organization: Organization!
 }
 
 type BigFileStore {
@@ -604,14 +639,22 @@ type ModelChange {
 }
 
 input FileFilter {
-  ids: [ID!]
-  search: String
   id: ID
   name: StrFilterLookup
   AND: FileFilter
   OR: FileFilter
   NOT: FileFilter
   DISTINCT: Boolean
+  scope: ScopeKind
+  search: String
+  ids: [ID!]
+}
+
+enum ScopeKind {
+  PUBLIC
+  ORG
+  SHARED
+  ME
 }
 
 type AffineTransformationView implements View {
@@ -721,17 +764,15 @@ type ChannelView implements View {
     types: [ViewKind!]
   ): [View!]!
   id: ID!
-  channel: Channel!
-}
 
-type Channel {
-  id: ID!
-  views: [ChannelView!]!
-  name: String!
+  """The emission wavelength of the channel in nanometers"""
   emissionWavelength: Float
+
+  """The excitation wavelength of the channel in nanometers"""
   excitationWavelength: Float
+
+  """The acquisition mode of the channel"""
   acquisitionMode: String
-  color: String
 }
 
 type TimepointView implements View {
@@ -812,6 +853,7 @@ type Instrument {
   serialNumber: String!
   views(filters: OpticsViewFilter, pagination: OffsetPaginationInput): [OpticsView!]!
   manufacturer: String
+  organization: DjangoModelType!
 }
 
 input OpticsViewFilter {
@@ -852,6 +894,10 @@ input CameraFilter {
   DISTINCT: Boolean
 }
 
+type DjangoModelType {
+  pk: ID!
+}
+
 type Camera {
   id: ID!
   name: String!
@@ -867,6 +913,7 @@ type Camera {
 
   """Provenance entries for this camera"""
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
+  organization: DjangoModelType!
 }
 
 type Objective {
@@ -877,9 +924,10 @@ type Objective {
   magnification: Float
   immersion: String
   views(filters: OpticsViewFilter, pagination: OffsetPaginationInput): [OpticsView!]!
+  organization: DjangoModelType!
 }
 
-type StructureView implements View {
+type MaskView implements View {
   image: Image!
   zMin: Int
   zMax: Int
@@ -903,21 +951,83 @@ type StructureView implements View {
     types: [ViewKind!]
   ): [View!]!
   id: ID!
-  structure: StructureString!
+  referenceView: ReferenceView!
 }
 
-"""
-The `StructureString` scalar type represents a reference to a strucutre outside of this service previously created by the user n a datalayer
-"""
-scalar StructureString
+type ReferenceView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
 
-input StructureViewFilter {
-  isGlobal: Boolean
-  AND: StructureViewFilter
-  OR: StructureViewFilter
-  NOT: StructureViewFilter
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+}
+
+input MaskViewFilter {
+  ids: [ID!]
+  search: String = null
+  id: ID
+  image: ID = null
+  AND: MaskViewFilter
+  OR: MaskViewFilter
+  NOT: MaskViewFilter
   DISTINCT: Boolean
-  structure: StructureString
+}
+
+type InstanceMaskView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  referenceView: ReferenceView!
+  operation: String
+}
+
+input InstanceMaskViewFilter {
+  ids: [ID!]
+  search: String = null
+  id: ID
+  image: ID = null
+  AND: InstanceMaskViewFilter
+  OR: InstanceMaskViewFilter
+  NOT: InstanceMaskViewFilter
+  DISTINCT: Boolean
 }
 
 type ScaleView implements View {
@@ -982,6 +1092,17 @@ type HistogramView implements View {
   histogram: [Float!]!
 }
 
+input ReferenceViewFilter {
+  ids: [ID!]
+  search: String = null
+  id: ID
+  image: ID = null
+  AND: ReferenceViewFilter
+  OR: ReferenceViewFilter
+  NOT: ReferenceViewFilter
+  DISTINCT: Boolean
+}
+
 type RGBContext {
   id: ID!
   name: String!
@@ -1024,7 +1145,6 @@ type RGBView implements View {
   gamma: Float
   contrastLimitMin: Float
   contrastLimitMax: Float
-  rescale: Boolean!
   active: Boolean!
   baseColor: [Int!]
   fullColour(format: ColorFormat = RGB): String!
@@ -1152,192 +1272,10 @@ enum RoiKind {
 """The `Vector` scalar type represents a matrix values as specified by"""
 scalar FiveDVector
 
-type PixelView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-
-  """All views of this image"""
-  congruentViews(
-    """A filter to selected the subset of views"""
-    filters: ViewFilter
-    types: [ViewKind!]
-  ): [View!]!
-  id: ID!
-  labels(filters: PixelLabelFilter, pagination: OffsetPaginationInput): [PixelLabel!]!
-  labelAccessors: [LabelAccessor!]!
-}
-
-type PixelLabel {
-  id: ID!
-  view: PixelView!
-  value: Int!
-}
-
-input PixelLabelFilter {
-  value: Float = null
-  view: ID = null
-  entityKind: ID = null
-  entity: ID = null
-  AND: PixelLabelFilter
-  OR: PixelLabelFilter
-  NOT: PixelLabelFilter
-  DISTINCT: Boolean
-}
-
-type LabelAccessor implements Accessor {
-  id: ID!
-  table: Table!
-  keys: [String!]!
-  minIndex: Int
-  maxIndex: Int
-  pixelView: PixelView!
-}
-
-interface Accessor {
-  id: ID!
-  table: Table!
-  keys: [String!]!
-  minIndex: Int
-  maxIndex: Int
-}
-
-type Table {
-  id: ID!
-  name: String!
-  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
-  store: ParquetStore!
-  columns: [TableColumn!]!
-  rows: [MetricMap!]!
-  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
-}
-
-type ParquetStore {
-  id: ID!
-  path: String!
-  bucket: String!
-  key: String!
-}
-
-"""A column descriptor"""
-type TableColumn {
-  name: String!
-  type: DuckDBDataType!
-  nullable: Boolean!
-  key: String
-  default: String
-  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
-}
-
-enum DuckDBDataType {
-  """Represents a True/False value"""
-  BOOLEAN
-
-  """Very small integer (-128 to 127)"""
-  TINYINT
-
-  """Small integer (-32,768 to 32,767)"""
-  SMALLINT
-
-  """Standard integer (-2,147,483,648 to 2,147,483,647)"""
-  INTEGER
-
-  """Large integer for large numeric values"""
-  BIGINT
-
-  """Extremely large integer for very large numeric ranges"""
-  HUGEINT
-
-  """Single-precision floating point number"""
-  FLOAT
-
-  """Double-precision floating point number"""
-  DOUBLE
-
-  """Variable-length string (text)"""
-  VARCHAR
-
-  """Binary large object for storing binary data"""
-  BLOB
-
-  """Date and time with precision"""
-  TIMESTAMP
-
-  """Specific date (year, month, day)"""
-  DATE
-
-  """Specific time of the day (hours, minutes, seconds)"""
-  TIME
-
-  """Span of time between two dates or times"""
-  INTERVAL
-
-  """Exact decimal number with defined precision and scale"""
-  DECIMAL
-
-  """Universally Unique Identifier used to uniquely identify objects"""
-  UUID
-
-  """A list of values of the same data type"""
-  LIST
-
-  """A collection of key-value pairs where each key is unique"""
-  MAP
-
-  """Enumeration of predefined values"""
-  ENUM
-
-  """Composite type grouping several fields with different data types"""
-  STRUCT
-
-  """JSON object, a structured text format used for representing data"""
-  JSON
-}
-
-input AccessorFilter {
-  keys: JSON
-  AND: AccessorFilter
-  OR: AccessorFilter
-  NOT: AccessorFilter
-  DISTINCT: Boolean
-}
-
-"""
-The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
-"""
-scalar JSON
-
-enum AccessorKind {
-  LABEL
-  IMAGE
-}
-
-"""The `MetricMap` scalar type represents a matrix values as specified by"""
-scalar MetricMap
-
-input PixelViewFilter {
-  isGlobal: Boolean
-  AND: PixelViewFilter
-  OR: PixelViewFilter
-  NOT: PixelViewFilter
-  DISTINCT: Boolean
-}
-
 """A channel descriptor"""
 type ChannelInfo {
   label(withColorName: Boolean! = false): String!
+  index: Int!
 }
 
 """A channel descriptor"""
@@ -1497,7 +1435,6 @@ input MultiWellPlateFilter {
   ids: [ID!]
   search: String
   id: ID
-  name: StrFilterLookup
   AND: MultiWellPlateFilter
   OR: MultiWellPlateFilter
   NOT: MultiWellPlateFilter
@@ -1572,6 +1509,127 @@ input ExperimentFilter {
   DISTINCT: Boolean
 }
 
+type Table {
+  id: ID!
+  name: String!
+  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
+  store: ParquetStore!
+  columns: [TableColumn!]!
+  rows: [MetricMap!]!
+  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
+}
+
+type ParquetStore {
+  id: ID!
+  path: String!
+  bucket: String!
+  key: String!
+}
+
+"""A column descriptor"""
+type TableColumn {
+  name: String!
+  type: DuckDBDataType!
+  nullable: Boolean!
+  key: String
+  default: String
+  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
+}
+
+enum DuckDBDataType {
+  """Represents a True/False value"""
+  BOOLEAN
+
+  """Very small integer (-128 to 127)"""
+  TINYINT
+
+  """Small integer (-32,768 to 32,767)"""
+  SMALLINT
+
+  """Standard integer (-2,147,483,648 to 2,147,483,647)"""
+  INTEGER
+
+  """Large integer for large numeric values"""
+  BIGINT
+
+  """Extremely large integer for very large numeric ranges"""
+  HUGEINT
+
+  """Single-precision floating point number"""
+  FLOAT
+
+  """Double-precision floating point number"""
+  DOUBLE
+
+  """Variable-length string (text)"""
+  VARCHAR
+
+  """Binary large object for storing binary data"""
+  BLOB
+
+  """Date and time with precision"""
+  TIMESTAMP
+
+  """Specific date (year, month, day)"""
+  DATE
+
+  """Specific time of the day (hours, minutes, seconds)"""
+  TIME
+
+  """Span of time between two dates or times"""
+  INTERVAL
+
+  """Exact decimal number with defined precision and scale"""
+  DECIMAL
+
+  """Universally Unique Identifier used to uniquely identify objects"""
+  UUID
+
+  """A list of values of the same data type"""
+  LIST
+
+  """A collection of key-value pairs where each key is unique"""
+  MAP
+
+  """Enumeration of predefined values"""
+  ENUM
+
+  """Composite type grouping several fields with different data types"""
+  STRUCT
+
+  """JSON object, a structured text format used for representing data"""
+  JSON
+}
+
+interface Accessor {
+  id: ID!
+  table: Table!
+  keys: [String!]!
+  minIndex: Int
+  maxIndex: Int
+}
+
+input AccessorFilter {
+  keys: JSON
+  AND: AccessorFilter
+  OR: AccessorFilter
+  NOT: AccessorFilter
+  DISTINCT: Boolean
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
+"""
+scalar JSON
+
+enum AccessorKind {
+  LABEL
+  IMAGE
+}
+
+"""The `MetricMap` scalar type represents a matrix values as specified by"""
+scalar MetricMap
+
 input TableFilter {
   ids: [ID!]
   search: String
@@ -1580,6 +1638,15 @@ input TableFilter {
   OR: TableFilter
   NOT: TableFilter
   DISTINCT: Boolean
+}
+
+type LabelAccessor implements Accessor {
+  id: ID!
+  table: Table!
+  keys: [String!]!
+  minIndex: Int
+  maxIndex: Int
+  maskView: MaskView!
 }
 
 type ImageAccessor implements Accessor {
@@ -1634,6 +1701,16 @@ input TablePaginationInput {
   offset: Int = 0
 }
 
+type UserObjectPermission {
+  user: User!
+  permission: String!
+}
+
+type PermissionOption {
+  value: ID!
+  label: String!
+}
+
 """A cell of a table"""
 type TableRow {
   id: ID!
@@ -1668,12 +1745,19 @@ input TableCellFilter {
   ids: [ID!] = null
 }
 
+type MaskedPixelInfo {
+  label: String!
+  color: String!
+}
+
+input ChannelInfoFilter {
+  search: String = null
+  ids: [ID!] = null
+}
+
 type Mutation {
   """Relate an image to a dataset"""
-  relateToDataset(
-    """Input data for `relateToDataset` mutation"""
-    input: RelateToDatasetInput!
-  ): Image!
+  relateToDataset(id: ID!, other: ID!): Image!
 
   """Request credentials to upload a new image"""
   requestUpload(input: RequestUploadInput!): Credentials!
@@ -1740,18 +1824,6 @@ type Mutation {
 
   """Delete an existing file"""
   deleteFile(input: DeleteFileInput!): ID!
-
-  """Create a new channel"""
-  createChannel(input: ChannelInput!): Channel!
-
-  """Pin a channel for quick access"""
-  pinChannel(input: PinChannelInput!): Channel!
-
-  """Ensure a channel exists, creating if needed"""
-  ensureChannel(input: ChannelInput!): Channel!
-
-  """Delete an existing channel"""
-  deleteChannel(input: DeleteChannelInput!): ID!
 
   """Create a new stage for organizing data"""
   createStage(input: StageInput!): Stage!
@@ -1858,8 +1930,14 @@ type Mutation {
   """Create a new view for channel data"""
   createChannelView(input: ChannelViewInput!): ChannelView!
 
-  """Create a new view for structural data"""
-  createStructureView(input: StructureViewInput!): StructureView!
+  """Create a new view for masked data"""
+  createMaskView(input: MaskViewInput!): MaskView!
+
+  """Create a new view for instance mask data"""
+  createInstanceMaskView(input: InstanceMaskViewInput!): InstanceMaskView!
+
+  """Create a new reference view for image data"""
+  createReferenceView(input: ReferenceViewInput!): ReferenceView!
 
   """Create a new view for well position data"""
   createWellPositionView(input: WellPositionViewInput!): WellPositionView!
@@ -1947,11 +2025,9 @@ type Mutation {
 
   """Delete an existing region of interest"""
   deleteRoi(input: DeleteRoiInput!): ID!
-}
 
-input RelateToDatasetInput {
-  id: ID!
-  other: ID!
+  """Assign a user permission to an object"""
+  assignUserPermission(input: AssignUserPermissionInput!): [UserObjectPermission!]!
 }
 
 """
@@ -2133,11 +2209,14 @@ input FromArrayLikeInput {
   """Optional list of acquisition views"""
   acquisitionViews: [PartialAcquisitionViewInput!] = null
 
-  """Optional list of pixel views"""
-  pixelViews: [PartialPixelViewInput!] = null
+  """Optional list of mask views"""
+  maskViews: [PartialMaskViewInput!] = null
 
-  """Optional list of structure views"""
-  structureViews: [PartialStructureViewInput!] = null
+  """Optional list of reference views"""
+  referenceViews: [PartialReferenceViewInput!] = null
+
+  """Optional list of instance mask views"""
+  instanceMaskViews: [PartialInstanceMaskViewInput!] = null
 
   """Optional list of RGB views"""
   rgbViews: [PartialRGBViewInput!] = null
@@ -2282,7 +2361,7 @@ input PartialAcquisitionViewInput {
   operator: ID = null
 }
 
-input PartialPixelViewInput {
+input PartialMaskViewInput {
   """The collection this view belongs to"""
   collection: ID = null
 
@@ -2315,18 +2394,10 @@ input PartialPixelViewInput {
 
   """The maximum c (channel) coordinate of the view"""
   cMax: Int = null
-  linkedView: ID = null
-  rangeLabels: [RangePixelLabel!] = null
+  referenceView: ID = null
 }
 
-input RangePixelLabel {
-  group: ID = null
-  entityKind: ID!
-  min: Int!
-  max: Int!
-}
-
-input PartialStructureViewInput {
+input PartialReferenceViewInput {
   """The collection this view belongs to"""
   collection: ID = null
 
@@ -2359,7 +2430,42 @@ input PartialStructureViewInput {
 
   """The maximum c (channel) coordinate of the view"""
   cMax: Int = null
-  structure: StructureString!
+}
+
+input PartialInstanceMaskViewInput {
+  """The collection this view belongs to"""
+  collection: ID = null
+
+  """The minimum z coordinate of the view"""
+  zMin: Int = null
+
+  """The maximum z coordinate of the view"""
+  zMax: Int = null
+
+  """The minimum x coordinate of the view"""
+  xMin: Int = null
+
+  """The maximum x coordinate of the view"""
+  xMax: Int = null
+
+  """The minimum y coordinate of the view"""
+  yMin: Int = null
+
+  """The maximum y coordinate of the view"""
+  yMax: Int = null
+
+  """The minimum t coordinate of the view"""
+  tMin: Int = null
+
+  """The maximum t coordinate of the view"""
+  tMax: Int = null
+
+  """The minimum c (channel) coordinate of the view"""
+  cMin: Int = null
+
+  """The maximum c (channel) coordinate of the view"""
+  cMax: Int = null
+  referenceView: ID = null
 }
 
 input PartialRGBViewInput {
@@ -2738,19 +2844,6 @@ The `FileLike` scalar type represents a reference to a big file storage previous
 scalar FileLike
 
 input DeleteFileInput {
-  id: ID!
-}
-
-input ChannelInput {
-  name: String!
-}
-
-input PinChannelInput {
-  id: ID!
-  pin: Boolean!
-}
-
-input DeleteChannelInput {
   id: ID!
 }
 
@@ -3157,7 +3250,7 @@ input ChannelViewInput {
   image: ID!
 }
 
-input StructureViewInput {
+input MaskViewInput {
   """The collection this view belongs to"""
   collection: ID = null
 
@@ -3190,7 +3283,82 @@ input StructureViewInput {
 
   """The maximum c (channel) coordinate of the view"""
   cMax: Int = null
-  structure: StructureString!
+  referenceView: ID = null
+  image: ID!
+  labels: [ID!] = null
+}
+
+input InstanceMaskViewInput {
+  """The collection this view belongs to"""
+  collection: ID = null
+
+  """The minimum z coordinate of the view"""
+  zMin: Int = null
+
+  """The maximum z coordinate of the view"""
+  zMax: Int = null
+
+  """The minimum x coordinate of the view"""
+  xMin: Int = null
+
+  """The maximum x coordinate of the view"""
+  xMax: Int = null
+
+  """The minimum y coordinate of the view"""
+  yMin: Int = null
+
+  """The maximum y coordinate of the view"""
+  yMax: Int = null
+
+  """The minimum t coordinate of the view"""
+  tMin: Int = null
+
+  """The maximum t coordinate of the view"""
+  tMax: Int = null
+
+  """The minimum c (channel) coordinate of the view"""
+  cMin: Int = null
+
+  """The maximum c (channel) coordinate of the view"""
+  cMax: Int = null
+  referenceView: ID = null
+  image: ID!
+  instanceLabels: [ID!] = null
+}
+
+input ReferenceViewInput {
+  """The collection this view belongs to"""
+  collection: ID = null
+
+  """The minimum z coordinate of the view"""
+  zMin: Int = null
+
+  """The maximum z coordinate of the view"""
+  zMax: Int = null
+
+  """The minimum x coordinate of the view"""
+  xMin: Int = null
+
+  """The maximum x coordinate of the view"""
+  xMax: Int = null
+
+  """The minimum y coordinate of the view"""
+  yMin: Int = null
+
+  """The maximum y coordinate of the view"""
+  yMax: Int = null
+
+  """The minimum t coordinate of the view"""
+  tMin: Int = null
+
+  """The maximum t coordinate of the view"""
+  tMax: Int = null
+
+  """The minimum c (channel) coordinate of the view"""
+  cMin: Int = null
+
+  """The maximum c (channel) coordinate of the view"""
+  cMax: Int = null
   image: ID!
 }
 
@@ -3381,6 +3549,13 @@ input PinROIInput {
 
 input DeleteRoiInput {
   id: ID!
+}
+
+input AssignUserPermissionInput {
+  identifier: String!
+  object: ID!
+  user: ID!
+  permissions: [String!]!
 }
 
 type Subscription {
