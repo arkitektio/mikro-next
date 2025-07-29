@@ -1,6 +1,10 @@
 import numpy as np
 import pytest
 from mikro_next.api.schema import create_dataset, from_array_like, get_random_image
+from mikro_next.api.schema import (
+    create_reference_view,
+    PartialMaskViewInput,
+)
 import xarray as xr
 from .conftest import DeployedMikro
 
@@ -48,3 +52,30 @@ def test_create_dataset_in_parent(deployed_app: DeployedMikro) -> None:
     create_dataset(name="johannes", parent=x.id)
 
     pass
+
+
+@pytest.mark.integration
+def test_create_image_with_mask(deployed_app: DeployedMikro) -> None:
+    initial_image = xr.DataArray(np.zeros((100, 100, 3), dtype=np.uint8), dims=("y", "x", "c"))
+
+    initial_image[0:50, 0:50, :] = [255, 0, 0]  # Red square
+    initial_image[50:100, 50:100, :] = [0, 34, 0]  # Green square
+    initial_image[0:50, 50:100, :] = [0, 0, 123]  # Blue square
+
+    image = from_array_like(
+        array=initial_image,
+        name="FUCK IMAGE HARD",
+        tags=["test", "image"],
+    )
+
+    ref_frame = create_reference_view(image, c_min=0, c_max=1)
+
+    from_array_like(
+        array=xr.DataArray(np.zeros((100, 100, 1), dtype=np.uint8), dims=("y", "x", "c")),
+        name="Test Mask",
+        mask_views=[
+            PartialMaskViewInput(
+                referenceView=ref_frame,
+            )
+        ],
+    )
