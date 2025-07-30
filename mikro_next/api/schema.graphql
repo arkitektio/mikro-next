@@ -767,6 +767,9 @@ type ChannelView implements View {
   ): [View!]!
   id: ID!
 
+  """The name of the channel """
+  name: String
+
   """The emission wavelength of the channel in nanometers"""
   emissionWavelength: Float
 
