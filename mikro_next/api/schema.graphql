@@ -408,6 +408,7 @@ input ImageFilter {
   transformationViews: AffineTransformationViewFilter
   timepointViews: TimepointViewFilter
   notDerived: Boolean = null
+  search: String = null
   AND: ImageFilter
   OR: ImageFilter
   NOT: ImageFilter
@@ -454,6 +455,7 @@ input DatasetFilter {
   search: String
   id: ID
   name: StrFilterLookup
+  parentless: Boolean = null
   AND: DatasetFilter
   OR: DatasetFilter
   NOT: DatasetFilter
@@ -1927,6 +1929,12 @@ type Mutation {
   """Create a new view for RGB image data"""
   createRgbView(input: RGBViewInput!): RGBView!
 
+  """Update an existing RGB view"""
+  updateRgbView(input: UpdateRGBViewInput!): RGBView!
+
+  """Delete an existing RGB view"""
+  deleteRgbView(input: DeleteViewInput!): ID!
+
   """Create a new view for channel data"""
   createChannelView(input: ChannelViewInput!): ChannelView!
 
@@ -1959,9 +1967,6 @@ type Mutation {
 
   """Delete an existing optics view"""
   deleteOpticsView(input: DeleteViewInput!): ID!
-
-  """Delete an existing RGB view"""
-  deleteRgbView(input: DeleteViewInput!): ID!
 
   """Delete any type of view"""
   deleteView(input: DeleteViewInput!): ID!
@@ -2282,8 +2287,17 @@ input PartialChannelViewInput {
   """The maximum c (channel) coordinate of the view"""
   cMax: Int = null
 
-  """The ID of the channel this view is for"""
-  channel: ID!
+  """The emission wavelength of the channel in nanometers"""
+  emissionWavelength: Float = null
+
+  """The excitation wavelength of the channel in nanometers"""
+  excitationWavelength: Float = null
+
+  """The acquisition mode of the channel"""
+  acquisitionMode: String = null
+
+  """The name of the channel"""
+  name: String = null
 }
 
 input PartialAffineTransformationViewInput {
@@ -3209,6 +3223,57 @@ input RGBViewInput {
   image: ID!
 }
 
+input UpdateRGBViewInput {
+  """The collection this view belongs to"""
+  collection: ID = null
+
+  """The minimum z coordinate of the view"""
+  zMin: Int = null
+
+  """The maximum z coordinate of the view"""
+  zMax: Int = null
+
+  """The minimum x coordinate of the view"""
+  xMin: Int = null
+
+  """The maximum x coordinate of the view"""
+  xMax: Int = null
+
+  """The minimum y coordinate of the view"""
+  yMin: Int = null
+
+  """The maximum y coordinate of the view"""
+  yMax: Int = null
+
+  """The minimum t coordinate of the view"""
+  tMin: Int = null
+
+  """The maximum t coordinate of the view"""
+  tMax: Int = null
+
+  """The minimum c (channel) coordinate of the view"""
+  cMin: Int = null
+
+  """The maximum c (channel) coordinate of the view"""
+  cMax: Int = null
+  context: ID = null
+  gamma: Float = null
+  contrastLimitMin: Float = null
+  contrastLimitMax: Float = null
+  rescale: Boolean = null
+  scale: Float = null
+  active: Boolean = null
+  colorMap: ColorMap = null
+  baseColor: [Float!] = null
+
+  """The ID of the RGB view to update"""
+  id: ID!
+}
+
+input DeleteViewInput {
+  id: ID!
+}
+
 input ChannelViewInput {
   """The collection this view belongs to"""
   collection: ID = null
@@ -3243,8 +3308,17 @@ input ChannelViewInput {
   """The maximum c (channel) coordinate of the view"""
   cMax: Int = null
 
-  """The ID of the channel this view is for"""
-  channel: ID!
+  """The emission wavelength of the channel in nanometers"""
+  emissionWavelength: Float = null
+
+  """The excitation wavelength of the channel in nanometers"""
+  excitationWavelength: Float = null
+
+  """The acquisition mode of the channel"""
+  acquisitionMode: String = null
+
+  """The name of the channel"""
+  name: String = null
 
   """The ID of the image this view is for"""
   image: ID!
@@ -3436,10 +3510,6 @@ input ContinousScanViewInput {
   cMax: Int = null
   direction: ScanDirection!
   image: ID!
-}
-
-input DeleteViewInput {
-  id: ID!
 }
 
 input PinViewInput {
