@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.11.0 (2025-07-30)
+
+### Features
+
+- New elements
+  ([`7d5c92d`](https://github.com/arkitektio/mikro-next/commit/7d5c92d1b9ae63d206ae49462dbbcc8b91e5c437))
+
+
 ## v0.10.1 (2025-07-30)
 
 ### Bug Fixes
