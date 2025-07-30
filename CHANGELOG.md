@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v0.10.1 (2025-07-30)
+
+### Bug Fixes
+
+- Stupid channel mistake
+  ([`7e95ee5`](https://github.com/arkitektio/mikro-next/commit/7e95ee5dbbf44c24b7b015be558bbe40836c4ff4))
+
+### Chores
+
+- Add tests
+  ([`85220b7`](https://github.com/arkitektio/mikro-next/commit/85220b7e8a96cb54fae77b983121241a7f0f4986))
+
+- Fix
+  ([`c9649e1`](https://github.com/arkitektio/mikro-next/commit/c9649e118f72ae1b26c8f3fd8f1db32aa8f0ea11))
+
+
 ## v0.10.0 (2025-07-29)
 
 ### Features
