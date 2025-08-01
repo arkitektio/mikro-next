@@ -1,46 +1,46 @@
+from typing import (
+    Iterable,
+    Any,
+    Iterator,
+    Tuple,
+    Union,
+    Optional,
+    Literal,
+    AsyncIterator,
+    Annotated,
+    List,
+)
+from pydantic import BaseModel, Field, ConfigDict
 from mikro_next.traits import (
+    FileTrait,
+    IsVectorizableTrait,
     HasPresignedDownloadAccessor,
     HasParquestStoreTrait,
-    IsVectorizableTrait,
-    HasDownloadAccessor,
-    HasZarrStoreAccessor,
     HasZarrStoreTrait,
+    HasDownloadAccessor,
     HasParquetStoreAccesor,
-    FileTrait,
+    HasZarrStoreAccessor,
 )
+from mikro_next.rath import MikroNextRath
+from mikro_next.funcs import asubscribe, aexecute, subscribe, execute
 from mikro_next.scalars import (
-    Milliseconds,
-    Micrometers,
-    ArrayCoercible,
-    MeshLike,
-    ImageFileCoercible,
-    ArrayLike,
-    FileLike,
-    MeshCoercible,
-    ParquetLike,
     FiveDVector,
+    ParquetCoercible,
+    Micrometers,
     FourByFourMatrix,
     ImageFileLike,
-    ParquetCoercible,
-)
-from typing import (
-    Literal,
-    Optional,
-    Tuple,
-    Iterable,
-    Annotated,
-    Any,
-    List,
-    AsyncIterator,
-    Iterator,
-    Union,
+    ImageFileCoercible,
+    ArrayCoercible,
+    MeshLike,
+    Milliseconds,
+    ParquetLike,
+    FileLike,
+    ArrayLike,
+    MeshCoercible,
 )
 from rath.scalars import ID, IDCoercible
-from mikro_next.funcs import subscribe, aexecute, execute, asubscribe
-from pydantic import ConfigDict, BaseModel, Field
 from datetime import datetime
 from enum import Enum
-from mikro_next.rath import MikroNextRath
 
 
 class ColorMap(str, Enum):
@@ -1175,6 +1175,47 @@ class RGBViewInput(BaseModel):
     color_map: Optional[ColorMap] = Field(alias="colorMap", default=None)
     base_color: Optional[Tuple[float, ...]] = Field(alias="baseColor", default=None)
     image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class UpdateRGBViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    context: Optional[ID] = None
+    gamma: Optional[float] = None
+    contrast_limit_min: Optional[float] = Field(alias="contrastLimitMin", default=None)
+    contrast_limit_max: Optional[float] = Field(alias="contrastLimitMax", default=None)
+    rescale: Optional[bool] = None
+    scale: Optional[float] = None
+    active: Optional[bool] = None
+    color_map: Optional[ColorMap] = Field(alias="colorMap", default=None)
+    base_color: Optional[Tuple[float, ...]] = Field(alias="baseColor", default=None)
+    id: ID
+    "The ID of the RGB view to update"
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -2704,7 +2745,7 @@ class From_array_likeMutation(BaseModel):
     class Meta:
         """Meta class for from_array_like"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class RequestUploadMutation(BaseModel):
@@ -3159,6 +3200,34 @@ class CreateRgbViewMutation(BaseModel):
         document = "mutation CreateRgbView($input: RGBViewInput!) {\n  createRgbView(input: $input) {\n    id\n    __typename\n  }\n}"
 
 
+class UpdateRgbViewMutationUpdatergbview(BaseModel):
+    """No documentation"""
+
+    typename: Literal["RGBView"] = Field(
+        alias="__typename", default="RGBView", exclude=True
+    )
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+
+class UpdateRgbViewMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    update_rgb_view: UpdateRgbViewMutationUpdatergbview = Field(alias="updateRgbView")
+    "Update an existing RGB view"
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateRgbView"""
+
+        input: UpdateRGBViewInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for UpdateRgbView"""
+
+        document = "mutation UpdateRgbView($input: UpdateRGBViewInput!) {\n  updateRgbView(input: $input) {\n    id\n    __typename\n  }\n}"
+
+
 class CreateHistogramViewMutation(BaseModel):
     """No documentation found for this operation."""
 
@@ -3386,7 +3455,7 @@ class GetImageQuery(BaseModel):
     class Meta:
         """Meta class for GetImage"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -3402,7 +3471,7 @@ class GetRandomImageQuery(BaseModel):
     class Meta:
         """Meta class for GetRandomImage"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
@@ -3450,7 +3519,7 @@ class ImagesQuery(BaseModel):
     class Meta:
         """Meta class for Images"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class ViewImageQueryImageStore(HasZarrStoreAccessor, BaseModel):
@@ -4120,6 +4189,52 @@ class SearchTableRowsQuery(BaseModel):
         document = "query SearchTableRows($search: String, $values: [ID!]) {\n  options: tableRows(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}"
 
 
+class GetRGBViewQuery(BaseModel):
+    """No documentation found for this operation."""
+
+    rgb_view: RGBView = Field(alias="rgbView")
+
+    class Arguments(BaseModel):
+        """Arguments for GetRGBView"""
+
+        id: ID
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetRGBView"""
+
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nquery GetRGBView($id: ID!) {\n  rgbView(id: $id) {\n    ...RGBView\n    __typename\n  }\n}"
+
+
+class SearchRGBViewsQueryOptions(BaseModel):
+    """No documentation"""
+
+    typename: Literal["RGBView"] = Field(
+        alias="__typename", default="RGBView", exclude=True
+    )
+    value: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+
+class SearchRGBViewsQuery(BaseModel):
+    """No documentation found for this operation."""
+
+    options: Tuple[SearchRGBViewsQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        """Arguments for SearchRGBViews"""
+
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for SearchRGBViews"""
+
+        document = "query SearchRGBViews($search: String, $values: [ID!]) {\n  options: rgbViews(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}"
+
+
 class WatchFilesSubscriptionFiles(BaseModel):
     """No documentation"""
 
@@ -4177,7 +4292,7 @@ class WatchImagesSubscription(BaseModel):
     class Meta:
         """Meta class for WatchImages"""
 
-        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):
@@ -6358,6 +6473,180 @@ def create_rgb_view(
     ).create_rgb_view
 
 
+async def aupdate_rgb_view(
+    id: IDCoercible,
+    collection: Optional[IDCoercible] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
+    context: Optional[IDCoercible] = None,
+    gamma: Optional[float] = None,
+    contrast_limit_min: Optional[float] = None,
+    contrast_limit_max: Optional[float] = None,
+    rescale: Optional[bool] = None,
+    scale: Optional[float] = None,
+    active: Optional[bool] = None,
+    color_map: Optional[ColorMap] = None,
+    base_color: Optional[Iterable[float]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> UpdateRgbViewMutationUpdatergbview:
+    """UpdateRgbView
+
+    Update an existing RGB view
+
+    Args:
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        context: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        gamma: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        contrast_limit_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        contrast_limit_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        rescale: The `Boolean` scalar type represents `true` or `false`.
+        scale: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        active: The `Boolean` scalar type represents `true` or `false`.
+        color_map: ColorMap
+        base_color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+        id: The ID of the RGB view to update
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        UpdateRgbViewMutationUpdatergbview
+    """
+    return (
+        await aexecute(
+            UpdateRgbViewMutation,
+            {
+                "input": {
+                    "collection": collection,
+                    "zMin": z_min,
+                    "zMax": z_max,
+                    "xMin": x_min,
+                    "xMax": x_max,
+                    "yMin": y_min,
+                    "yMax": y_max,
+                    "tMin": t_min,
+                    "tMax": t_max,
+                    "cMin": c_min,
+                    "cMax": c_max,
+                    "context": context,
+                    "gamma": gamma,
+                    "contrastLimitMin": contrast_limit_min,
+                    "contrastLimitMax": contrast_limit_max,
+                    "rescale": rescale,
+                    "scale": scale,
+                    "active": active,
+                    "colorMap": color_map,
+                    "baseColor": base_color,
+                    "id": id,
+                }
+            },
+            rath=rath,
+        )
+    ).update_rgb_view
+
+
+def update_rgb_view(
+    id: IDCoercible,
+    collection: Optional[IDCoercible] = None,
+    z_min: Optional[int] = None,
+    z_max: Optional[int] = None,
+    x_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_min: Optional[int] = None,
+    y_max: Optional[int] = None,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    c_min: Optional[int] = None,
+    c_max: Optional[int] = None,
+    context: Optional[IDCoercible] = None,
+    gamma: Optional[float] = None,
+    contrast_limit_min: Optional[float] = None,
+    contrast_limit_max: Optional[float] = None,
+    rescale: Optional[bool] = None,
+    scale: Optional[float] = None,
+    active: Optional[bool] = None,
+    color_map: Optional[ColorMap] = None,
+    base_color: Optional[Iterable[float]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> UpdateRgbViewMutationUpdatergbview:
+    """UpdateRgbView
+
+    Update an existing RGB view
+
+    Args:
+        collection: The collection this view belongs to
+        z_min: The minimum z coordinate of the view
+        z_max: The maximum z coordinate of the view
+        x_min: The minimum x coordinate of the view
+        x_max: The maximum x coordinate of the view
+        y_min: The minimum y coordinate of the view
+        y_max: The maximum y coordinate of the view
+        t_min: The minimum t coordinate of the view
+        t_max: The maximum t coordinate of the view
+        c_min: The minimum c (channel) coordinate of the view
+        c_max: The maximum c (channel) coordinate of the view
+        context: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        gamma: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        contrast_limit_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        contrast_limit_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        rescale: The `Boolean` scalar type represents `true` or `false`.
+        scale: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        active: The `Boolean` scalar type represents `true` or `false`.
+        color_map: ColorMap
+        base_color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+        id: The ID of the RGB view to update
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        UpdateRgbViewMutationUpdatergbview
+    """
+    return execute(
+        UpdateRgbViewMutation,
+        {
+            "input": {
+                "collection": collection,
+                "zMin": z_min,
+                "zMax": z_max,
+                "xMin": x_min,
+                "xMax": x_max,
+                "yMin": y_min,
+                "yMax": y_max,
+                "tMin": t_min,
+                "tMax": t_max,
+                "cMin": c_min,
+                "cMax": c_max,
+                "context": context,
+                "gamma": gamma,
+                "contrastLimitMin": contrast_limit_min,
+                "contrastLimitMax": contrast_limit_max,
+                "rescale": rescale,
+                "scale": scale,
+                "active": active,
+                "colorMap": color_map,
+                "baseColor": base_color,
+                "id": id,
+            }
+        },
+        rath=rath,
+    ).update_rgb_view
+
+
 async def acreate_histogram_view(
     histogram: Iterable[float],
     bins: Iterable[float],
@@ -7959,6 +8248,78 @@ def search_table_rows(
     """
     return execute(
         SearchTableRowsQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
+async def aget_rgb_view(id: ID, rath: Optional[MikroNextRath] = None) -> RGBView:
+    """GetRGBView
+
+
+    Args:
+        id (ID): The unique identifier of an object
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RGBView
+    """
+    return (await aexecute(GetRGBViewQuery, {"id": id}, rath=rath)).rgb_view
+
+
+def get_rgb_view(id: ID, rath: Optional[MikroNextRath] = None) -> RGBView:
+    """GetRGBView
+
+
+    Args:
+        id (ID): The unique identifier of an object
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        RGBView
+    """
+    return execute(GetRGBViewQuery, {"id": id}, rath=rath).rgb_view
+
+
+async def asearch_rgb_views(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Tuple[SearchRGBViewsQueryOptions, ...]:
+    """SearchRGBViews
+
+
+    Args:
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchRGBViewsQueryRgbviews]
+    """
+    return (
+        await aexecute(
+            SearchRGBViewsQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
+
+
+def search_rgb_views(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Tuple[SearchRGBViewsQueryOptions, ...]:
+    """SearchRGBViews
+
+
+    Args:
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchRGBViewsQueryRgbviews]
+    """
+    return execute(
+        SearchRGBViewsQuery, {"search": search, "values": values}, rath=rath
     ).options
 
 

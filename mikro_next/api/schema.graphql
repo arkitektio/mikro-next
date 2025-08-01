@@ -10,7 +10,7 @@ type Query {
   continousScanViews(filters: ContinousScanViewFilter, pagination: OffsetPaginationInput): [ContinousScanView!]!
   wellPositionViews(filters: WellPositionViewFilter, pagination: OffsetPaginationInput): [WellPositionView!]!
   acquisitionViews: [AcquisitionView!]!
-  rgbViews: [RGBView!]!
+  rgbViews(filters: RGBViewFilter, pagination: OffsetPaginationInput): [RGBView!]!
   affineTransformationViews(filters: AffineTransformationViewFilter, pagination: OffsetPaginationInput): [AffineTransformationView!]!
   scaleViews: [ScaleView!]!
   eras(filters: EraFilter, pagination: OffsetPaginationInput): [Era!]!
@@ -41,6 +41,10 @@ type Query {
 
   """Get available permissions for a specific identifier"""
   availablePermissions(identifier: String!, search: String = null, values: [ID!] = null): [PermissionOption!]!
+  rgbView(
+    """The unique identifier of an object"""
+    id: ID!
+  ): RGBView!
   tableRows(filters: TableRowFilter!, pagination: OffsetPaginationInput!): [TableRow!]!
   tableCells(filters: TableCellFilter!, pagination: OffsetPaginationInput!): [TableCell!]!
   mesh(
@@ -1113,7 +1117,7 @@ type RGBContext {
   name: String!
   image: Image!
   snapshots(filters: SnapshotFilter, pagination: OffsetPaginationInput): [Snapshot!]!
-  views: [RGBView!]!
+  views(filters: RGBViewFilter, pagination: OffsetPaginationInput): [RGBView!]!
   blending: Blending!
   z: Int!
   t: Int!
@@ -1180,6 +1184,16 @@ enum ColorMap {
 enum ColorFormat {
   RGB
   HSL
+}
+
+input RGBViewFilter {
+  ids: [ID!]
+  search: String
+  id: ID
+  AND: RGBViewFilter
+  OR: RGBViewFilter
+  NOT: RGBViewFilter
+  DISTINCT: Boolean
 }
 
 enum Blending {

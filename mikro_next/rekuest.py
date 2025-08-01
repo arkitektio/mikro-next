@@ -15,6 +15,8 @@ from mikro_next.api.schema import (
     Table,
     TableCell,
     TableRow,
+    RGBView,
+    aget_rgb_view,
     aget_image,
     aget_snapshot,
     aget_roi,
@@ -26,6 +28,7 @@ from mikro_next.api.schema import (
     aget_table,
     aget_table_cell,
     aget_table_row,
+    SearchRGBViewsQuery,
     SearchImagesQuery,
     SearchSnapshotsQuery,
     SearchRoisQuery,
@@ -63,6 +66,22 @@ structure_reg.register_as_structure(
     ashrink=id_shrink,
     default_widget=SearchWidget(query=SearchRoisQuery.Meta.document, ward="mikro"),
 )
+structure_reg.register_as_structure(
+    Stage,
+    identifier="@mikro/stage",
+    aexpand=aget_stage,
+    ashrink=id_shrink,
+    default_widget=SearchWidget(query=SearchStagesQuery.Meta.document, ward="mikro"),
+)
+structure_reg.register_as_structure(
+    RGBView,
+    identifier="@mikro/rgbview",
+    aexpand=aget_rgb_view,
+    ashrink=id_shrink,
+    default_widget=SearchWidget(query=SearchRGBViewsQuery.Meta.document, ward="mikro"),
+)
+
+
 structure_reg.register_as_structure(
     Stage,
     identifier="@mikro/stage",
@@ -113,7 +132,9 @@ structure_reg.register_as_structure(
     identifier="@mikro/tablecell",
     aexpand=aget_table_cell,
     ashrink=id_shrink,
-    default_widget=SearchWidget(query=SearchTableCellsQuery.Meta.document, ward="mikro"),
+    default_widget=SearchWidget(
+        query=SearchTableCellsQuery.Meta.document, ward="mikro"
+    ),
 )
 
 structure_reg.register_as_structure(

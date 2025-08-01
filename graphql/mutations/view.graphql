@@ -4,14 +4,17 @@ mutation CreateRgbView($input: RGBViewInput!) {
   }
 }
 
-
+mutation UpdateRgbView($input: UpdateRGBViewInput!) {
+  updateRgbView(input: $input) {
+    id
+  }
+}
 
 mutation CreateHistogramView($input: HistogramViewInput!) {
   createHistogramView(input: $input) {
     ...HistogramView
   }
 }
-
 
 mutation CreateMaskView($input: MaskViewInput!) {
   createMaskView(input: $input) {
