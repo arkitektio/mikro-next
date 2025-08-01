@@ -1,6 +1,6 @@
 [project]
 name = "mikro-next"
-version = "0.11.0"
+version = "0.12.0"
 description = "next images for arkitekt"
 authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
 requires-python = ">=3.11"

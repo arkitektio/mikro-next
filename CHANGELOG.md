@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.12.0 (2025-08-01)
+
+### Features
+
+- Add rgb_views
+  ([`1b830cd`](https://github.com/arkitektio/mikro-next/commit/1b830cd621acad2c872f741611d006baeead99d1))
+
+
 ## v0.11.0 (2025-07-30)
 
 ### Features
