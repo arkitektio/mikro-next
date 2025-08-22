@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.13.0 (2025-08-22)
+
+### Features
+
+- Add federation fetchable (future api)
+  ([`498cc5f`](https://github.com/arkitektio/mikro-next/commit/498cc5fe3b7ea430c165ab597d65ad3a3f385c53))
+
+
 ## v0.12.0 (2025-08-01)
 
 ### Features
