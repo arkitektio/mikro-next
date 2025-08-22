@@ -24,7 +24,8 @@ from .scalars import FiveDVector
 from rath.scalars import ID
 from typing import Any
 from rath.turms.utils import get_attributes_or_error
-
+from rath.traits import FederationFetchable
+from rath.rath import Rath
 
 TwoDArray = NDArray[np.generic]
 OneDArray = NDArray[np.generic]
@@ -33,6 +34,22 @@ OneDArray = NDArray[np.generic]
 if TYPE_CHECKING:
     from pyarrow.parquet import ParquetDataset  # type: ignore
     from mikro_next.api.schema import HasZarrStoreAccessor
+
+
+class MikroFetchable(FederationFetchable):
+    """A trait for Mikro Fetchable objects
+
+    This trait allows to fetch an object from the mikro service using its ID.
+    It is used to ensure that the object can be fetched from the mikro service.
+
+    """
+
+    @classmethod
+    def get_rath(cls) -> "Rath":
+        """Get the current Rath client from the context."""
+        from mikro_next.rath import current_mikro_next_rath
+
+        return current_mikro_next_rath.get()
 
 
 class HasZarrStoreTrait(BaseModel):
@@ -63,7 +80,9 @@ class HasZarrStoreTrait(BaseModel):
         scale_views = get_attributes_or_error(self, "derived_scale_views")
 
         if len(scale_views) == 0:
-            raise ValueError("No ScaleView found in views. Please create a ScaleView first.")
+            raise ValueError(
+                "No ScaleView found in views. Please create a ScaleView first."
+            )
 
         sorted_views = sorted(scale_views, key=lambda image: image.scale_x)
         return [x.image.data for x in sorted_views]
@@ -238,7 +257,9 @@ class IsVectorizableTrait:
         if kind == RoiKind.RECTANGLE:
             return FiveDVector.validate(self.get_vector_data(dims="ctzyx").mean(axis=0))
 
-        raise NotImplementedError(f"Center calculation not implemented for this ROI type {kind}")
+        raise NotImplementedError(
+            f"Center calculation not implemented for this ROI type {kind}"
+        )
 
     def crop(self, data: xr.DataArray) -> xr.DataArray:
         """Crop the data to the ROI
@@ -275,7 +296,9 @@ class IsVectorizableTrait:
         if kind == RoiKind.POINT:
             return self.get_vector_data(dims="ctzyx")[0]
 
-        raise NotImplementedError(f"Center calculation not implemented for this ROI kind {kind}")
+        raise NotImplementedError(
+            f"Center calculation not implemented for this ROI kind {kind}"
+        )
 
 
 class HasParquestStoreTrait(BaseModel):

@@ -1,0 +1,9 @@
+fragment ImageWithData on Image {
+  id
+  dataset {
+    name
+    parent {
+      name
+    }
+  }
+}

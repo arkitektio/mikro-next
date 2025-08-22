@@ -1,4 +1,8 @@
+scalar _Any
+
 type Query {
+  _entities(representations: [_Any!]!): [_Entity]!
+  _service: _Service!
   images(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
   rois(filters: ROIFilter, order: ROIOrder, pagination: OffsetPaginationInput): [ROI!]!
   myimages(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
@@ -127,6 +131,8 @@ type Query {
     filters: ChannelInfoFilter = null
   ): [ChannelInfo!]!
 }
+
+union _Entity = Image | Table
 
 type Image {
   id: ID!
@@ -1343,6 +1349,131 @@ enum RoiKindChoices {
   POINT
 }
 
+type Table {
+  id: ID!
+  name: String!
+  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
+  store: ParquetStore!
+  columns: [TableColumn!]!
+  rows: [MetricMap!]!
+  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
+}
+
+type ParquetStore {
+  id: ID!
+  path: String!
+  bucket: String!
+  key: String!
+}
+
+"""A column descriptor"""
+type TableColumn {
+  name: String!
+  type: DuckDBDataType!
+  nullable: Boolean!
+  key: String
+  default: String
+  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
+}
+
+enum DuckDBDataType {
+  """Represents a True/False value"""
+  BOOLEAN
+
+  """Very small integer (-128 to 127)"""
+  TINYINT
+
+  """Small integer (-32,768 to 32,767)"""
+  SMALLINT
+
+  """Standard integer (-2,147,483,648 to 2,147,483,647)"""
+  INTEGER
+
+  """Large integer for large numeric values"""
+  BIGINT
+
+  """Extremely large integer for very large numeric ranges"""
+  HUGEINT
+
+  """Single-precision floating point number"""
+  FLOAT
+
+  """Double-precision floating point number"""
+  DOUBLE
+
+  """Variable-length string (text)"""
+  VARCHAR
+
+  """Binary large object for storing binary data"""
+  BLOB
+
+  """Date and time with precision"""
+  TIMESTAMP
+
+  """Specific date (year, month, day)"""
+  DATE
+
+  """Specific time of the day (hours, minutes, seconds)"""
+  TIME
+
+  """Span of time between two dates or times"""
+  INTERVAL
+
+  """Exact decimal number with defined precision and scale"""
+  DECIMAL
+
+  """Universally Unique Identifier used to uniquely identify objects"""
+  UUID
+
+  """A list of values of the same data type"""
+  LIST
+
+  """A collection of key-value pairs where each key is unique"""
+  MAP
+
+  """Enumeration of predefined values"""
+  ENUM
+
+  """Composite type grouping several fields with different data types"""
+  STRUCT
+
+  """JSON object, a structured text format used for representing data"""
+  JSON
+}
+
+interface Accessor {
+  id: ID!
+  table: Table!
+  keys: [String!]!
+  minIndex: Int
+  maxIndex: Int
+}
+
+input AccessorFilter {
+  keys: JSON
+  AND: AccessorFilter
+  OR: AccessorFilter
+  NOT: AccessorFilter
+  DISTINCT: Boolean
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
+"""
+scalar JSON
+
+enum AccessorKind {
+  LABEL
+  IMAGE
+}
+
+"""The `MetricMap` scalar type represents a matrix values as specified by"""
+scalar MetricMap
+
+type _Service {
+  sdl: String!
+}
+
 input ROIOrder {
   createdAt: Ordering
 }
@@ -1527,127 +1658,6 @@ input ExperimentFilter {
   NOT: ExperimentFilter
   DISTINCT: Boolean
 }
-
-type Table {
-  id: ID!
-  name: String!
-  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
-  store: ParquetStore!
-  columns: [TableColumn!]!
-  rows: [MetricMap!]!
-  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
-}
-
-type ParquetStore {
-  id: ID!
-  path: String!
-  bucket: String!
-  key: String!
-}
-
-"""A column descriptor"""
-type TableColumn {
-  name: String!
-  type: DuckDBDataType!
-  nullable: Boolean!
-  key: String
-  default: String
-  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
-}
-
-enum DuckDBDataType {
-  """Represents a True/False value"""
-  BOOLEAN
-
-  """Very small integer (-128 to 127)"""
-  TINYINT
-
-  """Small integer (-32,768 to 32,767)"""
-  SMALLINT
-
-  """Standard integer (-2,147,483,648 to 2,147,483,647)"""
-  INTEGER
-
-  """Large integer for large numeric values"""
-  BIGINT
-
-  """Extremely large integer for very large numeric ranges"""
-  HUGEINT
-
-  """Single-precision floating point number"""
-  FLOAT
-
-  """Double-precision floating point number"""
-  DOUBLE
-
-  """Variable-length string (text)"""
-  VARCHAR
-
-  """Binary large object for storing binary data"""
-  BLOB
-
-  """Date and time with precision"""
-  TIMESTAMP
-
-  """Specific date (year, month, day)"""
-  DATE
-
-  """Specific time of the day (hours, minutes, seconds)"""
-  TIME
-
-  """Span of time between two dates or times"""
-  INTERVAL
-
-  """Exact decimal number with defined precision and scale"""
-  DECIMAL
-
-  """Universally Unique Identifier used to uniquely identify objects"""
-  UUID
-
-  """A list of values of the same data type"""
-  LIST
-
-  """A collection of key-value pairs where each key is unique"""
-  MAP
-
-  """Enumeration of predefined values"""
-  ENUM
-
-  """Composite type grouping several fields with different data types"""
-  STRUCT
-
-  """JSON object, a structured text format used for representing data"""
-  JSON
-}
-
-interface Accessor {
-  id: ID!
-  table: Table!
-  keys: [String!]!
-  minIndex: Int
-  maxIndex: Int
-}
-
-input AccessorFilter {
-  keys: JSON
-  AND: AccessorFilter
-  OR: AccessorFilter
-  NOT: AccessorFilter
-  DISTINCT: Boolean
-}
-
-"""
-The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
-"""
-scalar JSON
-
-enum AccessorKind {
-  LABEL
-  IMAGE
-}
-
-"""The `MetricMap` scalar type represents a matrix values as specified by"""
-scalar MetricMap
 
 input TableFilter {
   ids: [ID!]

@@ -124,6 +124,9 @@
             },
             "additional_config": {},
             "force_plugin_order": true,
+            "omited_document_rules": [
+                "no_unused_fragments"
+            ],
             "parsers": [],
             "plugins": [
                 {
@@ -133,7 +136,10 @@
                     "type": "turms.plugins.inputs.InputsPlugin"
                 },
                 {
-                    "type": "turms.plugins.fragments.FragmentsPlugin"
+                    "type": "turms.plugins.fragments.FragmentsPlugin",
+                    "object_bases": [
+                        "mikro_next.traits.MikroFetchable"
+                    ]
                 },
                 {
                     "type": "turms.plugins.operations.OperationsPlugin"
