@@ -15,6 +15,7 @@ type ObjectiveElement implements OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
 
   """Has iris (aperture stop)"""
   iris: Boolean!
@@ -43,6 +44,7 @@ interface OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
 }
 
 enum ElementKind {
@@ -157,6 +159,7 @@ type LensElement implements OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
   focalLengthMm: Float!
 }
 
@@ -177,6 +180,7 @@ type MirrorElement implements OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
   angleDeg: Float
   band: Spectrum
 }
@@ -198,6 +202,7 @@ type BeamSplitterElement implements OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
   rFraction: Float!
   tFraction: Float!
   band: Spectrum
@@ -220,6 +225,7 @@ type DetectorElement implements OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
 
   """Amplifier gain (dB)"""
   amplifierGainDb: Float
@@ -246,6 +252,7 @@ type OtherSourceElement implements OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
   channel: ChannelKind
   lampType: String
 }
@@ -267,6 +274,7 @@ type LaserElement implements OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
   nominalWavelengthNm: Float
   powerMw: Float
   channel: ChannelKind
@@ -303,6 +311,7 @@ type LampElement implements OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
   channel: ChannelKind
   lampType: String
 }
@@ -320,6 +329,29 @@ type SampleElement implements OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
+}
+
+"""Detector"""
+type CCDElement implements OpticalElement {
+  id: ID!
+
+  """Element label"""
+  label: String!
+
+  """Element kind"""
+  kind: ElementKind!
+
+  """3D pose of the element"""
+  pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
+  ports: [LightPort!]!
+  serialNumber: String
+  pixelSizeUm: Float
+  resolution: [Int!]
 }
 
 """The sample"""
@@ -335,6 +367,7 @@ type OtherElement implements OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
 }
 
 """A filter"""
@@ -354,6 +387,7 @@ type FilterElement implements OpticalElement {
 
   """List of ports on the element"""
   ports: [LightPort!]!
+  serialNumber: String
 }
 
 scalar _Any
@@ -3304,6 +3338,9 @@ input OpticalElementInput {
   kind: ElementKind!
   pose: Pose3DInput = null
   ports: [LightPortInput!]!
+  manufacturer: String = null
+  model: String = null
+  serialNumber: String = null
   nominalWavelengthNm: Float = null
   channel: ChannelKind = null
   nepdWPerSqrtHz: Float = null
@@ -3316,7 +3353,6 @@ input OpticalElementInput {
   magnification: Float = null
   numericalAperture: Float = null
   brand: String = null
-  model: String = null
   workingDistanceMm: Float = null
   immersionMedium: ObjectiveImmersion = null
   iris: Boolean = null
