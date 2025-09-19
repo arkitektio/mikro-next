@@ -1,3 +1,154 @@
+"""Microscope objective"""
+type ObjectiveElement implements OpticalElement {
+  id: ID!
+  label: String!
+  kind: ElementKind!
+  pose: Pose3D
+  ports: [LightPort!]!
+  magnification: Float
+  numericalAperture: Float
+  brand: String
+  model: String
+  workingDistanceMm: Float
+}
+
+"""Common interface for all optical elements"""
+interface OpticalElement {
+  id: ID!
+  label: String!
+  kind: ElementKind!
+  pose: Pose3D
+  ports: [LightPort!]!
+}
+
+enum ElementKind {
+  SOURCE
+  DETECTOR
+  MIRROR
+  BEAM_SPLITTER
+  LENS
+  OBJECTIVE
+  FILTER
+  POLARIZER
+  WAVEPLATE
+  APERTURE
+  SHUTTER
+  SAMPLE
+  OTHER
+}
+
+"""Optional 3D pose; position and/or orientation can be omitted"""
+type Pose3D {
+  position: Vec3
+  orientation: Euler
+}
+
+"""3D vector or point in space"""
+type Vec3 {
+  x: Float
+  y: Float
+  z: Float
+}
+
+"""Euler angles for 3D orientation"""
+type Euler {
+  rx: Float
+  ry: Float
+  rz: Float
+}
+
+"""Optical port on an element"""
+type LightPort {
+  id: ID!
+  name: String!
+  role: PortRole!
+  channel: ChannelKind!
+  spectrum: Spectrum
+  maxIncomingEdges: Int
+}
+
+enum PortRole {
+  INPUT
+  OUTPUT
+}
+
+enum ChannelKind {
+  FREE_SPACE
+  FIBER_SM
+  FIBER_MM
+  WAVEGUIDE
+}
+
+"""Spectral window in nanometers"""
+type Spectrum {
+  minNm: Float!
+  maxNm: Float!
+}
+
+"""Thin lens"""
+type LensElement implements OpticalElement {
+  id: ID!
+  label: String!
+  kind: ElementKind!
+  pose: Pose3D
+  ports: [LightPort!]!
+  focalLengthMm: Float!
+}
+
+"""Mirror"""
+type MirrorElement implements OpticalElement {
+  id: ID!
+  label: String!
+  kind: ElementKind!
+  pose: Pose3D
+  ports: [LightPort!]!
+  angleDeg: Float
+  band: Spectrum
+}
+
+"""Beam splitter"""
+type BeamSplitterElement implements OpticalElement {
+  id: ID!
+  label: String!
+  kind: ElementKind!
+  pose: Pose3D
+  ports: [LightPort!]!
+  rFraction: Float!
+  tFraction: Float!
+  band: Spectrum
+}
+
+"""Detector"""
+type DetectorElement implements OpticalElement {
+  id: ID!
+  label: String!
+  kind: ElementKind!
+  pose: Pose3D
+  ports: [LightPort!]!
+  nepdWPerSqrtHz: Float
+}
+
+"""Light source"""
+type SourceElement implements OpticalElement {
+  id: ID!
+  label: String!
+  kind: ElementKind!
+  pose: Pose3D
+  ports: [LightPort!]!
+  nominalWavelengthNm: Float
+  powerMw: Float
+  channel: ChannelKind
+}
+
+"""The sample"""
+type SampleElement implements OpticalElement {
+  id: ID!
+  label: String!
+  kind: ElementKind!
+  pose: Pose3D
+  ports: [LightPort!]!
+}
+
 scalar _Any
 
 type Query {
@@ -65,6 +216,12 @@ type Query {
     """The unique identifier of an object"""
     id: ID!
   ): Image!
+
+  """Returns a single image by ID"""
+  lightpathView(
+    """The unique identifier of an object"""
+    id: ID!
+  ): LightpathView!
   tableCell(
     """The unique identifier of an object"""
     id: ID!
@@ -132,7 +289,24 @@ type Query {
   ): [ChannelInfo!]!
 }
 
-union _Entity = Image | Table
+union _Entity = File | Image | Table
+
+type File {
+  id: ID!
+  name: String!
+  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
+  store: BigFileStore!
+  views: [FileView!]!
+
+  """Provenance entries for this camera"""
+  provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
+
+  """The user who created this file"""
+  creator: User!
+
+  """The organization this file belongs to"""
+  organization: Organization!
+}
 
 type Image {
   id: ID!
@@ -219,6 +393,9 @@ type Image {
 
   """Views this image was derived from"""
   derivedFromViews: [DerivedView!]!
+
+  """Lightpath views describing the lightpath used to acquire this image"""
+  lightpathViews(filters: OpticsViewFilter, pagination: OffsetPaginationInput): [LightpathView!]!
 
   """The channels of this image"""
   channels: [ChannelInfo!]!
@@ -320,6 +497,7 @@ type Snapshot implements Render {
   id: ID!
   store: MediaStore!
   name: String!
+  majorColor: [Float!]
 }
 
 interface Render {
@@ -463,6 +641,7 @@ input IntFilterLookup {
 input DatasetFilter {
   ids: [ID!]
   search: String
+  scope: ScopeFilter = null
   id: ID
   name: StrFilterLookup
   parentless: Boolean = null
@@ -547,58 +726,23 @@ enum Ordering {
   DESC_NULLS_LAST
 }
 
-type File {
-  id: ID!
-  name: String!
-  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
-  store: BigFileStore!
-  views: [FileView!]!
-
-  """Provenance entries for this camera"""
-  provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
-
-  """The user who created this file"""
-  creator: User!
-
-  """The organization this file belongs to"""
-  organization: Organization!
+input FileFilter {
+  id: ID
+  name: StrFilterLookup
+  AND: FileFilter
+  OR: FileFilter
+  NOT: FileFilter
+  DISTINCT: Boolean
+  scope: ScopeKind
+  search: String
+  ids: [ID!]
 }
 
-type BigFileStore {
-  id: ID!
-  path: String!
-  bucket: String!
-  key: String!
-  filename: String!
-  presignedUrl: String!
-}
-
-type FileView implements View {
-  image: Image!
-  zMin: Int
-  zMax: Int
-  xMin: Int
-  xMax: Int
-  yMin: Int
-  yMax: Int
-  tMin: Int
-  tMax: Int
-  cMin: Int
-  cMax: Int
-  isGlobal: Boolean!
-
-  """The accessor"""
-  accessor: [String!]!
-
-  """All views of this image"""
-  congruentViews(
-    """A filter to selected the subset of views"""
-    filters: ViewFilter
-    types: [ViewKind!]
-  ): [View!]!
-  id: ID!
-  seriesIdentifier: String
-  file: File!
+enum ScopeKind {
+  PUBLIC
+  ORG
+  SHARED
+  ME
 }
 
 """A provenance event for a model."""
@@ -650,25 +794,6 @@ type ModelChange {
   newValue: String
 }
 
-input FileFilter {
-  id: ID
-  name: StrFilterLookup
-  AND: FileFilter
-  OR: FileFilter
-  NOT: FileFilter
-  DISTINCT: Boolean
-  scope: ScopeKind
-  search: String
-  ids: [ID!]
-}
-
-enum ScopeKind {
-  PUBLIC
-  ORG
-  SHARED
-  ME
-}
-
 type AffineTransformationView implements View {
   image: Image!
   zMin: Int
@@ -697,6 +822,8 @@ type AffineTransformationView implements View {
   affineMatrix: FourByFourMatrix!
   pixelSize: ThreeDVector!
   pixelSizeX: Micrometers!
+  isotropic: Boolean!
+  pixelSizeZ: Micrometers!
   pixelSizeY: Micrometers!
   position: ThreeDVector!
 }
@@ -1123,12 +1250,17 @@ type RGBContext {
   name: String!
   image: Image!
   snapshots(filters: SnapshotFilter, pagination: OffsetPaginationInput): [Snapshot!]!
-  views(filters: RGBViewFilter, pagination: OffsetPaginationInput): [RGBView!]!
   blending: Blending!
   z: Int!
   t: Int!
   c: Int!
   pinned: Boolean!
+  views: [RGBView!]!
+}
+
+enum Blending {
+  ADDITIVE
+  MULTIPLICATIVE
 }
 
 type RGBView implements View {
@@ -1185,26 +1317,25 @@ enum ColorMap {
   GREEN
   BLUE
   INTENSITY
+  CYAN
+  MAGENTA
+  YELLOW
+  BLACK
+  WHITE
+  ORANGE
+  PURPLE
+  PINK
+  BROWN
+  GREY
+  RAINBOW
+  SPECTRAL
+  COOL
+  WARM
 }
 
 enum ColorFormat {
   RGB
   HSL
-}
-
-input RGBViewFilter {
-  ids: [ID!]
-  search: String
-  id: ID
-  AND: RGBViewFilter
-  OR: RGBViewFilter
-  NOT: RGBViewFilter
-  DISTINCT: Boolean
-}
-
-enum Blending {
-  ADDITIVE
-  MULTIPLICATIVE
 }
 
 type DerivedView implements View {
@@ -1297,6 +1428,92 @@ enum RoiKind {
 """The `Vector` scalar type represents a matrix values as specified by"""
 scalar FiveDVector
 
+type FileView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+  seriesIdentifier: String
+  file: File!
+}
+
+type LightpathView implements View {
+  image: Image!
+  zMin: Int
+  zMax: Int
+  xMin: Int
+  xMax: Int
+  yMin: Int
+  yMax: Int
+  tMin: Int
+  tMax: Int
+  cMin: Int
+  cMax: Int
+  isGlobal: Boolean!
+
+  """The accessor"""
+  accessor: [String!]!
+
+  """All views of this image"""
+  congruentViews(
+    """A filter to selected the subset of views"""
+    filters: ViewFilter
+    types: [ViewKind!]
+  ): [View!]!
+  id: ID!
+
+  """
+  The lightpath graph describing the lightpath used to acquire this image
+  """
+  graph: LightpathGraph!
+}
+
+"""Graph of optical elements and edges"""
+type LightpathGraph {
+  elements: [OpticalElement!]!
+  edges: [LightEdge!]!
+}
+
+"""Directed edge connecting two ports"""
+type LightEdge {
+  id: ID!
+  sourceElementId: ID!
+  sourcePortId: ID!
+  targetElementId: ID!
+  targetPortId: ID!
+  pathLengthMm: Float
+  medium: String
+  lossDb: Float
+  beam: BeamState
+}
+
+"""Beam properties carried on a light edge"""
+type BeamState {
+  wavelengthNm: Float
+  powerMw: Float
+  polarization: String
+  modeHint: String
+}
+
 """A channel descriptor"""
 type ChannelInfo {
   label(withColorName: Boolean! = false): String!
@@ -1347,6 +1564,15 @@ enum RoiKindChoices {
   FRAME
   SLICE
   POINT
+}
+
+type BigFileStore {
+  id: ID!
+  path: String!
+  bucket: String!
+  key: String!
+  filename: String!
+  presignedUrl: String!
 }
 
 type Table {
@@ -1618,6 +1844,16 @@ type AcquisitionView implements View {
   description: String
   acquiredAt: DateTime
   operator: User
+}
+
+input RGBViewFilter {
+  ids: [ID!]
+  search: String
+  id: ID
+  AND: RGBViewFilter
+  OR: RGBViewFilter
+  NOT: RGBViewFilter
+  DISTINCT: Boolean
 }
 
 type RenderTree {
@@ -2273,6 +2509,9 @@ input FromArrayLikeInput {
 
   """Optional list of derived views"""
   derivedViews: [PartialDerivedViewInput!] = null
+
+  """Optional list of lightpath views"""
+  lightpathViews: [PartialLightpathViewInput!] = null
 }
 
 """
@@ -2777,6 +3016,130 @@ input PartialDerivedViewInput {
   """The maximum c (channel) coordinate of the view"""
   cMax: Int = null
   originImage: ID!
+}
+
+input PartialLightpathViewInput {
+  """The collection this view belongs to"""
+  collection: ID = null
+
+  """The minimum z coordinate of the view"""
+  zMin: Int = null
+
+  """The maximum z coordinate of the view"""
+  zMax: Int = null
+
+  """The minimum x coordinate of the view"""
+  xMin: Int = null
+
+  """The maximum x coordinate of the view"""
+  xMax: Int = null
+
+  """The minimum y coordinate of the view"""
+  yMin: Int = null
+
+  """The maximum y coordinate of the view"""
+  yMax: Int = null
+
+  """The minimum t coordinate of the view"""
+  tMin: Int = null
+
+  """The maximum t coordinate of the view"""
+  tMax: Int = null
+
+  """The minimum c (channel) coordinate of the view"""
+  cMin: Int = null
+
+  """The maximum c (channel) coordinate of the view"""
+  cMax: Int = null
+  graph: LightpathGraphInput!
+}
+
+"""Bulk input for a full lightpath graph, including elements and edges."""
+input LightpathGraphInput {
+  elements: [OpticalElementInput!]!
+  edges: [LightEdgeInput!]!
+}
+
+"""
+Input for creating or updating any optical element. Fill only fields relevant to the chosen `kind`.
+"""
+input OpticalElementInput {
+  id: ID!
+  label: String!
+  kind: ElementKind!
+  pose: Pose3DInput = null
+  ports: [LightPortInput!]!
+  nominalWavelengthNm: Float = null
+  powerMw: Float = null
+  channel: ChannelKind = null
+  nepdWPerSqrtHz: Float = null
+  angleDeg: Float = null
+  bandMinNm: Float = null
+  bandMaxNm: Float = null
+  rFraction: Float = null
+  tFraction: Float = null
+  focalLengthMm: Float = null
+  magnification: Float = null
+  numericalAperture: Float = null
+  brand: String = null
+  model: String = null
+  workingDistanceMm: Float = null
+}
+
+"""A 3D pose consisting of position and orientation."""
+input Pose3DInput {
+  position: Vec3Input = null
+  orientation: EulerInput = null
+}
+
+"""A 3D vector representing a point or offset in space."""
+input Vec3Input {
+  x: Float = null
+  y: Float = null
+  z: Float = null
+}
+
+"""Euler angles representing rotation in 3D space."""
+input EulerInput {
+  rx: Float = null
+  ry: Float = null
+  rz: Float = null
+}
+
+"""Input definition for an optical port on an element."""
+input LightPortInput {
+  id: ID!
+  name: String!
+  role: PortRole!
+  channel: ChannelKind! = FREE_SPACE
+  spectrum: SpectrumInput = null
+}
+
+"""Spectral window in nanometers for wavelength-dependent components."""
+input SpectrumInput {
+  minNm: Float!
+  maxNm: Float!
+}
+
+"""Input for connecting two optical ports."""
+input LightEdgeInput {
+  id: String!
+  sourceElementId: ID!
+  sourcePortId: ID!
+  targetElementId: ID!
+  targetPortId: ID!
+  pathLengthMm: Float = null
+  medium: String = "AIR"
+  lossDb: Float = 0
+  beam: BeamStateInput = null
+}
+
+"""State of the optical beam on a particular path segment."""
+input BeamStateInput {
+  wavelengthNm: Float = null
+  powerMw: Float = null
+  polarization: String = null
+  modeHint: String = null
 }
 
 input PinImageInput {
