@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.15.0 (2025-09-19)
+
+### Features
+
+- With new features
+  ([`cedfccd`](https://github.com/arkitektio/mikro-next/commit/cedfccd5bb6b10c9edd961dcf69512f27e6d25dc))
+
+
 ## v0.14.0 (2025-09-19)
 
 ### Features
