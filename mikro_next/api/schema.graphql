@@ -49,6 +49,7 @@ interface OpticalElement {
 
 enum ElementKind {
   LASER
+  PINHOLE
   LAMP
   OTHER_SOURCE
   DETECTOR
@@ -388,6 +389,27 @@ type FilterElement implements OpticalElement {
   """List of ports on the element"""
   ports: [LightPort!]!
   serialNumber: String
+}
+
+"""Pinhole"""
+type PinholeElement implements OpticalElement {
+  id: ID!
+
+  """Element label"""
+  label: String!
+
+  """Element kind"""
+  kind: ElementKind!
+
+  """3D pose of the element"""
+  pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
+  ports: [LightPort!]!
+  serialNumber: String
+  diameterUm: Float
 }
 
 scalar _Any
@@ -3343,6 +3365,7 @@ input OpticalElementInput {
   serialNumber: String = null
   nominalWavelengthNm: Float = null
   channel: ChannelKind = null
+  diameterUm: Float = null
   nepdWPerSqrtHz: Float = null
   angleDeg: Float = null
   bandMinNm: Float = null
