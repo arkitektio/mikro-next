@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.16.0 (2025-09-19)
+
+### Features
+
+- Add model and manufacturer
+  ([`b10ec0f`](https://github.com/arkitektio/mikro-next/commit/b10ec0fb56d4efa994ffd7e18611241761ce81bf))
+
+
 ## v0.15.0 (2025-09-19)
 
 ### Features
