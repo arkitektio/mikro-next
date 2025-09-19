@@ -1,29 +1,56 @@
 """Microscope objective"""
 type ObjectiveElement implements OpticalElement {
   id: ID!
+
+  """Element label"""
   label: String!
+
+  """Element kind"""
   kind: ElementKind!
+
+  """3D pose of the element"""
   pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
   ports: [LightPort!]!
+
+  """Has iris (aperture stop)"""
+  iris: Boolean!
   magnification: Float
   numericalAperture: Float
-  brand: String
-  model: String
   workingDistanceMm: Float
+  immersionMedium: ObjectiveImmersion
+  correctionKind: ObjectiveCorrectionKind
 }
 
 """Common interface for all optical elements"""
 interface OpticalElement {
+  """Element UUID"""
   id: ID!
+
+  """Element label"""
   label: String!
+
+  """Element kind"""
   kind: ElementKind!
+
+  """3D pose of the element"""
   pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
   ports: [LightPort!]!
 }
 
 enum ElementKind {
-  SOURCE
+  LASER
+  LAMP
+  OTHER_SOURCE
   DETECTOR
+  CCD
   MIRROR
   BEAM_SPLITTER
   LENS
@@ -85,12 +112,50 @@ type Spectrum {
   maxNm: Float!
 }
 
+enum ObjectiveImmersion {
+  OIL
+  WATER
+  WATER_DIPPING
+  AIR
+  MULTI
+  GLYCEROL
+  OTHER
+}
+
+enum ObjectiveCorrectionKind {
+  UV
+  PLAN_APO
+  PLAN_FLUOR
+  SUPER_FLUOR
+  VIOLET_CORRECTED
+  ACHRO
+  ACHROMAT
+  FLUOR
+  FL
+  FLUAR
+  NEOFLUAR
+  FLUOTAR
+  APO
+  PLAN_NEOFLUAR
+  OTHER
+}
+
 """Thin lens"""
 type LensElement implements OpticalElement {
   id: ID!
+
+  """Element label"""
   label: String!
+
+  """Element kind"""
   kind: ElementKind!
+
+  """3D pose of the element"""
   pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
   ports: [LightPort!]!
   focalLengthMm: Float!
 }
@@ -98,9 +163,19 @@ type LensElement implements OpticalElement {
 """Mirror"""
 type MirrorElement implements OpticalElement {
   id: ID!
+
+  """Element label"""
   label: String!
+
+  """Element kind"""
   kind: ElementKind!
+
+  """3D pose of the element"""
   pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
   ports: [LightPort!]!
   angleDeg: Float
   band: Spectrum
@@ -109,9 +184,19 @@ type MirrorElement implements OpticalElement {
 """Beam splitter"""
 type BeamSplitterElement implements OpticalElement {
   id: ID!
+
+  """Element label"""
   label: String!
+
+  """Element kind"""
   kind: ElementKind!
+
+  """3D pose of the element"""
   pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
   ports: [LightPort!]!
   rFraction: Float!
   tFraction: Float!
@@ -121,23 +206,105 @@ type BeamSplitterElement implements OpticalElement {
 """Detector"""
 type DetectorElement implements OpticalElement {
   id: ID!
+
+  """Element label"""
   label: String!
+
+  """Element kind"""
   kind: ElementKind!
+
+  """3D pose of the element"""
   pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
   ports: [LightPort!]!
+
+  """Amplifier gain (dB)"""
+  amplifierGainDb: Float
+
+  """Overall gain (unitless)"""
+  gain: Float
   nepdWPerSqrtHz: Float
 }
 
 """Light source"""
-type SourceElement implements OpticalElement {
+type OtherSourceElement implements OpticalElement {
   id: ID!
+
+  """Element label"""
   label: String!
+
+  """Element kind"""
   kind: ElementKind!
+
+  """3D pose of the element"""
   pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
+  ports: [LightPort!]!
+  channel: ChannelKind
+  lampType: String
+}
+
+"""Light source"""
+type LaserElement implements OpticalElement {
+  id: ID!
+
+  """Element label"""
+  label: String!
+
+  """Element kind"""
+  kind: ElementKind!
+
+  """3D pose of the element"""
+  pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
   ports: [LightPort!]!
   nominalWavelengthNm: Float
   powerMw: Float
   channel: ChannelKind
+  laserMedium: String
+  pulseKind: PulseKind
+  repetitionRateHz: Float
+  hasPockelsCell: Boolean
+  hasQSwitch: Boolean
+}
+
+enum PulseKind {
+  CW
+  SINGLE
+  QSWITCHED
+  REPETITIVE
+  MODE_LOCKED
+  OTHER
+}
+
+"""Light source"""
+type LampElement implements OpticalElement {
+  id: ID!
+
+  """Element label"""
+  label: String!
+
+  """Element kind"""
+  kind: ElementKind!
+
+  """3D pose of the element"""
+  pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
+  ports: [LightPort!]!
+  channel: ChannelKind
+  lampType: String
 }
 
 """The sample"""
@@ -145,7 +312,47 @@ type SampleElement implements OpticalElement {
   id: ID!
   label: String!
   kind: ElementKind!
+
+  """3D pose of the element"""
   pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
+  ports: [LightPort!]!
+}
+
+"""The sample"""
+type OtherElement implements OpticalElement {
+  id: ID!
+  label: String!
+  kind: ElementKind!
+
+  """3D pose of the element"""
+  pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
+  ports: [LightPort!]!
+}
+
+"""A filter"""
+type FilterElement implements OpticalElement {
+  id: ID!
+
+  """Element label"""
+  label: String!
+
+  """Element kind"""
+  kind: ElementKind!
+
+  """3D pose of the element"""
+  pose: Pose3D
+  manufacturer: String
+  model: String
+
+  """List of ports on the element"""
   ports: [LightPort!]!
 }
 
@@ -185,6 +392,9 @@ type Query {
   files(filters: FileFilter, pagination: OffsetPaginationInput): [File!]!
   myfiles(filters: FileFilter, pagination: OffsetPaginationInput): [File!]!
   randomImage: Image!
+
+  """Get all active views for a specific image"""
+  activeViews(image: ID!, selector: Selector = null, kinds: [ViewKind!]): [View!]!
   labelAccessors: [LabelAccessor!]!
   imageAccessors: [ImageAccessor!]!
   meshes(filters: MeshFilter, pagination: OffsetPaginationInput): [Mesh!]!
@@ -489,6 +699,7 @@ enum ViewKind {
   MASK_VIEW
   INSTANCE_MASK_VIEW
   REFERENCE
+  LIGHTPATH
 }
 
 type Snapshot implements Render {
@@ -1905,6 +2116,30 @@ input TableFilter {
   DISTINCT: Boolean
 }
 
+input Selector {
+  x: DimSelector = null
+  y: DimSelector = null
+  z: DimSelector = null
+  c: DimSelector = null
+  t: DimSelector = null
+}
+
+input DimSelector {
+  kind: DimSelectorKind!
+  start: Int = null
+  end: Int = null
+  step: Int = null
+  indices: [Int!] = null
+  index: Int = null
+}
+
+enum DimSelectorKind {
+  SLICE
+  INDICES
+  ALL
+  INDEX
+}
+
 type LabelAccessor implements Accessor {
   id: ID!
   table: Table!
@@ -3070,7 +3305,6 @@ input OpticalElementInput {
   pose: Pose3DInput = null
   ports: [LightPortInput!]!
   nominalWavelengthNm: Float = null
-  powerMw: Float = null
   channel: ChannelKind = null
   nepdWPerSqrtHz: Float = null
   angleDeg: Float = null
@@ -3084,6 +3318,18 @@ input OpticalElementInput {
   brand: String = null
   model: String = null
   workingDistanceMm: Float = null
+  immersionMedium: ObjectiveImmersion = null
+  iris: Boolean = null
+  amplifierGainDb: Float = null
+  gain: Float = null
+  pixelSizeUm: Float = null
+  resolution: [Int!] = null
+  powerMw: Float = null
+  laserMedium: String = null
+  pulseKind: PulseKind = null
+  repetitionRateHz: Float = null
+  hasPockelsCell: Boolean = null
+  hasQSwitch: Boolean = null
 }
 
 """A 3D pose consisting of position and orientation."""
