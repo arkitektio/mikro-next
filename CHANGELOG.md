@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.14.0 (2025-09-19)
+
+### Features
+
+- Add light path
+  ([`654a6b3`](https://github.com/arkitektio/mikro-next/commit/654a6b33d1af532cb231c7d31f89efdba3e8409d))
+
+
 ## v0.13.0 (2025-08-22)
 
 ### Features
