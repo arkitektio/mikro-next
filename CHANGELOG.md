@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.18.0 (2025-10-04)
+
+### Features
+
+- Minor schema updates
+  ([`e5d4848`](https://github.com/arkitektio/mikro-next/commit/e5d48488d3751d81b41bae32062ef801e6be591a))
+
+
 ## v0.17.0 (2025-09-19)
 
 
