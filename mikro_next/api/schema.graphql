@@ -450,11 +450,11 @@ type Query {
   randomImage: Image!
 
   """Get all active views for a specific image"""
-  activeViews(image: ID!, selector: Selector = null, kinds: [ViewKind!]): [View!]!
+  activeViews(image: ID!, selector: Selector = null, include: [ViewKind!], exclude: [ViewKind!]): [View!]!
   labelAccessors: [LabelAccessor!]!
   imageAccessors: [ImageAccessor!]!
   meshes(filters: MeshFilter, pagination: OffsetPaginationInput): [Mesh!]!
-  children(parent: ID!, filters: DatasetChildrenFilter = null, pagination: ChildrenPaginationInput = null): [DatasetImageFile!]!
+  children(parent: ID!, filters: DatasetChildrenFilter = null, pagination: ChildrenPaginationInput = null, order: ChildrenOrder = null): [DatasetImageFile!]!
   rows(table: ID!, filters: RowFilter = null, pagination: TablePaginationInput = null): [MetricMap!]!
 
   """Get permissions for a specific object"""
@@ -462,6 +462,7 @@ type Query {
 
   """Get available permissions for a specific identifier"""
   availablePermissions(identifier: String!, search: String = null, values: [ID!] = null): [PermissionOption!]!
+  members: [Membership!]!
   rgbView(
     """The unique identifier of an object"""
     id: ID!
@@ -651,6 +652,9 @@ type Image {
   """Views derived from this image"""
   derivedViews: [DerivedView!]!
 
+  """Instance mask views"""
+  derivedInstanceMaskViews(filters: InstanceMaskViewFilter, pagination: OffsetPaginationInput): [InstanceMaskView!]!
+
   """Region of interest views"""
   roiViews: [ROIView!]!
 
@@ -756,6 +760,7 @@ enum ViewKind {
   INSTANCE_MASK_VIEW
   REFERENCE
   LIGHTPATH
+  RGB
 }
 
 type Snapshot implements Render {
@@ -1361,6 +1366,7 @@ type MaskView implements View {
   ): [View!]!
   id: ID!
   referenceView: ReferenceView!
+  labels: ZarrStore
 }
 
 type ReferenceView implements View {
@@ -1425,6 +1431,7 @@ type InstanceMaskView implements View {
   ): [View!]!
   id: ID!
   referenceView: ReferenceView!
+  labels: ZarrStore
   operation: String
 }
 
@@ -2241,11 +2248,28 @@ union DatasetImageFile = Dataset | Image | File
 
 input DatasetChildrenFilter {
   showChildren: Boolean = null
+  search: String = null
 }
 
 input ChildrenPaginationInput {
   limit: Int = 200
   offset: Int = 0
+}
+
+input ChildrenOrder {
+  field: ChildrenOrderField!
+  direction: ChildrenOrderDirection!
+}
+
+enum ChildrenOrderField {
+  CREATED_AT
+  NAME
+  UPDATED_AT
+}
+
+enum ChildrenOrderDirection {
+  ASC
+  DESC
 }
 
 input RowFilter {
@@ -2265,6 +2289,15 @@ type UserObjectPermission {
 type PermissionOption {
   value: ID!
   label: String!
+}
+
+type Membership {
+  id: String!
+  user: User!
+  organization: Organization!
+  roles: [String!]!
+  isActive: Boolean!
+  datasets(filters: DatasetFilter, pagination: OffsetPaginationInput): [Dataset!]!
 }
 
 """A cell of a table"""
@@ -2966,7 +2999,13 @@ input PartialMaskViewInput {
   """The maximum c (channel) coordinate of the view"""
   cMax: Int = null
   referenceView: ID = null
+  labels: LabelsLike = null
 }
+
+"""
+The `LabelsLike` scalar type represents a reference to a labels object previously created by the user n a datalayer
+"""
+scalar LabelsLike
 
 input PartialReferenceViewInput {
   """The collection this view belongs to"""
@@ -3037,6 +3076,7 @@ input PartialInstanceMaskViewInput {
   """The maximum c (channel) coordinate of the view"""
   cMax: Int = null
   referenceView: ID = null
+  labels: LabelsLike = null
 }
 
 input PartialRGBViewInput {
@@ -4053,8 +4093,8 @@ input MaskViewInput {
   """The maximum c (channel) coordinate of the view"""
   cMax: Int = null
   referenceView: ID = null
+  labels: LabelsLike = null
   image: ID!
-  labels: [ID!] = null
 }
 
 input InstanceMaskViewInput {
@@ -4091,8 +4131,8 @@ input InstanceMaskViewInput {
   """The maximum c (channel) coordinate of the view"""
   cMax: Int = null
   referenceView: ID = null
+  labels: LabelsLike = null
   image: ID!
-  instanceLabels: [ID!] = null
 }
 
 input ReferenceViewInput {

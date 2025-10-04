@@ -81,7 +81,6 @@ structure_reg.register_as_structure(
     default_widget=SearchWidget(query=SearchRGBViewsQuery.Meta.document, ward="mikro"),
 )
 
-
 structure_reg.register_as_structure(
     Stage,
     identifier="@mikro/stage",

@@ -6,7 +6,7 @@ Custom scalars for mikro_next
 
 import io
 import os
-from typing import Any, IO, List, Optional, TypeAlias, cast
+from typing import Any, IO, Dict, List, Optional, TypeAlias, cast
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema
 import xarray as xr
@@ -35,11 +35,18 @@ ThreeDVectorCoercible: TypeAlias = List[float] | OneDArray | List[int]
 FourDVectorCoercible: TypeAlias = List[float] | OneDArray | List[int]
 """ A type alias for 4D vector-like structures that can be coerced into a FourDVector."""
 
-FiveDVectorCoercible: TypeAlias = List[float] | OneDArray | List[List[float]] | List[List[int]]
+FiveDVectorCoercible: TypeAlias = (
+    List[float] | OneDArray | List[List[float]] | List[List[int]]
+)
 """ A type alias for 5D vector-like structures that can be coerced into a FiveDVector."""
 
 ArrayCoercible: TypeAlias = xr.DataArray | OneDArray | List[float] | List[List[float]]
 """ A type alias for array-like structures that can be coerced into an xarray DataArray."""
+
+LabelsLikeCoercible: TypeAlias = (
+    xr.DataArray | OneDArray | List[List[str]] | Dict[str, List[str]]
+)
+""" A type alias for label-like structures that can be coerced into an xarray DataArray"""
 
 ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for image file-like structures that can be coerced into an xarray DataArray."""
@@ -88,7 +95,9 @@ class RGBAColor(list[float]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(cls.validate, handler(float))
+        return core_schema.no_info_before_validator_function(
+            cls.validate, handler(float)
+        )
 
     @classmethod
     def validate(cls, v: RGBAColorCoercible) -> "RGBAColor":
@@ -135,7 +144,9 @@ class Micrometers(float):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(cls.validate, handler(float))
+        return core_schema.no_info_before_validator_function(
+            cls.validate, handler(float)
+        )
 
     @classmethod
     def validate(cls, v: MicrometersCoercible) -> "Micrometers":
@@ -153,7 +164,9 @@ class Milliseconds(float):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(cls.validate, handler(float))
+        return core_schema.no_info_before_validator_function(
+            cls.validate, handler(float)
+        )
 
     @classmethod
     def validate(cls, v: MillisecondsCoercible) -> "Milliseconds":
@@ -171,7 +184,9 @@ class TwoDVector(list[float]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
+        return core_schema.no_info_before_validator_function(
+            cls.validate, handler(list)
+        )
 
     @classmethod
     def validate(cls, v: TwoDVectorCoercible) -> "TwoDVector":
@@ -199,7 +214,9 @@ class ThreeDVector(list[float]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
+        return core_schema.no_info_before_validator_function(
+            cls.validate, handler(list)
+        )
 
     @classmethod
     def validate(cls, v: ThreeDVectorCoercible) -> "ThreeDVector":
@@ -227,7 +244,9 @@ class FourDVector(list[float]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
+        return core_schema.no_info_before_validator_function(
+            cls.validate, handler(list)
+        )
 
     @classmethod
     def validate(cls, v: FourDVectorCoercible) -> "FourDVector":
@@ -255,7 +274,9 @@ class FiveDVector(list[float]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
+        return core_schema.no_info_before_validator_function(
+            cls.validate, handler(list)
+        )
 
     @classmethod
     def validate(cls, v: FiveDVectorCoercible) -> "FiveDVector":
@@ -332,7 +353,9 @@ class FourByFourMatrix(list[list[float]]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
+        return core_schema.no_info_before_validator_function(
+            cls.validate, handler(list)
+        )
 
     @classmethod
     def validate(cls, v: FourByFourMatrixCoercible) -> "FourByFourMatrix":
@@ -360,7 +383,9 @@ class FourByFourMatrix(list[list[float]]):
 
         for row in clean:
             if not all(isinstance(x, (int, float)) for x in row):  # type: ignore
-                raise ValueError("All elements of the 4x4 matrix must be integers or floats.")
+                raise ValueError(
+                    "All elements of the 4x4 matrix must be integers or floats."
+                )
 
         print(f"Validating FourByFourMatrix: {clean}")
         return cls(clean)  # type: ignore
@@ -396,7 +421,9 @@ class ArrayLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: ArrayCoercible) -> "ArrayLike":
@@ -407,7 +434,6 @@ class ArrayLike:
         # but error if they do not make sense
 
         if isinstance(v, np.ndarray) or is_dask_array(v):
-            v = cast(NDArray[np.float_], v)  # type: ignore
             dims = ["c", "t", "z", "y", "x"]
             v = xr.DataArray(v, dims=dims[5 - v.ndim :])
             was_labeled = False
@@ -428,7 +454,9 @@ class ArrayLike:
         if "z" not in v.dims:
             v = v.expand_dims("z")
 
-        chunks = rechunk(v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000)
+        chunks = rechunk(
+            v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000
+        )
         if not was_labeled:
             if v.sizes["t"] > v.sizes["x"] or v.sizes["t"] > v.sizes["y"]:
                 raise ValueError(
@@ -443,12 +471,89 @@ class ArrayLike:
                     f"Probably Non sensical dimensions. C is bigger than x or y: Sizes {v.sizes}"
                 )
 
-        v = v.chunk({key: chunksize for key, chunksize in chunks.items() if key in v.dims})  # type: ignore
+        v = v.chunk(
+            {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
+        )  # type: ignore
 
         v = v.transpose(*"ctzyx")
 
         if is_dask_array(v.data):
             v = v.compute()  # type: ignore
+
+        return cls(v)
+
+    def __repr__(self) -> str:
+        """Return a string representation of the ArrayLike scalar."""
+        return f"InputArray({self.value})"
+
+
+class LabelsLike:
+    """A custom scalar for wrapping of every supported array like structure on
+    the mikro platform. This scalar enables validation of various array formats
+    into a mikro api compliant xr.DataArray.."""
+
+    def __init__(self, value: pd.DataFrame) -> None:
+        """Initialize the ArrayLike scalar with an xarray DataArray."""
+        self.value = value
+        self.key = str(uuid.uuid4())
+
+    def __get__(self, instance, owner) -> "ArrayLike": ...  # noqa: ANN001, D105 #type: ignore
+
+    def __set__(self, instance, value: ArrayCoercible) -> None: ...  # noqa: ANN001, D105 #type: ignore
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
+
+    @classmethod
+    def validate(cls, v: LabelsLikeCoercible) -> "LabelsLike":
+        """Validate the input array and convert it to a xr.DataArray."""
+        was_labeled = True
+        # initial coercion checks, if a numpy array is passed, we need to convert it to a xarray
+        # but that means the user didnt pass the dimensions explicitly so we need to add them
+        # but error if they do not make sense
+        if isinstance(v, dict):
+            mask_to_labels: Dict[int, List[str]] = {}
+
+            for key, value in v.items():
+                if not isinstance(key, int):
+                    raise ValueError(
+                        f"Expected a string or integer key for mask value, got {type(key)}"
+                    )
+
+                if isinstance(value, str):
+                    value = [value]
+
+                if not isinstance(value, list):
+                    raise ValueError(
+                        f"Expected a list of strings for key {key}, got {type(value)}"
+                    )
+
+                if not all(isinstance(i, str) for i in value):
+                    raise ValueError(
+                        f"Expected a list of strings for key {key}, got {value}"
+                    )
+
+                mask_to_labels[int(key)] = value
+
+            v = pd.DataFrame.from_dict(mask_to_labels, orient="index")
+
+        if isinstance(v, list):
+            assert all(isinstance(i, list) or isinstance(i, str) for i in v), (
+                f"Expected a list of lists, got {v}"
+            )
+
+            v = pd.DataFrame(v, columns=["label"])
+
+        if not isinstance(v, pd.DataFrame):
+            raise ValueError("This needs to be a instance of xarray.DataArray")
 
         return cls(v)
 
@@ -478,7 +583,9 @@ class BigFile:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: FileCoercible) -> "BigFile":
@@ -518,7 +625,9 @@ class ParquetLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: ParquetCoercible) -> "ParquetLike":
@@ -556,7 +665,9 @@ class ImageFileLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: FileCoercible) -> "ImageFileLike":
@@ -608,7 +719,9 @@ class FileLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: FileCoercible) -> "FileLike":
@@ -663,7 +776,9 @@ class MeshLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
 
     @classmethod
     def validate(cls, v: MeshCoercible) -> "MeshLike":

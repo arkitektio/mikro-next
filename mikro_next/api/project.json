@@ -25,6 +25,7 @@
                 "Any": "typing.Any",
                 "StructureString": "str",
                 "ArrayLike": "mikro_next.scalars.ArrayLike",
+                "LabelsLike": "mikro_next.scalars.LabelsLike",
                 "ParquetLike": "mikro_next.scalars.ParquetLike",
                 "FileLike": "mikro_next.scalars.FileLike",
                 "MeshLike": "mikro_next.scalars.MeshLike",

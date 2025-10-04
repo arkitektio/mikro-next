@@ -44,7 +44,7 @@ async def astore_xarray_input(
     # random_uuid = uuid.uuid4()
     # s3_path = f"zarr/{random_uuid}.zarr"
 
-    array = xarray.value.transpose("c", "t", "z", "y", "x")
+    array = xarray.value
 
     s3_path = f"{credentials.bucket}/{credentials.key}"
     store = FsspecStore(filesystem, read_only=False, path=s3_path)
@@ -53,7 +53,9 @@ async def astore_xarray_input(
         await async_api.save_array(store, array.to_numpy(), zarr_format=3)  # type: ignore
         return credentials.store
     except Exception as e:
-        raise UploadError(f"Error while uploading to {s3_path} on {endpoint_url}") from e
+        raise UploadError(
+            f"Error while uploading to {s3_path} on {endpoint_url}"
+        ) from e
 
 
 def _store_parquet_input(
@@ -112,7 +114,9 @@ async def astore_mesh_file(
         async with session.post(url, data=form_data) as resp:
             if resp.status not in {200, 204}:
                 body = await resp.text()
-                raise UploadError(f"Error while uploading mesh: HTTP {resp.status}: {body}")
+                raise UploadError(
+                    f"Error while uploading mesh: HTTP {resp.status}: {body}"
+                )
 
     return credentials.store
 
@@ -145,7 +149,9 @@ async def astore_media_file(
         async with session.post(url, data=form_data) as resp:
             if resp.status not in {200, 204}:
                 body = await resp.text()
-                raise UploadError(f"Error while uploading mesh: HTTP {resp.status}: {body}")
+                raise UploadError(
+                    f"Error while uploading mesh: HTTP {resp.status}: {body}"
+                )
 
     print("Successfully uploaded media file", credentials)
     return credentials.store
@@ -171,10 +177,14 @@ async def aupload_bigfile(
     ) as client:
         try:
             print(credentials, file.value)
-            await client.put_object(Bucket=credentials.bucket, Key=credentials.key, Body=file.value)  # type: ignore
+            await client.put_object(
+                Bucket=credentials.bucket, Key=credentials.key, Body=file.value
+            )  # type: ignore
         except botocore.exceptions.ClientError as e:  # type: ignore
             if e.response["Error"]["Code"] == "InvalidAccessKeyId":  # type: ignore
-                return PermissionsError("Access Key is invalid, trying to get new credentials")  # type: ignore
+                return PermissionsError(
+                    "Access Key is invalid, trying to get new credentials"
+                )  # type: ignore
 
             raise e
 
@@ -188,7 +198,9 @@ async def aupload_xarray(
     datalayer: "DataLayer",
 ) -> str:
     """Store a DataFrame in the DataLayer"""
-    return await astore_xarray_input(array, credentials, await datalayer.get_endpoint_url())
+    return await astore_xarray_input(
+        array, credentials, await datalayer.get_endpoint_url()
+    )
 
 
 async def aupload_parquet(

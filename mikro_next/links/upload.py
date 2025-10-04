@@ -1,7 +1,14 @@
 import asyncio
 
 
-from mikro_next.scalars import ArrayLike, ImageFileLike, MeshLike, ParquetLike, FileLike
+from mikro_next.scalars import (
+    ArrayLike,
+    ImageFileLike,
+    LabelsLike,
+    MeshLike,
+    ParquetLike,
+    FileLike,
+)
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation, opify
 from typing import Any, Tuple, Type, Union
@@ -21,7 +28,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from mikro_next.api.schema import Credentials, PresignedPostCredentials
     from mikro_next.datalayer import DataLayer
-    from mikro_next.io.upload import FileLike, MeshLike, ParquetLike, ArrayLike, ImageFileLike
+    from mikro_next.io.upload import (
+        FileLike,
+        MeshLike,
+        ParquetLike,
+        ArrayLike,
+        ImageFileLike,
+    )
 
 
 async def apply_recursive(func, obj, typeguard: Union[Type[Any], Tuple[Type[Any], ...]]) -> Any:  # type: ignore
@@ -188,7 +201,9 @@ class UploadLink(ParsingLink):
 
         raise ValueError("No result found for media upload credentials")
 
-    async def aupload_parquet(self, datalayer: "DataLayer", parquet_input: ParquetLike) -> str:
+    async def aupload_parquet(
+        self, datalayer: "DataLayer", parquet_input: ParquetLike | LabelsLike
+    ) -> str:
         """Upload a Parquet file to the DataLayer asynchronously."""
         assert datalayer is not None, "Datalayer must be set"
         endpoint_url = await datalayer.get_endpoint_url()
@@ -266,10 +281,12 @@ class UploadLink(ParsingLink):
         operation.variables = await apply_recursive(
             partial(self.aupload_xarray, datalayer),
             operation.variables,
-            ArrayLike,
+            (ArrayLike),
         )
         operation.variables = await apply_recursive(
-            partial(self.aupload_parquet, datalayer), operation.variables, ParquetLike
+            partial(self.aupload_parquet, datalayer),
+            operation.variables,
+            (ParquetLike, LabelsLike),
         )
         operation.variables = await apply_recursive(
             partial(self.aupload_bigfile, datalayer),
