@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.19.0 (2025-11-06)
+
+### Features
+
+- Add stage iaffine info
+  ([`75ad242`](https://github.com/arkitektio/mikro-next/commit/75ad2428f3f6ac67d221c07d5c858a8ad25a9fe3))
+
+
 ## v0.18.0 (2025-10-04)
 
 ### Features
