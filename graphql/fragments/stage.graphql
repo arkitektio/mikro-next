@@ -1,4 +1,10 @@
 fragment Stage on Stage {
   id
   name
+  affineViews {
+    affineMatrix
+    image {
+      id
+    }
+  }
 }

@@ -445,8 +445,8 @@ type Query {
   mytables(filters: TableFilter, pagination: OffsetPaginationInput): [Table!]!
   snapshots(filters: SnapshotFilter, pagination: OffsetPaginationInput): [Snapshot!]!
   mysnapshots(filters: SnapshotFilter, pagination: OffsetPaginationInput): [Snapshot!]!
-  files(filters: FileFilter, pagination: OffsetPaginationInput): [File!]!
-  myfiles(filters: FileFilter, pagination: OffsetPaginationInput): [File!]!
+  files(filters: FileFilter, order: FileOrder, pagination: OffsetPaginationInput): [File!]!
+  myfiles(filters: FileFilter, order: FileOrder, pagination: OffsetPaginationInput): [File!]!
   randomImage: Image!
 
   """Get all active views for a specific image"""
@@ -454,6 +454,9 @@ type Query {
   labelAccessors: [LabelAccessor!]!
   imageAccessors: [ImageAccessor!]!
   meshes(filters: MeshFilter, pagination: OffsetPaginationInput): [Mesh!]!
+
+  """Get statistics about images"""
+  imagesStats(filters: ImageFilter = null): ImageStats!
   children(parent: ID!, filters: DatasetChildrenFilter = null, pagination: ChildrenPaginationInput = null, order: ChildrenOrder = null): [DatasetImageFile!]!
   rows(table: ID!, filters: RowFilter = null, pagination: TablePaginationInput = null): [MetricMap!]!
 
@@ -463,6 +466,10 @@ type Query {
   """Get available permissions for a specific identifier"""
   availablePermissions(identifier: String!, search: String = null, values: [ID!] = null): [PermissionOption!]!
   members: [Membership!]!
+  instanceMaskViewLabel(
+    """The unique identifier of an object"""
+    id: ID!
+  ): InstanceMaskViewLabel!
   rgbView(
     """The unique identifier of an object"""
     id: ID!
@@ -844,7 +851,7 @@ type Video implements Render {
 type Dataset {
   id: ID!
   images(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
-  files(filters: FileFilter, pagination: OffsetPaginationInput): [File!]!
+  files(filters: FileFilter, order: FileOrder, pagination: OffsetPaginationInput): [File!]!
   parent: Dataset
   children(filters: DatasetFilter, pagination: OffsetPaginationInput): [Dataset!]!
   description: String
@@ -869,6 +876,7 @@ input ImageFilter {
   timepointViews: TimepointViewFilter
   notDerived: Boolean = null
   search: String = null
+  owner: ID = null
   AND: ImageFilter
   OR: ImageFilter
   NOT: ImageFilter
@@ -917,6 +925,7 @@ input DatasetFilter {
   id: ID
   name: StrFilterLookup
   parentless: Boolean = null
+  owner: ID = null
   AND: DatasetFilter
   OR: DatasetFilter
   NOT: DatasetFilter
@@ -1007,6 +1016,7 @@ input FileFilter {
   DISTINCT: Boolean
   scope: ScopeKind
   search: String
+  owner: ID
   ids: [ID!]
 }
 
@@ -1015,6 +1025,10 @@ enum ScopeKind {
   ORG
   SHARED
   ME
+}
+
+input FileOrder {
+  createdAt: Ordering
 }
 
 """A provenance event for a model."""
@@ -1366,7 +1380,7 @@ type MaskView implements View {
   ): [View!]!
   id: ID!
   referenceView: ReferenceView!
-  labels: ZarrStore
+  labels: ParquetStore
 }
 
 type ReferenceView implements View {
@@ -1393,6 +1407,150 @@ type ReferenceView implements View {
     types: [ViewKind!]
   ): [View!]!
   id: ID!
+}
+
+type ParquetStore {
+  id: ID!
+  path: String!
+  bucket: String!
+  key: String!
+  columns: [TableColumn!]!
+  presignedUrl(host: String = null): String!
+}
+
+"""A column descriptor"""
+type TableColumn {
+  name: String!
+  type: DuckDBDataType!
+  nullable: Boolean!
+  key: String
+  default: String
+  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
+}
+
+enum DuckDBDataType {
+  """Represents a True/False value"""
+  BOOLEAN
+
+  """Very small integer (-128 to 127)"""
+  TINYINT
+
+  """Small integer (-32,768 to 32,767)"""
+  SMALLINT
+
+  """Standard integer (-2,147,483,648 to 2,147,483,647)"""
+  INTEGER
+
+  """Large integer for large numeric values"""
+  BIGINT
+
+  """Extremely large integer for very large numeric ranges"""
+  HUGEINT
+
+  """Single-precision floating point number"""
+  FLOAT
+
+  """Double-precision floating point number"""
+  DOUBLE
+
+  """Variable-length string (text)"""
+  VARCHAR
+
+  """Binary large object for storing binary data"""
+  BLOB
+
+  """Date and time with precision"""
+  TIMESTAMP
+
+  """Specific date (year, month, day)"""
+  DATE
+
+  """Specific time of the day (hours, minutes, seconds)"""
+  TIME
+
+  """Span of time between two dates or times"""
+  INTERVAL
+
+  """Exact decimal number with defined precision and scale"""
+  DECIMAL
+
+  """Universally Unique Identifier used to uniquely identify objects"""
+  UUID
+
+  """Array of variable-length strings"""
+  VARCHAR_ARRAY
+
+  """Array of double-precision floating point numbers"""
+  DOUBLE_ARRAY
+
+  """Array of large integers"""
+  BIGINT_ARRAY
+
+  """2D Array of large integers"""
+  BIGINT_ARRAY_ARRAY
+
+  """Array of boolean values"""
+  BOOLEAN_ARRAY
+
+  """Array of dates"""
+  DATE_ARRAY
+
+  """Array of times"""
+  TIME_ARRAY
+
+  """A list of values of the same data type"""
+  LIST
+
+  """A collection of key-value pairs where each key is unique"""
+  MAP
+
+  """Enumeration of predefined values"""
+  ENUM
+
+  """Composite type grouping several fields with different data types"""
+  STRUCT
+
+  """JSON object, a structured text format used for representing data"""
+  JSON
+}
+
+interface Accessor {
+  id: ID!
+  table: Table!
+  keys: [String!]!
+  minIndex: Int
+  maxIndex: Int
+}
+
+type Table {
+  id: ID!
+  name: String!
+  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
+  store: ParquetStore!
+  columns: [TableColumn!]!
+  rows: [MetricMap!]!
+  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
+}
+
+"""The `MetricMap` scalar type represents a matrix values as specified by"""
+scalar MetricMap
+
+input AccessorFilter {
+  keys: JSON
+  AND: AccessorFilter
+  OR: AccessorFilter
+  NOT: AccessorFilter
+  DISTINCT: Boolean
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
+"""
+scalar JSON
+
+enum AccessorKind {
+  LABEL
+  IMAGE
 }
 
 input MaskViewFilter {
@@ -1431,7 +1589,7 @@ type InstanceMaskView implements View {
   ): [View!]!
   id: ID!
   referenceView: ReferenceView!
-  labels: ZarrStore
+  labels: ParquetStore
   operation: String
 }
 
@@ -1815,6 +1973,7 @@ input ROIFilter {
   kind: RoiKindChoices
   image: ID = null
   search: String
+  owner: ID = null
   AND: ROIFilter
   OR: ROIFilter
   NOT: ROIFilter
@@ -1848,127 +2007,6 @@ type BigFileStore {
   filename: String!
   presignedUrl: String!
 }
-
-type Table {
-  id: ID!
-  name: String!
-  origins(filters: ImageFilter, order: ImageOrder, pagination: OffsetPaginationInput): [Image!]!
-  store: ParquetStore!
-  columns: [TableColumn!]!
-  rows: [MetricMap!]!
-  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
-}
-
-type ParquetStore {
-  id: ID!
-  path: String!
-  bucket: String!
-  key: String!
-}
-
-"""A column descriptor"""
-type TableColumn {
-  name: String!
-  type: DuckDBDataType!
-  nullable: Boolean!
-  key: String
-  default: String
-  accessors(filters: AccessorFilter, types: [AccessorKind!]): [Accessor!]!
-}
-
-enum DuckDBDataType {
-  """Represents a True/False value"""
-  BOOLEAN
-
-  """Very small integer (-128 to 127)"""
-  TINYINT
-
-  """Small integer (-32,768 to 32,767)"""
-  SMALLINT
-
-  """Standard integer (-2,147,483,648 to 2,147,483,647)"""
-  INTEGER
-
-  """Large integer for large numeric values"""
-  BIGINT
-
-  """Extremely large integer for very large numeric ranges"""
-  HUGEINT
-
-  """Single-precision floating point number"""
-  FLOAT
-
-  """Double-precision floating point number"""
-  DOUBLE
-
-  """Variable-length string (text)"""
-  VARCHAR
-
-  """Binary large object for storing binary data"""
-  BLOB
-
-  """Date and time with precision"""
-  TIMESTAMP
-
-  """Specific date (year, month, day)"""
-  DATE
-
-  """Specific time of the day (hours, minutes, seconds)"""
-  TIME
-
-  """Span of time between two dates or times"""
-  INTERVAL
-
-  """Exact decimal number with defined precision and scale"""
-  DECIMAL
-
-  """Universally Unique Identifier used to uniquely identify objects"""
-  UUID
-
-  """A list of values of the same data type"""
-  LIST
-
-  """A collection of key-value pairs where each key is unique"""
-  MAP
-
-  """Enumeration of predefined values"""
-  ENUM
-
-  """Composite type grouping several fields with different data types"""
-  STRUCT
-
-  """JSON object, a structured text format used for representing data"""
-  JSON
-}
-
-interface Accessor {
-  id: ID!
-  table: Table!
-  keys: [String!]!
-  minIndex: Int
-  maxIndex: Int
-}
-
-input AccessorFilter {
-  keys: JSON
-  AND: AccessorFilter
-  OR: AccessorFilter
-  NOT: AccessorFilter
-  DISTINCT: Boolean
-}
-
-"""
-The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
-"""
-scalar JSON
-
-enum AccessorKind {
-  LABEL
-  IMAGE
-}
-
-"""The `MetricMap` scalar type represents a matrix values as specified by"""
-scalar MetricMap
 
 type _Service {
   sdl: String!
@@ -2244,6 +2282,58 @@ input MeshFilter {
   DISTINCT: Boolean
 }
 
+type ImageStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: ImageField!): Int!
+
+  """Maximum"""
+  max(field: ImageField!): Float
+
+  """Minimum"""
+  min(field: ImageField!): Float
+
+  """Average"""
+  avg(field: ImageField!): Float
+
+  """Sum"""
+  sum(field: ImageField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: ImageField!, timestampField: ImageTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Numeric/aggregatable fields of Image"""
+enum ImageField {
+  PK
+}
+
+type TimeBucket {
+  ts: DateTime!
+  count: Int!
+  distinctCount: Int!
+  max: Float
+  min: Float
+  avg: Float
+  sum: Float
+}
+
+"""Datetime fields of Image for bucketing"""
+enum ImageTimestampField {
+  CREATED_AT
+}
+
+enum Granularity {
+  HOUR
+  DAY
+  WEEK
+  MONTH
+  QUARTER
+  YEAR
+}
+
 union DatasetImageFile = Dataset | Image | File
 
 input DatasetChildrenFilter {
@@ -2300,6 +2390,15 @@ type Membership {
   datasets(filters: DatasetFilter, pagination: OffsetPaginationInput): [Dataset!]!
 }
 
+type InstanceMaskViewLabel {
+  mask: InstanceMaskView!
+  values: Any!
+  id: String!
+}
+
+"""The `Any` scalar any type"""
+scalar Any
+
 """A cell of a table"""
 type TableRow {
   id: ID!
@@ -2309,9 +2408,6 @@ type TableRow {
   values: [Any!]!
   name: String!
 }
-
-"""The `Any` scalar any type"""
-scalar Any
 
 input TableRowFilter {
   search: String = null
