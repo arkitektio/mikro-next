@@ -1,0 +1,5 @@
+mutation CreateADataset($input: CreateADatasetInput!) {
+  createAdataset(input: $input) {
+    ...ADataset
+  }
+}

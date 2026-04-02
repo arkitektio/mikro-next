@@ -278,6 +278,36 @@ class FiveDVector(list[float]):
             cls.validate, handler(list)
         )
 
+    @property
+    def x(self) -> float:
+        """Get the x coordinate."""
+        return self[4]
+
+    @property
+    def y(self) -> float:
+        """Get the y coordinate."""
+        return self[3]
+
+    @property
+    def z(self) -> float:
+        """Get the z coordinate."""
+        return self[2]
+
+    @property
+    def t(self) -> float:
+        """Get the t coordinate."""
+        return self[1]
+
+    @property
+    def c(self) -> float:
+        """Get the c coordinate."""
+        return self[0]
+
+    @classmethod
+    def from_params(cls, c: int, t: int, z: int, x: float, y: float) -> "FiveDVector":
+        """Create a FiveDVector from individual parameters."""
+        return cls([float(c), float(t), float(z), float(y), float(x)])
+
     @classmethod
     def validate(cls, v: FiveDVectorCoercible) -> "FiveDVector":
         """Validate the input array and convert it to a xr.DataArray."""
@@ -428,6 +458,16 @@ class ArrayLike:
     @classmethod
     def validate(cls, v: ArrayCoercible) -> "ArrayLike":
         """Validate the input array and convert it to a xr.DataArray."""
+
+        if isinstance(v, xr.DataArray):
+            return cls(v)
+
+        if isinstance(v, np.ndarray) or is_dask_array(v):
+            return cls(xr.DataArray(v))  # type: ignore
+
+        raise ValueError(
+            f"Unsupported type {type(v)} for ArrayLike. Supported types are xr.DataArray, numpy.ndarray and dask.array.Array"
+        )
         was_labeled = True
         # initial coercion checks, if a numpy array is passed, we need to convert it to a xarray
         # but that means the user didnt pass the dimensions explicitly so we need to add them

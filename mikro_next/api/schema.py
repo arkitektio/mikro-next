@@ -1,77 +1,59 @@
-from pydantic import Field, ConfigDict, BaseModel
-from typing import (
-    Tuple,
-    Annotated,
-    Literal,
-    Iterator,
-    List,
-    Any,
-    Iterable,
-    Union,
-    Optional,
-    AsyncIterator,
-)
 from mikro_next.scalars import (
-    Micrometers,
-    ArrayLike,
-    LabelsLike,
-    MeshLike,
-    Milliseconds,
     MeshCoercible,
-    ImageFileLike,
-    FileLike,
-    FiveDVector,
-    ArrayCoercible,
-    ImageFileCoercible,
     ParquetCoercible,
-    ParquetLike,
+    FiveDVector,
+    ImageFileCoercible,
+    Micrometers,
     FourByFourMatrix,
+    ParquetLike,
+    ThreeDVector,
+    Milliseconds,
+    ArrayLike,
+    ImageFileLike,
+    ArrayCoercible,
+    MeshLike,
+    LabelsLike,
+    FileLike,
 )
-from rath.scalars import IDCoercible, ID
-from mikro_next.funcs import asubscribe, aexecute, execute, subscribe
-from mikro_next.rath import MikroNextRath
-from enum import Enum
 from mikro_next.traits import (
-    HasPresignedDownloadAccessor,
-    IsVectorizableTrait,
-    HasParquestStoreTrait,
-    HasZarrStoreTrait,
-    FileTrait,
     HasDownloadAccessor,
-    HasParquetStoreAccesor,
+    IsVectorizableTrait,
     MikroFetchable,
+    FileTrait,
+    Lensable,
+    HasZarrStoreTrait,
+    DataArrayTrait,
     HasZarrStoreAccessor,
+    HasPresignedDownloadAccessor,
+    HasParquetStoreAccesor,
+    DatasetTrait,
+    HasParquestStoreTrait,
 )
+from mikro_next.funcs import aexecute, asubscribe, execute, subscribe
+from rath.scalars import IDCoercible, ID
+from mikro_next.rath import MikroNextRath
+from typing import (
+    Literal,
+    Iterable,
+    AsyncIterator,
+    Tuple,
+    List,
+    Union,
+    Annotated,
+    Any,
+    Iterator,
+    Optional,
+)
+from enum import Enum
 from datetime import datetime
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class ElementKind(str, Enum):
+class Blending(str, Enum):
     """No documentation"""
 
-    LASER = "LASER"
-    PINHOLE = "PINHOLE"
-    LAMP = "LAMP"
-    OTHER_SOURCE = "OTHER_SOURCE"
-    DETECTOR = "DETECTOR"
-    CCD = "CCD"
-    MIRROR = "MIRROR"
-    BEAM_SPLITTER = "BEAM_SPLITTER"
-    LENS = "LENS"
-    OBJECTIVE = "OBJECTIVE"
-    FILTER = "FILTER"
-    POLARIZER = "POLARIZER"
-    WAVEPLATE = "WAVEPLATE"
-    APERTURE = "APERTURE"
-    SHUTTER = "SHUTTER"
-    SAMPLE = "SAMPLE"
-    OTHER = "OTHER"
-
-
-class PortRole(str, Enum):
-    """No documentation"""
-
-    INPUT = "INPUT"
-    OUTPUT = "OUTPUT"
+    ADDITIVE = "ADDITIVE"
+    MULTIPLICATIVE = "MULTIPLICATIVE"
 
 
 class ChannelKind(str, Enum):
@@ -81,36 +63,6 @@ class ChannelKind(str, Enum):
     FIBER_SM = "FIBER_SM"
     FIBER_MM = "FIBER_MM"
     WAVEGUIDE = "WAVEGUIDE"
-
-
-class ObjectiveImmersion(str, Enum):
-    """No documentation"""
-
-    OIL = "OIL"
-    WATER = "WATER"
-    WATER_DIPPING = "WATER_DIPPING"
-    AIR = "AIR"
-    MULTI = "MULTI"
-    GLYCEROL = "GLYCEROL"
-    OTHER = "OTHER"
-
-
-class PulseKind(str, Enum):
-    """No documentation"""
-
-    CW = "CW"
-    SINGLE = "SINGLE"
-    QSWITCHED = "QSWITCHED"
-    REPETITIVE = "REPETITIVE"
-    MODE_LOCKED = "MODE_LOCKED"
-    OTHER = "OTHER"
-
-
-class Blending(str, Enum):
-    """No documentation"""
-
-    ADDITIVE = "ADDITIVE"
-    MULTIPLICATIVE = "MULTIPLICATIVE"
 
 
 class ColorMap(str, Enum):
@@ -138,6 +90,76 @@ class ColorMap(str, Enum):
     SPECTRAL = "SPECTRAL"
     COOL = "COOL"
     WARM = "WARM"
+
+
+class DimensionKind(str, Enum):
+    """No documentation"""
+
+    SPACE = "SPACE"
+    CHANNEL = "CHANNEL"
+    TIME = "TIME"
+    FREQUENCY = "FREQUENCY"
+
+
+class ElementKind(str, Enum):
+    """No documentation"""
+
+    LASER = "LASER"
+    PINHOLE = "PINHOLE"
+    LAMP = "LAMP"
+    OTHER_SOURCE = "OTHER_SOURCE"
+    DETECTOR = "DETECTOR"
+    CCD = "CCD"
+    MIRROR = "MIRROR"
+    BEAM_SPLITTER = "BEAM_SPLITTER"
+    LENS = "LENS"
+    OBJECTIVE = "OBJECTIVE"
+    FILTER = "FILTER"
+    POLARIZER = "POLARIZER"
+    WAVEPLATE = "WAVEPLATE"
+    APERTURE = "APERTURE"
+    SHUTTER = "SHUTTER"
+    SAMPLE = "SAMPLE"
+    OTHER = "OTHER"
+
+
+class ObjectiveImmersion(str, Enum):
+    """No documentation"""
+
+    OIL = "OIL"
+    WATER = "WATER"
+    WATER_DIPPING = "WATER_DIPPING"
+    AIR = "AIR"
+    MULTI = "MULTI"
+    GLYCEROL = "GLYCEROL"
+    OTHER = "OTHER"
+
+
+class PortRole(str, Enum):
+    """No documentation"""
+
+    INPUT = "INPUT"
+    OUTPUT = "OUTPUT"
+
+
+class PulseKind(str, Enum):
+    """No documentation"""
+
+    CW = "CW"
+    SINGLE = "SINGLE"
+    QSWITCHED = "QSWITCHED"
+    REPETITIVE = "REPETITIVE"
+    MODE_LOCKED = "MODE_LOCKED"
+    OTHER = "OTHER"
+
+
+class RenderNodeKind(str, Enum):
+    """No documentation"""
+
+    CONTEXT = "CONTEXT"
+    OVERLAY = "OVERLAY"
+    GRID = "GRID"
+    SPIT = "SPIT"
 
 
 class RoiKind(str, Enum):
@@ -171,156 +193,26 @@ class ScanDirection(str, Enum):
     SLICE_ROW_COLUMN_SNAKE = "SLICE_ROW_COLUMN_SNAKE"
 
 
-class RenderNodeKind(str, Enum):
+class SpatialUnit(str, Enum):
     """No documentation"""
 
-    CONTEXT = "CONTEXT"
-    OVERLAY = "OVERLAY"
-    GRID = "GRID"
-    SPIT = "SPIT"
+    MICROMETERS = "MICROMETERS"
+    NANOMETERS = "NANOMETERS"
+    ANGSTROMS = "ANGSTROMS"
+    PIXELS = "PIXELS"
+    UNKNOWN = "UNKNOWN"
 
 
-class ViewFilter(BaseModel):
+class TemporalUnit(str, Enum):
     """No documentation"""
 
-    is_global: Optional[bool] = Field(alias="isGlobal", default=None)
-    and_: Optional["ViewFilter"] = Field(alias="AND", default=None)
-    or_: Optional["ViewFilter"] = Field(alias="OR", default=None)
-    not_: Optional["ViewFilter"] = Field(alias="NOT", default=None)
-    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class StrFilterLookup(BaseModel):
-    """No documentation"""
-
-    exact: Optional[str] = None
-    i_exact: Optional[str] = Field(alias="iExact", default=None)
-    contains: Optional[str] = None
-    i_contains: Optional[str] = Field(alias="iContains", default=None)
-    in_list: Optional[Tuple[str, ...]] = Field(alias="inList", default=None)
-    gt: Optional[str] = None
-    gte: Optional[str] = None
-    lt: Optional[str] = None
-    lte: Optional[str] = None
-    starts_with: Optional[str] = Field(alias="startsWith", default=None)
-    i_starts_with: Optional[str] = Field(alias="iStartsWith", default=None)
-    ends_with: Optional[str] = Field(alias="endsWith", default=None)
-    i_ends_with: Optional[str] = Field(alias="iEndsWith", default=None)
-    range: Optional[Tuple[str, ...]] = None
-    is_null: Optional[bool] = Field(alias="isNull", default=None)
-    regex: Optional[str] = None
-    i_regex: Optional[str] = Field(alias="iRegex", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class OffsetPaginationInput(BaseModel):
-    """No documentation"""
-
-    offset: int
-    limit: Optional[int] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class ImageFilter(BaseModel):
-    """No documentation"""
-
-    scope: Optional["ScopeFilter"] = None
-    name: Optional[StrFilterLookup] = None
-    ids: Optional[Tuple[ID, ...]] = None
-    store: Optional["ZarrStoreFilter"] = None
-    dataset: Optional["DatasetFilter"] = None
-    transformation_views: Optional["AffineTransformationViewFilter"] = Field(
-        alias="transformationViews", default=None
-    )
-    timepoint_views: Optional["TimepointViewFilter"] = Field(
-        alias="timepointViews", default=None
-    )
-    not_derived: Optional[bool] = Field(alias="notDerived", default=None)
-    search: Optional[str] = None
-    owner: Optional[ID] = None
-    and_: Optional["ImageFilter"] = Field(alias="AND", default=None)
-    or_: Optional["ImageFilter"] = Field(alias="OR", default=None)
-    not_: Optional["ImageFilter"] = Field(alias="NOT", default=None)
-    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class ScopeFilter(BaseModel):
-    """No documentation"""
-
-    public: Optional[bool] = None
-    org: Optional[bool] = None
-    shared: Optional[bool] = None
-    me: Optional[bool] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class ZarrStoreFilter(BaseModel):
-    """No documentation"""
-
-    shape: Optional["IntFilterLookup"] = None
-    and_: Optional["ZarrStoreFilter"] = Field(alias="AND", default=None)
-    or_: Optional["ZarrStoreFilter"] = Field(alias="OR", default=None)
-    not_: Optional["ZarrStoreFilter"] = Field(alias="NOT", default=None)
-    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class IntFilterLookup(BaseModel):
-    """No documentation"""
-
-    exact: Optional[int] = None
-    i_exact: Optional[int] = Field(alias="iExact", default=None)
-    contains: Optional[int] = None
-    i_contains: Optional[int] = Field(alias="iContains", default=None)
-    in_list: Optional[Tuple[int, ...]] = Field(alias="inList", default=None)
-    gt: Optional[int] = None
-    gte: Optional[int] = None
-    lt: Optional[int] = None
-    lte: Optional[int] = None
-    starts_with: Optional[int] = Field(alias="startsWith", default=None)
-    i_starts_with: Optional[int] = Field(alias="iStartsWith", default=None)
-    ends_with: Optional[int] = Field(alias="endsWith", default=None)
-    i_ends_with: Optional[int] = Field(alias="iEndsWith", default=None)
-    range: Optional[Tuple[int, ...]] = None
-    is_null: Optional[bool] = Field(alias="isNull", default=None)
-    regex: Optional[str] = None
-    i_regex: Optional[str] = Field(alias="iRegex", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class DatasetFilter(BaseModel):
-    """No documentation"""
-
-    ids: Optional[Tuple[ID, ...]] = None
-    search: Optional[str] = None
-    scope: Optional[ScopeFilter] = None
-    id: Optional[ID] = None
-    name: Optional[StrFilterLookup] = None
-    parentless: Optional[bool] = None
-    owner: Optional[ID] = None
-    and_: Optional["DatasetFilter"] = Field(alias="AND", default=None)
-    or_: Optional["DatasetFilter"] = Field(alias="OR", default=None)
-    not_: Optional["DatasetFilter"] = Field(alias="NOT", default=None)
-    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
+    NANOSECONDS = "NANOSECONDS"
+    MILLISECONDS = "MILLISECONDS"
+    SECONDS = "SECONDS"
+    MINUTES = "MINUTES"
+    HOURS = "HOURS"
+    DAYS = "DAYS"
+    UNKNOWN = "UNKNOWN"
 
 
 class AffineTransformationViewFilter(BaseModel):
@@ -338,18 +230,280 @@ class AffineTransformationViewFilter(BaseModel):
     )
 
 
-class StageFilter(BaseModel):
+class BeamStateInput(BaseModel):
+    """State of the optical beam on a particular path segment."""
+
+    wavelength_nm: Optional[float] = Field(alias="wavelengthNm", default=None)
+    power_mw: Optional[float] = Field(alias="powerMw", default=None)
+    polarization: Optional[str] = None
+    mode_hint: Optional[str] = Field(alias="modeHint", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CameraInput(BaseModel):
+    """No documentation"""
+
+    serial_number: str = Field(alias="serialNumber")
+    name: Optional[str] = None
+    model: Optional[str] = None
+    bit_depth: Optional[int] = Field(alias="bitDepth", default=None)
+    sensor_size_x: Optional[int] = Field(alias="sensorSizeX", default=None)
+    sensor_size_y: Optional[int] = Field(alias="sensorSizeY", default=None)
+    pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX", default=None)
+    pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY", default=None)
+    manufacturer: Optional[str] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ChangeDatasetInput(BaseModel):
+    """No documentation"""
+
+    name: str
+    parent: Optional[ID] = None
+    id: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CoordinateAnchorInput(BaseModel):
+    """Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to"""
+
+    dim_anchors: Tuple["DimAnchorInput", ...] = Field(alias="dimAnchors")
+    ome_metadata: Optional["OmeMetadataInput"] = Field(
+        alias="omeMetadata", default=None
+    )
+    value_histogram: Optional["ValueHistogramInput"] = Field(
+        alias="valueHistogram", default=None
+    )
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CreateADatasetInput(BaseModel):
+    """Input type for creating an image from an array-like object"""
+
+    scales: Tuple[ArrayLike, ...]
+    name: str
+    dim_descriptors: Tuple["DimensionDescriptorInput", ...] = Field(
+        alias="dimDescriptors"
+    )
+    anchors: Optional[Tuple[CoordinateAnchorInput, ...]] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CreateDataRoiInput(BaseModel):
+    """Input type for creating an image from an array-like object"""
+
+    dataset: ID
+    kind: RoiKind
+    x_dim: str = Field(alias="xDim")
+    y_dim: str = Field(alias="yDim")
+    z_dim: Optional[str] = Field(alias="zDim", default=None)
+    vectors: Tuple[ThreeDVector, ...]
+    slices: Tuple["SliceInput", ...]
+    drawn_on_lens: Optional[ID] = Field(alias="drawnOnLens", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CreateDatasetInput(BaseModel):
+    """No documentation"""
+
+    name: str
+    parent: Optional[ID] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CreateLayerInput(BaseModel):
+    """Input type for creating an image from an array-like object"""
+
+    lens: ID
+    scene: ID
+    affine_matrix: Optional[Tuple[Tuple[float, ...], ...]] = Field(
+        alias="affineMatrix", default=None
+    )
+    colormap: Optional[ColorMap] = None
+    color: Optional[Tuple[int, ...]] = None
+    clim_min: Optional[float] = Field(alias="climMin", default=None)
+    clim_max: Optional[float] = Field(alias="climMax", default=None)
+    x_dim: Optional[str] = Field(alias="xDim", default=None)
+    y_dim: Optional[str] = Field(alias="yDim", default=None)
+    z_dim: Optional[str] = Field(alias="zDim", default=None)
+    t_dim: Optional[str] = Field(alias="tDim", default=None)
+    intensity_dim: Optional[str] = Field(alias="intensityDim", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CreateLensInput(BaseModel):
+    """Input type for creating an image from an array-like object"""
+
+    dataset: ID
+    slices: Tuple["SliceInput", ...]
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CreateRGBContextInput(BaseModel):
+    """No documentation"""
+
+    name: Optional[str] = None
+    thumbnail: Optional[ID] = None
+    image: ID
+    views: Optional[Tuple["PartialRGBViewInput", ...]] = None
+    z: Optional[int] = None
+    t: Optional[int] = None
+    c: Optional[int] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CreateSceneInput(BaseModel):
+    """Input type for creating a scene from an array-like object"""
+
+    name: str
+    blending: Optional[Blending] = None
+    spatial_unit: Optional[SpatialUnit] = Field(alias="spatialUnit", default=None)
+    temporal_unit: Optional[TemporalUnit] = Field(alias="temporalUnit", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class DatasetFilter(BaseModel):
     """No documentation"""
 
     ids: Optional[Tuple[ID, ...]] = None
     search: Optional[str] = None
+    scope: Optional["ScopeFilter"] = None
     id: Optional[ID] = None
-    kind: Optional[str] = None
-    name: Optional[StrFilterLookup] = None
-    and_: Optional["StageFilter"] = Field(alias="AND", default=None)
-    or_: Optional["StageFilter"] = Field(alias="OR", default=None)
-    not_: Optional["StageFilter"] = Field(alias="NOT", default=None)
+    name: Optional["StrFilterLookup"] = None
+    parentless: Optional[bool] = None
+    owner: Optional[ID] = None
+    created_before: Optional[datetime] = Field(alias="createdBefore", default=None)
+    created_after: Optional[datetime] = Field(alias="createdAfter", default=None)
+    and_: Optional["DatasetFilter"] = Field(alias="AND", default=None)
+    or_: Optional["DatasetFilter"] = Field(alias="OR", default=None)
+    not_: Optional["DatasetFilter"] = Field(alias="NOT", default=None)
     distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class DeleteRoiInput(BaseModel):
+    """No documentation"""
+
+    id: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class DimAnchorInput(BaseModel):
+    """Input type for a dimension anchor, which specifies a dimension and a value to anchor to"""
+
+    dim: str
+    value: int
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class DimensionDescriptorInput(BaseModel):
+    """Input type for a dimension descriptor, which specifies a key and a kind for a dimension"""
+
+    key: str
+    kind: str
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class EraFilter(BaseModel):
+    """No documentation"""
+
+    id: Optional[ID] = None
+    begin: Optional[datetime] = None
+    and_: Optional["EraFilter"] = Field(alias="AND", default=None)
+    or_: Optional["EraFilter"] = Field(alias="OR", default=None)
+    not_: Optional["EraFilter"] = Field(alias="NOT", default=None)
+    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class EraInput(BaseModel):
+    """No documentation"""
+
+    name: str
+    begin: Optional[datetime] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class EulerInput(BaseModel):
+    """Euler angles representing rotation in 3D space."""
+
+    rx: Optional[float] = None
+    ry: Optional[float] = None
+    rz: Optional[float] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class FinishBigFileUploadInput(BaseModel):
+    """No documentation"""
+
+    store_id: str = Field(alias="storeId")
+    valid: bool
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class FinishMediaUploadInput(BaseModel):
+    """No documentation"""
+
+    store_id: str = Field(alias="storeId")
+    valid: bool
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class FinishParquetUploadInput(BaseModel):
+    """No documentation"""
+
+    store_id: str = Field(alias="storeId")
+    valid: bool
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class FinishZarrUploadInput(BaseModel):
+    """No documentation"""
+
+    store_id: str = Field(alias="storeId")
+    valid: bool
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -375,151 +529,6 @@ class FloatFilterLookup(BaseModel):
     is_null: Optional[bool] = Field(alias="isNull", default=None)
     regex: Optional[str] = None
     i_regex: Optional[str] = Field(alias="iRegex", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class TimepointViewFilter(BaseModel):
-    """No documentation"""
-
-    is_global: Optional[bool] = Field(alias="isGlobal", default=None)
-    and_: Optional["TimepointViewFilter"] = Field(alias="AND", default=None)
-    or_: Optional["TimepointViewFilter"] = Field(alias="OR", default=None)
-    not_: Optional["TimepointViewFilter"] = Field(alias="NOT", default=None)
-    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
-    era: Optional["EraFilter"] = None
-    ms_since_start: Optional[float] = Field(alias="msSinceStart", default=None)
-    index_since_start: Optional[int] = Field(alias="indexSinceStart", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class EraFilter(BaseModel):
-    """No documentation"""
-
-    id: Optional[ID] = None
-    begin: Optional[datetime] = None
-    and_: Optional["EraFilter"] = Field(alias="AND", default=None)
-    or_: Optional["EraFilter"] = Field(alias="OR", default=None)
-    not_: Optional["EraFilter"] = Field(alias="NOT", default=None)
-    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class RequestUploadInput(BaseModel):
-    """No documentation"""
-
-    key: str
-    datalayer: str
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class RequestAccessInput(BaseModel):
-    """No documentation"""
-
-    store: ID
-    duration: Optional[int] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class RequestMediaUploadInput(BaseModel):
-    """No documentation"""
-
-    file_name: str = Field(alias="fileName")
-    datalayer: str
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class RequestTableUploadInput(BaseModel):
-    """No documentation"""
-
-    key: str
-    datalayer: str
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class RequestTableAccessInput(BaseModel):
-    """No documentation"""
-
-    store: ID
-    duration: Optional[int] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class RequestMeshUploadInput(BaseModel):
-    """No documentation"""
-
-    key: str
-    datalayer: str
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class RequestFileUploadInput(BaseModel):
-    """No documentation"""
-
-    file_name: str = Field(alias="fileName")
-    datalayer: str
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class RequestFileAccessInput(BaseModel):
-    """No documentation"""
-
-    store: ID
-    duration: Optional[int] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class HistogramViewInput(BaseModel):
-    """No documentation"""
-
-    collection: Optional[ID] = None
-    "The collection this view belongs to"
-    z_min: Optional[int] = Field(alias="zMin", default=None)
-    "The minimum z coordinate of the view"
-    z_max: Optional[int] = Field(alias="zMax", default=None)
-    "The maximum z coordinate of the view"
-    x_min: Optional[int] = Field(alias="xMin", default=None)
-    "The minimum x coordinate of the view"
-    x_max: Optional[int] = Field(alias="xMax", default=None)
-    "The maximum x coordinate of the view"
-    y_min: Optional[int] = Field(alias="yMin", default=None)
-    "The minimum y coordinate of the view"
-    y_max: Optional[int] = Field(alias="yMax", default=None)
-    "The maximum y coordinate of the view"
-    t_min: Optional[int] = Field(alias="tMin", default=None)
-    "The minimum t coordinate of the view"
-    t_max: Optional[int] = Field(alias="tMax", default=None)
-    "The maximum t coordinate of the view"
-    c_min: Optional[int] = Field(alias="cMin", default=None)
-    "The minimum c (channel) coordinate of the view"
-    c_max: Optional[int] = Field(alias="cMax", default=None)
-    "The maximum c (channel) coordinate of the view"
-    histogram: Tuple[float, ...]
-    bins: Tuple[float, ...]
-    min: float
-    max: float
-    image: ID
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -597,6 +606,404 @@ class FromArrayLikeInput(BaseModel):
     )
 
 
+class FromFileLike(BaseModel):
+    """No documentation"""
+
+    file: FileLike
+    file_name: str = Field(alias="fileName")
+    dataset: Optional[ID] = None
+    origins: Optional[Tuple[ID, ...]] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class FromParquetLike(BaseModel):
+    """No documentation"""
+
+    dataframe: ParquetLike
+    "The parquet dataframe to create the table from"
+    name: str
+    "The name of the table"
+    origins: Optional[Tuple[ID, ...]] = None
+    "The IDs of tables this table was derived from"
+    dataset: Optional[ID] = None
+    "The dataset ID this table belongs to"
+    label_accessors: Optional[Tuple["PartialLabelAccessorInput", ...]] = Field(
+        alias="labelAccessors", default=None
+    )
+    "Label accessors to create for this table"
+    image_accessors: Optional[Tuple["PartialImageAccessorInput", ...]] = Field(
+        alias="imageAccessors", default=None
+    )
+    "Image accessors to create for this table"
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class HistogramViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    histogram: Tuple[float, ...]
+    bins: Tuple[float, ...]
+    min: float
+    max: float
+    image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ImageFilter(BaseModel):
+    """No documentation"""
+
+    scope: Optional["ScopeFilter"] = None
+    name: Optional["StrFilterLookup"] = None
+    ids: Optional[Tuple[ID, ...]] = None
+    store: Optional["ZarrStoreFilter"] = None
+    dataset: Optional[DatasetFilter] = None
+    transformation_views: Optional[AffineTransformationViewFilter] = Field(
+        alias="transformationViews", default=None
+    )
+    timepoint_views: Optional["TimepointViewFilter"] = Field(
+        alias="timepointViews", default=None
+    )
+    not_derived: Optional[bool] = Field(alias="notDerived", default=None)
+    search: Optional[str] = None
+    owner: Optional[ID] = None
+    created_before: Optional[datetime] = Field(alias="createdBefore", default=None)
+    created_after: Optional[datetime] = Field(alias="createdAfter", default=None)
+    and_: Optional["ImageFilter"] = Field(alias="AND", default=None)
+    or_: Optional["ImageFilter"] = Field(alias="OR", default=None)
+    not_: Optional["ImageFilter"] = Field(alias="NOT", default=None)
+    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class InstanceMaskViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    reference_view: Optional[ID] = Field(alias="referenceView", default=None)
+    labels: Optional[LabelsLike] = None
+    image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class InstrumentInput(BaseModel):
+    """No documentation"""
+
+    serial_number: str = Field(alias="serialNumber")
+    manufacturer: Optional[str] = None
+    name: Optional[str] = None
+    model: Optional[str] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class IntFilterLookup(BaseModel):
+    """No documentation"""
+
+    exact: Optional[int] = None
+    i_exact: Optional[int] = Field(alias="iExact", default=None)
+    contains: Optional[int] = None
+    i_contains: Optional[int] = Field(alias="iContains", default=None)
+    in_list: Optional[Tuple[int, ...]] = Field(alias="inList", default=None)
+    gt: Optional[int] = None
+    gte: Optional[int] = None
+    lt: Optional[int] = None
+    lte: Optional[int] = None
+    starts_with: Optional[int] = Field(alias="startsWith", default=None)
+    i_starts_with: Optional[int] = Field(alias="iStartsWith", default=None)
+    ends_with: Optional[int] = Field(alias="endsWith", default=None)
+    i_ends_with: Optional[int] = Field(alias="iEndsWith", default=None)
+    range: Optional[Tuple[int, ...]] = None
+    is_null: Optional[bool] = Field(alias="isNull", default=None)
+    regex: Optional[str] = None
+    i_regex: Optional[str] = Field(alias="iRegex", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class LightEdgeInput(BaseModel):
+    """Input for connecting two optical ports."""
+
+    id: str
+    source_element_id: ID = Field(alias="sourceElementId")
+    source_port_id: ID = Field(alias="sourcePortId")
+    target_element_id: ID = Field(alias="targetElementId")
+    target_port_id: ID = Field(alias="targetPortId")
+    path_length_mm: Optional[float] = Field(alias="pathLengthMm", default=None)
+    medium: Optional[str] = None
+    loss_db: Optional[float] = Field(alias="lossDb", default=None)
+    beam: Optional[BeamStateInput] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class LightPortInput(BaseModel):
+    """Input definition for an optical port on an element."""
+
+    id: ID
+    name: str
+    role: PortRole
+    channel: ChannelKind
+    spectrum: Optional["SpectrumInput"] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class LightpathGraphInput(BaseModel):
+    """Bulk input for a full lightpath graph, including elements and edges."""
+
+    elements: Tuple["OpticalElementInput", ...]
+    edges: Tuple[LightEdgeInput, ...]
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class MaskViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    reference_view: Optional[ID] = Field(alias="referenceView", default=None)
+    labels: Optional[LabelsLike] = None
+    image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class MeshInput(BaseModel):
+    """No documentation"""
+
+    mesh: MeshLike
+    name: str
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ObjectiveInput(BaseModel):
+    """No documentation"""
+
+    serial_number: str = Field(alias="serialNumber")
+    name: Optional[str] = None
+    na: Optional[float] = None
+    magnification: Optional[float] = None
+    immersion: Optional[str] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class OffsetPaginationInput(BaseModel):
+    """No documentation"""
+
+    offset: int
+    limit: Optional[int] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class OmeMetadataInput(BaseModel):
+    """Input type for OME metadata"""
+
+    json: str
+    "The OME metadata as a JSON string"
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class OpticalElementInput(BaseModel):
+    """Input for creating or updating any optical element. Fill only fields relevant to the chosen `kind`."""
+
+    id: ID
+    label: str
+    kind: ElementKind
+    pose: Optional["Pose3DInput"] = None
+    ports: Tuple[LightPortInput, ...]
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias="serialNumber", default=None)
+    nominal_wavelength_nm: Optional[float] = Field(
+        alias="nominalWavelengthNm", default=None
+    )
+    channel: Optional[ChannelKind] = None
+    diameter_um: Optional[float] = Field(alias="diameterUm", default=None)
+    nepd_w_per_sqrt_hz: Optional[float] = Field(alias="nepdWPerSqrtHz", default=None)
+    angle_deg: Optional[float] = Field(alias="angleDeg", default=None)
+    band_min_nm: Optional[float] = Field(alias="bandMinNm", default=None)
+    band_max_nm: Optional[float] = Field(alias="bandMaxNm", default=None)
+    r_fraction: Optional[float] = Field(alias="rFraction", default=None)
+    t_fraction: Optional[float] = Field(alias="tFraction", default=None)
+    focal_length_mm: Optional[float] = Field(alias="focalLengthMm", default=None)
+    magnification: Optional[float] = None
+    numerical_aperture: Optional[float] = Field(alias="numericalAperture", default=None)
+    brand: Optional[str] = None
+    working_distance_mm: Optional[float] = Field(
+        alias="workingDistanceMm", default=None
+    )
+    immersion_medium: Optional[ObjectiveImmersion] = Field(
+        alias="immersionMedium", default=None
+    )
+    iris: Optional[bool] = None
+    amplifier_gain_db: Optional[float] = Field(alias="amplifierGainDb", default=None)
+    gain: Optional[float] = None
+    pixel_size_um: Optional[float] = Field(alias="pixelSizeUm", default=None)
+    resolution: Optional[Tuple[int, ...]] = None
+    power_mw: Optional[float] = Field(alias="powerMw", default=None)
+    laser_medium: Optional[str] = Field(alias="laserMedium", default=None)
+    pulse_kind: Optional[PulseKind] = Field(alias="pulseKind", default=None)
+    repetition_rate_hz: Optional[float] = Field(alias="repetitionRateHz", default=None)
+    has_pockels_cell: Optional[bool] = Field(alias="hasPockelsCell", default=None)
+    has_q_switch: Optional[bool] = Field(alias="hasQSwitch", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class PartialAcquisitionViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    description: Optional[str] = None
+    acquired_at: Optional[datetime] = Field(alias="acquiredAt", default=None)
+    operator: Optional[ID] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class PartialAffineTransformationViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    stage: Optional[ID] = None
+    affine_matrix: FourByFourMatrix = Field(alias="affineMatrix")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
 class PartialChannelViewInput(BaseModel):
     """No documentation"""
 
@@ -639,7 +1046,7 @@ class PartialChannelViewInput(BaseModel):
     )
 
 
-class PartialAffineTransformationViewInput(BaseModel):
+class PartialDerivedViewInput(BaseModel):
     """No documentation"""
 
     collection: Optional[ID] = None
@@ -664,14 +1071,13 @@ class PartialAffineTransformationViewInput(BaseModel):
     "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
     "The maximum c (channel) coordinate of the view"
-    stage: Optional[ID] = None
-    affine_matrix: FourByFourMatrix = Field(alias="affineMatrix")
+    origin_image: ID = Field(alias="originImage")
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
 
 
-class PartialAcquisitionViewInput(BaseModel):
+class PartialFileViewInput(BaseModel):
     """No documentation"""
 
     collection: Optional[ID] = None
@@ -696,9 +1102,95 @@ class PartialAcquisitionViewInput(BaseModel):
     "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
     "The maximum c (channel) coordinate of the view"
-    description: Optional[str] = None
-    acquired_at: Optional[datetime] = Field(alias="acquiredAt", default=None)
-    operator: Optional[ID] = None
+    file: ID
+    series_identifier: Optional[str] = Field(alias="seriesIdentifier", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class PartialImageAccessorInput(BaseModel):
+    """No documentation"""
+
+    keys: Tuple[str, ...]
+    min_index: Optional[int] = Field(alias="minIndex", default=None)
+    max_index: Optional[int] = Field(alias="maxIndex", default=None)
+    image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class PartialInstanceMaskViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    reference_view: Optional[ID] = Field(alias="referenceView", default=None)
+    labels: Optional[LabelsLike] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class PartialLabelAccessorInput(BaseModel):
+    """No documentation"""
+
+    keys: Tuple[str, ...]
+    min_index: Optional[int] = Field(alias="minIndex", default=None)
+    max_index: Optional[int] = Field(alias="maxIndex", default=None)
+    pixel_view: ID = Field(alias="pixelView")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class PartialLightpathViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    graph: LightpathGraphInput
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -736,7 +1228,7 @@ class PartialMaskViewInput(BaseModel):
     )
 
 
-class PartialReferenceViewInput(BaseModel):
+class PartialOpticsViewInput(BaseModel):
     """No documentation"""
 
     collection: Optional[ID] = None
@@ -761,38 +1253,9 @@ class PartialReferenceViewInput(BaseModel):
     "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
     "The maximum c (channel) coordinate of the view"
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class PartialInstanceMaskViewInput(BaseModel):
-    """No documentation"""
-
-    collection: Optional[ID] = None
-    "The collection this view belongs to"
-    z_min: Optional[int] = Field(alias="zMin", default=None)
-    "The minimum z coordinate of the view"
-    z_max: Optional[int] = Field(alias="zMax", default=None)
-    "The maximum z coordinate of the view"
-    x_min: Optional[int] = Field(alias="xMin", default=None)
-    "The minimum x coordinate of the view"
-    x_max: Optional[int] = Field(alias="xMax", default=None)
-    "The maximum x coordinate of the view"
-    y_min: Optional[int] = Field(alias="yMin", default=None)
-    "The minimum y coordinate of the view"
-    y_max: Optional[int] = Field(alias="yMax", default=None)
-    "The maximum y coordinate of the view"
-    t_min: Optional[int] = Field(alias="tMin", default=None)
-    "The minimum t coordinate of the view"
-    t_max: Optional[int] = Field(alias="tMax", default=None)
-    "The maximum t coordinate of the view"
-    c_min: Optional[int] = Field(alias="cMin", default=None)
-    "The minimum c (channel) coordinate of the view"
-    c_max: Optional[int] = Field(alias="cMax", default=None)
-    "The maximum c (channel) coordinate of the view"
-    reference_view: Optional[ID] = Field(alias="referenceView", default=None)
-    labels: Optional[LabelsLike] = None
+    instrument: Optional[ID] = None
+    objective: Optional[ID] = None
+    camera: Optional[ID] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -837,7 +1300,7 @@ class PartialRGBViewInput(BaseModel):
     )
 
 
-class PartialTimepointViewInput(BaseModel):
+class PartialROIViewInput(BaseModel):
     """No documentation"""
 
     collection: Optional[ID] = None
@@ -862,15 +1325,13 @@ class PartialTimepointViewInput(BaseModel):
     "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
     "The maximum c (channel) coordinate of the view"
-    era: Optional[ID] = None
-    ms_since_start: Optional[Milliseconds] = Field(alias="msSinceStart", default=None)
-    index_since_start: Optional[int] = Field(alias="indexSinceStart", default=None)
+    roi: ID
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
 
 
-class PartialOpticsViewInput(BaseModel):
+class PartialReferenceViewInput(BaseModel):
     """No documentation"""
 
     collection: Optional[ID] = None
@@ -895,9 +1356,6 @@ class PartialOpticsViewInput(BaseModel):
     "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
     "The maximum c (channel) coordinate of the view"
-    instrument: Optional[ID] = None
-    objective: Optional[ID] = None
-    camera: Optional[ID] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -939,7 +1397,7 @@ class PartialScaleViewInput(BaseModel):
     )
 
 
-class PartialROIViewInput(BaseModel):
+class PartialTimepointViewInput(BaseModel):
     """No documentation"""
 
     collection: Optional[ID] = None
@@ -964,159 +1422,9 @@ class PartialROIViewInput(BaseModel):
     "The minimum c (channel) coordinate of the view"
     c_max: Optional[int] = Field(alias="cMax", default=None)
     "The maximum c (channel) coordinate of the view"
-    roi: ID
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class PartialFileViewInput(BaseModel):
-    """No documentation"""
-
-    collection: Optional[ID] = None
-    "The collection this view belongs to"
-    z_min: Optional[int] = Field(alias="zMin", default=None)
-    "The minimum z coordinate of the view"
-    z_max: Optional[int] = Field(alias="zMax", default=None)
-    "The maximum z coordinate of the view"
-    x_min: Optional[int] = Field(alias="xMin", default=None)
-    "The minimum x coordinate of the view"
-    x_max: Optional[int] = Field(alias="xMax", default=None)
-    "The maximum x coordinate of the view"
-    y_min: Optional[int] = Field(alias="yMin", default=None)
-    "The minimum y coordinate of the view"
-    y_max: Optional[int] = Field(alias="yMax", default=None)
-    "The maximum y coordinate of the view"
-    t_min: Optional[int] = Field(alias="tMin", default=None)
-    "The minimum t coordinate of the view"
-    t_max: Optional[int] = Field(alias="tMax", default=None)
-    "The maximum t coordinate of the view"
-    c_min: Optional[int] = Field(alias="cMin", default=None)
-    "The minimum c (channel) coordinate of the view"
-    c_max: Optional[int] = Field(alias="cMax", default=None)
-    "The maximum c (channel) coordinate of the view"
-    file: ID
-    series_identifier: Optional[str] = Field(alias="seriesIdentifier", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class PartialDerivedViewInput(BaseModel):
-    """No documentation"""
-
-    collection: Optional[ID] = None
-    "The collection this view belongs to"
-    z_min: Optional[int] = Field(alias="zMin", default=None)
-    "The minimum z coordinate of the view"
-    z_max: Optional[int] = Field(alias="zMax", default=None)
-    "The maximum z coordinate of the view"
-    x_min: Optional[int] = Field(alias="xMin", default=None)
-    "The minimum x coordinate of the view"
-    x_max: Optional[int] = Field(alias="xMax", default=None)
-    "The maximum x coordinate of the view"
-    y_min: Optional[int] = Field(alias="yMin", default=None)
-    "The minimum y coordinate of the view"
-    y_max: Optional[int] = Field(alias="yMax", default=None)
-    "The maximum y coordinate of the view"
-    t_min: Optional[int] = Field(alias="tMin", default=None)
-    "The minimum t coordinate of the view"
-    t_max: Optional[int] = Field(alias="tMax", default=None)
-    "The maximum t coordinate of the view"
-    c_min: Optional[int] = Field(alias="cMin", default=None)
-    "The minimum c (channel) coordinate of the view"
-    c_max: Optional[int] = Field(alias="cMax", default=None)
-    "The maximum c (channel) coordinate of the view"
-    origin_image: ID = Field(alias="originImage")
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class PartialLightpathViewInput(BaseModel):
-    """No documentation"""
-
-    collection: Optional[ID] = None
-    "The collection this view belongs to"
-    z_min: Optional[int] = Field(alias="zMin", default=None)
-    "The minimum z coordinate of the view"
-    z_max: Optional[int] = Field(alias="zMax", default=None)
-    "The maximum z coordinate of the view"
-    x_min: Optional[int] = Field(alias="xMin", default=None)
-    "The minimum x coordinate of the view"
-    x_max: Optional[int] = Field(alias="xMax", default=None)
-    "The maximum x coordinate of the view"
-    y_min: Optional[int] = Field(alias="yMin", default=None)
-    "The minimum y coordinate of the view"
-    y_max: Optional[int] = Field(alias="yMax", default=None)
-    "The maximum y coordinate of the view"
-    t_min: Optional[int] = Field(alias="tMin", default=None)
-    "The minimum t coordinate of the view"
-    t_max: Optional[int] = Field(alias="tMax", default=None)
-    "The maximum t coordinate of the view"
-    c_min: Optional[int] = Field(alias="cMin", default=None)
-    "The minimum c (channel) coordinate of the view"
-    c_max: Optional[int] = Field(alias="cMax", default=None)
-    "The maximum c (channel) coordinate of the view"
-    graph: "LightpathGraphInput"
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class LightpathGraphInput(BaseModel):
-    """Bulk input for a full lightpath graph, including elements and edges."""
-
-    elements: Tuple["OpticalElementInput", ...]
-    edges: Tuple["LightEdgeInput", ...]
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class OpticalElementInput(BaseModel):
-    """Input for creating or updating any optical element. Fill only fields relevant to the chosen `kind`."""
-
-    id: ID
-    label: str
-    kind: ElementKind
-    pose: Optional["Pose3DInput"] = None
-    ports: Tuple["LightPortInput", ...]
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias="serialNumber", default=None)
-    nominal_wavelength_nm: Optional[float] = Field(
-        alias="nominalWavelengthNm", default=None
-    )
-    channel: Optional[ChannelKind] = None
-    diameter_um: Optional[float] = Field(alias="diameterUm", default=None)
-    nepd_w_per_sqrt_hz: Optional[float] = Field(alias="nepdWPerSqrtHz", default=None)
-    angle_deg: Optional[float] = Field(alias="angleDeg", default=None)
-    band_min_nm: Optional[float] = Field(alias="bandMinNm", default=None)
-    band_max_nm: Optional[float] = Field(alias="bandMaxNm", default=None)
-    r_fraction: Optional[float] = Field(alias="rFraction", default=None)
-    t_fraction: Optional[float] = Field(alias="tFraction", default=None)
-    focal_length_mm: Optional[float] = Field(alias="focalLengthMm", default=None)
-    magnification: Optional[float] = None
-    numerical_aperture: Optional[float] = Field(alias="numericalAperture", default=None)
-    brand: Optional[str] = None
-    working_distance_mm: Optional[float] = Field(
-        alias="workingDistanceMm", default=None
-    )
-    immersion_medium: Optional[ObjectiveImmersion] = Field(
-        alias="immersionMedium", default=None
-    )
-    iris: Optional[bool] = None
-    amplifier_gain_db: Optional[float] = Field(alias="amplifierGainDb", default=None)
-    gain: Optional[float] = None
-    pixel_size_um: Optional[float] = Field(alias="pixelSizeUm", default=None)
-    resolution: Optional[Tuple[int, ...]] = None
-    power_mw: Optional[float] = Field(alias="powerMw", default=None)
-    laser_medium: Optional[str] = Field(alias="laserMedium", default=None)
-    pulse_kind: Optional[PulseKind] = Field(alias="pulseKind", default=None)
-    repetition_rate_hz: Optional[float] = Field(alias="repetitionRateHz", default=None)
-    has_pockels_cell: Optional[bool] = Field(alias="hasPockelsCell", default=None)
-    has_q_switch: Optional[bool] = Field(alias="hasQSwitch", default=None)
+    era: Optional[ID] = None
+    ms_since_start: Optional[Milliseconds] = Field(alias="msSinceStart", default=None)
+    index_since_start: Optional[int] = Field(alias="indexSinceStart", default=None)
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -1126,274 +1434,7 @@ class Pose3DInput(BaseModel):
     """A 3D pose consisting of position and orientation."""
 
     position: Optional["Vec3Input"] = None
-    orientation: Optional["EulerInput"] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class Vec3Input(BaseModel):
-    """A 3D vector representing a point or offset in space."""
-
-    x: Optional[float] = None
-    y: Optional[float] = None
-    z: Optional[float] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class EulerInput(BaseModel):
-    """Euler angles representing rotation in 3D space."""
-
-    rx: Optional[float] = None
-    ry: Optional[float] = None
-    rz: Optional[float] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class LightPortInput(BaseModel):
-    """Input definition for an optical port on an element."""
-
-    id: ID
-    name: str
-    role: PortRole
-    channel: ChannelKind
-    spectrum: Optional["SpectrumInput"] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class SpectrumInput(BaseModel):
-    """Spectral window in nanometers for wavelength-dependent components."""
-
-    min_nm: float = Field(alias="minNm")
-    max_nm: float = Field(alias="maxNm")
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class LightEdgeInput(BaseModel):
-    """Input for connecting two optical ports."""
-
-    id: str
-    source_element_id: ID = Field(alias="sourceElementId")
-    source_port_id: ID = Field(alias="sourcePortId")
-    target_element_id: ID = Field(alias="targetElementId")
-    target_port_id: ID = Field(alias="targetPortId")
-    path_length_mm: Optional[float] = Field(alias="pathLengthMm", default=None)
-    medium: Optional[str] = None
-    loss_db: Optional[float] = Field(alias="lossDb", default=None)
-    beam: Optional["BeamStateInput"] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class BeamStateInput(BaseModel):
-    """State of the optical beam on a particular path segment."""
-
-    wavelength_nm: Optional[float] = Field(alias="wavelengthNm", default=None)
-    power_mw: Optional[float] = Field(alias="powerMw", default=None)
-    polarization: Optional[str] = None
-    mode_hint: Optional[str] = Field(alias="modeHint", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class RenderTreeInput(BaseModel):
-    """No documentation"""
-
-    tree: "TreeInput"
-    name: str
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class TreeInput(BaseModel):
-    """No documentation"""
-
-    id: Optional[str] = None
-    children: Tuple["TreeNodeInput", ...]
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class TreeNodeInput(BaseModel):
-    """No documentation"""
-
-    kind: RenderNodeKind
-    label: Optional[str] = None
-    context: Optional[str] = None
-    gap: Optional[int] = None
-    children: Optional[Tuple["TreeNodeInput", ...]] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class FromParquetLike(BaseModel):
-    """No documentation"""
-
-    dataframe: ParquetLike
-    "The parquet dataframe to create the table from"
-    name: str
-    "The name of the table"
-    origins: Optional[Tuple[ID, ...]] = None
-    "The IDs of tables this table was derived from"
-    dataset: Optional[ID] = None
-    "The dataset ID this table belongs to"
-    label_accessors: Optional[Tuple["PartialLabelAccessorInput", ...]] = Field(
-        alias="labelAccessors", default=None
-    )
-    "Label accessors to create for this table"
-    image_accessors: Optional[Tuple["PartialImageAccessorInput", ...]] = Field(
-        alias="imageAccessors", default=None
-    )
-    "Image accessors to create for this table"
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class PartialLabelAccessorInput(BaseModel):
-    """No documentation"""
-
-    keys: Tuple[str, ...]
-    min_index: Optional[int] = Field(alias="minIndex", default=None)
-    max_index: Optional[int] = Field(alias="maxIndex", default=None)
-    pixel_view: ID = Field(alias="pixelView")
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class PartialImageAccessorInput(BaseModel):
-    """No documentation"""
-
-    keys: Tuple[str, ...]
-    min_index: Optional[int] = Field(alias="minIndex", default=None)
-    max_index: Optional[int] = Field(alias="maxIndex", default=None)
-    image: ID
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class MeshInput(BaseModel):
-    """No documentation"""
-
-    mesh: MeshLike
-    name: str
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class FromFileLike(BaseModel):
-    """No documentation"""
-
-    file: FileLike
-    file_name: str = Field(alias="fileName")
-    dataset: Optional[ID] = None
-    origins: Optional[Tuple[ID, ...]] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class StageInput(BaseModel):
-    """No documentation"""
-
-    name: str
-    instrument: Optional[ID] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class CreateRGBContextInput(BaseModel):
-    """No documentation"""
-
-    name: Optional[str] = None
-    thumbnail: Optional[ID] = None
-    image: ID
-    views: Optional[Tuple[PartialRGBViewInput, ...]] = None
-    z: Optional[int] = None
-    t: Optional[int] = None
-    c: Optional[int] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class UpdateRGBContextInput(BaseModel):
-    """No documentation"""
-
-    id: ID
-    name: Optional[str] = None
-    thumbnail: Optional[ID] = None
-    views: Optional[Tuple[PartialRGBViewInput, ...]] = None
-    z: Optional[int] = None
-    t: Optional[int] = None
-    c: Optional[int] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class CreateDatasetInput(BaseModel):
-    """No documentation"""
-
-    name: str
-    parent: Optional[ID] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class ChangeDatasetInput(BaseModel):
-    """No documentation"""
-
-    name: str
-    parent: Optional[ID] = None
-    id: ID
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class RevertInput(BaseModel):
-    """No documentation"""
-
-    id: ID
-    history_id: ID = Field(alias="historyId")
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class ViewCollectionInput(BaseModel):
-    """No documentation"""
-
-    name: str
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class EraInput(BaseModel):
-    """No documentation"""
-
-    name: str
-    begin: Optional[datetime] = None
+    orientation: Optional[EulerInput] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -1434,6 +1475,301 @@ class RGBViewInput(BaseModel):
     color_map: Optional[ColorMap] = Field(alias="colorMap", default=None)
     base_color: Optional[Tuple[float, ...]] = Field(alias="baseColor", default=None)
     image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ReferenceViewInput(BaseModel):
+    """No documentation"""
+
+    collection: Optional[ID] = None
+    "The collection this view belongs to"
+    z_min: Optional[int] = Field(alias="zMin", default=None)
+    "The minimum z coordinate of the view"
+    z_max: Optional[int] = Field(alias="zMax", default=None)
+    "The maximum z coordinate of the view"
+    x_min: Optional[int] = Field(alias="xMin", default=None)
+    "The minimum x coordinate of the view"
+    x_max: Optional[int] = Field(alias="xMax", default=None)
+    "The maximum x coordinate of the view"
+    y_min: Optional[int] = Field(alias="yMin", default=None)
+    "The minimum y coordinate of the view"
+    y_max: Optional[int] = Field(alias="yMax", default=None)
+    "The maximum y coordinate of the view"
+    t_min: Optional[int] = Field(alias="tMin", default=None)
+    "The minimum t coordinate of the view"
+    t_max: Optional[int] = Field(alias="tMax", default=None)
+    "The maximum t coordinate of the view"
+    c_min: Optional[int] = Field(alias="cMin", default=None)
+    "The minimum c (channel) coordinate of the view"
+    c_max: Optional[int] = Field(alias="cMax", default=None)
+    "The maximum c (channel) coordinate of the view"
+    image: ID
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RenderTreeInput(BaseModel):
+    """No documentation"""
+
+    tree: "TreeInput"
+    name: str
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestBigFileAccessInput(BaseModel):
+    """No documentation"""
+
+    store_id: str = Field(alias="storeId")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestBigFileUploadInput(BaseModel):
+    """No documentation"""
+
+    original_file_name: str = Field(alias="originalFileName")
+    file_size: Optional[int] = Field(alias="fileSize", default=None)
+    content_type: Optional[str] = Field(alias="contentType", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestMediaAccessInput(BaseModel):
+    """No documentation"""
+
+    store_id: str = Field(alias="storeId")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestMediaUploadInput(BaseModel):
+    """No documentation"""
+
+    original_file_name: str = Field(alias="originalFileName")
+    file_size: Optional[int] = Field(alias="fileSize", default=None)
+    content_type: Optional[str] = Field(alias="contentType", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestParquetAccessInput(BaseModel):
+    """No documentation"""
+
+    store_id: str = Field(alias="storeId")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestParquetUploadInput(BaseModel):
+    """No documentation"""
+
+    original_file_name: str = Field(alias="originalFileName")
+    content_type: Optional[str] = Field(alias="contentType", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestZarrAccessInput(BaseModel):
+    """No documentation"""
+
+    store_id: str = Field(alias="storeId")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RequestZarrUploadInput(BaseModel):
+    """No documentation"""
+
+    shape: Optional[Tuple[int, ...]] = None
+    chunks: Optional[Tuple[int, ...]] = None
+    version: Optional[str] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RevertInput(BaseModel):
+    """No documentation"""
+
+    id: ID
+    history_id: ID = Field(alias="historyId")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class RoiInput(BaseModel):
+    """No documentation"""
+
+    image: ID
+    "The image this ROI belongs to"
+    vectors: Tuple[FiveDVector, ...]
+    "The vector coordinates defining the ROI"
+    kind: RoiKind
+    "The type/kind of ROI"
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ScopeFilter(BaseModel):
+    """No documentation"""
+
+    public: Optional[bool] = None
+    org: Optional[bool] = None
+    shared: Optional[bool] = None
+    me: Optional[bool] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class SliceInput(BaseModel):
+    """Input type for a dimension descriptor, which specifies a key and a kind for a dimension"""
+
+    dim: str
+    start: Optional[int] = None
+    stop: Optional[int] = None
+    step: Optional[int] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class SnapshotInput(BaseModel):
+    """No documentation"""
+
+    file: ImageFileLike
+    image: ID
+    name: Optional[str] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class SpectrumInput(BaseModel):
+    """Spectral window in nanometers for wavelength-dependent components."""
+
+    min_nm: float = Field(alias="minNm")
+    max_nm: float = Field(alias="maxNm")
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class StageFilter(BaseModel):
+    """No documentation"""
+
+    ids: Optional[Tuple[ID, ...]] = None
+    search: Optional[str] = None
+    id: Optional[ID] = None
+    kind: Optional[str] = None
+    name: Optional["StrFilterLookup"] = None
+    and_: Optional["StageFilter"] = Field(alias="AND", default=None)
+    or_: Optional["StageFilter"] = Field(alias="OR", default=None)
+    not_: Optional["StageFilter"] = Field(alias="NOT", default=None)
+    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class StageInput(BaseModel):
+    """No documentation"""
+
+    name: str
+    instrument: Optional[ID] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class StrFilterLookup(BaseModel):
+    """No documentation"""
+
+    exact: Optional[str] = None
+    i_exact: Optional[str] = Field(alias="iExact", default=None)
+    contains: Optional[str] = None
+    i_contains: Optional[str] = Field(alias="iContains", default=None)
+    in_list: Optional[Tuple[str, ...]] = Field(alias="inList", default=None)
+    gt: Optional[str] = None
+    gte: Optional[str] = None
+    lt: Optional[str] = None
+    lte: Optional[str] = None
+    starts_with: Optional[str] = Field(alias="startsWith", default=None)
+    i_starts_with: Optional[str] = Field(alias="iStartsWith", default=None)
+    ends_with: Optional[str] = Field(alias="endsWith", default=None)
+    i_ends_with: Optional[str] = Field(alias="iEndsWith", default=None)
+    range: Optional[Tuple[str, ...]] = None
+    is_null: Optional[bool] = Field(alias="isNull", default=None)
+    regex: Optional[str] = None
+    i_regex: Optional[str] = Field(alias="iRegex", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class TimepointViewFilter(BaseModel):
+    """No documentation"""
+
+    is_global: Optional[bool] = Field(alias="isGlobal", default=None)
+    and_: Optional["TimepointViewFilter"] = Field(alias="AND", default=None)
+    or_: Optional["TimepointViewFilter"] = Field(alias="OR", default=None)
+    not_: Optional["TimepointViewFilter"] = Field(alias="NOT", default=None)
+    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
+    era: Optional[EraFilter] = None
+    ms_since_start: Optional[float] = Field(alias="msSinceStart", default=None)
+    index_since_start: Optional[int] = Field(alias="indexSinceStart", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class TreeInput(BaseModel):
+    """No documentation"""
+
+    id: Optional[str] = None
+    children: Tuple["TreeNodeInput", ...]
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class TreeNodeInput(BaseModel):
+    """No documentation"""
+
+    kind: RenderNodeKind
+    label: Optional[str] = None
+    context: Optional[str] = None
+    gap: Optional[int] = None
+    children: Optional[Tuple["TreeNodeInput", ...]] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class UpdateRGBContextInput(BaseModel):
+    """No documentation"""
+
+    id: ID
+    name: Optional[str] = None
+    thumbnail: Optional[ID] = None
+    views: Optional[Tuple[PartialRGBViewInput, ...]] = None
+    z: Optional[int] = None
+    t: Optional[int] = None
+    c: Optional[int] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -1480,170 +1816,6 @@ class UpdateRGBViewInput(BaseModel):
     )
 
 
-class MaskViewInput(BaseModel):
-    """No documentation"""
-
-    collection: Optional[ID] = None
-    "The collection this view belongs to"
-    z_min: Optional[int] = Field(alias="zMin", default=None)
-    "The minimum z coordinate of the view"
-    z_max: Optional[int] = Field(alias="zMax", default=None)
-    "The maximum z coordinate of the view"
-    x_min: Optional[int] = Field(alias="xMin", default=None)
-    "The minimum x coordinate of the view"
-    x_max: Optional[int] = Field(alias="xMax", default=None)
-    "The maximum x coordinate of the view"
-    y_min: Optional[int] = Field(alias="yMin", default=None)
-    "The minimum y coordinate of the view"
-    y_max: Optional[int] = Field(alias="yMax", default=None)
-    "The maximum y coordinate of the view"
-    t_min: Optional[int] = Field(alias="tMin", default=None)
-    "The minimum t coordinate of the view"
-    t_max: Optional[int] = Field(alias="tMax", default=None)
-    "The maximum t coordinate of the view"
-    c_min: Optional[int] = Field(alias="cMin", default=None)
-    "The minimum c (channel) coordinate of the view"
-    c_max: Optional[int] = Field(alias="cMax", default=None)
-    "The maximum c (channel) coordinate of the view"
-    reference_view: Optional[ID] = Field(alias="referenceView", default=None)
-    labels: Optional[LabelsLike] = None
-    image: ID
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class InstanceMaskViewInput(BaseModel):
-    """No documentation"""
-
-    collection: Optional[ID] = None
-    "The collection this view belongs to"
-    z_min: Optional[int] = Field(alias="zMin", default=None)
-    "The minimum z coordinate of the view"
-    z_max: Optional[int] = Field(alias="zMax", default=None)
-    "The maximum z coordinate of the view"
-    x_min: Optional[int] = Field(alias="xMin", default=None)
-    "The minimum x coordinate of the view"
-    x_max: Optional[int] = Field(alias="xMax", default=None)
-    "The maximum x coordinate of the view"
-    y_min: Optional[int] = Field(alias="yMin", default=None)
-    "The minimum y coordinate of the view"
-    y_max: Optional[int] = Field(alias="yMax", default=None)
-    "The maximum y coordinate of the view"
-    t_min: Optional[int] = Field(alias="tMin", default=None)
-    "The minimum t coordinate of the view"
-    t_max: Optional[int] = Field(alias="tMax", default=None)
-    "The maximum t coordinate of the view"
-    c_min: Optional[int] = Field(alias="cMin", default=None)
-    "The minimum c (channel) coordinate of the view"
-    c_max: Optional[int] = Field(alias="cMax", default=None)
-    "The maximum c (channel) coordinate of the view"
-    reference_view: Optional[ID] = Field(alias="referenceView", default=None)
-    labels: Optional[LabelsLike] = None
-    image: ID
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class ReferenceViewInput(BaseModel):
-    """No documentation"""
-
-    collection: Optional[ID] = None
-    "The collection this view belongs to"
-    z_min: Optional[int] = Field(alias="zMin", default=None)
-    "The minimum z coordinate of the view"
-    z_max: Optional[int] = Field(alias="zMax", default=None)
-    "The maximum z coordinate of the view"
-    x_min: Optional[int] = Field(alias="xMin", default=None)
-    "The minimum x coordinate of the view"
-    x_max: Optional[int] = Field(alias="xMax", default=None)
-    "The maximum x coordinate of the view"
-    y_min: Optional[int] = Field(alias="yMin", default=None)
-    "The minimum y coordinate of the view"
-    y_max: Optional[int] = Field(alias="yMax", default=None)
-    "The maximum y coordinate of the view"
-    t_min: Optional[int] = Field(alias="tMin", default=None)
-    "The minimum t coordinate of the view"
-    t_max: Optional[int] = Field(alias="tMax", default=None)
-    "The maximum t coordinate of the view"
-    c_min: Optional[int] = Field(alias="cMin", default=None)
-    "The minimum c (channel) coordinate of the view"
-    c_max: Optional[int] = Field(alias="cMax", default=None)
-    "The maximum c (channel) coordinate of the view"
-    image: ID
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class InstrumentInput(BaseModel):
-    """No documentation"""
-
-    serial_number: str = Field(alias="serialNumber")
-    manufacturer: Optional[str] = None
-    name: Optional[str] = None
-    model: Optional[str] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class ObjectiveInput(BaseModel):
-    """No documentation"""
-
-    serial_number: str = Field(alias="serialNumber")
-    name: Optional[str] = None
-    na: Optional[float] = None
-    magnification: Optional[float] = None
-    immersion: Optional[str] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class CameraInput(BaseModel):
-    """No documentation"""
-
-    serial_number: str = Field(alias="serialNumber")
-    name: Optional[str] = None
-    model: Optional[str] = None
-    bit_depth: Optional[int] = Field(alias="bitDepth", default=None)
-    sensor_size_x: Optional[int] = Field(alias="sensorSizeX", default=None)
-    sensor_size_y: Optional[int] = Field(alias="sensorSizeY", default=None)
-    pixel_size_x: Optional[Micrometers] = Field(alias="pixelSizeX", default=None)
-    pixel_size_y: Optional[Micrometers] = Field(alias="pixelSizeY", default=None)
-    manufacturer: Optional[str] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class SnapshotInput(BaseModel):
-    """No documentation"""
-
-    file: ImageFileLike
-    image: ID
-    name: Optional[str] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class RoiInput(BaseModel):
-    """No documentation"""
-
-    image: ID
-    "The image this ROI belongs to"
-    vectors: Tuple[FiveDVector, ...]
-    "The vector coordinates defining the ROI"
-    kind: RoiKind
-    "The type/kind of ROI"
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
 class UpdateRoiInput(BaseModel):
     """No documentation"""
 
@@ -1659,10 +1831,67 @@ class UpdateRoiInput(BaseModel):
     )
 
 
-class DeleteRoiInput(BaseModel):
+class ValueHistogramInput(BaseModel):
+    """Input type for a value histogram, which specifies the histogram of pixel values along certain dimensions to provide additional context about the distribution of pixel values in an image"""
+
+    histogram: Tuple[float, ...]
+    "The histogram of the pixel values (y values)"
+    bins: Tuple[float, ...]
+    "The bin indices of the histogram (x values)"
+    min: Optional[float] = None
+    "The minimum pixel value of the histogram"
+    max: Optional[float] = None
+    "The maximum pixel value of the histogram"
+    p1: Optional[float] = None
+    "The 1st percentile pixel value of the histogram"
+    p99: Optional[float] = None
+    "The 99th percentile pixel value of the histogram"
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class Vec3Input(BaseModel):
+    """A 3D vector representing a point or offset in space."""
+
+    x: Optional[float] = None
+    y: Optional[float] = None
+    z: Optional[float] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ViewCollectionInput(BaseModel):
     """No documentation"""
 
-    id: ID
+    name: str
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ViewFilter(BaseModel):
+    """No documentation"""
+
+    is_global: Optional[bool] = Field(alias="isGlobal", default=None)
+    and_: Optional["ViewFilter"] = Field(alias="AND", default=None)
+    or_: Optional["ViewFilter"] = Field(alias="OR", default=None)
+    not_: Optional["ViewFilter"] = Field(alias="NOT", default=None)
+    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ZarrStoreFilter(BaseModel):
+    """No documentation"""
+
+    shape: Optional[IntFilterLookup] = None
+    and_: Optional["ZarrStoreFilter"] = Field(alias="AND", default=None)
+    or_: Optional["ZarrStoreFilter"] = Field(alias="OR", default=None)
+    not_: Optional["ZarrStoreFilter"] = Field(alias="NOT", default=None)
+    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -1700,19 +1929,19 @@ class ViewCatch(ViewBase):
     z_max: Optional[int] = Field(default=None, alias="zMax")
 
 
+class ViewAcquisitionView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["AcquisitionView"] = Field(
+        alias="__typename", default="AcquisitionView", exclude=True
+    )
+
+
 class ViewAffineTransformationView(ViewBase, BaseModel):
     """No documentation"""
 
     typename: Literal["AffineTransformationView"] = Field(
         alias="__typename", default="AffineTransformationView", exclude=True
-    )
-
-
-class ViewLabelView(ViewBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["LabelView"] = Field(
-        alias="__typename", default="LabelView", exclude=True
     )
 
 
@@ -1724,67 +1953,11 @@ class ViewChannelView(ViewBase, BaseModel):
     )
 
 
-class ViewTimepointView(ViewBase, BaseModel):
+class ViewContinousScanView(ViewBase, BaseModel):
     """No documentation"""
 
-    typename: Literal["TimepointView"] = Field(
-        alias="__typename", default="TimepointView", exclude=True
-    )
-
-
-class ViewOpticsView(ViewBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["OpticsView"] = Field(
-        alias="__typename", default="OpticsView", exclude=True
-    )
-
-
-class ViewMaskView(ViewBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["MaskView"] = Field(
-        alias="__typename", default="MaskView", exclude=True
-    )
-
-
-class ViewReferenceView(ViewBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["ReferenceView"] = Field(
-        alias="__typename", default="ReferenceView", exclude=True
-    )
-
-
-class ViewInstanceMaskView(ViewBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["InstanceMaskView"] = Field(
-        alias="__typename", default="InstanceMaskView", exclude=True
-    )
-
-
-class ViewScaleView(ViewBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["ScaleView"] = Field(
-        alias="__typename", default="ScaleView", exclude=True
-    )
-
-
-class ViewHistogramView(ViewBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["HistogramView"] = Field(
-        alias="__typename", default="HistogramView", exclude=True
-    )
-
-
-class ViewRGBView(ViewBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["RGBView"] = Field(
-        alias="__typename", default="RGBView", exclude=True
+    typename: Literal["ContinousScanView"] = Field(
+        alias="__typename", default="ContinousScanView", exclude=True
     )
 
 
@@ -1796,19 +1969,35 @@ class ViewDerivedView(ViewBase, BaseModel):
     )
 
 
-class ViewROIView(ViewBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["ROIView"] = Field(
-        alias="__typename", default="ROIView", exclude=True
-    )
-
-
 class ViewFileView(ViewBase, BaseModel):
     """No documentation"""
 
     typename: Literal["FileView"] = Field(
         alias="__typename", default="FileView", exclude=True
+    )
+
+
+class ViewHistogramView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["HistogramView"] = Field(
+        alias="__typename", default="HistogramView", exclude=True
+    )
+
+
+class ViewInstanceMaskView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["InstanceMaskView"] = Field(
+        alias="__typename", default="InstanceMaskView", exclude=True
+    )
+
+
+class ViewLabelView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["LabelView"] = Field(
+        alias="__typename", default="LabelView", exclude=True
     )
 
 
@@ -1820,11 +2009,59 @@ class ViewLightpathView(ViewBase, BaseModel):
     )
 
 
-class ViewContinousScanView(ViewBase, BaseModel):
+class ViewMaskView(ViewBase, BaseModel):
     """No documentation"""
 
-    typename: Literal["ContinousScanView"] = Field(
-        alias="__typename", default="ContinousScanView", exclude=True
+    typename: Literal["MaskView"] = Field(
+        alias="__typename", default="MaskView", exclude=True
+    )
+
+
+class ViewOpticsView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["OpticsView"] = Field(
+        alias="__typename", default="OpticsView", exclude=True
+    )
+
+
+class ViewRGBView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["RGBView"] = Field(
+        alias="__typename", default="RGBView", exclude=True
+    )
+
+
+class ViewROIView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ROIView"] = Field(
+        alias="__typename", default="ROIView", exclude=True
+    )
+
+
+class ViewReferenceView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ReferenceView"] = Field(
+        alias="__typename", default="ReferenceView", exclude=True
+    )
+
+
+class ViewScaleView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ScaleView"] = Field(
+        alias="__typename", default="ScaleView", exclude=True
+    )
+
+
+class ViewTimepointView(ViewBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["TimepointView"] = Field(
+        alias="__typename", default="TimepointView", exclude=True
     )
 
 
@@ -1836,12 +2073,40 @@ class ViewWellPositionView(ViewBase, BaseModel):
     )
 
 
-class ViewAcquisitionView(ViewBase, BaseModel):
+class ADatasetDataarrays(DataArrayTrait, BaseModel):
     """No documentation"""
 
-    typename: Literal["AcquisitionView"] = Field(
-        alias="__typename", default="AcquisitionView", exclude=True
+    typename: Literal["DataArray"] = Field(
+        alias="__typename", default="DataArray", exclude=True
     )
+    level: int
+    shape: Tuple[int, ...]
+    chunk_shape: Tuple[int, ...] = Field(alias="chunkShape")
+    scale_factors: Optional[Tuple[float, ...]] = Field(
+        default=None, alias="scaleFactors"
+    )
+    model_config = ConfigDict(frozen=True)
+
+
+class ADataset(DatasetTrait, MikroFetchable, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ADataset"] = Field(
+        alias="__typename", default="ADataset", exclude=True
+    )
+    id: ID
+    name: str
+    dims: Tuple[str, ...]
+    data_arrays: Tuple[ADatasetDataarrays, ...] = Field(alias="dataArrays")
+    "Provenance entries for this camera"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for ADataset"""
+
+        document = "fragment ADataset on ADataset {\n  id\n  name\n  dims\n  dataArrays {\n    level\n    shape\n    chunkShape\n    scaleFactors\n    __typename\n  }\n  __typename\n}"
+        name = "ADataset"
+        type = "ADataset"
 
 
 class Camera(MikroFetchable, BaseModel):
@@ -1866,74 +2131,195 @@ class Camera(MikroFetchable, BaseModel):
         type = "Camera"
 
 
-class Credentials(MikroFetchable, BaseModel):
-    """Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)"""
+class BigFileUploadGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for uploading a big file."""
 
-    typename: Literal["Credentials"] = Field(
-        alias="__typename", default="Credentials", exclude=True
-    )
-    access_key: str = Field(alias="accessKey")
-    status: str
-    secret_key: str = Field(alias="secretKey")
-    bucket: str
-    key: str
-    session_token: str = Field(alias="sessionToken")
-    store: str
-    model_config = ConfigDict(frozen=True)
-
-    class Meta:
-        """Meta class for Credentials"""
-
-        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}"
-        name = "Credentials"
-        type = "Credentials"
-
-
-class AccessCredentials(MikroFetchable, BaseModel):
-    """Temporary Credentials for a file download that can be used by a Client (e.g. in a python datalayer)"""
-
-    typename: Literal["AccessCredentials"] = Field(
-        alias="__typename", default="AccessCredentials", exclude=True
+    typename: Literal["BigFileUploadGrant"] = Field(
+        alias="__typename", default="BigFileUploadGrant", exclude=True
     )
     access_key: str = Field(alias="accessKey")
     secret_key: str = Field(alias="secretKey")
-    bucket: str
-    key: str
     session_token: str = Field(alias="sessionToken")
     path: str
-    model_config = ConfigDict(frozen=True)
-
-    class Meta:
-        """Meta class for AccessCredentials"""
-
-        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}"
-        name = "AccessCredentials"
-        type = "AccessCredentials"
-
-
-class PresignedPostCredentials(MikroFetchable, BaseModel):
-    """Temporary Credentials for a file upload that can be used by a Client (e.g. in a python datalayer)"""
-
-    typename: Literal["PresignedPostCredentials"] = Field(
-        alias="__typename", default="PresignedPostCredentials", exclude=True
-    )
     key: str
-    x_amz_credential: str = Field(alias="xAmzCredential")
-    x_amz_algorithm: str = Field(alias="xAmzAlgorithm")
-    x_amz_date: str = Field(alias="xAmzDate")
-    x_amz_signature: str = Field(alias="xAmzSignature")
-    policy: str
-    datalayer: str
     bucket: str
+    expires_in: int = Field(alias="expiresIn")
     store: str
     model_config = ConfigDict(frozen=True)
 
     class Meta:
-        """Meta class for PresignedPostCredentials"""
+        """Meta class for BigFileUploadGrant"""
 
-        document = "fragment PresignedPostCredentials on PresignedPostCredentials {\n  key\n  xAmzCredential\n  xAmzAlgorithm\n  xAmzDate\n  xAmzSignature\n  policy\n  datalayer\n  bucket\n  store\n  __typename\n}"
-        name = "PresignedPostCredentials"
-        type = "PresignedPostCredentials"
+        document = "fragment BigFileUploadGrant on BigFileUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  store\n  __typename\n}"
+        name = "BigFileUploadGrant"
+        type = "BigFileUploadGrant"
+
+
+class MediaUploadGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for uploading a media object."""
+
+    typename: Literal["MediaUploadGrant"] = Field(
+        alias="__typename", default="MediaUploadGrant", exclude=True
+    )
+    access_key: str = Field(alias="accessKey")
+    secret_key: str = Field(alias="secretKey")
+    session_token: str = Field(alias="sessionToken")
+    path: str
+    key: str
+    bucket: str
+    expires_in: int = Field(alias="expiresIn")
+    max_bytes: int = Field(alias="maxBytes")
+    store: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for MediaUploadGrant"""
+
+        document = "fragment MediaUploadGrant on MediaUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}"
+        name = "MediaUploadGrant"
+        type = "MediaUploadGrant"
+
+
+class ZarrUploadGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for uploading a Zarr store."""
+
+    typename: Literal["ZarrUploadGrant"] = Field(
+        alias="__typename", default="ZarrUploadGrant", exclude=True
+    )
+    access_key: str = Field(alias="accessKey")
+    secret_key: str = Field(alias="secretKey")
+    session_token: str = Field(alias="sessionToken")
+    path: str
+    key: str
+    bucket: str
+    expires_in: int = Field(alias="expiresIn")
+    max_bytes: int = Field(alias="maxBytes")
+    store: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for ZarrUploadGrant"""
+
+        document = "fragment ZarrUploadGrant on ZarrUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}"
+        name = "ZarrUploadGrant"
+        type = "ZarrUploadGrant"
+
+
+class ParquetUploadGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for uploading a parquet store."""
+
+    typename: Literal["ParquetUploadGrant"] = Field(
+        alias="__typename", default="ParquetUploadGrant", exclude=True
+    )
+    access_key: str = Field(alias="accessKey")
+    secret_key: str = Field(alias="secretKey")
+    session_token: str = Field(alias="sessionToken")
+    path: str
+    key: str
+    bucket: str
+    expires_in: int = Field(alias="expiresIn")
+    max_bytes: int = Field(alias="maxBytes")
+    store: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for ParquetUploadGrant"""
+
+        document = "fragment ParquetUploadGrant on ParquetUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}"
+        name = "ParquetUploadGrant"
+        type = "ParquetUploadGrant"
+
+
+class BigFileAccessGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for reading a big file."""
+
+    typename: Literal["BigFileAccessGrant"] = Field(
+        alias="__typename", default="BigFileAccessGrant", exclude=True
+    )
+    access_key: str = Field(alias="accessKey")
+    secret_key: str = Field(alias="secretKey")
+    session_token: str = Field(alias="sessionToken")
+    expires_in: int = Field(alias="expiresIn")
+    path: str
+    key: str
+    bucket: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for BigFileAccessGrant"""
+
+        document = "fragment BigFileAccessGrant on BigFileAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}"
+        name = "BigFileAccessGrant"
+        type = "BigFileAccessGrant"
+
+
+class MediaAccessGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for reading a media object."""
+
+    typename: Literal["MediaAccessGrant"] = Field(
+        alias="__typename", default="MediaAccessGrant", exclude=True
+    )
+    access_key: str = Field(alias="accessKey")
+    secret_key: str = Field(alias="secretKey")
+    session_token: str = Field(alias="sessionToken")
+    expires_in: int = Field(alias="expiresIn")
+    path: str
+    key: str
+    bucket: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for MediaAccessGrant"""
+
+        document = "fragment MediaAccessGrant on MediaAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}"
+        name = "MediaAccessGrant"
+        type = "MediaAccessGrant"
+
+
+class ZarrAccessGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for reading a Zarr store."""
+
+    typename: Literal["ZarrAccessGrant"] = Field(
+        alias="__typename", default="ZarrAccessGrant", exclude=True
+    )
+    access_key: str = Field(alias="accessKey")
+    secret_key: str = Field(alias="secretKey")
+    session_token: str = Field(alias="sessionToken")
+    expires_in: int = Field(alias="expiresIn")
+    path: str
+    key: str
+    bucket: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for ZarrAccessGrant"""
+
+        document = "fragment ZarrAccessGrant on ZarrAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}"
+        name = "ZarrAccessGrant"
+        type = "ZarrAccessGrant"
+
+
+class ParquetAccessGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for reading a parquet object."""
+
+    typename: Literal["ParquetAccessGrant"] = Field(
+        alias="__typename", default="ParquetAccessGrant", exclude=True
+    )
+    access_key: str = Field(alias="accessKey")
+    secret_key: str = Field(alias="secretKey")
+    session_token: str = Field(alias="sessionToken")
+    expires_in: int = Field(alias="expiresIn")
+    path: str
+    key: str
+    bucket: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for ParquetAccessGrant"""
+
+        document = "fragment ParquetAccessGrant on ParquetAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}"
+        name = "ParquetAccessGrant"
+        type = "ParquetAccessGrant"
 
 
 class DatasetParent(BaseModel):
@@ -1965,6 +2351,28 @@ class Dataset(MikroFetchable, BaseModel):
         document = "fragment Dataset on Dataset {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}"
         name = "Dataset"
         type = "Dataset"
+
+
+class DimDescriptor(MikroFetchable, BaseModel):
+    """No documentation"""
+
+    typename: Literal["DimDescriptor"] = Field(
+        alias="__typename", default="DimDescriptor", exclude=True
+    )
+    key: str
+    "The key of the dimension, e.g. 'x', 'y', 'z', 'c', or 't'"
+    kind: DimensionKind
+    "The kind of the dimension, e.g. 'space', 'channel', or 'time'"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for DimDescriptor"""
+
+        document = (
+            "fragment DimDescriptor on DimDescriptor {\n  key\n  kind\n  __typename\n}"
+        )
+        name = "DimDescriptor"
+        type = "DimDescriptor"
 
 
 class Era(MikroFetchable, BaseModel):
@@ -2044,6 +2452,69 @@ class Instrument(MikroFetchable, BaseModel):
         type = "Instrument"
 
 
+class LayerScene(BaseModel):
+    """No documentation"""
+
+    typename: Literal["Scene"] = Field(
+        alias="__typename", default="Scene", exclude=True
+    )
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+
+class LayerLens(Lensable, BaseModel):
+    """No documentation"""
+
+    typename: Literal["Lens"] = Field(alias="__typename", default="Lens", exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+
+class Layer(MikroFetchable, BaseModel):
+    """No documentation"""
+
+    typename: Literal["Layer"] = Field(
+        alias="__typename", default="Layer", exclude=True
+    )
+    scene: LayerScene
+    lens: LayerLens
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Layer"""
+
+        document = "fragment Layer on Layer {\n  scene {\n    id\n    name\n    __typename\n  }\n  lens {\n    id\n    __typename\n  }\n  __typename\n}"
+        name = "Layer"
+        type = "Layer"
+
+
+class Slice(MikroFetchable, BaseModel):
+    """No documentation"""
+
+    typename: Literal["Slice"] = Field(
+        alias="__typename", default="Slice", exclude=True
+    )
+    dim: str
+    "The key of the dimension, e.g. 'x', 'y', 'z', 'c', or 't'"
+    start: Optional[int] = Field(default=None)
+    "The starting index of the slice, or None to start from the beginning"
+    stop: Optional[int] = Field(default=None)
+    "The stopping index of the slice, or None to go to the end"
+    step: Optional[int] = Field(default=None)
+    "The step size of the slice, or None to use the default step"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Slice"""
+
+        document = (
+            "fragment Slice on Slice {\n  dim\n  start\n  stop\n  step\n  __typename\n}"
+        )
+        name = "Slice"
+        type = "Slice"
+
+
 class Objective(MikroFetchable, BaseModel):
     """No documentation"""
 
@@ -2064,32 +2535,22 @@ class Objective(MikroFetchable, BaseModel):
         type = "Objective"
 
 
-class ROIImage(HasZarrStoreTrait, BaseModel):
+class Scene(MikroFetchable, BaseModel):
     """No documentation"""
 
-    typename: Literal["Image"] = Field(
-        alias="__typename", default="Image", exclude=True
+    typename: Literal["Scene"] = Field(
+        alias="__typename", default="Scene", exclude=True
     )
+    name: str
     id: ID
-    model_config = ConfigDict(frozen=True)
-
-
-class ROI(IsVectorizableTrait, MikroFetchable, BaseModel):
-    """No documentation"""
-
-    typename: Literal["ROI"] = Field(alias="__typename", default="ROI", exclude=True)
-    id: ID
-    image: ROIImage
-    vectors: Tuple[FiveDVector, ...]
-    kind: RoiKind
     model_config = ConfigDict(frozen=True)
 
     class Meta:
-        """Meta class for ROI"""
+        """Meta class for Scene"""
 
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}"
-        name = "ROI"
-        type = "ROI"
+        document = "fragment Scene on Scene {\n  name\n  id\n  __typename\n}"
+        name = "Scene"
+        type = "Scene"
 
 
 class SnapshotStore(HasPresignedDownloadAccessor, BaseModel):
@@ -2100,6 +2561,7 @@ class SnapshotStore(HasPresignedDownloadAccessor, BaseModel):
     )
     key: str
     presigned_url: str = Field(alias="presignedUrl")
+    "Compatibility field returning the canonical S3 object path."
     model_config = ConfigDict(frozen=True)
 
 
@@ -2170,11 +2632,8 @@ class ZarrStore(HasZarrStoreAccessor, MikroFetchable, BaseModel):
     )
     id: ID
     key: str
-    "The key where the data is stored."
     bucket: str
-    "The bucket where the data is stored."
-    path: Optional[str] = Field(default=None)
-    "The path to the data. Relative to the bucket."
+    path: str
     model_config = ConfigDict(frozen=True)
 
     class Meta:
@@ -2205,28 +2664,8 @@ class ParquetStore(HasParquetStoreAccesor, MikroFetchable, BaseModel):
         type = "ParquetStore"
 
 
-class MeshStore(MikroFetchable, BaseModel):
-    """No documentation"""
-
-    typename: Literal["MeshStore"] = Field(
-        alias="__typename", default="MeshStore", exclude=True
-    )
-    id: ID
-    key: str
-    bucket: str
-    path: str
-    model_config = ConfigDict(frozen=True)
-
-    class Meta:
-        """Meta class for MeshStore"""
-
-        document = "fragment MeshStore on MeshStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}"
-        name = "MeshStore"
-        type = "MeshStore"
-
-
 class BigFileStore(HasDownloadAccessor, MikroFetchable, BaseModel):
-    """No documentation"""
+    """A BigFileStore represents a large object stored behind the S3 datalayer."""
 
     typename: Literal["BigFileStore"] = Field(
         alias="__typename", default="BigFileStore", exclude=True
@@ -2244,6 +2683,26 @@ class BigFileStore(HasDownloadAccessor, MikroFetchable, BaseModel):
         document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}"
         name = "BigFileStore"
         type = "BigFileStore"
+
+
+class MediaStore(HasPresignedDownloadAccessor, MikroFetchable, BaseModel):
+    """No documentation"""
+
+    typename: Literal["MediaStore"] = Field(
+        alias="__typename", default="MediaStore", exclude=True
+    )
+    id: ID
+    key: str
+    bucket: str
+    path: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for MediaStore"""
+
+        document = "fragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}"
+        name = "MediaStore"
+        type = "MediaStore"
 
 
 class TableCellTable(HasParquestStoreTrait, BaseModel):
@@ -2652,7 +3111,7 @@ class TimepointView(ViewTimepointView, MikroFetchable, BaseModel):
     class Meta:
         """Meta class for TimepointView"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}"
         name = "TimepointView"
         type = "TimepointView"
 
@@ -2739,6 +3198,125 @@ class RGBView(ViewRGBView, MikroFetchable, BaseModel):
         type = "RGBView"
 
 
+class DataRoiDatasetDataarrays(DataArrayTrait, BaseModel):
+    """No documentation"""
+
+    typename: Literal["DataArray"] = Field(
+        alias="__typename", default="DataArray", exclude=True
+    )
+    id: ID
+    store: ZarrStore
+    model_config = ConfigDict(frozen=True)
+
+
+class DataRoiDataset(DatasetTrait, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ADataset"] = Field(
+        alias="__typename", default="ADataset", exclude=True
+    )
+    id: ID
+    dim_descriptors: Tuple[DimDescriptor, ...] = Field(alias="dimDescriptors")
+    data_arrays: Tuple[DataRoiDatasetDataarrays, ...] = Field(alias="dataArrays")
+    "Provenance entries for this camera"
+    model_config = ConfigDict(frozen=True)
+
+
+class DataRoi(MikroFetchable, BaseModel):
+    """No documentation"""
+
+    typename: Literal["DataRoi"] = Field(
+        alias="__typename", default="DataRoi", exclude=True
+    )
+    id: str
+    dataset: DataRoiDataset
+    vectors: Tuple[Tuple[float, ...], ...]
+    kind: RoiKind
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for DataRoi"""
+
+        document = "fragment DimDescriptor on DimDescriptor {\n  key\n  kind\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment DataRoi on DataRoi {\n  id\n  dataset {\n    id\n    dimDescriptors {\n      ...DimDescriptor\n      __typename\n    }\n    dataArrays {\n      id\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}"
+        name = "DataRoi"
+        type = "DataRoi"
+
+
+class LensDatasetDataarrays(DataArrayTrait, BaseModel):
+    """No documentation"""
+
+    typename: Literal["DataArray"] = Field(
+        alias="__typename", default="DataArray", exclude=True
+    )
+    id: ID
+    level: int
+    store: ZarrStore
+    model_config = ConfigDict(frozen=True)
+
+
+class LensDataset(DatasetTrait, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ADataset"] = Field(
+        alias="__typename", default="ADataset", exclude=True
+    )
+    id: ID
+    dims: Tuple[str, ...]
+    data_arrays: Tuple[LensDatasetDataarrays, ...] = Field(alias="dataArrays")
+    "Provenance entries for this camera"
+    model_config = ConfigDict(frozen=True)
+
+
+class Lens(Lensable, MikroFetchable, BaseModel):
+    """No documentation"""
+
+    typename: Literal["Lens"] = Field(alias="__typename", default="Lens", exclude=True)
+    id: ID
+    dataset: LensDataset
+    shape: Tuple[int, ...]
+    dims: Tuple[str, ...]
+    dim_descriptors: Tuple[DimDescriptor, ...] = Field(alias="dimDescriptors")
+    slices: Tuple[Slice, ...]
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Lens"""
+
+        document = "fragment DimDescriptor on DimDescriptor {\n  key\n  kind\n  __typename\n}\n\nfragment Slice on Slice {\n  dim\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Lens on Lens {\n  id\n  dataset {\n    id\n    dims\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  dims\n  dimDescriptors {\n    ...DimDescriptor\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}"
+        name = "Lens"
+        type = "Lens"
+
+
+class ROIImage(HasZarrStoreTrait, BaseModel):
+    """No documentation"""
+
+    typename: Literal["Image"] = Field(
+        alias="__typename", default="Image", exclude=True
+    )
+    id: ID
+    store: ZarrStore
+    "The store where the image data is stored."
+    model_config = ConfigDict(frozen=True)
+
+
+class ROI(IsVectorizableTrait, MikroFetchable, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ROI"] = Field(alias="__typename", default="ROI", exclude=True)
+    id: ID
+    image: ROIImage
+    vectors: Tuple[FiveDVector, ...]
+    kind: RoiKind
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for ROI"""
+
+        document = "fragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ROI on ROI {\n  id\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}"
+        name = "ROI"
+        type = "ROI"
+
+
 class TableOrigins(HasZarrStoreTrait, BaseModel):
     """No documentation"""
 
@@ -2769,23 +3347,6 @@ class Table(HasParquestStoreTrait, MikroFetchable, BaseModel):
         type = "Table"
 
 
-class Mesh(MikroFetchable, BaseModel):
-    """No documentation"""
-
-    typename: Literal["Mesh"] = Field(alias="__typename", default="Mesh", exclude=True)
-    id: ID
-    name: str
-    store: MeshStore
-    model_config = ConfigDict(frozen=True)
-
-    class Meta:
-        """Meta class for Mesh"""
-
-        document = "fragment MeshStore on MeshStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Mesh on Mesh {\n  id\n  name\n  store {\n    ...MeshStore\n    __typename\n  }\n  __typename\n}"
-        name = "Mesh"
-        type = "Mesh"
-
-
 class FileOrigins(HasZarrStoreTrait, BaseModel):
     """No documentation"""
 
@@ -2814,6 +3375,23 @@ class File(FileTrait, MikroFetchable, BaseModel):
         type = "File"
 
 
+class Mesh(MikroFetchable, BaseModel):
+    """No documentation"""
+
+    typename: Literal["Mesh"] = Field(alias="__typename", default="Mesh", exclude=True)
+    id: ID
+    name: str
+    store: BigFileStore
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Mesh"""
+
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment Mesh on Mesh {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}"
+        name = "Mesh"
+        type = "Mesh"
+
+
 class MaskView(ViewMaskView, MikroFetchable, BaseModel):
     """No documentation"""
 
@@ -2827,7 +3405,7 @@ class MaskView(ViewMaskView, MikroFetchable, BaseModel):
     class Meta:
         """Meta class for MaskView"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}"
+        document = "fragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}"
         name = "MaskView"
         type = "MaskView"
 
@@ -2845,7 +3423,7 @@ class InstanceMaskView(ViewInstanceMaskView, MikroFetchable, BaseModel):
     class Meta:
         """Meta class for InstanceMaskView"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}"
+        document = "fragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}"
         name = "InstanceMaskView"
         type = "InstanceMaskView"
 
@@ -2882,7 +3460,7 @@ class RGBContext(MikroFetchable, BaseModel):
     class Meta:
         """Meta class for RGBContext"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}"
         name = "RGBContext"
         type = "RGBContext"
 
@@ -2891,6 +3469,14 @@ class ImageViewsBase(BaseModel):
     """No documentation"""
 
     model_config = ConfigDict(frozen=True)
+
+
+class ImageViewsBaseAcquisitionView(AcquisitionView, ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["AcquisitionView"] = Field(
+        alias="__typename", default="AcquisitionView", exclude=True
+    )
 
 
 class ImageViewsBaseAffineTransformationView(
@@ -2903,115 +3489,11 @@ class ImageViewsBaseAffineTransformationView(
     )
 
 
-class ImageViewsBaseLabelView(ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["LabelView"] = Field(
-        alias="__typename", default="LabelView", exclude=True
-    )
-
-
 class ImageViewsBaseChannelView(ChannelView, ImageViewsBase, BaseModel):
     """No documentation"""
 
     typename: Literal["ChannelView"] = Field(
         alias="__typename", default="ChannelView", exclude=True
-    )
-
-
-class ImageViewsBaseTimepointView(TimepointView, ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["TimepointView"] = Field(
-        alias="__typename", default="TimepointView", exclude=True
-    )
-
-
-class ImageViewsBaseOpticsView(OpticsView, ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["OpticsView"] = Field(
-        alias="__typename", default="OpticsView", exclude=True
-    )
-
-
-class ImageViewsBaseMaskView(ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["MaskView"] = Field(
-        alias="__typename", default="MaskView", exclude=True
-    )
-
-
-class ImageViewsBaseReferenceView(ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["ReferenceView"] = Field(
-        alias="__typename", default="ReferenceView", exclude=True
-    )
-
-
-class ImageViewsBaseInstanceMaskView(ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["InstanceMaskView"] = Field(
-        alias="__typename", default="InstanceMaskView", exclude=True
-    )
-
-
-class ImageViewsBaseScaleView(ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["ScaleView"] = Field(
-        alias="__typename", default="ScaleView", exclude=True
-    )
-
-
-class ImageViewsBaseHistogramView(ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["HistogramView"] = Field(
-        alias="__typename", default="HistogramView", exclude=True
-    )
-
-
-class ImageViewsBaseRGBView(RGBView, ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["RGBView"] = Field(
-        alias="__typename", default="RGBView", exclude=True
-    )
-
-
-class ImageViewsBaseDerivedView(DerivedView, ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["DerivedView"] = Field(
-        alias="__typename", default="DerivedView", exclude=True
-    )
-
-
-class ImageViewsBaseROIView(ROIView, ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["ROIView"] = Field(
-        alias="__typename", default="ROIView", exclude=True
-    )
-
-
-class ImageViewsBaseFileView(FileView, ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["FileView"] = Field(
-        alias="__typename", default="FileView", exclude=True
-    )
-
-
-class ImageViewsBaseLightpathView(ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["LightpathView"] = Field(
-        alias="__typename", default="LightpathView", exclude=True
     )
 
 
@@ -3023,19 +3505,115 @@ class ImageViewsBaseContinousScanView(ContinousScanView, ImageViewsBase, BaseMod
     )
 
 
+class ImageViewsBaseDerivedView(DerivedView, ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["DerivedView"] = Field(
+        alias="__typename", default="DerivedView", exclude=True
+    )
+
+
+class ImageViewsBaseFileView(FileView, ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["FileView"] = Field(
+        alias="__typename", default="FileView", exclude=True
+    )
+
+
+class ImageViewsBaseHistogramView(ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["HistogramView"] = Field(
+        alias="__typename", default="HistogramView", exclude=True
+    )
+
+
+class ImageViewsBaseInstanceMaskView(ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["InstanceMaskView"] = Field(
+        alias="__typename", default="InstanceMaskView", exclude=True
+    )
+
+
+class ImageViewsBaseLabelView(ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["LabelView"] = Field(
+        alias="__typename", default="LabelView", exclude=True
+    )
+
+
+class ImageViewsBaseLightpathView(ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["LightpathView"] = Field(
+        alias="__typename", default="LightpathView", exclude=True
+    )
+
+
+class ImageViewsBaseMaskView(ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["MaskView"] = Field(
+        alias="__typename", default="MaskView", exclude=True
+    )
+
+
+class ImageViewsBaseOpticsView(OpticsView, ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["OpticsView"] = Field(
+        alias="__typename", default="OpticsView", exclude=True
+    )
+
+
+class ImageViewsBaseRGBView(RGBView, ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["RGBView"] = Field(
+        alias="__typename", default="RGBView", exclude=True
+    )
+
+
+class ImageViewsBaseROIView(ROIView, ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ROIView"] = Field(
+        alias="__typename", default="ROIView", exclude=True
+    )
+
+
+class ImageViewsBaseReferenceView(ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ReferenceView"] = Field(
+        alias="__typename", default="ReferenceView", exclude=True
+    )
+
+
+class ImageViewsBaseScaleView(ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ScaleView"] = Field(
+        alias="__typename", default="ScaleView", exclude=True
+    )
+
+
+class ImageViewsBaseTimepointView(TimepointView, ImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["TimepointView"] = Field(
+        alias="__typename", default="TimepointView", exclude=True
+    )
+
+
 class ImageViewsBaseWellPositionView(WellPositionView, ImageViewsBase, BaseModel):
     """No documentation"""
 
     typename: Literal["WellPositionView"] = Field(
         alias="__typename", default="WellPositionView", exclude=True
-    )
-
-
-class ImageViewsBaseAcquisitionView(AcquisitionView, ImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["AcquisitionView"] = Field(
-        alias="__typename", default="AcquisitionView", exclude=True
     )
 
 
@@ -3072,24 +3650,24 @@ class Image(HasZarrStoreTrait, MikroFetchable, BaseModel):
         Union[
             Annotated[
                 Union[
-                    ImageViewsBaseAffineTransformationView,
-                    ImageViewsBaseLabelView,
-                    ImageViewsBaseChannelView,
-                    ImageViewsBaseTimepointView,
-                    ImageViewsBaseOpticsView,
-                    ImageViewsBaseMaskView,
-                    ImageViewsBaseReferenceView,
-                    ImageViewsBaseInstanceMaskView,
-                    ImageViewsBaseScaleView,
-                    ImageViewsBaseHistogramView,
-                    ImageViewsBaseRGBView,
-                    ImageViewsBaseDerivedView,
-                    ImageViewsBaseROIView,
-                    ImageViewsBaseFileView,
-                    ImageViewsBaseLightpathView,
-                    ImageViewsBaseContinousScanView,
-                    ImageViewsBaseWellPositionView,
                     ImageViewsBaseAcquisitionView,
+                    ImageViewsBaseAffineTransformationView,
+                    ImageViewsBaseChannelView,
+                    ImageViewsBaseContinousScanView,
+                    ImageViewsBaseDerivedView,
+                    ImageViewsBaseFileView,
+                    ImageViewsBaseHistogramView,
+                    ImageViewsBaseInstanceMaskView,
+                    ImageViewsBaseLabelView,
+                    ImageViewsBaseLightpathView,
+                    ImageViewsBaseMaskView,
+                    ImageViewsBaseOpticsView,
+                    ImageViewsBaseRGBView,
+                    ImageViewsBaseROIView,
+                    ImageViewsBaseReferenceView,
+                    ImageViewsBaseScaleView,
+                    ImageViewsBaseTimepointView,
+                    ImageViewsBaseWellPositionView,
                 ],
                 Field(discriminator="typename"),
             ],
@@ -3109,9 +3687,27 @@ class Image(HasZarrStoreTrait, MikroFetchable, BaseModel):
     class Meta:
         """Meta class for Image"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}"
         name = "Image"
         type = "Image"
+
+
+class CreateADatasetMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    create_adataset: ADataset = Field(alias="createAdataset")
+    "Create a new dataset from array-like data with optional choordinate anchors and OME  metadata"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateADataset"""
+
+        input: CreateADatasetInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateADataset"""
+
+        document = "fragment ADataset on ADataset {\n  id\n  name\n  dims\n  dataArrays {\n    level\n    shape\n    chunkShape\n    scaleFactors\n    __typename\n  }\n  __typename\n}\n\nmutation CreateADataset($input: CreateADatasetInput!) {\n  createAdataset(input: $input) {\n    ...ADataset\n    __typename\n  }\n}"
 
 
 class CreateCameraMutationCreatecamera(BaseModel):
@@ -3170,6 +3766,240 @@ class EnsureCameraMutation(BaseModel):
         """Meta class for EnsureCamera"""
 
         document = "mutation EnsureCamera($input: CameraInput!) {\n  ensureCamera(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
+
+
+class CreateDataRoiMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    create_data_roi: DataRoi = Field(alias="createDataRoi")
+    "Create a new data ROI from vector or slice definitions with optional choordinate anchors and OME metadata"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateDataRoi"""
+
+        input: CreateDataRoiInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateDataRoi"""
+
+        document = "fragment DimDescriptor on DimDescriptor {\n  key\n  kind\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment DataRoi on DataRoi {\n  id\n  dataset {\n    id\n    dimDescriptors {\n      ...DimDescriptor\n      __typename\n    }\n    dataArrays {\n      id\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nmutation CreateDataRoi($input: CreateDataRoiInput!) {\n  createDataRoi(input: $input) {\n    ...DataRoi\n    __typename\n  }\n}"
+
+
+class RequestBigfileUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    request_bigfile_upload: BigFileUploadGrant = Field(alias="requestBigfileUpload")
+    "Request an upload grant for a big file store"
+
+    class Arguments(BaseModel):
+        """Arguments for RequestBigfileUpload"""
+
+        input: RequestBigFileUploadInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for RequestBigfileUpload"""
+
+        document = "fragment BigFileUploadGrant on BigFileUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  store\n  __typename\n}\n\nmutation RequestBigfileUpload($input: RequestBigFileUploadInput!) {\n  requestBigfileUpload(input: $input) {\n    ...BigFileUploadGrant\n    __typename\n  }\n}"
+
+
+class FinishBigfileUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    finish_bigfile_upload: BigFileStore = Field(alias="finishBigfileUpload")
+    "Finalize a big file upload after the client has written the object"
+
+    class Arguments(BaseModel):
+        """Arguments for FinishBigfileUpload"""
+
+        input: FinishBigFileUploadInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for FinishBigfileUpload"""
+
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nmutation FinishBigfileUpload($input: FinishBigFileUploadInput!) {\n  finishBigfileUpload(input: $input) {\n    ...BigFileStore\n    __typename\n  }\n}"
+
+
+class RequestBigfileAccessMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    request_bigfile_access: BigFileAccessGrant = Field(alias="requestBigfileAccess")
+    "Request temporary S3 read credentials for a big file"
+
+    class Arguments(BaseModel):
+        """Arguments for RequestBigfileAccess"""
+
+        input: RequestBigFileAccessInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for RequestBigfileAccess"""
+
+        document = "fragment BigFileAccessGrant on BigFileAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestBigfileAccess($input: RequestBigFileAccessInput!) {\n  requestBigfileAccess(input: $input) {\n    ...BigFileAccessGrant\n    __typename\n  }\n}"
+
+
+class RequestMediaUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    request_media_upload: MediaUploadGrant = Field(alias="requestMediaUpload")
+    "Upload media and return a URL for access"
+
+    class Arguments(BaseModel):
+        """Arguments for RequestMediaUpload"""
+
+        input: RequestMediaUploadInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for RequestMediaUpload"""
+
+        document = "fragment MediaUploadGrant on MediaUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestMediaUpload($input: RequestMediaUploadInput!) {\n  requestMediaUpload(input: $input) {\n    ...MediaUploadGrant\n    __typename\n  }\n}"
+
+
+class FinishMediaUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    finish_media_upload: MediaStore = Field(alias="finishMediaUpload")
+    "Finalize a media upload after the client has written the object"
+
+    class Arguments(BaseModel):
+        """Arguments for FinishMediaUpload"""
+
+        input: FinishMediaUploadInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for FinishMediaUpload"""
+
+        document = "fragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nmutation FinishMediaUpload($input: FinishMediaUploadInput!) {\n  finishMediaUpload(input: $input) {\n    ...MediaStore\n    __typename\n  }\n}"
+
+
+class RequestMediaAccessMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    request_media_access: MediaAccessGrant = Field(alias="requestMediaAccess")
+    "Request temporary S3 read credentials for a media file"
+
+    class Arguments(BaseModel):
+        """Arguments for RequestMediaAccess"""
+
+        input: RequestMediaAccessInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for RequestMediaAccess"""
+
+        document = "fragment MediaAccessGrant on MediaAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestMediaAccess($input: RequestMediaAccessInput!) {\n  requestMediaAccess(input: $input) {\n    ...MediaAccessGrant\n    __typename\n  }\n}"
+
+
+class RequestParquetUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    request_parquet_upload: ParquetUploadGrant = Field(alias="requestParquetUpload")
+    "Request an upload grant for a Parquet store"
+
+    class Arguments(BaseModel):
+        """Arguments for RequestParquetUpload"""
+
+        input: RequestParquetUploadInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for RequestParquetUpload"""
+
+        document = "fragment ParquetUploadGrant on ParquetUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestParquetUpload($input: RequestParquetUploadInput!) {\n  requestParquetUpload(input: $input) {\n    ...ParquetUploadGrant\n    __typename\n  }\n}"
+
+
+class FinishParquetUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    finish_parquet_upload: ParquetStore = Field(alias="finishParquetUpload")
+    "Finalize a Parquet upload after the client has written the object"
+
+    class Arguments(BaseModel):
+        """Arguments for FinishParquetUpload"""
+
+        input: FinishParquetUploadInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for FinishParquetUpload"""
+
+        document = "fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nmutation FinishParquetUpload($input: FinishParquetUploadInput!) {\n  finishParquetUpload(input: $input) {\n    ...ParquetStore\n    __typename\n  }\n}"
+
+
+class RequestParquetAccessMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    request_parquet_access: ParquetAccessGrant = Field(alias="requestParquetAccess")
+    "Request temporary S3 read credentials for a Parquet file"
+
+    class Arguments(BaseModel):
+        """Arguments for RequestParquetAccess"""
+
+        input: RequestParquetAccessInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for RequestParquetAccess"""
+
+        document = "fragment ParquetAccessGrant on ParquetAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestParquetAccess($input: RequestParquetAccessInput!) {\n  requestParquetAccess(input: $input) {\n    ...ParquetAccessGrant\n    __typename\n  }\n}"
+
+
+class RequestZarrUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    request_zarr_upload: ZarrUploadGrant = Field(alias="requestZarrUpload")
+    "Request an upload grant for a Zarr store"
+
+    class Arguments(BaseModel):
+        """Arguments for RequestZarrUpload"""
+
+        input: RequestZarrUploadInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for RequestZarrUpload"""
+
+        document = "fragment ZarrUploadGrant on ZarrUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestZarrUpload($input: RequestZarrUploadInput!) {\n  requestZarrUpload(input: $input) {\n    ...ZarrUploadGrant\n    __typename\n  }\n}"
+
+
+class FinishZarrUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    finish_zarr_upload: ZarrStore = Field(alias="finishZarrUpload")
+    "Finalize a Zarr upload after the client has written the object"
+
+    class Arguments(BaseModel):
+        """Arguments for FinishZarrUpload"""
+
+        input: FinishZarrUploadInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for FinishZarrUpload"""
+
+        document = "fragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nmutation FinishZarrUpload($input: FinishZarrUploadInput!) {\n  finishZarrUpload(input: $input) {\n    ...ZarrStore\n    __typename\n  }\n}"
+
+
+class RequestZarrAccessMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    request_zarr_access: ZarrAccessGrant = Field(alias="requestZarrAccess")
+    "Request temporary S3 read credentials for a Zarr store"
+
+    class Arguments(BaseModel):
+        """Arguments for RequestZarrAccess"""
+
+        input: RequestZarrAccessInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for RequestZarrAccess"""
+
+        document = "fragment ZarrAccessGrant on ZarrAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestZarrAccess($input: RequestZarrAccessInput!) {\n  requestZarrAccess(input: $input) {\n    ...ZarrAccessGrant\n    __typename\n  }\n}"
 
 
 class CreateDatasetMutation(BaseModel):
@@ -3271,58 +4101,22 @@ class CreateEraMutation(BaseModel):
         document = "mutation CreateEra($input: EraInput!) {\n  createEra(input: $input) {\n    id\n    begin\n    __typename\n  }\n}"
 
 
-class From_file_likeMutation(BaseModel):
+class FromFileLikeMutation(BaseModel):
     """No documentation found for this operation."""
 
     from_file_like: File = Field(alias="fromFileLike")
     "Create a file from file-like data"
 
     class Arguments(BaseModel):
-        """Arguments for from_file_like"""
+        """Arguments for FromFileLike"""
 
         input: FromFileLike
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
-        """Meta class for from_file_like"""
+        """Meta class for FromFileLike"""
 
-        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation from_file_like($input: FromFileLike!) {\n  fromFileLike(input: $input) {\n    ...File\n    __typename\n  }\n}"
-
-
-class RequestFileUploadMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    request_file_upload: Credentials = Field(alias="requestFileUpload")
-    "Request credentials to upload a new file"
-
-    class Arguments(BaseModel):
-        """Arguments for RequestFileUpload"""
-
-        input: RequestFileUploadInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for RequestFileUpload"""
-
-        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestFileUpload($input: RequestFileUploadInput!) {\n  requestFileUpload(input: $input) {\n    ...Credentials\n    __typename\n  }\n}"
-
-
-class RequestFileAccessMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    request_file_access: AccessCredentials = Field(alias="requestFileAccess")
-    "Request credentials to access a file"
-
-    class Arguments(BaseModel):
-        """Arguments for RequestFileAccess"""
-
-        input: RequestFileAccessInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for RequestFileAccess"""
-
-        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestFileAccess($input: RequestFileAccessInput!) {\n  requestFileAccess(input: $input) {\n    ...AccessCredentials\n    __typename\n  }\n}"
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation FromFileLike($input: FromFileLike!) {\n  fromFileLike(input: $input) {\n    ...File\n    __typename\n  }\n}"
 
 
 class From_array_likeMutation(BaseModel):
@@ -3340,43 +4134,7 @@ class From_array_likeMutation(BaseModel):
     class Meta:
         """Meta class for from_array_like"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}"
-
-
-class RequestUploadMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    request_upload: Credentials = Field(alias="requestUpload")
-    "Request credentials to upload a new image"
-
-    class Arguments(BaseModel):
-        """Arguments for RequestUpload"""
-
-        input: RequestUploadInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for RequestUpload"""
-
-        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestUpload($input: RequestUploadInput!) {\n  requestUpload(input: $input) {\n    ...Credentials\n    __typename\n  }\n}"
-
-
-class RequestAccessMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    request_access: AccessCredentials = Field(alias="requestAccess")
-    "Request credentials to access an image"
-
-    class Arguments(BaseModel):
-        """Arguments for RequestAccess"""
-
-        input: RequestAccessInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for RequestAccess"""
-
-        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestAccess($input: RequestAccessInput!) {\n  requestAccess(input: $input) {\n    ...AccessCredentials\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class CreateInstrumentMutationCreateinstrument(BaseModel):
@@ -3441,6 +4199,42 @@ class EnsureInstrumentMutation(BaseModel):
         document = "mutation EnsureInstrument($input: InstrumentInput!) {\n  ensureInstrument(input: $input) {\n    id\n    name\n    __typename\n  }\n}"
 
 
+class CreateLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    create_layer: Layer = Field(alias="createLayer")
+    "Create a new layer from an existing lens with optional affine transformation and colormap settings"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateLayer"""
+
+        input: CreateLayerInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateLayer"""
+
+        document = "fragment Layer on Layer {\n  scene {\n    id\n    name\n    __typename\n  }\n  lens {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation CreateLayer($input: CreateLayerInput!) {\n  createLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}"
+
+
+class CreateLensMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    create_lens: Lens = Field(alias="createLens")
+    "Create a new lens from an existing dataset and slicing constraints"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateLens"""
+
+        input: CreateLensInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateLens"""
+
+        document = "fragment DimDescriptor on DimDescriptor {\n  key\n  kind\n  __typename\n}\n\nfragment Slice on Slice {\n  dim\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Lens on Lens {\n  id\n  dataset {\n    id\n    dims\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  dims\n  dimDescriptors {\n    ...DimDescriptor\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nmutation CreateLens($input: CreateLensInput!) {\n  createLens(input: $input) {\n    ...Lens\n    __typename\n  }\n}"
+
+
 class CreateMeshMutation(BaseModel):
     """No documentation found for this operation."""
 
@@ -3456,25 +4250,7 @@ class CreateMeshMutation(BaseModel):
     class Meta:
         """Meta class for CreateMesh"""
 
-        document = "fragment MeshStore on MeshStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Mesh on Mesh {\n  id\n  name\n  store {\n    ...MeshStore\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMesh($input: MeshInput!) {\n  createMesh(input: $input) {\n    ...Mesh\n    __typename\n  }\n}"
-
-
-class RequestMeshUploadMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    request_mesh_upload: PresignedPostCredentials = Field(alias="requestMeshUpload")
-    "Request presigned credentials for mesh upload"
-
-    class Arguments(BaseModel):
-        """Arguments for RequestMeshUpload"""
-
-        input: RequestMeshUploadInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for RequestMeshUpload"""
-
-        document = "fragment PresignedPostCredentials on PresignedPostCredentials {\n  key\n  xAmzCredential\n  xAmzAlgorithm\n  xAmzDate\n  xAmzSignature\n  policy\n  datalayer\n  bucket\n  store\n  __typename\n}\n\nmutation RequestMeshUpload($input: RequestMeshUploadInput!) {\n  requestMeshUpload(input: $input) {\n    ...PresignedPostCredentials\n    __typename\n  }\n}"
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment Mesh on Mesh {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMesh($input: MeshInput!) {\n  createMesh(input: $input) {\n    ...Mesh\n    __typename\n  }\n}"
 
 
 class CreateObjectiveMutationCreateobjective(BaseModel):
@@ -3584,7 +4360,7 @@ class CreateRGBContextMutation(BaseModel):
     class Meta:
         """Meta class for CreateRGBContext"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation CreateRGBContext($input: CreateRGBContextInput!) {\n  createRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class UpdateRGBContextMutation(BaseModel):
@@ -3602,7 +4378,7 @@ class UpdateRGBContextMutation(BaseModel):
     class Meta:
         """Meta class for UpdateRGBContext"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nmutation UpdateRGBContext($input: UpdateRGBContextInput!) {\n  updateRgbContext(input: $input) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class CreateRoiMutation(BaseModel):
@@ -3620,7 +4396,7 @@ class CreateRoiMutation(BaseModel):
     class Meta:
         """Meta class for CreateRoi"""
 
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nmutation CreateRoi($input: RoiInput!) {\n  createRoi(input: $input) {\n    ...ROI\n    __typename\n  }\n}"
+        document = "fragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ROI on ROI {\n  id\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nmutation CreateRoi($input: RoiInput!) {\n  createRoi(input: $input) {\n    ...ROI\n    __typename\n  }\n}"
 
 
 class DeleteRoiMutation(BaseModel):
@@ -3656,7 +4432,25 @@ class UpdateRoiMutation(BaseModel):
     class Meta:
         """Meta class for UpdateRoi"""
 
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nmutation UpdateRoi($input: UpdateRoiInput!) {\n  updateRoi(input: $input) {\n    ...ROI\n    __typename\n  }\n}"
+        document = "fragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ROI on ROI {\n  id\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nmutation UpdateRoi($input: UpdateRoiInput!) {\n  updateRoi(input: $input) {\n    ...ROI\n    __typename\n  }\n}"
+
+
+class CreateSceneMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    create_scene: Scene = Field(alias="createScene")
+    "Create a new scene from an existing lens with optional blending mode"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateScene"""
+
+        input: CreateSceneInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateScene"""
+
+        document = "fragment Scene on Scene {\n  name\n  id\n  __typename\n}\n\nmutation CreateScene($input: CreateSceneInput!) {\n  createScene(input: $input) {\n    ...Scene\n    __typename\n  }\n}"
 
 
 class CreateSnapshotMutation(BaseModel):
@@ -3675,24 +4469,6 @@ class CreateSnapshotMutation(BaseModel):
         """Meta class for CreateSnapshot"""
 
         document = "fragment Snapshot on Snapshot {\n  id\n  store {\n    key\n    presignedUrl\n    __typename\n  }\n  name\n  __typename\n}\n\nmutation CreateSnapshot($input: SnapshotInput!) {\n  createSnapshot(input: $input) {\n    ...Snapshot\n    __typename\n  }\n}"
-
-
-class RequestMediaUploadMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    request_media_upload: PresignedPostCredentials = Field(alias="requestMediaUpload")
-    "Request credentials for media file upload"
-
-    class Arguments(BaseModel):
-        """Arguments for RequestMediaUpload"""
-
-        input: RequestMediaUploadInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for RequestMediaUpload"""
-
-        document = "fragment PresignedPostCredentials on PresignedPostCredentials {\n  key\n  xAmzCredential\n  xAmzAlgorithm\n  xAmzDate\n  xAmzSignature\n  policy\n  datalayer\n  bucket\n  store\n  __typename\n}\n\nmutation RequestMediaUpload($input: RequestMediaUploadInput!) {\n  requestMediaUpload(input: $input) {\n    ...PresignedPostCredentials\n    __typename\n  }\n}"
 
 
 class CreateStageMutation(BaseModel):
@@ -3729,42 +4505,6 @@ class From_parquet_likeMutation(BaseModel):
         """Meta class for from_parquet_like"""
 
         document = "fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}\n\nmutation from_parquet_like($input: FromParquetLike!) {\n  fromParquetLike(input: $input) {\n    ...Table\n    __typename\n  }\n}"
-
-
-class RequestTableUploadMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    request_table_upload: Credentials = Field(alias="requestTableUpload")
-    "Request credentials to upload a new table"
-
-    class Arguments(BaseModel):
-        """Arguments for RequestTableUpload"""
-
-        input: RequestTableUploadInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for RequestTableUpload"""
-
-        document = "fragment Credentials on Credentials {\n  accessKey\n  status\n  secretKey\n  bucket\n  key\n  sessionToken\n  store\n  __typename\n}\n\nmutation RequestTableUpload($input: RequestTableUploadInput!) {\n  requestTableUpload(input: $input) {\n    ...Credentials\n    __typename\n  }\n}"
-
-
-class RequestTableAccessMutation(BaseModel):
-    """No documentation found for this operation."""
-
-    request_table_access: AccessCredentials = Field(alias="requestTableAccess")
-    "Request credentials to access a table"
-
-    class Arguments(BaseModel):
-        """Arguments for RequestTableAccess"""
-
-        input: RequestTableAccessInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for RequestTableAccess"""
-
-        document = "fragment AccessCredentials on AccessCredentials {\n  accessKey\n  secretKey\n  bucket\n  key\n  sessionToken\n  path\n  __typename\n}\n\nmutation RequestTableAccess($input: RequestTableAccessInput!) {\n  requestTableAccess(input: $input) {\n    ...AccessCredentials\n    __typename\n  }\n}"
 
 
 class CreateRgbViewMutationCreatergbview(BaseModel):
@@ -3856,7 +4596,7 @@ class CreateMaskViewMutation(BaseModel):
     class Meta:
         """Meta class for CreateMaskView"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMaskView($input: MaskViewInput!) {\n  createMaskView(input: $input) {\n    ...MaskView\n    __typename\n  }\n}"
+        document = "fragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMaskView($input: MaskViewInput!) {\n  createMaskView(input: $input) {\n    ...MaskView\n    __typename\n  }\n}"
 
 
 class CreateInstanceMaskViewMutation(BaseModel):
@@ -3874,7 +4614,7 @@ class CreateInstanceMaskViewMutation(BaseModel):
     class Meta:
         """Meta class for CreateInstanceMaskView"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nmutation CreateInstanceMaskView($input: InstanceMaskViewInput!) {\n  createInstanceMaskView(input: $input) {\n    ...InstanceMaskView\n    __typename\n  }\n}"
+        document = "fragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nmutation CreateInstanceMaskView($input: InstanceMaskViewInput!) {\n  createInstanceMaskView(input: $input) {\n    ...InstanceMaskView\n    __typename\n  }\n}"
 
 
 class CreateReferenceViewMutation(BaseModel):
@@ -4050,7 +4790,7 @@ class GetImageQuery(BaseModel):
     class Meta:
         """Meta class for GetImage"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetImage($id: ID!) {\n  image(id: $id) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class GetRandomImageQuery(BaseModel):
@@ -4066,7 +4806,7 @@ class GetRandomImageQuery(BaseModel):
     class Meta:
         """Meta class for GetRandomImage"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetRandomImage {\n  randomImage {\n    ...Image\n    __typename\n  }\n}"
 
 
 class SearchImagesQueryOptions(HasZarrStoreTrait, BaseModel):
@@ -4114,7 +4854,7 @@ class ImagesQuery(BaseModel):
     class Meta:
         """Meta class for Images"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery Images($filter: ImageFilter, $pagination: OffsetPaginationInput) {\n  images(filters: $filter, pagination: $pagination) {\n    ...Image\n    __typename\n  }\n}"
 
 
 class ViewImageQueryImageStore(HasZarrStoreAccessor, BaseModel):
@@ -4125,9 +4865,7 @@ class ViewImageQueryImageStore(HasZarrStoreAccessor, BaseModel):
     )
     id: ID
     key: str
-    "The key where the data is stored."
     bucket: str
-    "The bucket where the data is stored."
     model_config = ConfigDict(frozen=True)
 
 
@@ -4135,6 +4873,16 @@ class ViewImageQueryImageViewsBase(BaseModel):
     """No documentation"""
 
     model_config = ConfigDict(frozen=True)
+
+
+class ViewImageQueryImageViewsBaseAcquisitionView(
+    ViewImageQueryImageViewsBase, BaseModel
+):
+    """No documentation"""
+
+    typename: Literal["AcquisitionView"] = Field(
+        alias="__typename", default="AcquisitionView", exclude=True
+    )
 
 
 class ViewImageQueryImageViewsBaseAffineTransformationView(
@@ -4147,126 +4895,11 @@ class ViewImageQueryImageViewsBaseAffineTransformationView(
     )
 
 
-class ViewImageQueryImageViewsBaseLabelView(ViewImageQueryImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["LabelView"] = Field(
-        alias="__typename", default="LabelView", exclude=True
-    )
-
-
 class ViewImageQueryImageViewsBaseChannelView(ViewImageQueryImageViewsBase, BaseModel):
     """No documentation"""
 
     typename: Literal["ChannelView"] = Field(
         alias="__typename", default="ChannelView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseTimepointView(
-    ViewImageQueryImageViewsBase, BaseModel
-):
-    """No documentation"""
-
-    typename: Literal["TimepointView"] = Field(
-        alias="__typename", default="TimepointView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseOpticsView(ViewImageQueryImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["OpticsView"] = Field(
-        alias="__typename", default="OpticsView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseMaskView(ViewImageQueryImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["MaskView"] = Field(
-        alias="__typename", default="MaskView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseReferenceView(
-    ViewImageQueryImageViewsBase, BaseModel
-):
-    """No documentation"""
-
-    typename: Literal["ReferenceView"] = Field(
-        alias="__typename", default="ReferenceView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseInstanceMaskView(
-    ViewImageQueryImageViewsBase, BaseModel
-):
-    """No documentation"""
-
-    typename: Literal["InstanceMaskView"] = Field(
-        alias="__typename", default="InstanceMaskView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseScaleView(ViewImageQueryImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["ScaleView"] = Field(
-        alias="__typename", default="ScaleView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseHistogramView(
-    ViewImageQueryImageViewsBase, BaseModel
-):
-    """No documentation"""
-
-    typename: Literal["HistogramView"] = Field(
-        alias="__typename", default="HistogramView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseRGBView(ViewImageQueryImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["RGBView"] = Field(
-        alias="__typename", default="RGBView", exclude=True
-    )
-    id: ID
-
-
-class ViewImageQueryImageViewsBaseDerivedView(ViewImageQueryImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["DerivedView"] = Field(
-        alias="__typename", default="DerivedView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseROIView(ViewImageQueryImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["ROIView"] = Field(
-        alias="__typename", default="ROIView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseFileView(ViewImageQueryImageViewsBase, BaseModel):
-    """No documentation"""
-
-    typename: Literal["FileView"] = Field(
-        alias="__typename", default="FileView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseLightpathView(
-    ViewImageQueryImageViewsBase, BaseModel
-):
-    """No documentation"""
-
-    typename: Literal["LightpathView"] = Field(
-        alias="__typename", default="LightpathView", exclude=True
     )
 
 
@@ -4280,6 +4913,121 @@ class ViewImageQueryImageViewsBaseContinousScanView(
     )
 
 
+class ViewImageQueryImageViewsBaseDerivedView(ViewImageQueryImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["DerivedView"] = Field(
+        alias="__typename", default="DerivedView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseFileView(ViewImageQueryImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["FileView"] = Field(
+        alias="__typename", default="FileView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseHistogramView(
+    ViewImageQueryImageViewsBase, BaseModel
+):
+    """No documentation"""
+
+    typename: Literal["HistogramView"] = Field(
+        alias="__typename", default="HistogramView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseInstanceMaskView(
+    ViewImageQueryImageViewsBase, BaseModel
+):
+    """No documentation"""
+
+    typename: Literal["InstanceMaskView"] = Field(
+        alias="__typename", default="InstanceMaskView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseLabelView(ViewImageQueryImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["LabelView"] = Field(
+        alias="__typename", default="LabelView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseLightpathView(
+    ViewImageQueryImageViewsBase, BaseModel
+):
+    """No documentation"""
+
+    typename: Literal["LightpathView"] = Field(
+        alias="__typename", default="LightpathView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseMaskView(ViewImageQueryImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["MaskView"] = Field(
+        alias="__typename", default="MaskView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseOpticsView(ViewImageQueryImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["OpticsView"] = Field(
+        alias="__typename", default="OpticsView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseRGBView(ViewImageQueryImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["RGBView"] = Field(
+        alias="__typename", default="RGBView", exclude=True
+    )
+    id: ID
+
+
+class ViewImageQueryImageViewsBaseROIView(ViewImageQueryImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ROIView"] = Field(
+        alias="__typename", default="ROIView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseReferenceView(
+    ViewImageQueryImageViewsBase, BaseModel
+):
+    """No documentation"""
+
+    typename: Literal["ReferenceView"] = Field(
+        alias="__typename", default="ReferenceView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseScaleView(ViewImageQueryImageViewsBase, BaseModel):
+    """No documentation"""
+
+    typename: Literal["ScaleView"] = Field(
+        alias="__typename", default="ScaleView", exclude=True
+    )
+
+
+class ViewImageQueryImageViewsBaseTimepointView(
+    ViewImageQueryImageViewsBase, BaseModel
+):
+    """No documentation"""
+
+    typename: Literal["TimepointView"] = Field(
+        alias="__typename", default="TimepointView", exclude=True
+    )
+
+
 class ViewImageQueryImageViewsBaseWellPositionView(
     ViewImageQueryImageViewsBase, BaseModel
 ):
@@ -4287,16 +5035,6 @@ class ViewImageQueryImageViewsBaseWellPositionView(
 
     typename: Literal["WellPositionView"] = Field(
         alias="__typename", default="WellPositionView", exclude=True
-    )
-
-
-class ViewImageQueryImageViewsBaseAcquisitionView(
-    ViewImageQueryImageViewsBase, BaseModel
-):
-    """No documentation"""
-
-    typename: Literal["AcquisitionView"] = Field(
-        alias="__typename", default="AcquisitionView", exclude=True
     )
 
 
@@ -4319,24 +5057,24 @@ class ViewImageQueryImage(HasZarrStoreTrait, BaseModel):
         Union[
             Annotated[
                 Union[
-                    ViewImageQueryImageViewsBaseAffineTransformationView,
-                    ViewImageQueryImageViewsBaseLabelView,
-                    ViewImageQueryImageViewsBaseChannelView,
-                    ViewImageQueryImageViewsBaseTimepointView,
-                    ViewImageQueryImageViewsBaseOpticsView,
-                    ViewImageQueryImageViewsBaseMaskView,
-                    ViewImageQueryImageViewsBaseReferenceView,
-                    ViewImageQueryImageViewsBaseInstanceMaskView,
-                    ViewImageQueryImageViewsBaseScaleView,
-                    ViewImageQueryImageViewsBaseHistogramView,
-                    ViewImageQueryImageViewsBaseRGBView,
-                    ViewImageQueryImageViewsBaseDerivedView,
-                    ViewImageQueryImageViewsBaseROIView,
-                    ViewImageQueryImageViewsBaseFileView,
-                    ViewImageQueryImageViewsBaseLightpathView,
-                    ViewImageQueryImageViewsBaseContinousScanView,
-                    ViewImageQueryImageViewsBaseWellPositionView,
                     ViewImageQueryImageViewsBaseAcquisitionView,
+                    ViewImageQueryImageViewsBaseAffineTransformationView,
+                    ViewImageQueryImageViewsBaseChannelView,
+                    ViewImageQueryImageViewsBaseContinousScanView,
+                    ViewImageQueryImageViewsBaseDerivedView,
+                    ViewImageQueryImageViewsBaseFileView,
+                    ViewImageQueryImageViewsBaseHistogramView,
+                    ViewImageQueryImageViewsBaseInstanceMaskView,
+                    ViewImageQueryImageViewsBaseLabelView,
+                    ViewImageQueryImageViewsBaseLightpathView,
+                    ViewImageQueryImageViewsBaseMaskView,
+                    ViewImageQueryImageViewsBaseOpticsView,
+                    ViewImageQueryImageViewsBaseRGBView,
+                    ViewImageQueryImageViewsBaseROIView,
+                    ViewImageQueryImageViewsBaseReferenceView,
+                    ViewImageQueryImageViewsBaseScaleView,
+                    ViewImageQueryImageViewsBaseTimepointView,
+                    ViewImageQueryImageViewsBaseWellPositionView,
                 ],
                 Field(discriminator="typename"),
             ],
@@ -4438,7 +5176,7 @@ class GetMeshQuery(BaseModel):
     class Meta:
         """Meta class for GetMesh"""
 
-        document = "fragment MeshStore on MeshStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Mesh on Mesh {\n  id\n  name\n  store {\n    ...MeshStore\n    __typename\n  }\n  __typename\n}\n\nquery GetMesh($id: ID!) {\n  mesh(id: $id) {\n    ...Mesh\n    __typename\n  }\n}"
+        document = "fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment Mesh on Mesh {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nquery GetMesh($id: ID!) {\n  mesh(id: $id) {\n    ...Mesh\n    __typename\n  }\n}"
 
 
 class SearchMeshesQueryOptions(BaseModel):
@@ -4500,7 +5238,7 @@ class GetRGBContextQuery(BaseModel):
     class Meta:
         """Meta class for GetRGBContext"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n    __typename\n  }\n}"
+        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment RGBContext on RGBContext {\n  id\n  views {\n    ...RGBView\n    __typename\n  }\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  pinned\n  name\n  z\n  t\n  c\n  blending\n  __typename\n}\n\nquery GetRGBContext($id: ID!) {\n  rgbcontext(id: $id) {\n    ...RGBContext\n    __typename\n  }\n}"
 
 
 class GetRoisQuery(BaseModel):
@@ -4517,7 +5255,7 @@ class GetRoisQuery(BaseModel):
     class Meta:
         """Meta class for GetRois"""
 
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nquery GetRois($image: ID!) {\n  rois(filters: {image: $image}) {\n    ...ROI\n    __typename\n  }\n}"
+        document = "fragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ROI on ROI {\n  id\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nquery GetRois($image: ID!) {\n  rois(filters: {image: $image}) {\n    ...ROI\n    __typename\n  }\n}"
 
 
 class GetRoiQuery(BaseModel):
@@ -4534,7 +5272,7 @@ class GetRoiQuery(BaseModel):
     class Meta:
         """Meta class for GetRoi"""
 
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nquery GetRoi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n    __typename\n  }\n}"
+        document = "fragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ROI on ROI {\n  id\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nquery GetRoi($id: ID!) {\n  roi(id: $id) {\n    ...ROI\n    __typename\n  }\n}"
 
 
 class SearchRoisQueryOptions(IsVectorizableTrait, BaseModel):
@@ -4898,7 +5636,7 @@ class WatchImagesSubscription(BaseModel):
     class Meta:
         """Meta class for WatchImages"""
 
-        document = "fragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
+        document = "fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}"
 
 
 class WatchRoisSubscriptionRois(BaseModel):
@@ -4928,7 +5666,79 @@ class WatchRoisSubscription(BaseModel):
     class Meta:
         """Meta class for WatchRois"""
 
-        document = "fragment ROI on ROI {\n  id\n  image {\n    id\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nsubscription WatchRois($image: ID!) {\n  rois(image: $image) {\n    create {\n      ...ROI\n      __typename\n    }\n    delete\n    update {\n      ...ROI\n      __typename\n    }\n    __typename\n  }\n}"
+        document = "fragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ROI on ROI {\n  id\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nsubscription WatchRois($image: ID!) {\n  rois(image: $image) {\n    create {\n      ...ROI\n      __typename\n    }\n    delete\n    update {\n      ...ROI\n      __typename\n    }\n    __typename\n  }\n}"
+
+
+async def acreate_a_dataset(
+    scales: Iterable[ArrayCoercible],
+    name: str,
+    dim_descriptors: Iterable[DimensionDescriptorInput],
+    anchors: Optional[Iterable[CoordinateAnchorInput]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> ADataset:
+    """CreateADataset
+
+    Create a new dataset from array-like data with optional choordinate anchors and OME  metadata
+
+    Args:
+        scales: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required) (list) (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        dim_descriptors: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
+        anchors: Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to (required) (list)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ADataset
+    """
+    return (
+        await aexecute(
+            CreateADatasetMutation,
+            {
+                "input": {
+                    "scales": scales,
+                    "name": name,
+                    "dimDescriptors": dim_descriptors,
+                    "anchors": anchors,
+                }
+            },
+            rath=rath,
+        )
+    ).create_adataset
+
+
+def create_a_dataset(
+    scales: Iterable[ArrayCoercible],
+    name: str,
+    dim_descriptors: Iterable[DimensionDescriptorInput],
+    anchors: Optional[Iterable[CoordinateAnchorInput]] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> ADataset:
+    """CreateADataset
+
+    Create a new dataset from array-like data with optional choordinate anchors and OME  metadata
+
+    Args:
+        scales: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required) (list) (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        dim_descriptors: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
+        anchors: Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to (required) (list)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ADataset
+    """
+    return execute(
+        CreateADatasetMutation,
+        {
+            "input": {
+                "scales": scales,
+                "name": name,
+                "dimDescriptors": dim_descriptors,
+                "anchors": anchors,
+            }
+        },
+        rath=rath,
+    ).create_adataset
 
 
 async def acreate_camera(
@@ -5133,6 +5943,692 @@ def ensure_camera(
         },
         rath=rath,
     ).ensure_camera
+
+
+async def acreate_data_roi(
+    dataset: IDCoercible,
+    kind: RoiKind,
+    x_dim: str,
+    y_dim: str,
+    vectors: Iterable[ThreeDVector],
+    slices: Iterable[SliceInput],
+    z_dim: Optional[str] = None,
+    drawn_on_lens: Optional[IDCoercible] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> DataRoi:
+    """CreateDataRoi
+
+    Create a new data ROI from vector or slice definitions with optional choordinate anchors and OME metadata
+
+    Args:
+        dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        kind: RoiKind (required)
+        x_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        y_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        z_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list) (required)
+        slices: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
+        drawn_on_lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        DataRoi
+    """
+    return (
+        await aexecute(
+            CreateDataRoiMutation,
+            {
+                "input": {
+                    "dataset": dataset,
+                    "kind": kind,
+                    "xDim": x_dim,
+                    "yDim": y_dim,
+                    "zDim": z_dim,
+                    "vectors": vectors,
+                    "slices": slices,
+                    "drawnOnLens": drawn_on_lens,
+                }
+            },
+            rath=rath,
+        )
+    ).create_data_roi
+
+
+def create_data_roi(
+    dataset: IDCoercible,
+    kind: RoiKind,
+    x_dim: str,
+    y_dim: str,
+    vectors: Iterable[ThreeDVector],
+    slices: Iterable[SliceInput],
+    z_dim: Optional[str] = None,
+    drawn_on_lens: Optional[IDCoercible] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> DataRoi:
+    """CreateDataRoi
+
+    Create a new data ROI from vector or slice definitions with optional choordinate anchors and OME metadata
+
+    Args:
+        dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        kind: RoiKind (required)
+        x_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        y_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        z_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list) (required)
+        slices: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
+        drawn_on_lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        DataRoi
+    """
+    return execute(
+        CreateDataRoiMutation,
+        {
+            "input": {
+                "dataset": dataset,
+                "kind": kind,
+                "xDim": x_dim,
+                "yDim": y_dim,
+                "zDim": z_dim,
+                "vectors": vectors,
+                "slices": slices,
+                "drawnOnLens": drawn_on_lens,
+            }
+        },
+        rath=rath,
+    ).create_data_roi
+
+
+async def arequest_bigfile_upload(
+    original_file_name: str,
+    file_size: Optional[int] = None,
+    content_type: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> BigFileUploadGrant:
+    """RequestBigfileUpload
+
+    Request an upload grant for a big file store
+
+    Args:
+        original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        file_size: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        BigFileUploadGrant
+    """
+    return (
+        await aexecute(
+            RequestBigfileUploadMutation,
+            {
+                "input": {
+                    "originalFileName": original_file_name,
+                    "fileSize": file_size,
+                    "contentType": content_type,
+                }
+            },
+            rath=rath,
+        )
+    ).request_bigfile_upload
+
+
+def request_bigfile_upload(
+    original_file_name: str,
+    file_size: Optional[int] = None,
+    content_type: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> BigFileUploadGrant:
+    """RequestBigfileUpload
+
+    Request an upload grant for a big file store
+
+    Args:
+        original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        file_size: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        BigFileUploadGrant
+    """
+    return execute(
+        RequestBigfileUploadMutation,
+        {
+            "input": {
+                "originalFileName": original_file_name,
+                "fileSize": file_size,
+                "contentType": content_type,
+            }
+        },
+        rath=rath,
+    ).request_bigfile_upload
+
+
+async def afinish_bigfile_upload(
+    store_id: str, valid: bool, rath: Optional[MikroNextRath] = None
+) -> BigFileStore:
+    """FinishBigfileUpload
+
+    Finalize a big file upload after the client has written the object
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        valid: The `Boolean` scalar type represents `true` or `false`. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        BigFileStore
+    """
+    return (
+        await aexecute(
+            FinishBigfileUploadMutation,
+            {"input": {"storeId": store_id, "valid": valid}},
+            rath=rath,
+        )
+    ).finish_bigfile_upload
+
+
+def finish_bigfile_upload(
+    store_id: str, valid: bool, rath: Optional[MikroNextRath] = None
+) -> BigFileStore:
+    """FinishBigfileUpload
+
+    Finalize a big file upload after the client has written the object
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        valid: The `Boolean` scalar type represents `true` or `false`. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        BigFileStore
+    """
+    return execute(
+        FinishBigfileUploadMutation,
+        {"input": {"storeId": store_id, "valid": valid}},
+        rath=rath,
+    ).finish_bigfile_upload
+
+
+async def arequest_bigfile_access(
+    store_id: str, rath: Optional[MikroNextRath] = None
+) -> BigFileAccessGrant:
+    """RequestBigfileAccess
+
+    Request temporary S3 read credentials for a big file
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        BigFileAccessGrant
+    """
+    return (
+        await aexecute(
+            RequestBigfileAccessMutation, {"input": {"storeId": store_id}}, rath=rath
+        )
+    ).request_bigfile_access
+
+
+def request_bigfile_access(
+    store_id: str, rath: Optional[MikroNextRath] = None
+) -> BigFileAccessGrant:
+    """RequestBigfileAccess
+
+    Request temporary S3 read credentials for a big file
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        BigFileAccessGrant
+    """
+    return execute(
+        RequestBigfileAccessMutation, {"input": {"storeId": store_id}}, rath=rath
+    ).request_bigfile_access
+
+
+async def arequest_media_upload(
+    original_file_name: str,
+    file_size: Optional[int] = None,
+    content_type: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> MediaUploadGrant:
+    """RequestMediaUpload
+
+    Upload media and return a URL for access
+
+    Args:
+        original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        file_size: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        MediaUploadGrant
+    """
+    return (
+        await aexecute(
+            RequestMediaUploadMutation,
+            {
+                "input": {
+                    "originalFileName": original_file_name,
+                    "fileSize": file_size,
+                    "contentType": content_type,
+                }
+            },
+            rath=rath,
+        )
+    ).request_media_upload
+
+
+def request_media_upload(
+    original_file_name: str,
+    file_size: Optional[int] = None,
+    content_type: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> MediaUploadGrant:
+    """RequestMediaUpload
+
+    Upload media and return a URL for access
+
+    Args:
+        original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        file_size: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+        content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        MediaUploadGrant
+    """
+    return execute(
+        RequestMediaUploadMutation,
+        {
+            "input": {
+                "originalFileName": original_file_name,
+                "fileSize": file_size,
+                "contentType": content_type,
+            }
+        },
+        rath=rath,
+    ).request_media_upload
+
+
+async def afinish_media_upload(
+    store_id: str, valid: bool, rath: Optional[MikroNextRath] = None
+) -> MediaStore:
+    """FinishMediaUpload
+
+    Finalize a media upload after the client has written the object
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        valid: The `Boolean` scalar type represents `true` or `false`. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        MediaStore
+    """
+    return (
+        await aexecute(
+            FinishMediaUploadMutation,
+            {"input": {"storeId": store_id, "valid": valid}},
+            rath=rath,
+        )
+    ).finish_media_upload
+
+
+def finish_media_upload(
+    store_id: str, valid: bool, rath: Optional[MikroNextRath] = None
+) -> MediaStore:
+    """FinishMediaUpload
+
+    Finalize a media upload after the client has written the object
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        valid: The `Boolean` scalar type represents `true` or `false`. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        MediaStore
+    """
+    return execute(
+        FinishMediaUploadMutation,
+        {"input": {"storeId": store_id, "valid": valid}},
+        rath=rath,
+    ).finish_media_upload
+
+
+async def arequest_media_access(
+    store_id: str, rath: Optional[MikroNextRath] = None
+) -> MediaAccessGrant:
+    """RequestMediaAccess
+
+    Request temporary S3 read credentials for a media file
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        MediaAccessGrant
+    """
+    return (
+        await aexecute(
+            RequestMediaAccessMutation, {"input": {"storeId": store_id}}, rath=rath
+        )
+    ).request_media_access
+
+
+def request_media_access(
+    store_id: str, rath: Optional[MikroNextRath] = None
+) -> MediaAccessGrant:
+    """RequestMediaAccess
+
+    Request temporary S3 read credentials for a media file
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        MediaAccessGrant
+    """
+    return execute(
+        RequestMediaAccessMutation, {"input": {"storeId": store_id}}, rath=rath
+    ).request_media_access
+
+
+async def arequest_parquet_upload(
+    original_file_name: str,
+    content_type: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> ParquetUploadGrant:
+    """RequestParquetUpload
+
+    Request an upload grant for a Parquet store
+
+    Args:
+        original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ParquetUploadGrant
+    """
+    return (
+        await aexecute(
+            RequestParquetUploadMutation,
+            {
+                "input": {
+                    "originalFileName": original_file_name,
+                    "contentType": content_type,
+                }
+            },
+            rath=rath,
+        )
+    ).request_parquet_upload
+
+
+def request_parquet_upload(
+    original_file_name: str,
+    content_type: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> ParquetUploadGrant:
+    """RequestParquetUpload
+
+    Request an upload grant for a Parquet store
+
+    Args:
+        original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ParquetUploadGrant
+    """
+    return execute(
+        RequestParquetUploadMutation,
+        {
+            "input": {
+                "originalFileName": original_file_name,
+                "contentType": content_type,
+            }
+        },
+        rath=rath,
+    ).request_parquet_upload
+
+
+async def afinish_parquet_upload(
+    store_id: str, valid: bool, rath: Optional[MikroNextRath] = None
+) -> ParquetStore:
+    """FinishParquetUpload
+
+    Finalize a Parquet upload after the client has written the object
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        valid: The `Boolean` scalar type represents `true` or `false`. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ParquetStore
+    """
+    return (
+        await aexecute(
+            FinishParquetUploadMutation,
+            {"input": {"storeId": store_id, "valid": valid}},
+            rath=rath,
+        )
+    ).finish_parquet_upload
+
+
+def finish_parquet_upload(
+    store_id: str, valid: bool, rath: Optional[MikroNextRath] = None
+) -> ParquetStore:
+    """FinishParquetUpload
+
+    Finalize a Parquet upload after the client has written the object
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        valid: The `Boolean` scalar type represents `true` or `false`. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ParquetStore
+    """
+    return execute(
+        FinishParquetUploadMutation,
+        {"input": {"storeId": store_id, "valid": valid}},
+        rath=rath,
+    ).finish_parquet_upload
+
+
+async def arequest_parquet_access(
+    store_id: str, rath: Optional[MikroNextRath] = None
+) -> ParquetAccessGrant:
+    """RequestParquetAccess
+
+    Request temporary S3 read credentials for a Parquet file
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ParquetAccessGrant
+    """
+    return (
+        await aexecute(
+            RequestParquetAccessMutation, {"input": {"storeId": store_id}}, rath=rath
+        )
+    ).request_parquet_access
+
+
+def request_parquet_access(
+    store_id: str, rath: Optional[MikroNextRath] = None
+) -> ParquetAccessGrant:
+    """RequestParquetAccess
+
+    Request temporary S3 read credentials for a Parquet file
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ParquetAccessGrant
+    """
+    return execute(
+        RequestParquetAccessMutation, {"input": {"storeId": store_id}}, rath=rath
+    ).request_parquet_access
+
+
+async def arequest_zarr_upload(
+    shape: Optional[Iterable[int]] = None,
+    chunks: Optional[Iterable[int]] = None,
+    version: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> ZarrUploadGrant:
+    """RequestZarrUpload
+
+    Request an upload grant for a Zarr store
+
+    Args:
+        shape: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+        chunks: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+        version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ZarrUploadGrant
+    """
+    return (
+        await aexecute(
+            RequestZarrUploadMutation,
+            {"input": {"shape": shape, "chunks": chunks, "version": version}},
+            rath=rath,
+        )
+    ).request_zarr_upload
+
+
+def request_zarr_upload(
+    shape: Optional[Iterable[int]] = None,
+    chunks: Optional[Iterable[int]] = None,
+    version: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> ZarrUploadGrant:
+    """RequestZarrUpload
+
+    Request an upload grant for a Zarr store
+
+    Args:
+        shape: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+        chunks: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+        version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ZarrUploadGrant
+    """
+    return execute(
+        RequestZarrUploadMutation,
+        {"input": {"shape": shape, "chunks": chunks, "version": version}},
+        rath=rath,
+    ).request_zarr_upload
+
+
+async def afinish_zarr_upload(
+    store_id: str, valid: bool, rath: Optional[MikroNextRath] = None
+) -> ZarrStore:
+    """FinishZarrUpload
+
+    Finalize a Zarr upload after the client has written the object
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        valid: The `Boolean` scalar type represents `true` or `false`. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ZarrStore
+    """
+    return (
+        await aexecute(
+            FinishZarrUploadMutation,
+            {"input": {"storeId": store_id, "valid": valid}},
+            rath=rath,
+        )
+    ).finish_zarr_upload
+
+
+def finish_zarr_upload(
+    store_id: str, valid: bool, rath: Optional[MikroNextRath] = None
+) -> ZarrStore:
+    """FinishZarrUpload
+
+    Finalize a Zarr upload after the client has written the object
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        valid: The `Boolean` scalar type represents `true` or `false`. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ZarrStore
+    """
+    return execute(
+        FinishZarrUploadMutation,
+        {"input": {"storeId": store_id, "valid": valid}},
+        rath=rath,
+    ).finish_zarr_upload
+
+
+async def arequest_zarr_access(
+    store_id: str, rath: Optional[MikroNextRath] = None
+) -> ZarrAccessGrant:
+    """RequestZarrAccess
+
+    Request temporary S3 read credentials for a Zarr store
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ZarrAccessGrant
+    """
+    return (
+        await aexecute(
+            RequestZarrAccessMutation, {"input": {"storeId": store_id}}, rath=rath
+        )
+    ).request_zarr_access
+
+
+def request_zarr_access(
+    store_id: str, rath: Optional[MikroNextRath] = None
+) -> ZarrAccessGrant:
+    """RequestZarrAccess
+
+    Request temporary S3 read credentials for a Zarr store
+
+    Args:
+        store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        ZarrAccessGrant
+    """
+    return execute(
+        RequestZarrAccessMutation, {"input": {"storeId": store_id}}, rath=rath
+    ).request_zarr_access
 
 
 async def acreate_dataset(
@@ -5378,7 +6874,7 @@ async def afrom_file_like(
     origins: Optional[Iterable[IDCoercible]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> File:
-    """from_file_like
+    """FromFileLike
 
     Create a file from file-like data
 
@@ -5394,7 +6890,7 @@ async def afrom_file_like(
     """
     return (
         await aexecute(
-            From_file_likeMutation,
+            FromFileLikeMutation,
             {
                 "input": {
                     "file": file,
@@ -5415,7 +6911,7 @@ def from_file_like(
     origins: Optional[Iterable[IDCoercible]] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> File:
-    """from_file_like
+    """FromFileLike
 
     Create a file from file-like data
 
@@ -5430,7 +6926,7 @@ def from_file_like(
         File
     """
     return execute(
-        From_file_likeMutation,
+        FromFileLikeMutation,
         {
             "input": {
                 "file": file,
@@ -5441,102 +6937,6 @@ def from_file_like(
         },
         rath=rath,
     ).from_file_like
-
-
-async def arequest_file_upload(
-    file_name: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> Credentials:
-    """RequestFileUpload
-
-    Request credentials to upload a new file
-
-    Args:
-        file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        Credentials
-    """
-    return (
-        await aexecute(
-            RequestFileUploadMutation,
-            {"input": {"fileName": file_name, "datalayer": datalayer}},
-            rath=rath,
-        )
-    ).request_file_upload
-
-
-def request_file_upload(
-    file_name: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> Credentials:
-    """RequestFileUpload
-
-    Request credentials to upload a new file
-
-    Args:
-        file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        Credentials
-    """
-    return execute(
-        RequestFileUploadMutation,
-        {"input": {"fileName": file_name, "datalayer": datalayer}},
-        rath=rath,
-    ).request_file_upload
-
-
-async def arequest_file_access(
-    store: IDCoercible,
-    duration: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> AccessCredentials:
-    """RequestFileAccess
-
-    Request credentials to access a file
-
-    Args:
-        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        AccessCredentials
-    """
-    return (
-        await aexecute(
-            RequestFileAccessMutation,
-            {"input": {"store": store, "duration": duration}},
-            rath=rath,
-        )
-    ).request_file_access
-
-
-def request_file_access(
-    store: IDCoercible,
-    duration: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> AccessCredentials:
-    """RequestFileAccess
-
-    Request credentials to access a file
-
-    Args:
-        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        AccessCredentials
-    """
-    return execute(
-        RequestFileAccessMutation,
-        {"input": {"store": store, "duration": duration}},
-        rath=rath,
-    ).request_file_access
 
 
 async def afrom_array_like(
@@ -5699,102 +7099,6 @@ def from_array_like(
     ).from_array_like
 
 
-async def arequest_upload(
-    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> Credentials:
-    """RequestUpload
-
-    Request credentials to upload a new image
-
-    Args:
-        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        Credentials
-    """
-    return (
-        await aexecute(
-            RequestUploadMutation,
-            {"input": {"key": key, "datalayer": datalayer}},
-            rath=rath,
-        )
-    ).request_upload
-
-
-def request_upload(
-    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> Credentials:
-    """RequestUpload
-
-    Request credentials to upload a new image
-
-    Args:
-        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        Credentials
-    """
-    return execute(
-        RequestUploadMutation,
-        {"input": {"key": key, "datalayer": datalayer}},
-        rath=rath,
-    ).request_upload
-
-
-async def arequest_access(
-    store: IDCoercible,
-    duration: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> AccessCredentials:
-    """RequestAccess
-
-    Request credentials to access an image
-
-    Args:
-        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        AccessCredentials
-    """
-    return (
-        await aexecute(
-            RequestAccessMutation,
-            {"input": {"store": store, "duration": duration}},
-            rath=rath,
-        )
-    ).request_access
-
-
-def request_access(
-    store: IDCoercible,
-    duration: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> AccessCredentials:
-    """RequestAccess
-
-    Request credentials to access an image
-
-    Args:
-        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        AccessCredentials
-    """
-    return execute(
-        RequestAccessMutation,
-        {"input": {"store": store, "duration": duration}},
-        rath=rath,
-    ).request_access
-
-
 async def acreate_instrument(
     serial_number: str,
     manufacturer: Optional[str] = None,
@@ -5939,6 +7243,174 @@ def ensure_instrument(
     ).ensure_instrument
 
 
+async def acreate_layer(
+    lens: IDCoercible,
+    scene: IDCoercible,
+    affine_matrix: Optional[Iterable[Iterable[float]]] = None,
+    colormap: Optional[ColorMap] = None,
+    color: Optional[Iterable[int]] = None,
+    clim_min: Optional[float] = None,
+    clim_max: Optional[float] = None,
+    x_dim: Optional[str] = None,
+    y_dim: Optional[str] = None,
+    z_dim: Optional[str] = None,
+    t_dim: Optional[str] = None,
+    intensity_dim: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Layer:
+    """CreateLayer
+
+    Create a new layer from an existing lens with optional affine transformation and colormap settings
+
+    Args:
+        lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        affine_matrix: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list) (required) (list)
+        colormap: ColorMap
+        color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+        clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        clim_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        x_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        y_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        z_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        t_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        intensity_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Layer
+    """
+    return (
+        await aexecute(
+            CreateLayerMutation,
+            {
+                "input": {
+                    "lens": lens,
+                    "scene": scene,
+                    "affineMatrix": affine_matrix,
+                    "colormap": colormap,
+                    "color": color,
+                    "climMin": clim_min,
+                    "climMax": clim_max,
+                    "xDim": x_dim,
+                    "yDim": y_dim,
+                    "zDim": z_dim,
+                    "tDim": t_dim,
+                    "intensityDim": intensity_dim,
+                }
+            },
+            rath=rath,
+        )
+    ).create_layer
+
+
+def create_layer(
+    lens: IDCoercible,
+    scene: IDCoercible,
+    affine_matrix: Optional[Iterable[Iterable[float]]] = None,
+    colormap: Optional[ColorMap] = None,
+    color: Optional[Iterable[int]] = None,
+    clim_min: Optional[float] = None,
+    clim_max: Optional[float] = None,
+    x_dim: Optional[str] = None,
+    y_dim: Optional[str] = None,
+    z_dim: Optional[str] = None,
+    t_dim: Optional[str] = None,
+    intensity_dim: Optional[str] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Layer:
+    """CreateLayer
+
+    Create a new layer from an existing lens with optional affine transformation and colormap settings
+
+    Args:
+        lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        affine_matrix: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list) (required) (list)
+        colormap: ColorMap
+        color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+        clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        clim_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+        x_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        y_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        z_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        t_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        intensity_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Layer
+    """
+    return execute(
+        CreateLayerMutation,
+        {
+            "input": {
+                "lens": lens,
+                "scene": scene,
+                "affineMatrix": affine_matrix,
+                "colormap": colormap,
+                "color": color,
+                "climMin": clim_min,
+                "climMax": clim_max,
+                "xDim": x_dim,
+                "yDim": y_dim,
+                "zDim": z_dim,
+                "tDim": t_dim,
+                "intensityDim": intensity_dim,
+            }
+        },
+        rath=rath,
+    ).create_layer
+
+
+async def acreate_lens(
+    dataset: IDCoercible,
+    slices: Iterable[SliceInput],
+    rath: Optional[MikroNextRath] = None,
+) -> Lens:
+    """CreateLens
+
+    Create a new lens from an existing dataset and slicing constraints
+
+    Args:
+        dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        slices: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Lens
+    """
+    return (
+        await aexecute(
+            CreateLensMutation,
+            {"input": {"dataset": dataset, "slices": slices}},
+            rath=rath,
+        )
+    ).create_lens
+
+
+def create_lens(
+    dataset: IDCoercible,
+    slices: Iterable[SliceInput],
+    rath: Optional[MikroNextRath] = None,
+) -> Lens:
+    """CreateLens
+
+    Create a new lens from an existing dataset and slicing constraints
+
+    Args:
+        dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        slices: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Lens
+    """
+    return execute(
+        CreateLensMutation, {"input": {"dataset": dataset, "slices": slices}}, rath=rath
+    ).create_lens
+
+
 async def acreate_mesh(
     mesh: MeshCoercible, name: str, rath: Optional[MikroNextRath] = None
 ) -> Mesh:
@@ -5979,52 +7451,6 @@ def create_mesh(
     return execute(
         CreateMeshMutation, {"input": {"mesh": mesh, "name": name}}, rath=rath
     ).create_mesh
-
-
-async def arequest_mesh_upload(
-    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> PresignedPostCredentials:
-    """RequestMeshUpload
-
-    Request presigned credentials for mesh upload
-
-    Args:
-        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        PresignedPostCredentials
-    """
-    return (
-        await aexecute(
-            RequestMeshUploadMutation,
-            {"input": {"key": key, "datalayer": datalayer}},
-            rath=rath,
-        )
-    ).request_mesh_upload
-
-
-def request_mesh_upload(
-    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> PresignedPostCredentials:
-    """RequestMeshUpload
-
-    Request presigned credentials for mesh upload
-
-    Args:
-        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        PresignedPostCredentials
-    """
-    return execute(
-        RequestMeshUploadMutation,
-        {"input": {"key": key, "datalayer": datalayer}},
-        rath=rath,
-    ).request_mesh_upload
 
 
 async def acreate_objective(
@@ -6581,6 +8007,78 @@ def update_roi(
     ).update_roi
 
 
+async def acreate_scene(
+    name: str,
+    blending: Optional[Blending] = None,
+    spatial_unit: Optional[SpatialUnit] = None,
+    temporal_unit: Optional[TemporalUnit] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Scene:
+    """CreateScene
+
+    Create a new scene from an existing lens with optional blending mode
+
+    Args:
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        blending: Blending
+        spatial_unit: SpatialUnit
+        temporal_unit: TemporalUnit
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Scene
+    """
+    return (
+        await aexecute(
+            CreateSceneMutation,
+            {
+                "input": {
+                    "name": name,
+                    "blending": blending,
+                    "spatialUnit": spatial_unit,
+                    "temporalUnit": temporal_unit,
+                }
+            },
+            rath=rath,
+        )
+    ).create_scene
+
+
+def create_scene(
+    name: str,
+    blending: Optional[Blending] = None,
+    spatial_unit: Optional[SpatialUnit] = None,
+    temporal_unit: Optional[TemporalUnit] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Scene:
+    """CreateScene
+
+    Create a new scene from an existing lens with optional blending mode
+
+    Args:
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        blending: Blending
+        spatial_unit: SpatialUnit
+        temporal_unit: TemporalUnit
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Scene
+    """
+    return execute(
+        CreateSceneMutation,
+        {
+            "input": {
+                "name": name,
+                "blending": blending,
+                "spatialUnit": spatial_unit,
+                "temporalUnit": temporal_unit,
+            }
+        },
+        rath=rath,
+    ).create_scene
+
+
 async def acreate_snapshot(
     file: ImageFileCoercible,
     image: IDCoercible,
@@ -6633,52 +8131,6 @@ def create_snapshot(
         {"input": {"file": file, "image": image, "name": name}},
         rath=rath,
     ).create_snapshot
-
-
-async def arequest_media_upload(
-    file_name: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> PresignedPostCredentials:
-    """RequestMediaUpload
-
-    Request credentials for media file upload
-
-    Args:
-        file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        PresignedPostCredentials
-    """
-    return (
-        await aexecute(
-            RequestMediaUploadMutation,
-            {"input": {"fileName": file_name, "datalayer": datalayer}},
-            rath=rath,
-        )
-    ).request_media_upload
-
-
-def request_media_upload(
-    file_name: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> PresignedPostCredentials:
-    """RequestMediaUpload
-
-    Request credentials for media file upload
-
-    Args:
-        file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        PresignedPostCredentials
-    """
-    return execute(
-        RequestMediaUploadMutation,
-        {"input": {"fileName": file_name, "datalayer": datalayer}},
-        rath=rath,
-    ).request_media_upload
 
 
 async def acreate_stage(
@@ -6813,102 +8265,6 @@ def from_parquet_like(
         },
         rath=rath,
     ).from_parquet_like
-
-
-async def arequest_table_upload(
-    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> Credentials:
-    """RequestTableUpload
-
-    Request credentials to upload a new table
-
-    Args:
-        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        Credentials
-    """
-    return (
-        await aexecute(
-            RequestTableUploadMutation,
-            {"input": {"key": key, "datalayer": datalayer}},
-            rath=rath,
-        )
-    ).request_table_upload
-
-
-def request_table_upload(
-    key: str, datalayer: str, rath: Optional[MikroNextRath] = None
-) -> Credentials:
-    """RequestTableUpload
-
-    Request credentials to upload a new table
-
-    Args:
-        key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        datalayer: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        Credentials
-    """
-    return execute(
-        RequestTableUploadMutation,
-        {"input": {"key": key, "datalayer": datalayer}},
-        rath=rath,
-    ).request_table_upload
-
-
-async def arequest_table_access(
-    store: IDCoercible,
-    duration: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> AccessCredentials:
-    """RequestTableAccess
-
-    Request credentials to access a table
-
-    Args:
-        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        AccessCredentials
-    """
-    return (
-        await aexecute(
-            RequestTableAccessMutation,
-            {"input": {"store": store, "duration": duration}},
-            rath=rath,
-        )
-    ).request_table_access
-
-
-def request_table_access(
-    store: IDCoercible,
-    duration: Optional[int] = None,
-    rath: Optional[MikroNextRath] = None,
-) -> AccessCredentials:
-    """RequestTableAccess
-
-    Request credentials to access a table
-
-    Args:
-        store: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        duration: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
-        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-    Returns:
-        AccessCredentials
-    """
-    return execute(
-        RequestTableAccessMutation,
-        {"input": {"store": store, "duration": duration}},
-        rath=rath,
-    ).request_table_access
 
 
 async def acreate_rgb_view(
@@ -9048,16 +10404,19 @@ def watch_rois(
 
 
 AffineTransformationViewFilter.model_rebuild()
+CoordinateAnchorInput.model_rebuild()
+CreateADatasetInput.model_rebuild()
+CreateDataRoiInput.model_rebuild()
+CreateLensInput.model_rebuild()
+CreateRGBContextInput.model_rebuild()
 DatasetFilter.model_rebuild()
 EraFilter.model_rebuild()
 FromArrayLikeInput.model_rebuild()
 FromParquetLike.model_rebuild()
 ImageFilter.model_rebuild()
-LightEdgeInput.model_rebuild()
 LightPortInput.model_rebuild()
 LightpathGraphInput.model_rebuild()
 OpticalElementInput.model_rebuild()
-PartialLightpathViewInput.model_rebuild()
 Pose3DInput.model_rebuild()
 RenderTreeInput.model_rebuild()
 StageFilter.model_rebuild()

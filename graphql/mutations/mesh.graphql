@@ -3,9 +3,3 @@ mutation CreateMesh($input: MeshInput!) {
     ...Mesh
   }
 }
-
-mutation RequestMeshUpload($input: RequestMeshUploadInput!) {
-  requestMeshUpload(input: $input) {
-    ...PresignedPostCredentials
-  }
-}

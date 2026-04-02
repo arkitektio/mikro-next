@@ -5,8 +5,3 @@ mutation CreateSnapshot($input: SnapshotInput!) {
 }
 
 
-mutation RequestMediaUpload($input: RequestMediaUploadInput!) {
-  requestMediaUpload(input: $input) {
-    ...PresignedPostCredentials
-  }
-}

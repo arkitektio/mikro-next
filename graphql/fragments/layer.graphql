@@ -1,0 +1,9 @@
+fragment Layer on Layer { 
+  scene {
+    id
+    name
+  }
+  lens {
+    id
+  }
+}

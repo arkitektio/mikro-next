@@ -46,7 +46,7 @@ class MikroService(BaseArkitektService):
         Returns:
             MikroNext: An instance of MikroNext with the configured links.
         """
-        datalayer = FaktsDataLayer(fakts_group="datalayer", fakts=fakts)
+        datalayer = FaktsDataLayer(fakts_group="s3", fakts=fakts)
 
         return MikroNext(
             rath=MikroNextRath(
@@ -85,13 +85,13 @@ class MikroService(BaseArkitektService):
                 key="mikro",
                 service="live.arkitekt.mikro",
                 description="An instance of ArkitektNext Mikro to make requests to the user's data",
-                optional=True,
+                optional=False,
             ),
             Requirement(
-                key="datalayer",
+                key="s3",
                 service="live.arkitekt.s3",
                 description="An instance of ArkitektNext Datalayer to make requests to the user's data",
-                optional=True,
+                optional=False,
             ),
         ]
 

@@ -1,0 +1,4 @@
+fragment Scene on Scene { 
+  name 
+  id
+}

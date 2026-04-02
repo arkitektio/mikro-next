@@ -1,0 +1,30 @@
+fragment Slice on Slice {
+  dim
+  start
+  stop
+  step
+}
+
+
+fragment Lens on Lens { 
+  id
+  dataset {
+    id
+    dims
+    dataArrays {
+      id
+      level
+      store {
+        ...ZarrStore
+      }
+    }
+  }
+  shape
+  dims
+  dimDescriptors {
+    ...DimDescriptor
+  }
+  slices {
+    ...Slice
+  }
+}

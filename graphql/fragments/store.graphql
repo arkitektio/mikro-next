@@ -12,17 +12,17 @@ fragment ParquetStore on ParquetStore {
   path
 }
 
-fragment MeshStore on MeshStore {
-  id
-  key
-  bucket
-  path
-}
-
 fragment BigFileStore on BigFileStore {
   id
   key
   bucket
   path
   presignedUrl
+}
+
+fragment MediaStore on MediaStore {
+  id
+  key
+  bucket
+  path
 }

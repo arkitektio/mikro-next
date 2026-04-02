@@ -1,15 +1,19 @@
 import zarr.storage
+import asyncio
 from mikro_next.api.schema import (
-    arequest_access,
-    arequest_table_access,
-    arequest_file_access,
-    AccessCredentials,
+    ZarrAccessGrant,
+    arequest_zarr_access,
+    arequest_parquet_access,
+    arequest_bigfile_access,
+    ParquetAccessGrant,
+    BigFileAccessGrant,
 )
 from mikro_next.datalayer import DataLayer, current_next_datalayer
 import s3fs  # type: ignore
 from koil import unkoil
 import zarr
 import aiohttp
+from pathlib import Path
 from typing import Tuple
 from typing import TYPE_CHECKING
 
@@ -21,11 +25,11 @@ if TYPE_CHECKING:
 
 async def aget_zarr_credentials_and_endpoint(
     store: str,
-) -> Tuple[AccessCredentials, str]:
+) -> Tuple[ZarrAccessGrant, str]:
     datalayer = current_next_datalayer.get()
     if not datalayer:
         raise ValueError("Datalayer is not set")
-    credentials = await arequest_access(ID.validate(store))
+    credentials = await arequest_zarr_access(ID.validate(store))
 
     endpoint_url = await datalayer.get_endpoint_url()
     return credentials, endpoint_url
@@ -33,24 +37,24 @@ async def aget_zarr_credentials_and_endpoint(
 
 async def aget_table_credentials_and_endpoint(
     store: str,
-) -> Tuple[AccessCredentials, str]:
+) -> Tuple[ParquetAccessGrant, str]:
     datalayer = current_next_datalayer.get()
     if not datalayer:
         raise ValueError("Datalayer is not set")
 
-    credentials = await arequest_table_access(ID.validate(store))
+    credentials = await arequest_parquet_access(ID.validate(store))
     endpoint_url = await datalayer.get_endpoint_url()
     return credentials, endpoint_url
 
 
-async def aget_file_credentials_and_endpoint(
+async def aget_bigfile_credentials_and_endpoint(
     store: str,
-) -> Tuple[AccessCredentials, str]:
+) -> Tuple[BigFileAccessGrant, str]:
     datalayer = current_next_datalayer.get()
     if not datalayer:
         raise ValueError("Datalayer is not set")
 
-    credentials = await arequest_file_access(ID.validate(store))
+    credentials = await arequest_bigfile_access(ID.validate(store))
     endpoint_url = await datalayer.get_endpoint_url()
     return credentials, endpoint_url
 
@@ -126,7 +130,12 @@ def open_parquet_filesystem(store_id: str):
     return pq.ParquetDataset(credentials.path, filesystem=_s3fs)
 
 
-async def adownload_file(
+def _ensure_parent_directory(file_name: str) -> None:
+    parent = Path(file_name).expanduser().resolve().parent
+    parent.mkdir(parents=True, exist_ok=True)
+
+
+async def adownload_presigned_file(
     presigned_url: str,
     file_name: str,
     datalayer: DataLayer | None = None,
@@ -134,15 +143,16 @@ async def adownload_file(
     datalayer = datalayer or current_next_datalayer.get()
     if not datalayer:
         raise ValueError("Datalayer is not set")
+
     endpoint_url = await datalayer.get_endpoint_url()
+    _ensure_parent_directory(file_name)
 
     async with aiohttp.ClientSession() as session:
         async with session.get(endpoint_url + presigned_url) as response:
+            response.raise_for_status()
             with open(file_name, "wb") as file:
                 while True:
-                    chunk = await response.content.read(
-                        1024
-                    )  # read the response by chunks of 1024 bytes
+                    chunk = await response.content.read(1024)
                     if not chunk:
                         break
                     file.write(chunk)
@@ -150,9 +160,55 @@ async def adownload_file(
     return file_name
 
 
-def download_file(
+def download_presigned_file(
     presigned_url: str, file_name: str, datalayer: DataLayer | None = None
 ):
     return unkoil(
-        adownload_file, presigned_url, file_name=file_name, datalayer=datalayer
+        adownload_presigned_file,
+        presigned_url,
+        file_name=file_name,
+        datalayer=datalayer,
     )
+
+
+async def adownload_file(
+    store_id: str,
+    file_name: str,
+    datalayer: DataLayer | None = None,
+):
+    return await asyncio.to_thread(
+        download_file,
+        store_id,
+        file_name,
+        datalayer,
+    )
+
+
+def download_file(store_id: str, file_name: str, datalayer: DataLayer | None = None):
+    if datalayer is not None:
+        token = current_next_datalayer.set(datalayer)
+    else:
+        token = None
+
+    try:
+        credentials, endpoint_url = unkoil(
+            aget_bigfile_credentials_and_endpoint, store_id
+        )
+    finally:
+        if token is not None:
+            current_next_datalayer.reset(token)
+
+    _ensure_parent_directory(file_name)
+
+    _s3fs = s3fs.S3FileSystem(
+        secret=credentials.secret_key,
+        key=credentials.access_key,
+        client_kwargs={
+            "endpoint_url": endpoint_url,
+            "aws_session_token": credentials.session_token,
+        },
+        asynchronous=False,
+    )
+
+    _s3fs.get_file(credentials.path, file_name)  # type: ignore[reportUnknownMemberType]
+    return file_name

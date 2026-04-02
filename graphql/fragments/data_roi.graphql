@@ -1,0 +1,17 @@
+fragment DataRoi on DataRoi {
+  id
+  dataset {
+    id
+    dimDescriptors {
+     ...DimDescriptor
+    }
+    dataArrays {
+      id
+      store {
+        ...ZarrStore
+      }
+    }
+  }
+  vectors
+  kind
+}

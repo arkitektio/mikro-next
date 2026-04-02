@@ -4,14 +4,3 @@ mutation from_parquet_like($input: FromParquetLike!) {
   }
 }
 
-mutation RequestTableUpload($input: RequestTableUploadInput!) {
-  requestTableUpload(input: $input) {
-    ...Credentials
-  }
-}
-
-mutation RequestTableAccess($input: RequestTableAccessInput!) {
-  requestTableAccess(input: $input) {
-    ...AccessCredentials
-  }
-}

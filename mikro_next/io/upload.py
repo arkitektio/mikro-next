@@ -15,21 +15,25 @@ import zarr.api.asynchronous as async_api
 import aiohttp
 
 if TYPE_CHECKING:
-    from mikro_next.api.schema import Credentials, PresignedPostCredentials
+    from mikro_next.api.schema import (
+        ZarrUploadGrant,
+        ParquetUploadGrant,
+        BigFileUploadGrant,
+        MediaUploadGrant,
+    )
     from mikro_next.datalayer import DataLayer
 
 
 async def astore_xarray_input(
     xarray: ArrayLike,
-    credentials: "Credentials",
+    credentials: "ZarrUploadGrant",
     endpoint_url: str,
 ) -> str:
     """Stores an xarray in the DataLayer"""
 
-    if endpoint_url.startswith("https://"):
-        os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = (
-            "when_required"  # TODO: This is a workaround for a bug in aiobotocore and s3fs https://github.com/fsspec/s3fs/issues/931
-        )
+    os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = (
+        "when_required"  # TODO: This is a workaround for a bug in aiobotocore and s3fs https://github.com/fsspec/s3fs/issues/931
+    )
 
     filesystem = s3fs.S3FileSystem(
         secret=credentials.secret_key,
@@ -51,6 +55,7 @@ async def astore_xarray_input(
 
     try:
         await async_api.save_array(store, array.to_numpy(), zarr_format=3)  # type: ignore
+
         return credentials.store
     except Exception as e:
         raise UploadError(
@@ -60,7 +65,7 @@ async def astore_xarray_input(
 
 def _store_parquet_input(
     parquet_input: ParquetLike,
-    credentials: "Credentials",
+    credentials: "ParquetUploadGrant",
     endpoint_url: str,
 ) -> str:
     """Stores an xarray in the DataLayer"""
@@ -88,7 +93,7 @@ def _store_parquet_input(
 
 async def astore_mesh_file(
     mesh: MeshLike,
-    credentials: "PresignedPostCredentials",
+    credentials: "BigFileUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
     """Store a mesh file in the DataLayer using presigned POST credentials."""
@@ -123,7 +128,7 @@ async def astore_mesh_file(
 
 async def astore_media_file(
     file: ImageFileLike,
-    credentials: "PresignedPostCredentials",
+    credentials: "MediaUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
     """Store a media file in the DataLayer using presigned POST credentials."""
@@ -159,7 +164,7 @@ async def astore_media_file(
 
 async def aupload_bigfile(
     file: FileLike | ImageFileLike,
-    credentials: "Credentials",
+    credentials: "BigFileUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
     """Store a DataFrame in the DataLayer"""

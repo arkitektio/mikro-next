@@ -1,0 +1,11 @@
+fragment ADataset on ADataset {
+  id
+  name
+  dims
+  dataArrays {
+    level
+    shape
+    chunkShape
+    scaleFactors
+  }
+}

@@ -1,17 +1,6 @@
-mutation from_file_like($input: FromFileLike!) {
+mutation FromFileLike($input: FromFileLike!) {
   fromFileLike(input: $input) {
     ...File
   }
 }
 
-mutation RequestFileUpload($input: RequestFileUploadInput!) {
-  requestFileUpload(input: $input) {
-    ...Credentials
-  }
-}
-
-mutation RequestFileAccess($input: RequestFileAccessInput!) {
-  requestFileAccess(input: $input) {
-    ...AccessCredentials
-  }
-}

@@ -26,7 +26,12 @@ from mikro_next.datalayer import DataLayer
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from mikro_next.api.schema import Credentials, PresignedPostCredentials
+    from mikro_next.api.schema import (
+        MediaUploadGrant,
+        ZarrUploadGrant,
+        ParquetUploadGrant,
+        BigFileUploadGrant,
+    )
     from mikro_next.datalayer import DataLayer
     from mikro_next.io.upload import (
         FileLike,
@@ -37,7 +42,9 @@ if TYPE_CHECKING:
     )
 
 
-async def apply_recursive(func, obj, typeguard: Union[Type[Any], Tuple[Type[Any], ...]]) -> Any:  # type: ignore
+async def apply_recursive(
+    func, obj, typeguard: Union[Type[Any], Tuple[Type[Any], ...]]
+) -> Any:  # type: ignore
     """
     Recursively applies an asynchronous function to elements in a nested structure.
 
@@ -49,15 +56,21 @@ async def apply_recursive(func, obj, typeguard: Union[Type[Any], Tuple[Type[Any]
     Returns:
         any: The nested structure with the function applied to elements of the specified type.
     """
-    if isinstance(obj, dict):  # If obj is a dictionary, recursively apply to each key-value pair
+    if isinstance(
+        obj, dict
+    ):  # If obj is a dictionary, recursively apply to each key-value pair
         return {k: await apply_recursive(func, v, typeguard) for k, v in obj.items()}  # type: ignore
     elif isinstance(obj, list):  # If obj is a list, recursively apply to each element
-        return await asyncio.gather(*[apply_recursive(func, elem, typeguard) for elem in obj])  # type: ignore
+        return await asyncio.gather(
+            *[apply_recursive(func, elem, typeguard) for elem in obj]
+        )  # type: ignore
     elif isinstance(
         obj, tuple
     ):  # If obj is a tuple, recursively apply to each element and convert back to tuple
         return tuple(
-            await asyncio.gather(*[apply_recursive(func, elem, typeguard) for elem in obj])  # type: ignore
+            await asyncio.gather(
+                *[apply_recursive(func, elem, typeguard) for elem in obj]
+            )  # type: ignore
         )
     elif isinstance(obj, typeguard):
         return await func(obj)  # type: ignore
@@ -91,94 +104,106 @@ class UploadLink(ParsingLink):
         self._executor_session = self.executor.__enter__()
         return self
 
-    async def aget_image_credentials(self, key: str, datalayer: str) -> "Credentials":
-        """Get image upload credentials"""
-        from mikro_next.api.schema import RequestUploadMutation, RequestUploadInput
+    async def aget_zarr_credentials(
+        self, key: str, datalayer: str
+    ) -> "ZarrUploadGrant":
+        """Get zarr upload credentials"""
+        from mikro_next.api.schema import (
+            RequestZarrUploadInput,
+            RequestZarrUploadMutation,
+        )
 
         operation = opify(
-            RequestUploadMutation.Meta.document,
-            variables={"input": RequestUploadInput(key=key, datalayer=datalayer).model_dump()},
+            RequestZarrUploadMutation.Meta.document,
+            variables={"input": RequestZarrUploadInput().model_dump()},
         )
 
         if not self.next:
             raise ValueError("No next link found. Please set the next link.")
 
         async for result in self.next.aexecute(operation):
-            return RequestUploadMutation(**result.data).request_upload
+            return RequestZarrUploadMutation(**result.data).request_zarr_upload
 
         raise ValueError("No result found for image upload credentials")
 
-    async def aget_table_credentials(self, key: str, datalayer: str) -> "Credentials":
-        """Get table upload credentials"""
+    async def afinish_zarr_upload(self, store_id: str) -> None:
+        """Finish zarr upload"""
         from mikro_next.api.schema import (
-            RequestTableUploadMutation,
-            RequestTableUploadInput,
+            FinishZarrUploadInput,
+            FinishZarrUploadMutation,
         )
 
-        if not self.next:
-            raise ValueError("No next link found. Please set the next link.")
-
         operation = opify(
-            RequestTableUploadMutation.Meta.document,
+            FinishZarrUploadMutation.Meta.document,
             variables={
-                "input": RequestTableUploadInput(key=key, datalayer=datalayer).model_dump(
+                "input": FinishZarrUploadInput(storeId=store_id, valid=True).model_dump(
                     by_alias=True, exclude_unset=True
                 )
             },
         )
 
-        async for result in self.next.aexecute(operation):
-            return RequestTableUploadMutation(**result.data).request_table_upload
-
-        raise ValueError("No result found for table upload credentials")
-
-    async def aget_bigfile_credentials(self, file: FileLike, datalayer: str) -> Any:
-        from mikro_next.api.schema import (
-            RequestFileUploadMutation,
-            RequestFileUploadInput,
-        )
-
         if not self.next:
             raise ValueError("No next link found. Please set the next link.")
 
+        async for result in self.next.aexecute(operation):
+            return
+
+        raise ValueError("No result found for finishing zarr upload")
+
+    async def aget_table_credentials(
+        self, key: str, datalayer: str
+    ) -> "ParquetUploadGrant":
+        """Get table upload credentials"""
+        from mikro_next.api.schema import (
+            RequestParquetUploadInput,
+            RequestParquetUploadMutation,
+        )
+
+        if not self.next:
+            raise ValueError("No mnext link found. Please set the next link.")
+
         operation = opify(
-            RequestFileUploadMutation.Meta.document,
+            RequestParquetUploadMutation.Meta.document,
             variables={
-                "input": RequestFileUploadInput(
-                    fileName=file.file_name, datalayer=datalayer
+                "input": RequestParquetUploadInput(
+                    key=key, datalayer=datalayer
                 ).model_dump(by_alias=True, exclude_unset=True)
             },
         )
 
         async for result in self.next.aexecute(operation):
-            return RequestFileUploadMutation(**result.data).request_file_upload
+            return RequestParquetUploadMutation(**result.data).request_parquet_upload
 
-    async def aget_mesh_credentials(self, key: str, datalayer: str) -> "PresignedPostCredentials":
+        raise ValueError("No result found for table upload credentials")
+
+    async def aget_bigfile_credentials(
+        self, file: FileLike, datalayer: str
+    ) -> "BigFileUploadGrant":
         from mikro_next.api.schema import (
-            RequestMeshUploadMutation,
-            RequestMeshUploadInput,
+            RequestBigFileUploadInput,
+            RequestBigfileUploadMutation,
         )
 
         if not self.next:
             raise ValueError("No next link found. Please set the next link.")
 
         operation = opify(
-            RequestMeshUploadMutation.Meta.document,
+            RequestBigfileUploadMutation.Meta.document,
             variables={
-                "input": RequestMeshUploadInput(key=key, datalayer=datalayer).model_dump(
-                    by_alias=True, exclude_unset=True
-                )
+                "input": RequestBigFileUploadInput(
+                    originalFileName=file.file_name,
+                ).model_dump(by_alias=True, exclude_unset=True)
             },
         )
 
         async for result in self.next.aexecute(operation):
-            return RequestMeshUploadMutation(**result.data).request_mesh_upload
+            return RequestBigfileUploadMutation(**result.data).request_bigfile_upload
 
         raise ValueError("No result found for mesh upload credentials")
 
     async def arequest_media_credentials(
         self, file_name: str, datalayer: str
-    ) -> "PresignedPostCredentials":
+    ) -> "MediaUploadGrant":
         from mikro_next.api.schema import (
             RequestMediaUploadMutation,
             RequestMediaUploadInput,
@@ -191,7 +216,7 @@ class UploadLink(ParsingLink):
             RequestMediaUploadMutation.Meta.document,
             variables={
                 "input": RequestMediaUploadInput(
-                    fileName=file_name, datalayer=datalayer
+                    originalFileName=file_name,
                 ).model_dump(by_alias=True, exclude_unset=True)
             },
         )
@@ -221,12 +246,15 @@ class UploadLink(ParsingLink):
         assert datalayer is not None, "Datalayer must be set"
         endpoint_url = await datalayer.get_endpoint_url()
 
-        credentials = await self.aget_image_credentials(xarray.key, endpoint_url)
-        return await aupload_xarray(
+        credentials = await self.aget_zarr_credentials(xarray.key, endpoint_url)
+        store_id = await aupload_xarray(
             xarray,
             credentials,
             datalayer,
         )
+
+        await self.afinish_zarr_upload(store_id)
+        return store_id
 
     async def aupload_bigfile(self, datalayer: "DataLayer", file: FileLike) -> str:
         """Upload a big file to the DataLayer asynchronously."""
@@ -240,12 +268,16 @@ class UploadLink(ParsingLink):
             datalayer,
         )
 
-    async def aupload_mediafile(self, datalayer: "DataLayer", file: ImageFileLike) -> str:
+    async def aupload_mediafile(
+        self, datalayer: "DataLayer", file: ImageFileLike
+    ) -> str:
         """Upload a media file to the DataLayer asynchronously."""
         assert datalayer is not None, "Datalayer must be set"
         endpoint_url = await datalayer.get_endpoint_url()
 
-        credentials = await self.arequest_media_credentials(file.file_name, endpoint_url)
+        credentials = await self.arequest_media_credentials(
+            file.file_name, endpoint_url
+        )
         return await astore_media_file(
             file,
             credentials,

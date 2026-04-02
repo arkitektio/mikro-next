@@ -2,6 +2,9 @@ fragment ROI on ROI {
   id
   image {
     id
+    store {
+      ...ZarrStore
+    }
   }
   vectors
   kind

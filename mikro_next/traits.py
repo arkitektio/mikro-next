@@ -11,7 +11,12 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 
 """
 
-from typing import Awaitable, List, Type, TypeVar, Tuple, Protocol, Optional
+"""A context manager to download the file and delete it after use"""
+from contextlib import contextmanager
+from operator import le
+import os
+from os import path
+from typing import Awaitable, Generator, List, Type, TypeVar, Tuple, Protocol, Optional
 import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel
@@ -20,6 +25,8 @@ import pandas as pd
 from typing import TYPE_CHECKING
 from dask.array.core import from_zarr  # type: ignore
 from zarr.storage import FsspecStore
+
+
 from .scalars import FiveDVector
 from rath.scalars import ID
 from typing import Any
@@ -33,7 +40,7 @@ OneDArray = NDArray[np.generic]
 
 if TYPE_CHECKING:
     from pyarrow.parquet import ParquetDataset  # type: ignore
-    from mikro_next.api.schema import HasZarrStoreAccessor
+    from mikro_next.api.schema import HasZarrStoreAccessor, Image, RoiKind, DataRoi
 
 
 class MikroFetchable(FederationFetchable):
@@ -242,6 +249,26 @@ class IsVectorizableTrait:
 
         return np.array([[v[mapper[ac]] for ac in dims] for v in vector_list])
 
+    def to_slices(self) -> Tuple[slice, ...]:
+        """Get the bounding box of the ROI as a tuple of slices"""
+        vector_data = self.get_vector_data(dims="ctzyx")
+        return tuple(
+            slice(vector_data[:, i].min(), vector_data[:, i].max() + 1)
+            for i in range(5)
+        )
+
+    def image_data(self) -> xr.DataArray:
+        """Get the vector data of the ROI as a numpy array"""
+        vector_list = get_attributes_or_error(self, "vectors")
+        assert vector_list, (
+            "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
+        )
+        vector_list: list[list[float]]
+
+        image: "Image" = get_attributes_or_error(self, "image")
+
+        return image.data[*self.to_slices()]
+
     def center(self) -> FiveDVector:
         """The center of the ROI
 
@@ -370,18 +397,18 @@ class HasDownloadAccessor(BaseModel):
     _dataset: Any = None
 
     def download(self, file_name: str | None = None) -> "str":
-        """Download the file from the presigned URL
+        """Download the file from the backing store.
 
         Args:
             file_name (str | None): The name of the file to save the downloaded file as
-                If None, the key from the presigned URL will be used as the file name.
+                If None, the key from the store will be used as the file name.
         Returns:
             str: The path to the downloaded file
         """
         from mikro_next.io.download import download_file
 
-        url, key = get_attributes_or_error(self, "presigned_url", "key")
-        return download_file(url, file_name=file_name or key)
+        store_id, key = get_attributes_or_error(self, "id", "key")
+        return download_file(store_id, file_name=file_name or key)
 
 
 class HasPresignedDownloadAccessor(BaseModel):
@@ -402,10 +429,10 @@ class HasPresignedDownloadAccessor(BaseModel):
         Returns:
             str: The path to the downloaded file
         """
-        from mikro_next.io.download import download_file
+        from mikro_next.io.download import download_presigned_file
 
         url, key = get_attributes_or_error(self, "presigned_url", "key")
-        return download_file(url, file_name=file_name or key)
+        return download_presigned_file(url, file_name=file_name or key)
 
 
 class Vector(Protocol):
@@ -529,3 +556,165 @@ class FileTrait:
         """
         store: "HasPresignedDownloadAccessor" = get_attributes_or_error(self, "store")
         return store.download(file_name=file_name)
+
+    @contextmanager
+    def temporary(self) -> Generator[str, None, None]:
+        path = None
+        try:
+            path = self.download()
+            yield path
+        finally:
+            if path and os.path.exists(path):
+                os.remove(path)
+
+
+class DataArrayTrait:
+    @property
+    def data(self) -> xr.DataArray:
+        """The data of this dataset as an xarray.DataArray"""
+        store: HasZarrStoreAccessor = get_attributes_or_error(self, "store")
+        array = from_zarr(store.zarr_store)
+        print("array shape", array.shape)
+        return xr.DataArray(array)
+
+
+class DatasetTrait:
+    """A trait for dataset-like objects that can be downloaded
+    because they have a big file store attached to them.
+    """
+
+    def multi_scale_data(self) -> List[xr.DataArray]:
+        """The multi-scale data of this image as a list of xarray.DataArray"""
+        scale_views = get_attributes_or_error(self, "derived_scale_views")
+
+        if len(scale_views) == 0:
+            raise ValueError(
+                "No ScaleView found in views. Please create a ScaleView first."
+            )
+
+        sorted_views = sorted(scale_views, key=lambda image: image.scale_x)
+        return [x.image.data for x in sorted_views]
+
+    @property
+    def data(self) -> xr.DataArray:
+        """The data of this dataset as an xarray.DataArray"""
+        arrays: List[DataArrayTrait] = get_attributes_or_error(self, "data_arrays")
+        dims: list[str] = get_attributes_or_error(self, "dims")
+        return xr.DataArray(arrays[0].data, dims=dims)
+
+
+class Lensable:
+    """A trait for file-like objects that can be downloaded
+    because they have a big file store attached to them.
+    """
+
+    @property
+    def data(self) -> xr.DataArray:
+        """Download the file from the store
+
+        Args:
+            file_name (str | None): The name of the file to save the downloaded file as
+                If None, the key from the store will be used as the file name.
+        Returns:
+            str: The path to the downloaded file
+        """
+        from mikro_next.api.schema import Slice
+
+        store: "DatasetTrait" = get_attributes_or_error(self, "dataset")
+        slices: List[Slice] = get_attributes_or_error(self, "slices")
+
+        data = store.data
+
+        for lens_slice in slices:
+            if lens_slice.dim not in data.dims:
+                raise ValueError(
+                    f"Invalid slice dimension {lens_slice.dim} for data with dimensions {data.dims}"
+                )
+            if lens_slice.start is None and lens_slice.stop is None:
+                continue
+
+            data = data.isel(
+                {
+                    lens_slice.dim: slice(
+                        lens_slice.start,
+                        lens_slice.stop,
+                        lens_slice.step,
+                    )
+                }
+            )  # type: ignore
+
+        return data
+
+    def draw(
+        self,
+        kind: "RoiKind",
+        vectors: "TwoDArray",
+        x_dim: str | None = None,
+        y_dim: str | None = None,
+        z_dim: str | None = None,
+        absolute=False,
+    ) -> "DataRoi":
+        """Draw an ROI on the data of this lens
+
+        Args:
+            kind (RoiKind): The kind of the ROI to draw
+            vectors (TwoDArray): A 2D array of vectors to draw the ROI with. The last dimension needs to be of size 5 and represent the c, t, z, y, x values of the vectors.
+            x_dim (str): The dimension name for the x-axis
+            y_dim (str): The dimension name for the y-axis
+            z_dim (str): The dimension name for the z-axis
+
+        Returns:
+            ROI: The drawn ROI
+        """
+        from mikro_next.api.schema import (
+            create_data_roi,
+            Slice,
+            SliceInput,
+            DimDescriptor,
+            DimensionKind,
+        )
+
+        slices: List[Slice] = get_attributes_or_error(self, "slices")
+        dim_descriptors: List[DimDescriptor] = get_attributes_or_error(
+            self, "dim_descriptors"
+        )
+
+        x_dim = x_dim or next(
+            (d.key for d in dim_descriptors if d.kind == DimensionKind.SPACE), None
+        )
+        y_dim = y_dim or next(
+            (
+                d.key
+                for d in dim_descriptors
+                if d.kind == DimensionKind.SPACE and d.key != x_dim
+            ),
+            None,
+        )
+        z_dim = z_dim or next(
+            (
+                d.key
+                for d in dim_descriptors
+                if d.kind == DimensionKind.SPACE and d.key != x_dim and d.key != y_dim
+            ),
+            None,
+        )
+
+        return create_data_roi(
+            dataset=get_attributes_or_error(self, "dataset"),
+            vectors=vectors,
+            kind=kind,
+            x_dim=x_dim,
+            y_dim=y_dim,
+            z_dim=z_dim,
+            slices=slices,
+        )
+
+    @contextmanager
+    def temporary(self) -> Generator[str, None, None]:
+        path = None
+        try:
+            path = self.download()
+            yield path
+        finally:
+            if path and os.path.exists(path):
+                os.remove(path)

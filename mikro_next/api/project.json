@@ -1,6 +1,6 @@
 {
-    "schema_url": "http://jhnnsrs-lab/mikro/graphql",
-    "documents": "graphql/mikro-next/*/**.graphql",
+    "schema_url": "http://jhnnsrs-lab/mikro/schema",
+    "documents": "graphql/mikro-next/**/**.graphql",
     "extensions": {
         "turms": {
             "pydantic_version": "v2",
@@ -11,7 +11,7 @@
             "dump_schema": true,
             "schema_name": "schema.graphql",
             "generated_name": "schema.py",
-            "documents": "graphql/mikro-next/*/**.graphql",
+            "documents": "graphql/mikro-next/**/**.graphql",
             "verbose": false,
             "exit_on_error": true,
             "allow_introspection": true,
@@ -23,6 +23,7 @@
             "exclude_typenames": true,
             "scalar_definitions": {
                 "Any": "typing.Any",
+                "UUID": "str",
                 "StructureString": "str",
                 "ArrayLike": "mikro_next.scalars.ArrayLike",
                 "LabelsLike": "mikro_next.scalars.LabelsLike",
@@ -100,6 +101,15 @@
                 ],
                 "TransformationView": [
                     "mikro_next.traits.PixelTranslatable"
+                ],
+                "Lens": [
+                    "mikro_next.traits.Lensable"
+                ],
+                "ADataset": [
+                    "mikro_next.traits.DatasetTrait"
+                ],
+                "DataArray": [
+                    "mikro_next.traits.DataArrayTrait"
                 ],
                 "Expression": [
                     "mikro_next.traits.ExpressionTrait"
