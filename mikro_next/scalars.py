@@ -527,6 +527,94 @@ class ArrayLike:
         return f"InputArray({self.value})"
 
 
+class ImageLike:
+    """A custom scalar for wrapping of every supported array like structure on
+    the mikro platform. This scalar enables validation of various array formats
+    into a mikro api compliant xr.DataArray.."""
+
+    def __init__(self, value: xr.DataArray) -> None:
+        """Initialize the ArrayLike scalar with an xarray DataArray."""
+        self.value = value
+        self.key = str(uuid.uuid4())
+
+    def __get__(self, instance, owner) -> "ImageLike": ...  # noqa: ANN001, D105 #type: ignore
+
+    def __set__(self, instance, value: ArrayCoercible) -> None: ...  # noqa: ANN001, D105 #type: ignore
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
+
+    @classmethod
+    def validate(cls, v: ArrayCoercible) -> "ImageLike":
+        """Validate the input array and convert it to a xr.DataArray."""
+
+        was_labeled = True
+        # initial coercion checks, if a numpy array is passed, we need to convert it to a xarray
+        # but that means the user didnt pass the dimensions explicitly so we need to add them
+        # but error if they do not make sense
+
+        if isinstance(v, np.ndarray) or is_dask_array(v):
+            dims = ["c", "t", "z", "y", "x"]
+            v = xr.DataArray(v, dims=dims[5 - v.ndim :])
+            was_labeled = False
+
+        if not isinstance(v, xr.DataArray):
+            raise ValueError("This needs to be a instance of xarray.DataArray")
+
+        if "x" not in v.dims:
+            raise ValueError("Representations must always have a 'x' Dimension")
+
+        if "y" not in v.dims:
+            raise ValueError("Representations must always have a 'y' Dimension")
+
+        if "t" not in v.dims:
+            v = v.expand_dims("t")
+        if "c" not in v.dims:
+            v = v.expand_dims("c")
+        if "z" not in v.dims:
+            v = v.expand_dims("z")
+
+        chunks = rechunk(
+            v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000
+        )
+        if not was_labeled:
+            if v.sizes["t"] > v.sizes["x"] or v.sizes["t"] > v.sizes["y"]:
+                raise ValueError(
+                    f"Probably Non sensical dimensions. T is bigger than x or y: Sizes {v.sizes}"
+                )
+            if v.sizes["z"] > v.sizes["x"] or v.sizes["z"] > v.sizes["y"]:
+                raise ValueError(
+                    f"Probably Non sensical dimensions. Z is bigger than x or y: Sizes {v.sizes}"
+                )
+            if v.sizes["c"] > v.sizes["x"] or v.sizes["c"] > v.sizes["y"]:
+                raise ValueError(
+                    f"Probably Non sensical dimensions. C is bigger than x or y: Sizes {v.sizes}"
+                )
+
+        v = v.chunk(
+            {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
+        )  # type: ignore
+
+        v = v.transpose(*"ctzyx")
+
+        if is_dask_array(v.data):
+            v = v.compute()  # type: ignore
+
+        return cls(v)
+
+    def __repr__(self) -> str:
+        """Return a string representation of the ImageLike scalar."""
+        return f"ImageLike({self.value})"
+
+
 class LabelsLike:
     """A custom scalar for wrapping of every supported array like structure on
     the mikro platform. This scalar enables validation of various array formats

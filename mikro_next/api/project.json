@@ -26,6 +26,7 @@
                 "UUID": "str",
                 "StructureString": "str",
                 "ArrayLike": "mikro_next.scalars.ArrayLike",
+                "ImageLike": "mikro_next.scalars.ImageLike",
                 "LabelsLike": "mikro_next.scalars.LabelsLike",
                 "ParquetLike": "mikro_next.scalars.ParquetLike",
                 "FileLike": "mikro_next.scalars.FileLike",

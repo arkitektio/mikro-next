@@ -115,6 +115,10 @@ async def aopen_parquet_filesytem(store_id: str):
 
 
 def open_parquet_filesystem(store_id: str):
+    try:
+        import pyarrow.parquet as pq  # type: ignore
+    except ImportError as e:
+        raise ImportError("You need to install pyarrow to use this function") from e
     credentials, endpoint_url = unkoil(aget_table_credentials_and_endpoint, store_id)
 
     _s3fs = s3fs.S3FileSystem(

@@ -1,13 +1,13 @@
 from pydantic import BaseModel
 import numpy as np
 import xarray as xr
-from mikro_next.scalars import ArrayLike
+from mikro_next.scalars import ImageLike
 
 
 class Arguments(BaseModel):
     """Arguments for testing serialization of numpy and xarray arrays."""
 
-    x: ArrayLike
+    x: ImageLike
 
 
 def test_numpy_serialization() -> None:

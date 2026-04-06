@@ -4,6 +4,7 @@ import asyncio
 from mikro_next.scalars import (
     ArrayLike,
     ImageFileLike,
+    ImageLike,
     LabelsLike,
     MeshLike,
     ParquetLike,
@@ -42,9 +43,7 @@ if TYPE_CHECKING:
     )
 
 
-async def apply_recursive(
-    func, obj, typeguard: Union[Type[Any], Tuple[Type[Any], ...]]
-) -> Any:  # type: ignore
+async def apply_recursive(func, obj, typeguard: Union[Type[Any], Tuple[Type[Any], ...]]) -> Any:  # type: ignore
     """
     Recursively applies an asynchronous function to elements in a nested structure.
 
@@ -56,21 +55,15 @@ async def apply_recursive(
     Returns:
         any: The nested structure with the function applied to elements of the specified type.
     """
-    if isinstance(
-        obj, dict
-    ):  # If obj is a dictionary, recursively apply to each key-value pair
+    if isinstance(obj, dict):  # If obj is a dictionary, recursively apply to each key-value pair
         return {k: await apply_recursive(func, v, typeguard) for k, v in obj.items()}  # type: ignore
     elif isinstance(obj, list):  # If obj is a list, recursively apply to each element
-        return await asyncio.gather(
-            *[apply_recursive(func, elem, typeguard) for elem in obj]
-        )  # type: ignore
+        return await asyncio.gather(*[apply_recursive(func, elem, typeguard) for elem in obj])  # type: ignore
     elif isinstance(
         obj, tuple
     ):  # If obj is a tuple, recursively apply to each element and convert back to tuple
         return tuple(
-            await asyncio.gather(
-                *[apply_recursive(func, elem, typeguard) for elem in obj]
-            )  # type: ignore
+            await asyncio.gather(*[apply_recursive(func, elem, typeguard) for elem in obj])  # type: ignore
         )
     elif isinstance(obj, typeguard):
         return await func(obj)  # type: ignore
@@ -104,9 +97,7 @@ class UploadLink(ParsingLink):
         self._executor_session = self.executor.__enter__()
         return self
 
-    async def aget_zarr_credentials(
-        self, key: str, datalayer: str
-    ) -> "ZarrUploadGrant":
+    async def aget_zarr_credentials(self, key: str, datalayer: str) -> "ZarrUploadGrant":
         """Get zarr upload credentials"""
         from mikro_next.api.schema import (
             RequestZarrUploadInput,
@@ -150,9 +141,7 @@ class UploadLink(ParsingLink):
 
         raise ValueError("No result found for finishing zarr upload")
 
-    async def aget_table_credentials(
-        self, key: str, datalayer: str
-    ) -> "ParquetUploadGrant":
+    async def aget_table_credentials(self, key: str, datalayer: str) -> "ParquetUploadGrant":
         """Get table upload credentials"""
         from mikro_next.api.schema import (
             RequestParquetUploadInput,
@@ -165,9 +154,7 @@ class UploadLink(ParsingLink):
         operation = opify(
             RequestParquetUploadMutation.Meta.document,
             variables={
-                "input": RequestParquetUploadInput(
-                    key=key, datalayer=datalayer
-                ).model_dump(by_alias=True, exclude_unset=True)
+                "input": RequestParquetUploadInput().model_dump(by_alias=True, exclude_unset=True)
             },
         )
 
@@ -268,16 +255,12 @@ class UploadLink(ParsingLink):
             datalayer,
         )
 
-    async def aupload_mediafile(
-        self, datalayer: "DataLayer", file: ImageFileLike
-    ) -> str:
+    async def aupload_mediafile(self, datalayer: "DataLayer", file: ImageFileLike) -> str:
         """Upload a media file to the DataLayer asynchronously."""
         assert datalayer is not None, "Datalayer must be set"
         endpoint_url = await datalayer.get_endpoint_url()
 
-        credentials = await self.arequest_media_credentials(
-            file.file_name, endpoint_url
-        )
+        credentials = await self.arequest_media_credentials(file.file_name, endpoint_url)
         return await astore_media_file(
             file,
             credentials,
@@ -313,7 +296,7 @@ class UploadLink(ParsingLink):
         operation.variables = await apply_recursive(
             partial(self.aupload_xarray, datalayer),
             operation.variables,
-            (ArrayLike),
+            (ArrayLike, ImageLike),
         )
         operation.variables = await apply_recursive(
             partial(self.aupload_parquet, datalayer),

@@ -83,24 +83,24 @@ def test_create_image_with_mask(deployed_app: DeployedMikro) -> None:
 
 def test_array_like_scalar_validation() -> None:
     """Test ArrayLike scalar validation without integration."""
-    from mikro_next.scalars import ArrayLike
+    from mikro_next.scalars import ImageLike
 
     # Test with valid xarray DataArray
     valid_array = xr.DataArray(np.random.random((10, 10, 5)), dims=["x", "y", "z"])
 
-    array_like = ArrayLike.validate(valid_array)
+    array_like = ImageLike.validate(valid_array)
     assert array_like.value.dims == ("c", "t", "z", "y", "x"), "Should have correct dimensions"
     assert array_like.value.ndim == 5, "Should be 5-dimensional"
     assert hasattr(array_like, "key"), "Should have a key attribute"
 
     # Test with numpy array (gets converted)
     numpy_array = np.random.random((10, 10, 10))
-    array_like_numpy = ArrayLike.validate(numpy_array)
+    array_like_numpy = ImageLike.validate(numpy_array)
     assert array_like_numpy.value.ndim == 5, "Should be 5-dimensional after conversion"
 
     # Test dimension requirements
     minimal_array = xr.DataArray(np.random.random((10, 10)), dims=["x", "y"])
-    array_like_minimal = ArrayLike.validate(minimal_array)
+    array_like_minimal = ImageLike.validate(minimal_array)
     assert "x" in array_like_minimal.value.dims, "Must have x dimension"
     assert "y" in array_like_minimal.value.dims, "Must have y dimension"
 

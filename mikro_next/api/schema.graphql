@@ -233,11 +233,11 @@ type BigFileAccessGrant {
   accessKey: String!
   secretKey: String!
   sessionToken: String!
+  region: String!
   bucket: String!
   key: String!
   path: String!
   expiresIn: Int!
-  datalayer: String!
   store: String
 }
 
@@ -263,11 +263,11 @@ type BigFileUploadGrant {
   accessKey: String!
   secretKey: String!
   sessionToken: String!
+  region: String!
   bucket: String!
   key: String!
   path: String!
   expiresIn: Int!
-  datalayer: String!
   store: String!
   maxBytes: Int!
   originalFileName: String
@@ -717,6 +717,17 @@ type DataRoi {
 
   """Provenance entries for this camera"""
   provenanceEntries(pagination: OffsetPaginationInput): [ProvenanceEntry!]!
+}
+
+input DataRoiFilter {
+  id: ID
+  name: StrFilterLookup
+  dataset: IDFilterLookup
+  AND: DataRoiFilter
+  OR: DataRoiFilter
+  NOT: DataRoiFilter
+  DISTINCT: Boolean
+  activeFor: [SliceInput!]
 }
 
 type Dataset {
@@ -1297,7 +1308,7 @@ type FrameInfo {
 """Input type for creating an image from an array-like object"""
 input FromArrayLikeInput {
   """The array-like object to create the image from"""
-  array: ArrayLike!
+  array: ImageLike!
 
   """The name of the image"""
   name: String!
@@ -1464,6 +1475,26 @@ enum HistoryKind {
   DELETE
 }
 
+input IDFilterLookup {
+  exact: ID
+  iExact: ID
+  contains: ID
+  iContains: ID
+  inList: [ID!]
+  gt: ID
+  gte: ID
+  lt: ID
+  lte: ID
+  startsWith: ID
+  iStartsWith: ID
+  endsWith: ID
+  iEndsWith: ID
+  range: [ID!]
+  isNull: Boolean
+  regex: String
+  iRegex: String
+}
+
 type Image {
   id: ID!
 
@@ -1619,6 +1650,11 @@ input ImageFilter {
   NOT: ImageFilter
   DISTINCT: Boolean
 }
+
+"""
+The `ImageLike` scalar type represents a reference to an image previously created by the user in a datalayer
+"""
+scalar ImageLike
 
 input ImageOrder {
   createdAt: Ordering
@@ -2160,11 +2196,11 @@ type MediaAccessGrant {
   accessKey: String!
   secretKey: String!
   sessionToken: String!
+  region: String!
   bucket: String!
   key: String!
   path: String!
   expiresIn: Int!
-  datalayer: String!
   store: String
 }
 
@@ -2183,17 +2219,17 @@ type MediaStore {
   presignedUrl(host: String = null): String!
 }
 
-"""Temporary S3 credentials for uploading a media object."""
+"""A presigned PUT grant for uploading a media object."""
 type MediaUploadGrant {
   status: String!
   accessKey: String!
   secretKey: String!
   sessionToken: String!
+  region: String!
   bucket: String!
   key: String!
   path: String!
   expiresIn: Int!
-  datalayer: String!
   store: String!
   maxBytes: Int!
   originalFileName: String
@@ -2931,11 +2967,11 @@ type ParquetAccessGrant {
   accessKey: String!
   secretKey: String!
   sessionToken: String!
+  region: String!
   bucket: String!
   key: String!
   path: String!
   expiresIn: Int!
-  datalayer: String!
   store: String
 }
 
@@ -2961,6 +2997,7 @@ type ParquetStore {
 
 """Temporary S3 credentials for uploading a parquet store."""
 type ParquetUploadGrant {
+  action: String!
   status: String!
   accessKey: String!
   secretKey: String!
@@ -2968,9 +3005,7 @@ type ParquetUploadGrant {
   bucket: String!
   key: String!
   path: String!
-  action: String!
   expiresIn: Int!
-  datalayer: String!
   store: String!
   maxBytes: Int!
   originalFileName: String
@@ -3708,6 +3743,8 @@ type Query {
   adataset(id: ID!): ADataset!
   dataArrays(filters: DataArrayFilter, pagination: OffsetPaginationInput): [DataArray!]!
   dataArray(id: ID!): DataArray!
+  dataRois(filters: DataRoiFilter, pagination: OffsetPaginationInput): [DataRoi!]!
+  dataRoi(id: ID!): DataRoi!
   stages(filters: StageFilter, pagination: OffsetPaginationInput): [Stage!]!
   renderTrees(filters: RenderTreeFilter, order: RenderTreeOrder, pagination: OffsetPaginationInput): [RenderTree!]!
   experiments(filters: ExperimentFilter, pagination: OffsetPaginationInput): [Experiment!]!
@@ -4185,8 +4222,7 @@ input RequestParquetAccessInput {
 }
 
 input RequestParquetUploadInput {
-  originalFileName: String!
-  contentType: String = null
+  columns: [String!] = null
 }
 
 input RequestZarrAccessInput {
@@ -4325,6 +4361,8 @@ type Scene {
 
   """Provenance entries for this camera"""
   layers(filters: LayerFilter, pagination: OffsetPaginationInput): [Layer!]!
+  spatialUnit: SpatialUnit!
+  temporalUnit: TemporalUnit!
 }
 
 input SceneFilter {
@@ -4997,11 +5035,11 @@ type ZarrAccessGrant {
   accessKey: String!
   secretKey: String!
   sessionToken: String!
+  region: String!
   bucket: String!
   key: String!
   path: String!
   expiresIn: Int!
-  datalayer: String!
   store: String
 }
 
@@ -5035,6 +5073,7 @@ input ZarrStoreFilter {
 
 """Temporary S3 credentials for uploading a Zarr store."""
 type ZarrUploadGrant {
+  action: String!
   status: String!
   accessKey: String!
   secretKey: String!
@@ -5042,9 +5081,7 @@ type ZarrUploadGrant {
   bucket: String!
   key: String!
   path: String!
-  action: String!
   expiresIn: Int!
-  datalayer: String!
   store: String!
   maxBytes: Int!
   originalFileName: String

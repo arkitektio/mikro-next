@@ -1,52 +1,53 @@
 from mikro_next.scalars import (
-    MeshCoercible,
-    ParquetCoercible,
-    FiveDVector,
-    ImageFileCoercible,
-    Micrometers,
-    FourByFourMatrix,
     ParquetLike,
+    FileLike,
+    MeshLike,
+    ImageFileCoercible,
+    ParquetCoercible,
+    Micrometers,
+    ArrayCoercible,
+    LabelsLike,
+    ArrayLike,
+    FourByFourMatrix,
+    ImageLike,
     ThreeDVector,
     Milliseconds,
-    ArrayLike,
+    FiveDVector,
     ImageFileLike,
-    ArrayCoercible,
-    MeshLike,
-    LabelsLike,
-    FileLike,
+    MeshCoercible,
 )
-from mikro_next.traits import (
-    HasDownloadAccessor,
-    IsVectorizableTrait,
-    MikroFetchable,
-    FileTrait,
-    Lensable,
-    HasZarrStoreTrait,
-    DataArrayTrait,
-    HasZarrStoreAccessor,
-    HasPresignedDownloadAccessor,
-    HasParquetStoreAccesor,
-    DatasetTrait,
-    HasParquestStoreTrait,
-)
-from mikro_next.funcs import aexecute, asubscribe, execute, subscribe
-from rath.scalars import IDCoercible, ID
-from mikro_next.rath import MikroNextRath
 from typing import (
-    Literal,
+    Annotated,
+    Optional,
     Iterable,
-    AsyncIterator,
+    Any,
+    Literal,
+    Union,
+    Iterator,
     Tuple,
     List,
-    Union,
-    Annotated,
-    Any,
-    Iterator,
-    Optional,
+    AsyncIterator,
 )
+from mikro_next.traits import (
+    IsVectorizableTrait,
+    HasPresignedDownloadAccessor,
+    DatasetTrait,
+    Lensable,
+    DataArrayTrait,
+    HasParquestStoreTrait,
+    HasZarrStoreAccessor,
+    HasDownloadAccessor,
+    MikroFetchable,
+    FileTrait,
+    HasParquetStoreAccesor,
+    HasZarrStoreTrait,
+)
+from pydantic import BaseModel, Field, ConfigDict
+from mikro_next.funcs import subscribe, execute, aexecute, asubscribe
+from rath.scalars import ID, IDCoercible
 from enum import Enum
+from mikro_next.rath import MikroNextRath
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
 
 
 class Blending(str, Enum):
@@ -537,7 +538,7 @@ class FloatFilterLookup(BaseModel):
 class FromArrayLikeInput(BaseModel):
     """Input type for creating an image from an array-like object"""
 
-    array: ArrayLike
+    array: ImageLike
     "The array-like object to create the image from"
     name: str
     "The name of the image"
@@ -1573,8 +1574,7 @@ class RequestParquetAccessInput(BaseModel):
 class RequestParquetUploadInput(BaseModel):
     """No documentation"""
 
-    original_file_name: str = Field(alias="originalFileName")
-    content_type: Optional[str] = Field(alias="contentType", default=None)
+    columns: Optional[Tuple[str, ...]] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -2156,7 +2156,7 @@ class BigFileUploadGrant(MikroFetchable, BaseModel):
 
 
 class MediaUploadGrant(MikroFetchable, BaseModel):
-    """Temporary S3 credentials for uploading a media object."""
+    """A presigned PUT grant for uploading a media object."""
 
     typename: Literal["MediaUploadGrant"] = Field(
         alias="__typename", default="MediaUploadGrant", exclude=True
@@ -6346,17 +6346,14 @@ def request_media_access(
 
 
 async def arequest_parquet_upload(
-    original_file_name: str,
-    content_type: Optional[str] = None,
-    rath: Optional[MikroNextRath] = None,
+    columns: Optional[Iterable[str]] = None, rath: Optional[MikroNextRath] = None
 ) -> ParquetUploadGrant:
     """RequestParquetUpload
 
     Request an upload grant for a Parquet store
 
     Args:
-        original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        columns: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required) (list)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -6364,44 +6361,27 @@ async def arequest_parquet_upload(
     """
     return (
         await aexecute(
-            RequestParquetUploadMutation,
-            {
-                "input": {
-                    "originalFileName": original_file_name,
-                    "contentType": content_type,
-                }
-            },
-            rath=rath,
+            RequestParquetUploadMutation, {"input": {"columns": columns}}, rath=rath
         )
     ).request_parquet_upload
 
 
 def request_parquet_upload(
-    original_file_name: str,
-    content_type: Optional[str] = None,
-    rath: Optional[MikroNextRath] = None,
+    columns: Optional[Iterable[str]] = None, rath: Optional[MikroNextRath] = None
 ) -> ParquetUploadGrant:
     """RequestParquetUpload
 
     Request an upload grant for a Parquet store
 
     Args:
-        original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-        content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        columns: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required) (list)
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         ParquetUploadGrant
     """
     return execute(
-        RequestParquetUploadMutation,
-        {
-            "input": {
-                "originalFileName": original_file_name,
-                "contentType": content_type,
-            }
-        },
-        rath=rath,
+        RequestParquetUploadMutation, {"input": {"columns": columns}}, rath=rath
     ).request_parquet_upload
 
 
@@ -6940,7 +6920,7 @@ def from_file_like(
 
 
 async def afrom_array_like(
-    array: ArrayCoercible,
+    array: ImageLike,
     name: str,
     dataset: Optional[IDCoercible] = None,
     channel_views: Optional[Iterable[PartialChannelViewInput]] = None,
@@ -7021,7 +7001,7 @@ async def afrom_array_like(
 
 
 def from_array_like(
-    array: ArrayCoercible,
+    array: ImageLike,
     name: str,
     dataset: Optional[IDCoercible] = None,
     channel_views: Optional[Iterable[PartialChannelViewInput]] = None,
