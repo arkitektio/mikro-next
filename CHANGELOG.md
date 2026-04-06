@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v1.0.0 (2026-04-06)
+
+### Features
+
+- New object store api
+  ([`0418119`](https://github.com/arkitektio/mikro-next/commit/041811974a2a92cf66e7d8aead43541847d0c707))
+
+- Updated to new stack
+  ([`d552274`](https://github.com/arkitektio/mikro-next/commit/d552274ee3f3531302eeb800be2a38ea28c61fb1))
+
+
 ## v0.19.0 (2025-11-06)
 
 ### Features
