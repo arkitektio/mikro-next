@@ -23,6 +23,7 @@ from pydantic_core import core_schema
 
 
 OneDArray = NDArray[np.generic]
+FiveDArray = NDArray[np.generic]
 TwoDArray = NDArray[np.generic]
 
 
@@ -42,6 +43,8 @@ FiveDVectorCoercible: TypeAlias = (
 
 ArrayCoercible: TypeAlias = xr.DataArray | OneDArray | List[float] | List[List[float]]
 """ A type alias for array-like structures that can be coerced into an xarray DataArray."""
+
+ImageCoercible: TypeAlias = xr.DataArray | FiveDArray | List[float] | List[List[float]]
 
 LabelsLikeCoercible: TypeAlias = (
     xr.DataArray | OneDArray | List[List[str]] | Dict[str, List[str]]

@@ -2985,14 +2985,9 @@ type ParquetStore {
   path: String!
   bucket: String!
   key: String!
-  originalFileName: String
-  contentType: String
 
   """Get temporary S3 read credentials for the parquet object."""
   accessGrant(host: String = null): ParquetAccessGrant!
-
-  """Compatibility field returning the canonical S3 object path."""
-  presignedUrl(host: String = null): String!
 }
 
 """Temporary S3 credentials for uploading a parquet store."""

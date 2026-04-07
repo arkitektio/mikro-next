@@ -1,53 +1,54 @@
+from mikro_next.traits import (
+    DatasetTrait,
+    HasZarrStoreAccessor,
+    HasParquestStoreTrait,
+    MikroFetchable,
+    FileTrait,
+    Lensable,
+    HasDownloadAccessor,
+    HasPresignedDownloadAccessor,
+    DataArrayTrait,
+    HasZarrStoreTrait,
+    IsVectorizableTrait,
+    HasParquetStoreAccesor,
+)
 from mikro_next.scalars import (
-    ParquetLike,
-    FileLike,
-    MeshLike,
-    ImageFileCoercible,
-    ParquetCoercible,
     Micrometers,
+    ParquetCoercible,
+    ImageFileCoercible,
+    ImageCoercible,
+    ImageFileLike,
+    ParquetLike,
     ArrayCoercible,
     LabelsLike,
-    ArrayLike,
-    FourByFourMatrix,
-    ImageLike,
-    ThreeDVector,
+    FileLike,
+    MeshLike,
     Milliseconds,
+    ArrayLike,
+    ImageLike,
     FiveDVector,
-    ImageFileLike,
     MeshCoercible,
+    ThreeDVector,
+    FourByFourMatrix,
 )
+from rath.scalars import ID, IDCoercible
+from enum import Enum
 from typing import (
+    Literal,
+    Tuple,
+    AsyncIterator,
     Annotated,
     Optional,
     Iterable,
     Any,
-    Literal,
-    Union,
     Iterator,
-    Tuple,
+    Union,
     List,
-    AsyncIterator,
 )
-from mikro_next.traits import (
-    IsVectorizableTrait,
-    HasPresignedDownloadAccessor,
-    DatasetTrait,
-    Lensable,
-    DataArrayTrait,
-    HasParquestStoreTrait,
-    HasZarrStoreAccessor,
-    HasDownloadAccessor,
-    MikroFetchable,
-    FileTrait,
-    HasParquetStoreAccesor,
-    HasZarrStoreTrait,
-)
-from pydantic import BaseModel, Field, ConfigDict
-from mikro_next.funcs import subscribe, execute, aexecute, asubscribe
-from rath.scalars import ID, IDCoercible
-from enum import Enum
-from mikro_next.rath import MikroNextRath
+from pydantic import ConfigDict, Field, BaseModel
 from datetime import datetime
+from mikro_next.funcs import subscribe, aexecute, execute, asubscribe
+from mikro_next.rath import MikroNextRath
 
 
 class Blending(str, Enum):
@@ -6920,7 +6921,7 @@ def from_file_like(
 
 
 async def afrom_array_like(
-    array: ImageLike,
+    array: ImageCoercible,
     name: str,
     dataset: Optional[IDCoercible] = None,
     channel_views: Optional[Iterable[PartialChannelViewInput]] = None,
@@ -7001,7 +7002,7 @@ async def afrom_array_like(
 
 
 def from_array_like(
-    array: ImageLike,
+    array: ImageCoercible,
     name: str,
     dataset: Optional[IDCoercible] = None,
     channel_views: Optional[Iterable[PartialChannelViewInput]] = None,

@@ -160,6 +160,7 @@
                     "type": "turms.plugins.funcs.FuncsPlugin",
                     "coercible_scalars": {
                         "ArrayLike": "mikro_next.scalars.ArrayCoercible",
+                        "ImageLike": "mikro_next.scalars.ImageCoercible",
                         "ImageFileLike": "mikro_next.scalars.ImageFileCoercible",
                         "FileLike": "mikro_next.scalars.ImageFileCoercible",
                         "MeshLike": "mikro_next.scalars.MeshCoercible",
