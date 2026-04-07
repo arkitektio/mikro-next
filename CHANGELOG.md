@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.0.1 (2026-04-07)
+
+### Bug Fixes
+
+- Add imagelike scalar
+  ([`be47764`](https://github.com/arkitektio/mikro-next/commit/be47764b8bb5f1f9d12dce26c059a27fb51ee669))
+
+
 ## v1.0.0 (2026-04-06)
 
 ### Features
