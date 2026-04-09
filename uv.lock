@@ -947,7 +947,7 @@ wheels = [
 
 [[package]]
 name = "mikro-next"
-version = "0.19.0"
+version = "1.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "dask" },

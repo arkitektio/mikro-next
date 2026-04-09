@@ -36,9 +36,7 @@ ThreeDVectorCoercible: TypeAlias = List[float] | OneDArray | List[int]
 FourDVectorCoercible: TypeAlias = List[float] | OneDArray | List[int]
 """ A type alias for 4D vector-like structures that can be coerced into a FourDVector."""
 
-FiveDVectorCoercible: TypeAlias = (
-    List[float] | OneDArray | List[List[float]] | List[List[int]]
-)
+FiveDVectorCoercible: TypeAlias = List[float] | OneDArray | List[List[float]] | List[List[int]]
 """ A type alias for 5D vector-like structures that can be coerced into a FiveDVector."""
 
 ArrayCoercible: TypeAlias = xr.DataArray | OneDArray | List[float] | List[List[float]]
@@ -46,9 +44,7 @@ ArrayCoercible: TypeAlias = xr.DataArray | OneDArray | List[float] | List[List[f
 
 ImageCoercible: TypeAlias = xr.DataArray | FiveDArray | List[float] | List[List[float]]
 
-LabelsLikeCoercible: TypeAlias = (
-    xr.DataArray | OneDArray | List[List[str]] | Dict[str, List[str]]
-)
+LabelsLikeCoercible: TypeAlias = xr.DataArray | OneDArray | List[List[str]] | Dict[str, List[str]]
 """ A type alias for label-like structures that can be coerced into an xarray DataArray"""
 
 ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
@@ -98,9 +94,7 @@ class RGBAColor(list[float]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(
-            cls.validate, handler(float)
-        )
+        return core_schema.no_info_before_validator_function(cls.validate, handler(float))
 
     @classmethod
     def validate(cls, v: RGBAColorCoercible) -> "RGBAColor":
@@ -147,9 +141,7 @@ class Micrometers(float):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(
-            cls.validate, handler(float)
-        )
+        return core_schema.no_info_before_validator_function(cls.validate, handler(float))
 
     @classmethod
     def validate(cls, v: MicrometersCoercible) -> "Micrometers":
@@ -167,9 +159,7 @@ class Milliseconds(float):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(
-            cls.validate, handler(float)
-        )
+        return core_schema.no_info_before_validator_function(cls.validate, handler(float))
 
     @classmethod
     def validate(cls, v: MillisecondsCoercible) -> "Milliseconds":
@@ -187,9 +177,7 @@ class TwoDVector(list[float]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(
-            cls.validate, handler(list)
-        )
+        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
 
     @classmethod
     def validate(cls, v: TwoDVectorCoercible) -> "TwoDVector":
@@ -217,9 +205,7 @@ class ThreeDVector(list[float]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(
-            cls.validate, handler(list)
-        )
+        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
 
     @classmethod
     def validate(cls, v: ThreeDVectorCoercible) -> "ThreeDVector":
@@ -247,9 +233,7 @@ class FourDVector(list[float]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(
-            cls.validate, handler(list)
-        )
+        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
 
     @classmethod
     def validate(cls, v: FourDVectorCoercible) -> "FourDVector":
@@ -277,9 +261,7 @@ class FiveDVector(list[float]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(
-            cls.validate, handler(list)
-        )
+        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
 
     @property
     def x(self) -> float:
@@ -386,9 +368,7 @@ class FourByFourMatrix(list[list[float]]):
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_before_validator_function(
-            cls.validate, handler(list)
-        )
+        return core_schema.no_info_before_validator_function(cls.validate, handler(list))
 
     @classmethod
     def validate(cls, v: FourByFourMatrixCoercible) -> "FourByFourMatrix":
@@ -416,11 +396,8 @@ class FourByFourMatrix(list[list[float]]):
 
         for row in clean:
             if not all(isinstance(x, (int, float)) for x in row):  # type: ignore
-                raise ValueError(
-                    "All elements of the 4x4 matrix must be integers or floats."
-                )
+                raise ValueError("All elements of the 4x4 matrix must be integers or floats.")
 
-        print(f"Validating FourByFourMatrix: {clean}")
         return cls(clean)  # type: ignore
 
     def as_matrix(self) -> TwoDArray:
@@ -454,9 +431,7 @@ class ArrayLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: ArrayCoercible) -> "ArrayLike":
@@ -497,9 +472,7 @@ class ArrayLike:
         if "z" not in v.dims:
             v = v.expand_dims("z")
 
-        chunks = rechunk(
-            v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000
-        )
+        chunks = rechunk(v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000)
         if not was_labeled:
             if v.sizes["t"] > v.sizes["x"] or v.sizes["t"] > v.sizes["y"]:
                 raise ValueError(
@@ -514,9 +487,7 @@ class ArrayLike:
                     f"Probably Non sensical dimensions. C is bigger than x or y: Sizes {v.sizes}"
                 )
 
-        v = v.chunk(
-            {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
-        )  # type: ignore
+        v = v.chunk({key: chunksize for key, chunksize in chunks.items() if key in v.dims})  # type: ignore
 
         v = v.transpose(*"ctzyx")
 
@@ -551,9 +522,7 @@ class ImageLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: ArrayCoercible) -> "ImageLike":
@@ -585,9 +554,7 @@ class ImageLike:
         if "z" not in v.dims:
             v = v.expand_dims("z")
 
-        chunks = rechunk(
-            v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000
-        )
+        chunks = rechunk(v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000)
         if not was_labeled:
             if v.sizes["t"] > v.sizes["x"] or v.sizes["t"] > v.sizes["y"]:
                 raise ValueError(
@@ -602,9 +569,7 @@ class ImageLike:
                     f"Probably Non sensical dimensions. C is bigger than x or y: Sizes {v.sizes}"
                 )
 
-        v = v.chunk(
-            {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
-        )  # type: ignore
+        v = v.chunk({key: chunksize for key, chunksize in chunks.items() if key in v.dims})  # type: ignore
 
         v = v.transpose(*"ctzyx")
 
@@ -639,9 +604,7 @@ class LabelsLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: LabelsLikeCoercible) -> "LabelsLike":
@@ -663,14 +626,10 @@ class LabelsLike:
                     value = [value]
 
                 if not isinstance(value, list):
-                    raise ValueError(
-                        f"Expected a list of strings for key {key}, got {type(value)}"
-                    )
+                    raise ValueError(f"Expected a list of strings for key {key}, got {type(value)}")
 
                 if not all(isinstance(i, str) for i in value):
-                    raise ValueError(
-                        f"Expected a list of strings for key {key}, got {value}"
-                    )
+                    raise ValueError(f"Expected a list of strings for key {key}, got {value}")
 
                 mask_to_labels[int(key)] = value
 
@@ -714,9 +673,7 @@ class BigFile:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: FileCoercible) -> "BigFile":
@@ -756,9 +713,7 @@ class ParquetLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: ParquetCoercible) -> "ParquetLike":
@@ -796,9 +751,7 @@ class ImageFileLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: FileCoercible) -> "ImageFileLike":
@@ -850,9 +803,7 @@ class FileLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: FileCoercible) -> "FileLike":
@@ -907,9 +858,7 @@ class MeshLike:
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(object)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
 
     @classmethod
     def validate(cls, v: MeshCoercible) -> "MeshLike":

@@ -1,54 +1,54 @@
-from mikro_next.traits import (
-    DatasetTrait,
-    HasZarrStoreAccessor,
-    HasParquestStoreTrait,
-    MikroFetchable,
-    FileTrait,
-    Lensable,
-    HasDownloadAccessor,
-    HasPresignedDownloadAccessor,
-    DataArrayTrait,
-    HasZarrStoreTrait,
-    IsVectorizableTrait,
-    HasParquetStoreAccesor,
-)
-from mikro_next.scalars import (
-    Micrometers,
-    ParquetCoercible,
-    ImageFileCoercible,
-    ImageCoercible,
-    ImageFileLike,
-    ParquetLike,
-    ArrayCoercible,
-    LabelsLike,
-    FileLike,
-    MeshLike,
-    Milliseconds,
-    ArrayLike,
-    ImageLike,
-    FiveDVector,
-    MeshCoercible,
-    ThreeDVector,
-    FourByFourMatrix,
-)
-from rath.scalars import ID, IDCoercible
-from enum import Enum
 from typing import (
-    Literal,
-    Tuple,
-    AsyncIterator,
-    Annotated,
-    Optional,
     Iterable,
     Any,
-    Iterator,
-    Union,
     List,
+    Optional,
+    Literal,
+    Annotated,
+    AsyncIterator,
+    Tuple,
+    Union,
+    Iterator,
 )
-from pydantic import ConfigDict, Field, BaseModel
-from datetime import datetime
-from mikro_next.funcs import subscribe, aexecute, execute, asubscribe
+from mikro_next.traits import (
+    HasParquestStoreTrait,
+    DataArrayTrait,
+    HasPresignedDownloadAccessor,
+    HasDownloadAccessor,
+    Lensable,
+    HasZarrStoreAccessor,
+    HasParquetStoreAccesor,
+    MikroFetchable,
+    IsVectorizableTrait,
+    DatasetTrait,
+    HasZarrStoreTrait,
+    FileTrait,
+)
+from mikro_next.scalars import (
+    MeshLike,
+    ImageCoercible,
+    LabelsLike,
+    ImageFileLike,
+    FiveDVector,
+    MeshCoercible,
+    Micrometers,
+    ParquetCoercible,
+    ParquetLike,
+    ImageLike,
+    ArrayLike,
+    ThreeDVector,
+    ImageFileCoercible,
+    Milliseconds,
+    ArrayCoercible,
+    FourByFourMatrix,
+    FileLike,
+)
+from mikro_next.funcs import aexecute, asubscribe, subscribe, execute
 from mikro_next.rath import MikroNextRath
+from datetime import datetime
+from rath.scalars import ID, IDCoercible
+from pydantic import Field, BaseModel, ConfigDict
+from enum import Enum
 
 
 class Blending(str, Enum):
@@ -886,7 +886,7 @@ class OffsetPaginationInput(BaseModel):
 class OmeMetadataInput(BaseModel):
     """Input type for OME metadata"""
 
-    json: str
+    metadata_string: str = Field(alias="metadataString")
     "The OME metadata as a JSON string"
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True

@@ -87,9 +87,7 @@ class HasZarrStoreTrait(BaseModel):
         scale_views = get_attributes_or_error(self, "derived_scale_views")
 
         if len(scale_views) == 0:
-            raise ValueError(
-                "No ScaleView found in views. Please create a ScaleView first."
-            )
+            raise ValueError("No ScaleView found in views. Please create a ScaleView first.")
 
         sorted_views = sorted(scale_views, key=lambda image: image.scale_x)
         return [x.image.data for x in sorted_views]
@@ -252,10 +250,7 @@ class IsVectorizableTrait:
     def to_slices(self) -> Tuple[slice, ...]:
         """Get the bounding box of the ROI as a tuple of slices"""
         vector_data = self.get_vector_data(dims="ctzyx")
-        return tuple(
-            slice(vector_data[:, i].min(), vector_data[:, i].max() + 1)
-            for i in range(5)
-        )
+        return tuple(slice(vector_data[:, i].min(), vector_data[:, i].max() + 1) for i in range(5))
 
     def image_data(self) -> xr.DataArray:
         """Get the vector data of the ROI as a numpy array"""
@@ -284,9 +279,7 @@ class IsVectorizableTrait:
         if kind == RoiKind.RECTANGLE:
             return FiveDVector.validate(self.get_vector_data(dims="ctzyx").mean(axis=0))
 
-        raise NotImplementedError(
-            f"Center calculation not implemented for this ROI type {kind}"
-        )
+        raise NotImplementedError(f"Center calculation not implemented for this ROI type {kind}")
 
     def crop(self, data: xr.DataArray) -> xr.DataArray:
         """Crop the data to the ROI
@@ -323,9 +316,7 @@ class IsVectorizableTrait:
         if kind == RoiKind.POINT:
             return self.get_vector_data(dims="ctzyx")[0]
 
-        raise NotImplementedError(
-            f"Center calculation not implemented for this ROI kind {kind}"
-        )
+        raise NotImplementedError(f"Center calculation not implemented for this ROI kind {kind}")
 
 
 class HasParquestStoreTrait(BaseModel):
@@ -569,12 +560,13 @@ class FileTrait:
 
 
 class DataArrayTrait:
+    """A trait for dataset-like objects that can be downloaded"""
+
     @property
     def data(self) -> xr.DataArray:
         """The data of this dataset as an xarray.DataArray"""
         store: HasZarrStoreAccessor = get_attributes_or_error(self, "store")
         array = from_zarr(store.zarr_store)
-        print("array shape", array.shape)
         return xr.DataArray(array)
 
 
@@ -588,9 +580,7 @@ class DatasetTrait:
         scale_views = get_attributes_or_error(self, "derived_scale_views")
 
         if len(scale_views) == 0:
-            raise ValueError(
-                "No ScaleView found in views. Please create a ScaleView first."
-            )
+            raise ValueError("No ScaleView found in views. Please create a ScaleView first.")
 
         sorted_views = sorted(scale_views, key=lambda image: image.scale_x)
         return [x.image.data for x in sorted_views]
@@ -675,19 +665,13 @@ class Lensable:
         )
 
         slices: List[Slice] = get_attributes_or_error(self, "slices")
-        dim_descriptors: List[DimDescriptor] = get_attributes_or_error(
-            self, "dim_descriptors"
-        )
+        dim_descriptors: List[DimDescriptor] = get_attributes_or_error(self, "dim_descriptors")
 
         x_dim = x_dim or next(
             (d.key for d in dim_descriptors if d.kind == DimensionKind.SPACE), None
         )
         y_dim = y_dim or next(
-            (
-                d.key
-                for d in dim_descriptors
-                if d.kind == DimensionKind.SPACE and d.key != x_dim
-            ),
+            (d.key for d in dim_descriptors if d.kind == DimensionKind.SPACE and d.key != x_dim),
             None,
         )
         z_dim = z_dim or next(

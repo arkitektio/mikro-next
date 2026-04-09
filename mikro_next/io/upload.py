@@ -1,5 +1,6 @@
 """Module for uploading various data types to a DataLayer using asynchronous methods."""
 
+import logging
 import os
 from typing import TYPE_CHECKING
 from mikro_next.scalars import ArrayLike, ImageFileLike, MeshLike, ParquetLike, FileLike
@@ -12,7 +13,9 @@ from concurrent.futures import ThreadPoolExecutor
 from .errors import PermissionsError, UploadError
 from zarr.storage import FsspecStore
 import zarr.api.asynchronous as async_api
-import aiohttp
+
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from mikro_next.api.schema import (
@@ -54,13 +57,17 @@ async def astore_xarray_input(
     store = FsspecStore(filesystem, read_only=False, path=s3_path)
 
     try:
+        logger.debug(
+            f"Uploading zarr t to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
         await async_api.save_array(store, array.to_numpy(), zarr_format=3)  # type: ignore
+        logger.info(
+            f"Successfully uploaded zarr to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+        )
 
         return credentials.store
     except Exception as e:
-        raise UploadError(
-            f"Error while uploading to {s3_path} on {endpoint_url}"
-        ) from e
+        raise UploadError(f"Error while uploading to {s3_path} on {endpoint_url}") from e
 
 
 def _store_parquet_input(
@@ -85,7 +92,13 @@ def _store_parquet_input(
 
     s3_path = f"s3://{credentials.bucket}/{credentials.key}"
     try:
+        logger.debug(
+            f"Uploading parquet to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
         pq.write_table(table, s3_path, filesystem=filesystem)  # type: ignore
+        logger.info(
+            f"Successfully uploaded parquet to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+        )
         return credentials.store
     except Exception as e:
         raise UploadError(f"Error while uploading to {s3_path}") from e
@@ -97,32 +110,35 @@ async def astore_mesh_file(
     datalayer: "DataLayer",
 ) -> str:
     """Store a mesh file in the DataLayer using presigned POST credentials."""
+    from aiobotocore.session import get_session  # type: ignore
+    import botocore  # type: ignore
+
+    session = get_session()
+
     endpoint_url = await datalayer.get_endpoint_url()
 
-    async with aiohttp.ClientSession() as session:
-        form_data = aiohttp.FormData()
-        form_data.add_field("key", credentials.key)
-        form_data.add_field("policy", credentials.policy)
-        form_data.add_field("x-amz-algorithm", credentials.x_amz_algorithm)
-        form_data.add_field("x-amz-credential", credentials.x_amz_credential)
-        form_data.add_field("x-amz-date", credentials.x_amz_date)
-        form_data.add_field("x-amz-signature", credentials.x_amz_signature)
-        form_data.add_field(
-            "file",
-            mesh.value,
-            filename="mesh.obj",
-            content_type="application/octet-stream",
-        )
+    async with session.create_client(  # type: ignore
+        "s3",
+        region_name="us-west-2",
+        endpoint_url=endpoint_url,
+        aws_secret_access_key=credentials.secret_key,
+        aws_access_key_id=credentials.access_key,
+        aws_session_token=credentials.session_token,
+    ) as client:
+        try:
+            logger.debug(
+                f"Uploading mesh to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+            )
+            await client.put_object(Bucket=credentials.bucket, Key=credentials.key, Body=mesh.value)  # type: ignore
+        except botocore.exceptions.ClientError as e:  # type: ignore
+            if e.response["Error"]["Code"] == "InvalidAccessKeyId":  # type: ignore
+                return PermissionsError("Access Key is invalid, trying to get new credentials")  # type: ignore
 
-        url = endpoint_url + "/" + credentials.bucket
+            raise e
 
-        async with session.post(url, data=form_data) as resp:
-            if resp.status not in {200, 204}:
-                body = await resp.text()
-                raise UploadError(
-                    f"Error while uploading mesh: HTTP {resp.status}: {body}"
-                )
-
+    logger.info(
+        f"Successfully uploaded mesh to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+    )
     return credentials.store
 
 
@@ -132,33 +148,36 @@ async def astore_media_file(
     datalayer: "DataLayer",
 ) -> str:
     """Store a media file in the DataLayer using presigned POST credentials."""
+    """Store a mesh file in the DataLayer using presigned POST credentials."""
+    from aiobotocore.session import get_session  # type: ignore
+    import botocore  # type: ignore
+
+    session = get_session()
+
     endpoint_url = await datalayer.get_endpoint_url()
 
-    async with aiohttp.ClientSession() as session:
-        form_data = aiohttp.FormData()
-        form_data.add_field("key", credentials.key)
-        form_data.add_field("policy", credentials.policy)
-        form_data.add_field("x-amz-algorithm", credentials.x_amz_algorithm)
-        form_data.add_field("x-amz-credential", credentials.x_amz_credential)
-        form_data.add_field("x-amz-date", credentials.x_amz_date)
-        form_data.add_field("x-amz-signature", credentials.x_amz_signature)
-        form_data.add_field(
-            "file",
-            file.value,
-            filename=file.file_name,
-            content_type="application/octet-stream",
-        )
+    async with session.create_client(  # type: ignore
+        "s3",
+        region_name="us-west-2",
+        endpoint_url=endpoint_url,
+        aws_secret_access_key=credentials.secret_key,
+        aws_access_key_id=credentials.access_key,
+        aws_session_token=credentials.session_token,
+    ) as client:
+        try:
+            logger.debug(
+                f"Uploading file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+            )
+            await client.put_object(Bucket=credentials.bucket, Key=credentials.key, Body=file.value)  # type: ignore
+        except botocore.exceptions.ClientError as e:  # type: ignore
+            if e.response["Error"]["Code"] == "InvalidAccessKeyId":  # type: ignore
+                return PermissionsError("Access Key is invalid, trying to get new credentials")  # type: ignore
 
-        url = endpoint_url + "/" + credentials.bucket
+            raise e
 
-        async with session.post(url, data=form_data) as resp:
-            if resp.status not in {200, 204}:
-                body = await resp.text()
-                raise UploadError(
-                    f"Error while uploading mesh: HTTP {resp.status}: {body}"
-                )
-
-    print("Successfully uploaded media file", credentials)
+    logger.info(
+        f"Successfully uploaded file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+    )
     return credentials.store
 
 
@@ -181,36 +200,34 @@ async def aupload_bigfile(
         aws_session_token=credentials.session_token,
     ) as client:
         try:
-            print(credentials, file.value)
-            await client.put_object(
-                Bucket=credentials.bucket, Key=credentials.key, Body=file.value
-            )  # type: ignore
+            logger.debug(
+                f"Uploading file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+            )
+            await client.put_object(Bucket=credentials.bucket, Key=credentials.key, Body=file.value)  # type: ignore
         except botocore.exceptions.ClientError as e:  # type: ignore
             if e.response["Error"]["Code"] == "InvalidAccessKeyId":  # type: ignore
-                return PermissionsError(
-                    "Access Key is invalid, trying to get new credentials"
-                )  # type: ignore
+                return PermissionsError("Access Key is invalid, trying to get new credentials")  # type: ignore
 
             raise e
 
-    print(credentials)
+    logger.info(
+        f"Successfully uploaded file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+    )
     return credentials.store
 
 
 async def aupload_xarray(
     array: ArrayLike,
-    credentials: "Credentials",
+    credentials: "ZarrUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
     """Store a DataFrame in the DataLayer"""
-    return await astore_xarray_input(
-        array, credentials, await datalayer.get_endpoint_url()
-    )
+    return await astore_xarray_input(array, credentials, await datalayer.get_endpoint_url())
 
 
 async def aupload_parquet(
     parquet: ParquetLike,
-    credentials: "Credentials",
+    credentials: "ParquetUploadGrant",
     datalayer: "DataLayer",
     executor: ThreadPoolExecutor,
 ) -> str:

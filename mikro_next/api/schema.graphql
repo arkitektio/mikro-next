@@ -2758,7 +2758,7 @@ input OffsetPaginationInput {
 """Input type for OME metadata"""
 input OmeMetadataInput {
   """The OME metadata as a JSON string"""
-  json: String!
+  metadataString: String!
 }
 
 """Common interface for all optical elements"""

@@ -12,7 +12,6 @@ Example:
     dl = Datalayer(access_key="XXXX", secret_key="XXXX", endpoint_url="s3.amazonaws.com")
 
     with dl:
-        print(df.fs.ls())
 
     ```
 
@@ -24,7 +23,6 @@ Example:
     dl = Datalayer(access_key="XXXX", secret_key="XXXX", endpoint_url="s3.amazonaws.com")
 
     async with dl:
-        print(df.fs.ls())
 
     ```
 
@@ -38,8 +36,8 @@ from typing import Optional
 from koil.composition import KoiledModel
 
 
-current_next_datalayer: contextvars.ContextVar[Optional["DataLayer"]] = (
-    contextvars.ContextVar("current_next_datalayer", default=None)
+current_next_datalayer: contextvars.ContextVar[Optional["DataLayer"]] = contextvars.ContextVar(
+    "current_next_datalayer", default=None
 )
 
 
