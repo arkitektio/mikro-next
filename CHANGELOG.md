@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.0.2 (2026-04-09)
+
+### Bug Fixes
+
+- Json is reserved named
+  ([`3400cfb`](https://github.com/arkitektio/mikro-next/commit/3400cfb252d1a88e0b308337e8b8d74ed569ccf6))
+
+
 ## v1.0.1 (2026-04-07)
 
 ### Bug Fixes
