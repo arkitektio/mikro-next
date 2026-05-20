@@ -1,9 +1,20 @@
 # CHANGELOG
 
 
+## v1.0.3 (2026-05-20)
+
+### Bug Fixes
+
+- Update lock
+  ([`c88adb3`](https://github.com/arkitektio/mikro-next/commit/c88adb3d968e2eca25620ac2fbfa47e513edb75b))
+
+
 ## v1.0.2 (2026-04-09)
 
 ### Bug Fixes
+
+- Add scene
+  ([`c5d9f13`](https://github.com/arkitektio/mikro-next/commit/c5d9f137a8d17a15b65b297a50df4d3ecdfc8f90))
 
 - Json is reserved named
   ([`3400cfb`](https://github.com/arkitektio/mikro-next/commit/3400cfb252d1a88e0b308337e8b8d74ed569ccf6))
