@@ -366,6 +366,11 @@ enum ChannelKind {
   WAVEGUIDE
 }
 
+type ChannelLabel {
+  id: ID!
+  label: String!
+}
+
 type ChannelView implements View {
   image: Image!
   zMin: Int
@@ -608,6 +613,8 @@ type CoordinateAnchor {
   dims: [String!]!
   optikitState: OptikitState
   valueHistogram: ValueHistogram
+  channelLabel: ChannelLabel
+  lightGraph: LightPath
 }
 
 """
@@ -617,11 +624,14 @@ input CoordinateAnchorInput {
   dimAnchors: [DimAnchorInput!]!
   omeMetadata: OmeMetadataInput = null
   valueHistogram: ValueHistogramInput = null
+  label: LabelInput = null
+  lightGraph: LightpathGraphInput = null
 }
 
 """Input type for creating an image from an array-like object"""
 input CreateADatasetInput {
-  scales: [ArrayLike!]!
+  data: ArrayLike!
+  scales: [ScaleInput!]!
   name: String!
   dimDescriptors: [DimensionDescriptorInput!]!
   anchors: [CoordinateAnchorInput!] = null
@@ -712,7 +722,6 @@ type DataRoi {
   yDim: String!
   zDim: String
   vectors: [[Float!]!]!
-  vectorDims: [String!]!
   constraints: [Constraint!]!
 
   """Provenance entries for this camera"""
@@ -1133,6 +1142,12 @@ type File {
 
   """The organization this file belongs to"""
   organization: Organization!
+
+  """The size of the file in bytes"""
+  size: Int
+
+  """The content type of the file"""
+  contentType: String
 }
 
 type FileEvent {
@@ -1387,6 +1402,32 @@ input FromParquetLike {
 
   """Image accessors to create for this table"""
   imageAccessors: [PartialImageAccessorInput!] = null
+}
+
+"""Temporary S3 credentials for reading a media object."""
+type GeneralMediaAccessGrant {
+  path: String!
+  store: String
+  status: String!
+  accessKey: String!
+  secretKey: String!
+  sessionToken: String!
+  region: String!
+  bucket: String!
+  expiresIn: Int!
+}
+
+"""Temporary S3 credentials for reading a Zarr store."""
+type GeneralZarrAccessGrant {
+  path: String!
+  store: String
+  status: String!
+  accessKey: String!
+  secretKey: String!
+  sessionToken: String!
+  region: String!
+  bucket: String!
+  expiresIn: Int!
 }
 
 enum Granularity {
@@ -1832,6 +1873,13 @@ type LabelAccessor implements Accessor {
   maskView: MaskView!
 }
 
+"""
+Input type for a label, which specifies a label to associate with a coordinate anchor or an image
+"""
+input LabelInput {
+  label: String!
+}
+
 type LabelView implements View {
   image: Image!
   zMin: Int
@@ -2044,6 +2092,11 @@ input LightEdgeInput {
   medium: String = "AIR"
   lossDb: Float = 0
   beam: BeamStateInput = null
+}
+
+type LightPath {
+  id: ID!
+  graph: LightpathGraph!
 }
 
 """Optical port on an element"""
@@ -2369,6 +2422,11 @@ type Mutation {
   """Request temporary S3 read credentials for a media file"""
   requestMediaAccess(input: RequestMediaAccessInput!): MediaAccessGrant!
 
+  """
+  Request temporary S3 read credentials for media files in the organization
+  """
+  requestGeneralMediaAccess(input: RequestGeneralMediaAccessInput!): GeneralMediaAccessGrant!
+
   """Request an upload grant for a big file store"""
   requestBigfileUpload(input: RequestBigFileUploadInput!): BigFileUploadGrant!
 
@@ -2386,6 +2444,11 @@ type Mutation {
 
   """Request temporary S3 read credentials for a Zarr store"""
   requestZarrAccess(input: RequestZarrAccessInput!): ZarrAccessGrant!
+
+  """
+  Request temporary S3 read credentials for Zarr files in the organization
+  """
+  requestGeneralZarrAccess(input: RequestGeneralZarrAccessInput!): GeneralZarrAccessGrant!
 
   """Request an upload grant for a Parquet store"""
   requestParquetUpload(input: RequestParquetUploadInput!): ParquetUploadGrant!
@@ -2985,9 +3048,14 @@ type ParquetStore {
   path: String!
   bucket: String!
   key: String!
+  originalFileName: String
+  contentType: String
 
   """Get temporary S3 read credentials for the parquet object."""
   accessGrant(host: String = null): ParquetAccessGrant!
+
+  """Compatibility field returning the canonical S3 object path."""
+  presignedUrl(host: String = null): String!
 }
 
 """Temporary S3 credentials for uploading a parquet store."""
@@ -4004,7 +4072,6 @@ input ROIFilter {
   kind: RoiKindChoices
   image: ID = null
   search: String
-  owner: ID = null
   AND: ROIFilter
   OR: ROIFilter
   NOT: ROIFilter
@@ -4200,6 +4267,16 @@ input RequestBigFileUploadInput {
   originalFileName: String!
   fileSize: Int = null
   contentType: String = null
+  host: String = null
+  port: Int = null
+}
+
+input RequestGeneralMediaAccessInput {
+  expiresIn: Int = null
+}
+
+input RequestGeneralZarrAccessInput {
+  expiresIn: Int = null
 }
 
 input RequestMediaAccessInput {
@@ -4217,7 +4294,9 @@ input RequestParquetAccessInput {
 }
 
 input RequestParquetUploadInput {
-  columns: [String!] = null
+  contentType: String = null
+  host: String = null
+  port: Int = null
 }
 
 input RequestZarrAccessInput {
@@ -4228,6 +4307,8 @@ input RequestZarrUploadInput {
   shape: [Int!] = null
   chunks: [Int!] = null
   version: String = null
+  host: String = null
+  port: Int = null
 }
 
 input RevertInput {
@@ -4309,6 +4390,25 @@ type SampleElement implements OpticalElement {
   serialNumber: String
 }
 
+"""
+Input type for a scale, which specifies an array-like object to create the image from and optional scale factors for each dimension of the image
+"""
+input ScaleInput {
+  """
+  The method used to create the scale, e.g. 'nearest', 'bilinear', 'bicubic', etc. This can be used to provide additional context about how the scale was created and the expected quality of the scale
+  """
+  scaleMethod: String = null
+  level: Int!
+
+  """The array-like object to create the image from"""
+  array: ArrayLike!
+
+  """
+  The scale factors for each dimension of the image, which specify the physical size of each pixel along each dimension and can be used to provide additional context about the spatial resolution of the image
+  """
+  scaleFactors: [Float!]
+}
+
 type ScaleView implements View {
   image: Image!
   zMin: Int
@@ -4363,11 +4463,13 @@ type Scene {
 input SceneFilter {
   id: ID
   name: StrFilterLookup
+  ids: [ID!] = null
   description: StrFilterLookup
   AND: SceneFilter
   OR: SceneFilter
   NOT: SceneFilter
   DISTINCT: Boolean
+  search: String
 }
 
 input SceneOrder @oneOf {
@@ -5087,7 +5189,7 @@ type ZarrUploadGrant {
 
 scalar _Any
 
-union _Entity = ADataset | AcquisitionView | AffineTransformationView | BigFileStore | Camera | ChannelView | Client | ContinousScanView | CoordinateAnchor | DataArray | DataRoi | Dataset | DerivedView | Era | Experiment | File | FileView | HistogramView | Image | ImageAccessor | InstanceMaskView | Instrument | LabelAccessor | LabelView | Layer | Lens | LightpathView | MaskView | MediaStore | Membership | Mesh | MultiWellPlate | Objective | OpticsView | OptikitState | Organization | ParquetStore | RGBContext | RGBView | ROI | ROIView | ReferenceView | RenderTree | ScaleView | Scene | Snapshot | Stage | Table | TimepointView | User | ValueHistogram | Video | ViewCollection | WellPositionView | ZarrStore
+union _Entity = ADataset | AcquisitionView | AffineTransformationView | BigFileStore | Camera | ChannelLabel | ChannelView | Client | ContinousScanView | CoordinateAnchor | DataArray | DataRoi | Dataset | DerivedView | Era | Experiment | File | FileView | HistogramView | Image | ImageAccessor | InstanceMaskView | Instrument | LabelAccessor | LabelView | Layer | Lens | LightPath | LightpathView | MaskView | MediaStore | Membership | Mesh | MultiWellPlate | Objective | OpticsView | OptikitState | Organization | ParquetStore | RGBContext | RGBView | ROI | ROIView | ReferenceView | RenderTree | ScaleView | Scene | Snapshot | Stage | Table | TimepointView | User | ValueHistogram | Video | ViewCollection | WellPositionView | ZarrStore
 
 type _Service {
   sdl: String!

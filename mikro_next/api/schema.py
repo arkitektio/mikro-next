@@ -1,54 +1,54 @@
 from typing import (
-    Iterable,
-    Any,
-    List,
-    Optional,
-    Literal,
-    Annotated,
-    AsyncIterator,
-    Tuple,
-    Union,
     Iterator,
+    AsyncIterator,
+    List,
+    Iterable,
+    Literal,
+    Optional,
+    Annotated,
+    Union,
+    Tuple,
+    Any,
 )
 from mikro_next.traits import (
-    HasParquestStoreTrait,
-    DataArrayTrait,
     HasPresignedDownloadAccessor,
     HasDownloadAccessor,
-    Lensable,
-    HasZarrStoreAccessor,
-    HasParquetStoreAccesor,
-    MikroFetchable,
-    IsVectorizableTrait,
     DatasetTrait,
-    HasZarrStoreTrait,
+    Lensable,
     FileTrait,
+    IsVectorizableTrait,
+    DataArrayTrait,
+    HasZarrStoreTrait,
+    MikroFetchable,
+    HasZarrStoreAccessor,
+    HasParquestStoreTrait,
+    HasParquetStoreAccesor,
 )
 from mikro_next.scalars import (
-    MeshLike,
-    ImageCoercible,
-    LabelsLike,
-    ImageFileLike,
-    FiveDVector,
     MeshCoercible,
+    FileLike,
+    ThreeDVector,
+    ArrayCoercible,
+    LabelsLike,
+    ImageCoercible,
     Micrometers,
+    ArrayLike,
+    ImageFileLike,
+    ImageFileCoercible,
     ParquetCoercible,
     ParquetLike,
+    FiveDVector,
+    MeshLike,
     ImageLike,
-    ArrayLike,
-    ThreeDVector,
-    ImageFileCoercible,
-    Milliseconds,
-    ArrayCoercible,
     FourByFourMatrix,
-    FileLike,
+    Milliseconds,
 )
-from mikro_next.funcs import aexecute, asubscribe, subscribe, execute
+from mikro_next.funcs import asubscribe, aexecute, subscribe, execute
+from rath.scalars import IDCoercible, ID
+from enum import Enum
+from pydantic import Field, BaseModel, ConfigDict
 from mikro_next.rath import MikroNextRath
 from datetime import datetime
-from rath.scalars import ID, IDCoercible
-from pydantic import Field, BaseModel, ConfigDict
-from enum import Enum
 
 
 class Blending(str, Enum):
@@ -282,6 +282,10 @@ class CoordinateAnchorInput(BaseModel):
     value_histogram: Optional["ValueHistogramInput"] = Field(
         alias="valueHistogram", default=None
     )
+    label: Optional["LabelInput"] = None
+    light_graph: Optional["LightpathGraphInput"] = Field(
+        alias="lightGraph", default=None
+    )
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -290,7 +294,8 @@ class CoordinateAnchorInput(BaseModel):
 class CreateADatasetInput(BaseModel):
     """Input type for creating an image from an array-like object"""
 
-    scales: Tuple[ArrayLike, ...]
+    data: ArrayLike
+    scales: Tuple["ScaleInput", ...]
     name: str
     dim_descriptors: Tuple["DimensionDescriptorInput", ...] = Field(
         alias="dimDescriptors"
@@ -772,6 +777,15 @@ class IntFilterLookup(BaseModel):
     is_null: Optional[bool] = Field(alias="isNull", default=None)
     regex: Optional[str] = None
     i_regex: Optional[str] = Field(alias="iRegex", default=None)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class LabelInput(BaseModel):
+    """Input type for a label, which specifies a label to associate with a coordinate anchor or an image"""
+
+    label: str
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -1538,6 +1552,8 @@ class RequestBigFileUploadInput(BaseModel):
     original_file_name: str = Field(alias="originalFileName")
     file_size: Optional[int] = Field(alias="fileSize", default=None)
     content_type: Optional[str] = Field(alias="contentType", default=None)
+    host: Optional[str] = None
+    port: Optional[int] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -1575,7 +1591,9 @@ class RequestParquetAccessInput(BaseModel):
 class RequestParquetUploadInput(BaseModel):
     """No documentation"""
 
-    columns: Optional[Tuple[str, ...]] = None
+    content_type: Optional[str] = Field(alias="contentType", default=None)
+    host: Optional[str] = None
+    port: Optional[int] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -1596,6 +1614,8 @@ class RequestZarrUploadInput(BaseModel):
     shape: Optional[Tuple[int, ...]] = None
     chunks: Optional[Tuple[int, ...]] = None
     version: Optional[str] = None
+    host: Optional[str] = None
+    port: Optional[int] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -1620,6 +1640,23 @@ class RoiInput(BaseModel):
     "The vector coordinates defining the ROI"
     kind: RoiKind
     "The type/kind of ROI"
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ScaleInput(BaseModel):
+    """Input type for a scale, which specifies an array-like object to create the image from and optional scale factors for each dimension of the image"""
+
+    scale_method: Optional[str] = Field(alias="scaleMethod", default=None)
+    "The method used to create the scale, e.g. 'nearest', 'bilinear', 'bicubic', etc. This can be used to provide additional context about how the scale was created and the expected quality of the scale"
+    level: int
+    array: ArrayLike
+    "The array-like object to create the image from"
+    scale_factors: Optional[Tuple[float, ...]] = Field(
+        alias="scaleFactors", default=None
+    )
+    "The scale factors for each dimension of the image, which specify the physical size of each pixel along each dimension and can be used to provide additional context about the spatial resolution of the image"
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -5303,6 +5340,53 @@ class SearchRoisQuery(BaseModel):
         document = "query SearchRois($search: String, $values: [ID!]) {\n  options: rois(filters: {search: $search, ids: $values}, pagination: {limit: 10}) {\n    value: id\n    label: name\n    __typename\n  }\n}"
 
 
+class GetSceneQuery(BaseModel):
+    """No documentation found for this operation."""
+
+    scene: Scene
+
+    class Arguments(BaseModel):
+        """Arguments for GetScene"""
+
+        id: ID
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetScene"""
+
+        document = "fragment Scene on Scene {\n  name\n  id\n  __typename\n}\n\nquery GetScene($id: ID!) {\n  scene(id: $id) {\n    ...Scene\n    __typename\n  }\n}"
+
+
+class SearchScenesQueryOptions(BaseModel):
+    """No documentation"""
+
+    typename: Literal["Scene"] = Field(
+        alias="__typename", default="Scene", exclude=True
+    )
+    value: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+
+class SearchScenesQuery(BaseModel):
+    """No documentation found for this operation."""
+
+    options: Tuple[SearchScenesQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        """Arguments for SearchScenes"""
+
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for SearchScenes"""
+
+        document = "query SearchScenes($search: String, $values: [ID!], $pagination: OffsetPaginationInput) {\n  options: scenes(\n    filters: {search: $search, ids: $values}\n    pagination: $pagination\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}"
+
+
 class GetSnapshotQuery(BaseModel):
     """No documentation found for this operation."""
 
@@ -5671,7 +5755,8 @@ class WatchRoisSubscription(BaseModel):
 
 
 async def acreate_a_dataset(
-    scales: Iterable[ArrayCoercible],
+    data: ArrayCoercible,
+    scales: Iterable[ScaleInput],
     name: str,
     dim_descriptors: Iterable[DimensionDescriptorInput],
     anchors: Optional[Iterable[CoordinateAnchorInput]] = None,
@@ -5682,7 +5767,8 @@ async def acreate_a_dataset(
     Create a new dataset from array-like data with optional choordinate anchors and OME  metadata
 
     Args:
-        scales: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required) (list) (required)
+        data: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        scales: Input type for a scale, which specifies an array-like object to create the image from and optional scale factors for each dimension of the image (required) (list) (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         dim_descriptors: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
         anchors: Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to (required) (list)
@@ -5696,6 +5782,7 @@ async def acreate_a_dataset(
             CreateADatasetMutation,
             {
                 "input": {
+                    "data": data,
                     "scales": scales,
                     "name": name,
                     "dimDescriptors": dim_descriptors,
@@ -5708,7 +5795,8 @@ async def acreate_a_dataset(
 
 
 def create_a_dataset(
-    scales: Iterable[ArrayCoercible],
+    data: ArrayCoercible,
+    scales: Iterable[ScaleInput],
     name: str,
     dim_descriptors: Iterable[DimensionDescriptorInput],
     anchors: Optional[Iterable[CoordinateAnchorInput]] = None,
@@ -5719,7 +5807,8 @@ def create_a_dataset(
     Create a new dataset from array-like data with optional choordinate anchors and OME  metadata
 
     Args:
-        scales: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required) (list) (required)
+        data: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        scales: Input type for a scale, which specifies an array-like object to create the image from and optional scale factors for each dimension of the image (required) (list) (required)
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         dim_descriptors: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
         anchors: Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to (required) (list)
@@ -5732,6 +5821,7 @@ def create_a_dataset(
         CreateADatasetMutation,
         {
             "input": {
+                "data": data,
                 "scales": scales,
                 "name": name,
                 "dimDescriptors": dim_descriptors,
@@ -6046,6 +6136,8 @@ async def arequest_bigfile_upload(
     original_file_name: str,
     file_size: Optional[int] = None,
     content_type: Optional[str] = None,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> BigFileUploadGrant:
     """RequestBigfileUpload
@@ -6056,6 +6148,8 @@ async def arequest_bigfile_upload(
         original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         file_size: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -6069,6 +6163,8 @@ async def arequest_bigfile_upload(
                     "originalFileName": original_file_name,
                     "fileSize": file_size,
                     "contentType": content_type,
+                    "host": host,
+                    "port": port,
                 }
             },
             rath=rath,
@@ -6080,6 +6176,8 @@ def request_bigfile_upload(
     original_file_name: str,
     file_size: Optional[int] = None,
     content_type: Optional[str] = None,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> BigFileUploadGrant:
     """RequestBigfileUpload
@@ -6090,6 +6188,8 @@ def request_bigfile_upload(
         original_file_name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         file_size: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -6102,6 +6202,8 @@ def request_bigfile_upload(
                 "originalFileName": original_file_name,
                 "fileSize": file_size,
                 "contentType": content_type,
+                "host": host,
+                "port": port,
             }
         },
         rath=rath,
@@ -6347,14 +6449,19 @@ def request_media_access(
 
 
 async def arequest_parquet_upload(
-    columns: Optional[Iterable[str]] = None, rath: Optional[MikroNextRath] = None
+    content_type: Optional[str] = None,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> ParquetUploadGrant:
     """RequestParquetUpload
 
     Request an upload grant for a Parquet store
 
     Args:
-        columns: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required) (list)
+        content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -6362,27 +6469,36 @@ async def arequest_parquet_upload(
     """
     return (
         await aexecute(
-            RequestParquetUploadMutation, {"input": {"columns": columns}}, rath=rath
+            RequestParquetUploadMutation,
+            {"input": {"contentType": content_type, "host": host, "port": port}},
+            rath=rath,
         )
     ).request_parquet_upload
 
 
 def request_parquet_upload(
-    columns: Optional[Iterable[str]] = None, rath: Optional[MikroNextRath] = None
+    content_type: Optional[str] = None,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
+    rath: Optional[MikroNextRath] = None,
 ) -> ParquetUploadGrant:
     """RequestParquetUpload
 
     Request an upload grant for a Parquet store
 
     Args:
-        columns: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required) (list)
+        content_type: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
         ParquetUploadGrant
     """
     return execute(
-        RequestParquetUploadMutation, {"input": {"columns": columns}}, rath=rath
+        RequestParquetUploadMutation,
+        {"input": {"contentType": content_type, "host": host, "port": port}},
+        rath=rath,
     ).request_parquet_upload
 
 
@@ -6476,6 +6592,8 @@ async def arequest_zarr_upload(
     shape: Optional[Iterable[int]] = None,
     chunks: Optional[Iterable[int]] = None,
     version: Optional[str] = None,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> ZarrUploadGrant:
     """RequestZarrUpload
@@ -6486,6 +6604,8 @@ async def arequest_zarr_upload(
         shape: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
         chunks: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
         version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -6494,7 +6614,15 @@ async def arequest_zarr_upload(
     return (
         await aexecute(
             RequestZarrUploadMutation,
-            {"input": {"shape": shape, "chunks": chunks, "version": version}},
+            {
+                "input": {
+                    "shape": shape,
+                    "chunks": chunks,
+                    "version": version,
+                    "host": host,
+                    "port": port,
+                }
+            },
             rath=rath,
         )
     ).request_zarr_upload
@@ -6504,6 +6632,8 @@ def request_zarr_upload(
     shape: Optional[Iterable[int]] = None,
     chunks: Optional[Iterable[int]] = None,
     version: Optional[str] = None,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> ZarrUploadGrant:
     """RequestZarrUpload
@@ -6514,6 +6644,8 @@ def request_zarr_upload(
         shape: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
         chunks: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
         version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -6521,7 +6653,15 @@ def request_zarr_upload(
     """
     return execute(
         RequestZarrUploadMutation,
-        {"input": {"shape": shape, "chunks": chunks, "version": version}},
+        {
+            "input": {
+                "shape": shape,
+                "chunks": chunks,
+                "version": version,
+                "host": host,
+                "port": port,
+            }
+        },
         rath=rath,
     ).request_zarr_upload
 
@@ -9829,6 +9969,86 @@ def search_rois(
     """
     return execute(
         SearchRoisQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
+async def aget_scene(id: ID, rath: Optional[MikroNextRath] = None) -> Scene:
+    """GetScene
+
+
+    Args:
+        id (ID): No description
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Scene
+    """
+    return (await aexecute(GetSceneQuery, {"id": id}, rath=rath)).scene
+
+
+def get_scene(id: ID, rath: Optional[MikroNextRath] = None) -> Scene:
+    """GetScene
+
+
+    Args:
+        id (ID): No description
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        Scene
+    """
+    return execute(GetSceneQuery, {"id": id}, rath=rath).scene
+
+
+async def asearch_scenes(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Tuple[SearchScenesQueryOptions, ...]:
+    """SearchScenes
+
+
+    Args:
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
+        pagination (Optional[OffsetPaginationInput], optional): No description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchScenesQueryScenes]
+    """
+    return (
+        await aexecute(
+            SearchScenesQuery,
+            {"search": search, "values": values, "pagination": pagination},
+            rath=rath,
+        )
+    ).options
+
+
+def search_scenes(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[MikroNextRath] = None,
+) -> Tuple[SearchScenesQueryOptions, ...]:
+    """SearchScenes
+
+
+    Args:
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
+        pagination (Optional[OffsetPaginationInput], optional): No description.
+        rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+    Returns:
+        List[SearchScenesQueryScenes]
+    """
+    return execute(
+        SearchScenesQuery,
+        {"search": search, "values": values, "pagination": pagination},
+        rath=rath,
     ).options
 
 

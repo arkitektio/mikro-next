@@ -5,6 +5,7 @@ from rekuest_next.structures.default import (
 from rekuest_next.widgets import SearchWidget
 from mikro_next.api.schema import (
     Image,
+    Scene,
     Snapshot,
     ROI,
     Stage,
@@ -22,12 +23,14 @@ from mikro_next.api.schema import (
     aget_roi,
     aget_stage,
     aget_dataset,
+    aget_scene,
     aget_file,
     aget_rgb_context,
     aget_mesh,
     aget_table,
     aget_table_cell,
     aget_table_row,
+    SearchScenesQuery,
     SearchRGBViewsQuery,
     SearchImagesQuery,
     SearchSnapshotsQuery,
@@ -142,4 +145,13 @@ structure_reg.register_as_structure(
     aexpand=aget_table_row,
     ashrink=id_shrink,
     default_widget=SearchWidget(query=SearchTableRowsQuery.Meta.document, ward="mikro"),
+)
+
+
+structure_reg.register_as_structure(
+    Scene,
+    identifier="@mikro/scene",
+    aexpand=aget_scene,
+    ashrink=id_shrink,
+    default_widget=SearchWidget(query=SearchScenesQuery.Meta.document, ward="mikro"),
 )
