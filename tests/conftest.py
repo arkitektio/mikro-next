@@ -9,11 +9,11 @@ from rath.links.aiohttp import AIOHttpLink
 from rath.links.graphql_ws import GraphQLWSLink
 from mikro_next.rath import (
     MikroNextRath,
-    UploadLink,
     SplitLink,
     MikroNextLinkComposition,
 )
 from mikro_next.datalayer import DataLayer
+from mikro_next.middleware.upload import UploadMiddleware
 from graphql import OperationType
 from dataclasses import dataclass
 
@@ -85,13 +85,15 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
         y = MikroNextRath(
             link=MikroNextLinkComposition(
                 auth=ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
-                upload=UploadLink(datalayer=datalayer),
                 split=SplitLink(
                     left=AIOHttpLink(endpoint_url=mikro_http_url),
                     right=GraphQLWSLink(ws_endpoint_url=mikro_ws_url),
                     split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
                 ),
             ),
+            middlewares=[
+                UploadMiddleware(datalayer=datalayer),
+            ],
         )
 
         mikro = MikroNext(

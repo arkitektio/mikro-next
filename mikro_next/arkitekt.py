@@ -15,7 +15,7 @@ from rath.links.compose import compose
 from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
 from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
 from mikro_next.contrib.fakts.datalayer import FaktsDataLayer
-from mikro_next.links.upload import UploadLink
+from mikro_next.middleware.upload import UploadMiddleware
 from graphql import OperationType
 from arkitekt_next.service_registry import (
     get_default_service_registry,
@@ -54,12 +54,9 @@ class MikroService(BaseArkitektService):
                     FileExtraction(),
                     DictingLink(),
                     ContextLink(),
-                    UploadLink(
-                        datalayer=datalayer,
-                    ),
                     FaktsAuthLink(
                         fakts=fakts,
-                    ),  # needs to be after the UploadLink as the upload link will also use the auth link
+                    ),
                     SplitLink(
                         left=FaktsAIOHttpLink(
                             fakts_group="mikro",
@@ -74,6 +71,9 @@ class MikroService(BaseArkitektService):
                         split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
                     ),
                 ),
+                middlewares=[
+                    UploadMiddleware(datalayer=datalayer),
+                ],
             ),
             datalayer=datalayer,
         )

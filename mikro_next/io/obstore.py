@@ -39,6 +39,7 @@ def create_s3_store(
 ) -> S3Store:
     normalized_client_options: dict[str, object] = dict(client_options or {})
     print(grant)
+    print(endpoint_url)
 
     def get_credentials() -> "S3Credential":
         return {

@@ -1,4 +1,9 @@
-"""Module for uploading various data types to a DataLayer using asynchronous methods."""
+"""Module for uploading various data types to a DataLayer.
+
+Provides both async (aiobotocore/s3fs) and sync (obstore) upload paths:
+    - Async: aupload_xarray, aupload_parquet, aupload_bigfile, astore_media_file, astore_mesh_file
+    - Sync: upload_xarray, upload_parquet, upload_bigfile, store_media_file, store_mesh_file
+"""
 
 import logging
 import os
@@ -25,6 +30,11 @@ if TYPE_CHECKING:
         MediaUploadGrant,
     )
     from mikro_next.datalayer import DataLayer
+
+
+# ========================================================================
+# Async upload functions (aiobotocore / s3fs)
+# ========================================================================
 
 
 async def astore_xarray_input(
@@ -67,7 +77,9 @@ async def astore_xarray_input(
 
         return credentials.store
     except Exception as e:
-        raise UploadError(f"Error while uploading to {s3_path} on {endpoint_url}") from e
+        raise UploadError(
+            f"Error while uploading to {s3_path} on {endpoint_url}"
+        ) from e
 
 
 def _store_parquet_input(
@@ -129,10 +141,14 @@ async def astore_mesh_file(
             logger.debug(
                 f"Uploading mesh to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
             )
-            await client.put_object(Bucket=credentials.bucket, Key=credentials.key, Body=mesh.value)  # type: ignore
+            await client.put_object(
+                Bucket=credentials.bucket, Key=credentials.key, Body=mesh.value
+            )  # type: ignore
         except botocore.exceptions.ClientError as e:  # type: ignore
             if e.response["Error"]["Code"] == "InvalidAccessKeyId":  # type: ignore
-                return PermissionsError("Access Key is invalid, trying to get new credentials")  # type: ignore
+                return PermissionsError(
+                    "Access Key is invalid, trying to get new credentials"
+                )  # type: ignore
 
             raise e
 
@@ -168,10 +184,14 @@ async def astore_media_file(
             logger.debug(
                 f"Uploading file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
             )
-            await client.put_object(Bucket=credentials.bucket, Key=credentials.key, Body=file.value)  # type: ignore
+            await client.put_object(
+                Bucket=credentials.bucket, Key=credentials.key, Body=file.value
+            )  # type: ignore
         except botocore.exceptions.ClientError as e:  # type: ignore
             if e.response["Error"]["Code"] == "InvalidAccessKeyId":  # type: ignore
-                return PermissionsError("Access Key is invalid, trying to get new credentials")  # type: ignore
+                return PermissionsError(
+                    "Access Key is invalid, trying to get new credentials"
+                )  # type: ignore
 
             raise e
 
@@ -203,10 +223,14 @@ async def aupload_bigfile(
             logger.debug(
                 f"Uploading file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
             )
-            await client.put_object(Bucket=credentials.bucket, Key=credentials.key, Body=file.value)  # type: ignore
+            await client.put_object(
+                Bucket=credentials.bucket, Key=credentials.key, Body=file.value
+            )  # type: ignore
         except botocore.exceptions.ClientError as e:  # type: ignore
             if e.response["Error"]["Code"] == "InvalidAccessKeyId":  # type: ignore
-                return PermissionsError("Access Key is invalid, trying to get new credentials")  # type: ignore
+                return PermissionsError(
+                    "Access Key is invalid, trying to get new credentials"
+                )  # type: ignore
 
             raise e
 
@@ -222,7 +246,9 @@ async def aupload_xarray(
     datalayer: "DataLayer",
 ) -> str:
     """Store a DataFrame in the DataLayer"""
-    return await astore_xarray_input(array, credentials, await datalayer.get_endpoint_url())
+    return await astore_xarray_input(
+        array, credentials, await datalayer.get_endpoint_url()
+    )
 
 
 async def aupload_parquet(
@@ -236,3 +262,168 @@ async def aupload_parquet(
         _store_parquet_input, parquet, credentials, await datalayer.get_endpoint_url()
     )
     return await asyncio.wrap_future(co_future)
+
+
+# ========================================================================
+# Sync upload functions (obstore)
+# ========================================================================
+
+
+def _store_xarray_via_obstore(
+    xarray: ArrayLike,
+    credentials: "ZarrUploadGrant",
+    endpoint_url: str,
+) -> str:
+    """Stores an xarray in the DataLayer synchronously via obstore/zarr."""
+    from mikro_next.io.obstore import create_s3_store
+    from zarr.storage import ObjectStore, StorePath
+    import zarr
+
+    obstore_s3_store = create_s3_store(endpoint_url, credentials)
+    zarr_store = ObjectStore(obstore_s3_store)
+    store_path = StorePath(zarr_store, credentials.key)
+
+    array = xarray.value.data
+
+    try:
+        logger.debug(
+            f"Uploading zarr (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
+        zarr.save_array(store_path, array, zarr_format=3)  # type: ignore
+        logger.info(
+            f"Successfully uploaded zarr (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
+def _store_bigfile_via_obstore(
+    file: FileLike | ImageFileLike,
+    credentials: "BigFileUploadGrant",
+    endpoint_url: str,
+) -> str:
+    """Store a big file in the DataLayer synchronously via obstore."""
+    from mikro_next.io.obstore import create_s3_store
+    import obstore
+
+    store = create_s3_store(endpoint_url, credentials)
+
+    data = file.value.read()
+
+    try:
+        logger.debug(
+            f"Uploading file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
+        obstore.put(store, credentials.key, data)
+        logger.info(
+            f"Successfully uploaded file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
+def _store_media_file_via_obstore(
+    file: ImageFileLike,
+    credentials: "MediaUploadGrant",
+    endpoint_url: str,
+) -> str:
+    """Store a media file in the DataLayer synchronously via obstore."""
+    from mikro_next.io.obstore import create_s3_store
+    import obstore
+
+    store = create_s3_store(endpoint_url, credentials)
+
+    data = file.value.read()
+
+    try:
+        logger.debug(
+            f"Uploading media file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
+        obstore.put(store, credentials.key, data)
+        logger.info(
+            f"Successfully uploaded media file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
+def _store_mesh_via_obstore(
+    mesh: MeshLike,
+    credentials: "BigFileUploadGrant",
+    endpoint_url: str,
+) -> str:
+    """Store a mesh file in the DataLayer synchronously via obstore."""
+    from mikro_next.io.obstore import create_s3_store
+    import obstore
+
+    store = create_s3_store(endpoint_url, credentials)
+
+    data = mesh.value.read()
+
+    try:
+        logger.debug(
+            f"Uploading mesh (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
+        obstore.put(store, credentials.key, data)
+        logger.info(
+            f"Successfully uploaded mesh (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
+def upload_xarray(
+    array: ArrayLike,
+    credentials: "ZarrUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Upload an xarray synchronously via obstore."""
+    return _store_xarray_via_obstore(array, credentials, datalayer.endpoint_url)
+
+
+def upload_parquet(
+    parquet: ParquetLike,
+    credentials: "ParquetUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Upload a parquet file synchronously."""
+    return _store_parquet_input(parquet, credentials, datalayer.endpoint_url)
+
+
+def upload_bigfile(
+    file: FileLike | ImageFileLike,
+    credentials: "BigFileUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Upload a big file synchronously via obstore."""
+    return _store_bigfile_via_obstore(file, credentials, datalayer.endpoint_url)
+
+
+def store_media_file(
+    file: ImageFileLike,
+    credentials: "MediaUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Store a media file synchronously via obstore."""
+    return _store_media_file_via_obstore(file, credentials, datalayer.endpoint_url)
+
+
+def store_mesh_file(
+    mesh: MeshLike,
+    credentials: "BigFileUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Store a mesh file synchronously via obstore."""
+    return _store_mesh_via_obstore(mesh, credentials, datalayer.endpoint_url)
