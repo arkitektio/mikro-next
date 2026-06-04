@@ -156,7 +156,7 @@ async def aupload_bigfile(
     credentials: "BigFileUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
-    """Store a DataFrame in the DataLayer"""
+    """Upload a big file to the DataLayer asynchronously via obstore."""
     from mikro_next.io.obstore import create_s3_store
 
     endpoint_url = await datalayer.get_endpoint_url()
@@ -182,7 +182,7 @@ async def aupload_xarray(
     credentials: "ZarrUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
-    """Store a DataFrame in the DataLayer"""
+    """Upload an xarray to the DataLayer asynchronously via obstore."""
     return await astore_xarray_input(array, credentials, await datalayer.get_endpoint_url())
 
 
@@ -192,7 +192,7 @@ async def aupload_parquet(
     datalayer: "DataLayer",
     executor: ThreadPoolExecutor,
 ) -> str:
-    """Store a DataFrame in the DataLayer"""
+    """Upload a parquet table to the DataLayer asynchronously via a thread executor."""
     co_future = executor.submit(
         _store_parquet_input, parquet, credentials, await datalayer.get_endpoint_url()
     )

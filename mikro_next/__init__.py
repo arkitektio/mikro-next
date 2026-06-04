@@ -11,7 +11,7 @@ try:
     from .arkitekt import MikroService
 except ImportError as e:
     try:
-        import arkitekt
+        import arkitekt_next
 
         raise ImportError(
             "Arkitekt is installed, but the MikroService could not be imported. This may indicate a version mismatch or missing dependencies."

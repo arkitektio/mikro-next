@@ -11,4 +11,4 @@ class NoDataLayerFound(MikroError):
 
 
 class NotQueriedError(MikroError):
-    """Caused when a field has not been queries"""
+    """Caused when a field has not been queried."""

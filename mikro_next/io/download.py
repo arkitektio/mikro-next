@@ -20,6 +20,7 @@ from mikro_next.io.obstore import (
     create_zarr_store_path,
 )
 from rath.scalars import ID
+from zarr.storage import StorePath
 
 if TYPE_CHECKING:
     pass  # type: ignore
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
 async def aget_zarr_credentials_and_endpoint(
     store: str,
 ) -> Tuple[ZarrAccessGrant, str]:
+    """Fetch zarr access credentials and the datalayer endpoint URL."""
     datalayer = current_next_datalayer.get()
     if not datalayer:
         raise ValueError("Datalayer is not set")
@@ -40,6 +42,7 @@ async def aget_zarr_credentials_and_endpoint(
 async def aget_table_credentials_and_endpoint(
     store: str,
 ) -> Tuple[ParquetAccessGrant, str]:
+    """Fetch parquet access credentials and the datalayer endpoint URL."""
     datalayer = current_next_datalayer.get()
     if not datalayer:
         raise ValueError("Datalayer is not set")
@@ -52,6 +55,7 @@ async def aget_table_credentials_and_endpoint(
 async def aget_bigfile_credentials_and_endpoint(
     store: str,
 ) -> Tuple[BigFileAccessGrant, str]:
+    """Fetch big-file access credentials and the datalayer endpoint URL."""
     datalayer = current_next_datalayer.get()
     if not datalayer:
         raise ValueError("Datalayer is not set")
@@ -61,17 +65,20 @@ async def aget_bigfile_credentials_and_endpoint(
     return credentials, endpoint_url
 
 
-async def aopen_zarr_store(store_id: str, cache: int = 2**30):
+async def aopen_zarr_store(store_id: str, cache: int = 2**30) -> StorePath:
+    """Open a zarr store for the given store ID asynchronously."""
     credentials, endpoint_url = await aget_zarr_credentials_and_endpoint(store_id)
     return create_zarr_store_path(endpoint_url, credentials)
 
 
-def open_zarr_store(store_id: str, cache: int = 2**30):
+def open_zarr_store(store_id: str, cache: int = 2**30) -> StorePath:
+    """Open a zarr store for the given store ID synchronously."""
     credentials, endpoint_url = unkoil(aget_zarr_credentials_and_endpoint, store_id)
     return create_zarr_store_path(endpoint_url, credentials)
 
 
-async def aopen_parquet_filesytem(store_id: str):
+async def aopen_parquet_filesytem(store_id: str) -> ParquetDatasetViaObstore:
+    """Open a parquet dataset for the given store ID asynchronously."""
     try:
         import pyarrow.parquet as pq  # type: ignore # noqa: F401
     except ImportError as e:
@@ -82,7 +89,8 @@ async def aopen_parquet_filesytem(store_id: str):
     )
 
 
-def open_parquet_filesystem(store_id: str):
+def open_parquet_filesystem(store_id: str) -> ParquetDatasetViaObstore:
+    """Open a parquet dataset for the given store ID synchronously."""
     try:
         import pyarrow.parquet as pq  # type: ignore # noqa: F401
     except ImportError as e:
@@ -94,6 +102,7 @@ def open_parquet_filesystem(store_id: str):
 
 
 def _ensure_parent_directory(file_name: str) -> None:
+    """Create parent directories for file_name if they do not exist."""
     parent = Path(file_name).expanduser().resolve().parent
     parent.mkdir(parents=True, exist_ok=True)
 
@@ -102,7 +111,17 @@ async def adownload_presigned_file(
     presigned_url: str,
     file_name: str,
     datalayer: DataLayer | None = None,
-):
+) -> str:
+    """Download a file from a presigned URL and save it to file_name asynchronously.
+
+    Args:
+        presigned_url: The presigned URL path (appended to the endpoint URL).
+        file_name: Local path to write the downloaded file to.
+        datalayer: Optional DataLayer override; falls back to the active context instance.
+
+    Returns:
+        The local path where the file was saved.
+    """
     datalayer = datalayer or current_next_datalayer.get()
     if not datalayer:
         raise ValueError("Datalayer is not set")
@@ -126,7 +145,17 @@ async def adownload_presigned_file(
 
 def download_presigned_file(
     presigned_url: str, file_name: str, datalayer: DataLayer | None = None
-):
+) -> str:
+    """Download a file from a presigned URL and save it to file_name synchronously.
+
+    Args:
+        presigned_url: The presigned URL path (appended to the endpoint URL).
+        file_name: Local path to write the downloaded file to.
+        datalayer: Optional DataLayer override; falls back to the active context instance.
+
+    Returns:
+        The local path where the file was saved.
+    """
     return unkoil(
         adownload_presigned_file,
         presigned_url,
@@ -139,7 +168,17 @@ async def adownload_file(
     store_id: str,
     file_name: str,
     datalayer: DataLayer | None = None,
-):
+) -> str:
+    """Download a big file from the store and save it to file_name asynchronously.
+
+    Args:
+        store_id: The ID of the big-file store to download from.
+        file_name: Local path to write the downloaded file to.
+        datalayer: Optional DataLayer override; uses the active context instance otherwise.
+
+    Returns:
+        The local path where the file was saved.
+    """
     if datalayer is not None:
         token = current_next_datalayer.set(datalayer)
     else:
@@ -165,7 +204,17 @@ async def adownload_file(
     return file_name
 
 
-def download_file(store_id: str, file_name: str, datalayer: DataLayer | None = None):
+def download_file(store_id: str, file_name: str, datalayer: DataLayer | None = None) -> str:
+    """Download a big file from the store and save it to file_name synchronously.
+
+    Args:
+        store_id: The ID of the big-file store to download from.
+        file_name: Local path to write the downloaded file to.
+        datalayer: Optional DataLayer override; uses the active context instance otherwise.
+
+    Returns:
+        The local path where the file was saved.
+    """
     credentials, endpoint_url = unkoil(aget_bigfile_credentials_and_endpoint, store_id)
 
     _ensure_parent_directory(file_name)

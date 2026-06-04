@@ -163,6 +163,16 @@ class PhysicalSizeTrait:
         tolerance: float = 0.02,
         raise_exception: Optional[bool] = False,
     ) -> bool:
+        """Check whether this physical size is close to another within a tolerance.
+
+        Args:
+            other: The other physical size to compare against.
+            tolerance: Maximum allowed absolute difference per axis.
+            raise_exception: If True, raise ValueError instead of returning False.
+
+        Returns:
+            True if all non-None shared axes are within tolerance, False otherwise.
+        """
         if hasattr(self, "x") and self.x is not None and other.x is not None:
             if abs(other.x - self.x) > tolerance:
                 if raise_exception:
@@ -548,6 +558,7 @@ class FileTrait:
 
     @contextmanager
     def temporary(self) -> Generator[str, None, None]:
+        """Download the file and yield its local path, deleting it on exit."""
         path = None
         try:
             path = self.download()
@@ -692,6 +703,7 @@ class Lensable:
 
     @contextmanager
     def temporary(self) -> Generator[str, None, None]:
+        """Download the file and yield its local path, deleting it on exit."""
         path = None
         try:
             path = self.download()
