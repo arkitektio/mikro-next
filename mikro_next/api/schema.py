@@ -1,54 +1,55 @@
-from typing import (
-    Annotated,
-    Literal,
-    Any,
-    Iterable,
-    AsyncIterator,
-    Optional,
-    List,
-    Iterator,
-    Union,
-    Tuple,
-)
-from mikro_next.traits import (
-    FileTrait,
-    MikroFetchable,
-    IsVectorizableTrait,
-    HasDownloadAccessor,
-    DataArrayTrait,
-    HasZarrStoreTrait,
-    HasParquetStoreAccesor,
-    HasPresignedDownloadAccessor,
-    Lensable,
-    HasZarrStoreAccessor,
-    DatasetTrait,
-    HasParquestStoreTrait,
-)
 from mikro_next.scalars import (
-    MeshCoercible,
-    ImageCoercible,
-    Milliseconds,
-    ThreeDVector,
-    ArrayCoercible,
-    ImageFileLike,
-    ImageFileCoercible,
-    FiveDVector,
-    Micrometers,
-    ParquetCoercible,
-    FileLike,
     MeshLike,
-    ImageLike,
-    ArrayLike,
-    LabelsLike,
+    ArrayCoercible,
     FourByFourMatrix,
     ParquetLike,
+    ArrayLike,
+    ImageLike,
+    ImageCoercible,
+    FiveDVector,
+    ImageFileLike,
+    Milliseconds,
+    ThreeDVector,
+    LabelsLike,
+    FileLike,
+    MeshCoercible,
+    Micrometers,
+    ParquetCoercible,
+    ImageFileCoercible,
 )
-from pydantic import Field, ConfigDict, BaseModel
+from mikro_next.traits import (
+    CreateADatasetTrait,
+    HasPresignedDownloadAccessor,
+    FileTrait,
+    HasDownloadAccessor,
+    IsVectorizableTrait,
+    HasZarrStoreTrait,
+    DatasetTrait,
+    DataArrayTrait,
+    Lensable,
+    HasZarrStoreAccessor,
+    HasParquetStoreAccesor,
+    HasParquestStoreTrait,
+    MikroFetchable,
+)
+from mikro_next.funcs import execute, aexecute, subscribe, asubscribe
+from typing import (
+    Annotated,
+    Iterable,
+    AsyncIterator,
+    Any,
+    Tuple,
+    Optional,
+    Iterator,
+    Literal,
+    List,
+    Union,
+)
 from rath.scalars import IDCoercible, ID
-from mikro_next.funcs import aexecute, execute, subscribe, asubscribe
+from pydantic import Field, BaseModel, ConfigDict
+from mikro_next.rath import MikroNextRath
 from datetime import datetime
 from enum import Enum
-from mikro_next.rath import MikroNextRath
 
 
 class Blending(str, Enum):
@@ -291,7 +292,7 @@ class CoordinateAnchorInput(BaseModel):
     )
 
 
-class CreateADatasetInput(BaseModel):
+class CreateADatasetInput(CreateADatasetTrait, BaseModel):
     """Input type for creating an image from an array-like object"""
 
     data: ArrayLike

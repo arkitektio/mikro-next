@@ -32,8 +32,14 @@ def test_write_random(deployed_app: DeployedMikro) -> None:
     )
     assert x.id, "Did not get a random rep"
 
+    # x.data is a lazy DuckDB relation queried directly on S3; .df() materialises it.
     assert x.data is not None, "Data should be present in the table"
-    assert x.data.equals(simple_df), "Data in the table should match the original DataFrame"
+    assert x.data.df().equals(simple_df), (
+        "Materialised table data should match the original DataFrame"
+    )
+    # A lazy filter must run out-of-core (without downloading the whole object).
+    filtered = x.data.filter("value > 0.5").df()
+    assert (filtered["value"] > 0.5).all(), "Lazy DuckDB filter should be applied"
 
 
 @pytest.mark.integration

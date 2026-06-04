@@ -112,6 +112,9 @@
                 "DataArray": [
                     "mikro_next.traits.DataArrayTrait"
                 ],
+                "CreateADatasetInput": [
+                    "mikro_next.traits.CreateADatasetTrait"
+                ],
                 "Expression": [
                     "mikro_next.traits.ExpressionTrait"
                 ],

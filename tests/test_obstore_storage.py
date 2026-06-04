@@ -110,11 +110,68 @@ async def test_awrite_dataarray_to_zarr_roundtrips() -> None:
     assert np.array_equal(back[:], array.to_numpy())
 
 
-def test_array_scalars_coerce_to_ctzyx() -> None:
-    # Bare numpy gets its trailing dims labelled and expanded to a 5D ctzyx layout.
-    arr = ArrayLike.validate(np.zeros((4, 8, 8), dtype="uint16"))
-    assert arr.value.dims == ("c", "t", "z", "y", "x")
-    assert arr.value.shape == (1, 1, 4, 8, 8)
+@pytest.mark.asyncio
+async def test_awrite_dataarray_to_zarr_streams_dask_arrays(monkeypatch) -> None:
+    # A larger array so rechunk actually splits it into multiple on-disk chunks.
+    source = np.arange(2 * 50 * 2048 * 2048, dtype="uint16").reshape(1, 2, 50, 2048, 2048)
+    array = xr.DataArray(
+        da.from_array(source, chunks=(1, 1, 10, 2048, 2048)), dims=list("ctzyx")
+    )
+    sp = _store_path("async-big")
 
+    # Guard against out-of-core breakage: the whole array must never be pulled
+    # into memory in one shot via Array.compute(). Streaming uses dask.array.store
+    # (per-block stores), not a single compute of the full array.
+    import dask.array.core as dac
+
+    original_compute = dac.Array.compute
+
+    def _fail_on_full_compute(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        raise AssertionError(
+            "dask array was fully computed into memory; out-of-core streaming was broken"
+        )
+
+    monkeypatch.setattr(dac.Array, "compute", _fail_on_full_compute)
+    try:
+        await awrite_dataarray_to_zarr(sp, array)
+    finally:
+        monkeypatch.setattr(dac.Array, "compute", original_compute)
+
+    back = zarr.open_array(sp, mode="r")
+    # rechunk targets ~20MB chunks, so the z axis is split rather than written whole.
+    assert back.chunks[2] < 50
+    assert np.array_equal(back[:], source)
+
+
+def test_image_like_coerces_to_ctzyx() -> None:
+    # ImageLike still forces the canonical 5D ctzyx layout.
     img = ImageLike.validate(np.zeros((8, 8), dtype="uint16"))
     assert img.value.dims == ("c", "t", "z", "y", "x")
+    assert img.value.shape == (1, 1, 1, 8, 8)
+
+
+def test_array_like_preserves_labels() -> None:
+    # ArrayLike preserves the caller's labelled dims/order verbatim (no ctzyx).
+    labeled = xr.DataArray(np.zeros((4, 8, 8, 2), dtype="uint16"), dims=["z", "y", "x", "c"])
+    arr = ArrayLike.validate(labeled)
+    assert arr.value.dims == ("z", "y", "x", "c")
+    assert arr.value.shape == (4, 8, 8, 2)
+
+    # Bare arrays carry no labels, so xarray's default names are assigned.
+    bare = ArrayLike.validate(np.zeros((3, 4), dtype="uint16"))
+    assert bare.value.dims == ("dim_0", "dim_1")
+
+
+def test_write_dataarray_to_zarr_streams_arbitrary_dims() -> None:
+    # A large non-ctzyx array must chunk and round-trip via the generic chunker.
+    source = np.arange(50 * 2048 * 2048, dtype="uint16").reshape(50, 2048, 2048)
+    array = xr.DataArray(da.from_array(source, chunks=(10, 2048, 2048)), dims=["z", "y", "x"])
+    sp = _store_path("arbitrary")
+
+    write_dataarray_to_zarr(sp, array)
+
+    back = zarr.open_array(sp, mode="r")
+    # ~20MB target splits the z axis rather than writing all 50 planes in one chunk.
+    assert back.chunks[0] < 50
+    assert back.metadata.dimension_names == ("z", "y", "x")
+    assert np.array_equal(back[:], source)

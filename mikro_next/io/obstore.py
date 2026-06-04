@@ -1,5 +1,6 @@
 """Helpers for reading and writing Mikro S3 objects via obstore."""
 
+import asyncio
 from io import BytesIO
 from typing import TYPE_CHECKING, Protocol
 
@@ -9,7 +10,6 @@ import xarray as xr
 import zarr
 from obstore.store import ObjectStore as ObstoreObjectStore, S3Store
 from zarr.storage import ObjectStore as ZarrObjectStore, StorePath
-import zarr.api.asynchronous as async_api
 
 from mikro_next.scalars import is_dask_array
 from mikro_next.utils import rechunk
@@ -91,17 +91,46 @@ async def acreate_s3_store(
     )
 
 
+_CTZYX_DIMS = {"c", "t", "z", "y", "x"}
+
+
+def _generic_chunk_shape(array: xr.DataArray, chunksize_in_bytes: int = 20_000_000) -> tuple[int, ...]:
+    """Compute a ~20MB zarr chunk shape for an arbitrarily-labelled DataArray.
+
+    Used for the generic dataset path where dims are not the canonical ``ctzyx``
+    set and their semantics are unknown. Walks dimensions inner→outer (C-order),
+    keeping the innermost dims whole while they fit the byte budget, chunking the
+    first dimension that overflows, and leaving the outer dims at 1. The result is
+    always valid (``chunk[i] <= shape[i]``) regardless of dimension order/meaning.
+    """
+    shape = array.shape
+    chunk = [1] * len(shape)
+    bytes_per_chunk = array.dtype.itemsize
+    for i in reversed(range(len(shape))):
+        if bytes_per_chunk * shape[i] <= chunksize_in_bytes:
+            chunk[i] = shape[i]
+            bytes_per_chunk *= shape[i]
+        else:
+            chunk[i] = max(1, chunksize_in_bytes // bytes_per_chunk)
+            break
+    return tuple(int(c) for c in chunk)
+
+
 def _zarr_chunk_shape(array: xr.DataArray) -> tuple[int, ...]:
     """Compute an on-disk zarr chunk shape (~20MB) aligned to the array dims.
 
-    The array is expected to be a 5D ``ctzyx`` DataArray (as produced by the
-    ``ArrayLike``/``ImageLike`` scalars). Returns a chunk tuple in the array's
-    own dimension order so it can be passed straight to zarr.
+    Canonical 5D ``ctzyx`` arrays (as produced by the ``ImageLike`` scalar) use
+    the ``ctzyx``-aware :func:`rechunk` heuristic. Arbitrarily-labelled arrays
+    (the generic ``ArrayLike``/dataset path) fall back to a semantics-agnostic
+    chunker. Returns a chunk tuple in the array's own dimension order so it can be
+    passed straight to zarr.
     """
-    chunks = rechunk(
-        dict(array.sizes), itemsize=array.dtype.itemsize, chunksize_in_bytes=20_000_000
-    )
-    return tuple(int(chunks[dim]) for dim in array.dims)
+    if set(array.dims) == _CTZYX_DIMS:
+        chunks = rechunk(
+            dict(array.sizes), itemsize=array.dtype.itemsize, chunksize_in_bytes=20_000_000
+        )
+        return tuple(int(chunks[dim]) for dim in array.dims)
+    return _generic_chunk_shape(array)
 
 
 def write_dataarray_to_zarr(store_path: StorePath, array: xr.DataArray) -> None:
@@ -133,26 +162,14 @@ def write_dataarray_to_zarr(store_path: StorePath, array: xr.DataArray) -> None:
 
 
 async def awrite_dataarray_to_zarr(store_path: StorePath, array: xr.DataArray) -> None:
-    """Write a DataArray to a zarr v3 array asynchronously with explicit chunks.
+    """Write a DataArray to a zarr v3 array without blocking the event loop.
 
-    The zarr async backend uploads the individual chunks to S3 concurrently via
-    obstore. Dask arrays are computed before the write (the dask scheduler is
-    synchronous), matching the previous behaviour but with proper chunking.
+    Delegates to the synchronous streaming writer in a worker thread so that
+    dask-backed arrays are streamed to zarr chunk-by-chunk (via ``dask.array.store``)
+    and are never fully materialised in memory. ``dask.array.store`` runs the dask
+    scheduler synchronously, so it must not be awaited directly on the event loop.
     """
-    chunk_shape = _zarr_chunk_shape(array)
-    zarr_array = await async_api.create_array(
-        store_path,
-        shape=array.shape,
-        chunks=chunk_shape,
-        dtype=array.dtype,
-        dimension_names=[str(dim) for dim in array.dims],
-        zarr_format=3,
-        overwrite=True,
-    )
-    data = array.data
-    if is_dask_array(data):
-        data = data.compute()
-    await zarr_array.setitem(Ellipsis, np.asarray(data))
+    await asyncio.to_thread(write_dataarray_to_zarr, store_path, array)
 
 
 async def awrite_xarray_to_obstore(

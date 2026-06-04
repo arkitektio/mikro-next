@@ -155,6 +155,28 @@ def coerce_to_ctzyx(v: ArrayCoercible) -> xr.DataArray:
     return v.transpose(*"ctzyx")
 
 
+def coerce_to_labeled_array(v: ArrayCoercible) -> xr.DataArray:
+    """Coerce array-like input into a labelled ``xr.DataArray`` without forcing ``ctzyx``.
+
+    Unlike :func:`coerce_to_ctzyx` (used by ``ImageLike``), this preserves the
+    caller's dimension labels and order verbatim: no dimensions are added,
+    removed, or transposed. This is the generic dataset path where the user
+    supplies arbitrary, explicitly-labelled dimensions alongside matching
+    ``dim_descriptors`` (validated at the model level by ``CreateADatasetTrait``).
+
+    Bare numpy/dask arrays carry no labels, so they are wrapped with xarray's
+    default dimension names (``dim_0``, ``dim_1``, ...). The array is returned
+    lazily (dask chunks preserved) so the upload path can stream it to zarr.
+    """
+    if isinstance(v, np.ndarray) or is_dask_array(v):
+        return xr.DataArray(v)
+
+    if not isinstance(v, xr.DataArray):
+        raise ValueError("This needs to be a instance of xarray.DataArray")
+
+    return v
+
+
 class RGBAColor(list[float]):
     """A custom scalar to represent an affine matrix."""
 
@@ -506,8 +528,8 @@ class ArrayLike:
 
     @classmethod
     def validate(cls, v: ArrayCoercible) -> "ArrayLike":
-        """Validate the input array and convert it to a ``ctzyx`` xr.DataArray."""
-        return cls(coerce_to_ctzyx(v))
+        """Validate the input array, preserving its labelled dimensions as-is."""
+        return cls(coerce_to_labeled_array(v))
 
     def __repr__(self) -> str:
         """Return a string representation of the ArrayLike scalar."""
