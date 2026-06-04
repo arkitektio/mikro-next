@@ -51,9 +51,6 @@ class DataLayer(KoiledModel):
     and to ensure that the context is exited when the context manager is exited
     (for future cleanup purposes on other datalayers).
 
-    Attributes:
-        fs (s3fs.S3FileSystem): The filesystem object
-
     """
 
     endpoint_url: str = ""

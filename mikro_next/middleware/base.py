@@ -72,7 +72,7 @@ class FuncsMiddleware(BaseModel, abc.ABC):
         """Process the serialized variables dict asynchronously.
 
         Called from ``aexecute()`` and ``asubscribe()`` (the async path).
-        Implementations should use async I/O (e.g., aiobotocore/s3fs for S3).
+        Implementations should use async I/O (e.g., obstore for S3).
 
         Args:
             variables: The serialized variables dict (after model_dump).

@@ -13,13 +13,13 @@ Middleware Support:
         - Sync (execute/subscribe): Calls middleware.process_variables()
           which uses sync I/O (e.g., obstore for S3 uploads).
         - Async (aexecute/asubscribe): Calls middleware.aprocess_variables()
-          which uses async I/O (e.g., aiobotocore/s3fs for S3 uploads).
+                    which uses async I/O (e.g., obstore for S3 uploads).
 
 """
 
 from typing import Any, Dict, Generator, AsyncGenerator, List, Type
 from mikro_next.rath import MikroNextRath, current_mikro_next_rath
-from koil import unkoil, unkoil_gen
+from koil import unkoil_gen
 from rath.turms.funcs import TOperation
 from .errors import NoMikroFound
 from .middleware.base import FuncsMiddleware
@@ -88,9 +88,7 @@ def execute(
     """
     rath = rath or current_mikro_next_rath.get()
     if not rath:
-        raise NoMikroFound(
-            "No rath client found in context. Please provide a rath client."
-        )
+        raise NoMikroFound("No rath client found in context. Please provide a rath client.")
 
     # First serialize through operation.Arguments (pydantic validation + alias resolution)
     serialized = operation.Arguments(**variables).model_dump(by_alias=True, exclude_unset=True)
@@ -113,18 +111,16 @@ async def aexecute(
     """Executes a query or mutation using rath in a non-blocking way.
 
     Uses the async middleware path (aprocess_variables) which runs
-    uploads via aiobotocore/s3fs.
+    uploads via obstore.
     """
     rath = rath or current_mikro_next_rath.get()
     if not rath:
-        raise NoMikroFound(
-            "No rath client found in context. Please provide a rath client."
-        )
+        raise NoMikroFound("No rath client found in context. Please provide a rath client.")
 
     # First serialize through operation.Arguments (pydantic validation + alias resolution)
     serialized = operation.Arguments(**variables).model_dump(by_alias=True, exclude_unset=True)
 
-    # Apply async middleware chain (e.g., upload arrays via aiobotocore)
+    # Apply async middleware chain (e.g., upload arrays via obstore)
     serialized = await _apply_middlewares_async(serialized, operation, rath, rath.middlewares)
 
     x = await rath.aquery(
@@ -154,9 +150,7 @@ async def asubscribe(
     """
     rath = rath or current_mikro_next_rath.get()
     if not rath:
-        raise NoMikroFound(
-            "No rath client found in context. Please provide a rath client."
-        )
+        raise NoMikroFound("No rath client found in context. Please provide a rath client.")
 
     # First serialize through operation.Arguments (pydantic validation + alias resolution)
     serialized = operation.Arguments(**variables).model_dump(by_alias=True)

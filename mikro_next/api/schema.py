@@ -1,54 +1,54 @@
 from typing import (
-    Iterator,
-    AsyncIterator,
-    List,
-    Iterable,
-    Literal,
-    Optional,
     Annotated,
+    Literal,
+    Any,
+    Iterable,
+    AsyncIterator,
+    Optional,
+    List,
+    Iterator,
     Union,
     Tuple,
-    Any,
 )
 from mikro_next.traits import (
-    HasPresignedDownloadAccessor,
-    HasDownloadAccessor,
-    DatasetTrait,
-    Lensable,
     FileTrait,
+    MikroFetchable,
     IsVectorizableTrait,
+    HasDownloadAccessor,
     DataArrayTrait,
     HasZarrStoreTrait,
-    MikroFetchable,
-    HasZarrStoreAccessor,
-    HasParquestStoreTrait,
     HasParquetStoreAccesor,
+    HasPresignedDownloadAccessor,
+    Lensable,
+    HasZarrStoreAccessor,
+    DatasetTrait,
+    HasParquestStoreTrait,
 )
 from mikro_next.scalars import (
     MeshCoercible,
-    FileLike,
+    ImageCoercible,
+    Milliseconds,
     ThreeDVector,
     ArrayCoercible,
-    LabelsLike,
-    ImageCoercible,
-    Micrometers,
-    ArrayLike,
     ImageFileLike,
     ImageFileCoercible,
-    ParquetCoercible,
-    ParquetLike,
     FiveDVector,
+    Micrometers,
+    ParquetCoercible,
+    FileLike,
     MeshLike,
     ImageLike,
+    ArrayLike,
+    LabelsLike,
     FourByFourMatrix,
-    Milliseconds,
+    ParquetLike,
 )
-from mikro_next.funcs import asubscribe, aexecute, subscribe, execute
+from pydantic import Field, ConfigDict, BaseModel
 from rath.scalars import IDCoercible, ID
-from enum import Enum
-from pydantic import Field, BaseModel, ConfigDict
-from mikro_next.rath import MikroNextRath
+from mikro_next.funcs import aexecute, execute, subscribe, asubscribe
 from datetime import datetime
+from enum import Enum
+from mikro_next.rath import MikroNextRath
 
 
 class Blending(str, Enum):
@@ -1860,10 +1860,6 @@ class UpdateRoiInput(BaseModel):
     roi: ID
     vectors: Optional[Tuple[FiveDVector, ...]] = None
     kind: Optional[RoiKind] = None
-    entity: Optional[ID] = None
-    entity_kind: Optional[ID] = Field(alias="entityKind", default=None)
-    entity_group: Optional[ID] = Field(alias="entityGroup", default=None)
-    entity_parent: Optional[ID] = Field(alias="entityParent", default=None)
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -8042,10 +8038,6 @@ async def aupdate_roi(
     roi: IDCoercible,
     vectors: Optional[Iterable[FiveDVector]] = None,
     kind: Optional[RoiKind] = None,
-    entity: Optional[IDCoercible] = None,
-    entity_kind: Optional[IDCoercible] = None,
-    entity_group: Optional[IDCoercible] = None,
-    entity_parent: Optional[IDCoercible] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> ROI:
     """UpdateRoi
@@ -8056,10 +8048,6 @@ async def aupdate_roi(
         roi: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list)
         kind: RoiKind
-        entity: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        entity_kind: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        entity_group: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        entity_parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -8068,17 +8056,7 @@ async def aupdate_roi(
     return (
         await aexecute(
             UpdateRoiMutation,
-            {
-                "input": {
-                    "roi": roi,
-                    "vectors": vectors,
-                    "kind": kind,
-                    "entity": entity,
-                    "entityKind": entity_kind,
-                    "entityGroup": entity_group,
-                    "entityParent": entity_parent,
-                }
-            },
+            {"input": {"roi": roi, "vectors": vectors, "kind": kind}},
             rath=rath,
         )
     ).update_roi
@@ -8088,10 +8066,6 @@ def update_roi(
     roi: IDCoercible,
     vectors: Optional[Iterable[FiveDVector]] = None,
     kind: Optional[RoiKind] = None,
-    entity: Optional[IDCoercible] = None,
-    entity_kind: Optional[IDCoercible] = None,
-    entity_group: Optional[IDCoercible] = None,
-    entity_parent: Optional[IDCoercible] = None,
     rath: Optional[MikroNextRath] = None,
 ) -> ROI:
     """UpdateRoi
@@ -8102,10 +8076,6 @@ def update_roi(
         roi: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list)
         kind: RoiKind
-        entity: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        entity_kind: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        entity_group: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        entity_parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
     Returns:
@@ -8113,17 +8083,7 @@ def update_roi(
     """
     return execute(
         UpdateRoiMutation,
-        {
-            "input": {
-                "roi": roi,
-                "vectors": vectors,
-                "kind": kind,
-                "entity": entity,
-                "entityKind": entity_kind,
-                "entityGroup": entity_group,
-                "entityParent": entity_parent,
-            }
-        },
+        {"input": {"roi": roi, "vectors": vectors, "kind": kind}},
         rath=rath,
     ).update_roi
 

@@ -787,6 +787,12 @@ input DeleteCameraInput {
   id: ID!
 }
 
+"""Delete a DataRoi by ID"""
+input DeleteDataRoiInput {
+  """The ID of the DataRoi to delete"""
+  id: ID!
+}
+
 input DeleteDatasetInput {
   id: ID!
 }
@@ -1144,7 +1150,7 @@ type File {
   organization: Organization!
 
   """The size of the file in bytes"""
-  size: Int
+  size: Float
 
   """The content type of the file"""
   contentType: String
@@ -1406,6 +1412,19 @@ input FromParquetLike {
 
 """Temporary S3 credentials for reading a media object."""
 type GeneralMediaAccessGrant {
+  path: String!
+  store: String
+  status: String!
+  accessKey: String!
+  secretKey: String!
+  sessionToken: String!
+  region: String!
+  bucket: String!
+  expiresIn: Int!
+}
+
+"""Temporary S3 credentials for reading a Zarr store."""
+type GeneralParquetAccessGrant {
   path: String!
   store: String
   status: String!
@@ -2459,6 +2478,11 @@ type Mutation {
   """Request temporary S3 read credentials for a Parquet file"""
   requestParquetAccess(input: RequestParquetAccessInput!): ParquetAccessGrant!
 
+  """
+  Request temporary S3 read credentials for Parquet files in the organization
+  """
+  requestGeneralParquetAccess(input: RequestGeneralParquetAccessInput!): GeneralParquetAccessGrant!
+
   """Create an image from array-like data"""
   fromArrayLike(input: FromArrayLikeInput!): Image!
 
@@ -2480,6 +2504,9 @@ type Mutation {
   Create a new data ROI from vector or slice definitions with optional choordinate anchors and OME metadata
   """
   createDataRoi(input: CreateDataRoiInput!): DataRoi!
+
+  """Delete an existing data ROI"""
+  deleteDataRoi(input: DeleteDataRoiInput!): Boolean!
 
   """Create a new lens from an existing dataset and slicing constraints"""
   createLens(input: CreateLensInput!): Lens!
@@ -4275,6 +4302,10 @@ input RequestGeneralMediaAccessInput {
   expiresIn: Int = null
 }
 
+input RequestGeneralParquetAccessInput {
+  expiresIn: Int = null
+}
+
 input RequestGeneralZarrAccessInput {
   expiresIn: Int = null
 }
@@ -4911,10 +4942,6 @@ input UpdateRoiInput {
   roi: ID!
   vectors: [FiveDVector!] = null
   kind: RoiKind = null
-  entity: ID = null
-  entityKind: ID = null
-  entityGroup: ID = null
-  entityParent: ID = null
 }
 
 type User {

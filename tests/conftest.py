@@ -61,7 +61,9 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
     """
     setup = local(docker_compose_file)
     setup.add_health_check(
-        url=lambda spec: f"http://localhost:{spec.find_service('mikro').get_port_for_internal(80).published}/graphql",
+        url=lambda spec: (
+            f"http://localhost:{spec.find_service('mikro').get_port_for_internal(80).published}/graphql"
+        ),
         service="mikro",
         timeout=5,
         max_retries=10,
@@ -102,6 +104,8 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
         )
 
         setup.up()
+
+        setup.run("initc", command="python init.py")
 
         setup.check_health()
 

@@ -4,23 +4,26 @@ Custom scalars for mikro_next
 
 """
 
+from __future__ import annotations
+
 import io
 import os
-from typing import Any, IO, Dict, List, Optional, TypeAlias, cast
+from typing import Any, IO, Dict, List, Optional, TypeAlias, TYPE_CHECKING
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema
 
 
-from .utils import rechunk
 from collections.abc import Iterable
 import mimetypes
 from pathlib import Path
 from pydantic_core import core_schema
 import xarray as xr
-import pandas as pd
 import numpy as np
 import uuid
 from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 OneDArray = NDArray[np.generic]
 FiveDArray = NDArray[np.generic]
@@ -54,7 +57,7 @@ LabelsLikeCoercible: TypeAlias = (
 ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for image file-like structures that can be coerced into an xarray DataArray."""
 
-ParquetCoercible: TypeAlias = pd.DataFrame
+ParquetCoercible: TypeAlias = "pd.DataFrame"
 """ A type alias for parquet-like structures that can be coerced into an xarray DataArray."""
 
 MeshCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
@@ -76,6 +79,22 @@ RGBAColorCoercible: TypeAlias = List[float] | List[int] | OneDArray
 """ A type alias for RGBA color-like structures that can be coerced into an RGBA Value"""
 
 
+def _require_pandas() -> "Any":  # noqa: ANN401
+    """Import pandas lazily, raising a helpful error if the extra is missing.
+
+    pandas is only needed for the table/labels (parquet) paths, so it is an
+    optional dependency. Install it via ``mikro-next[table]``.
+    """
+    try:
+        import pandas as pd
+    except ImportError as e:  # pragma: no cover - exercised only without the extra
+        raise ImportError(
+            "pandas is required for table/labels support. "
+            "Install it with `pip install mikro-next[table]`."
+        ) from e
+    return pd
+
+
 def is_dask_array(v: Any) -> bool:  # noqa: ANN401
     """Check if the input is a dask array."""
     try:
@@ -86,6 +105,58 @@ def is_dask_array(v: Any) -> bool:  # noqa: ANN401
         return False
     except Exception as e:
         raise ValueError(f"Error checking for dask array: {e}")
+
+
+def coerce_to_ctzyx(v: ArrayCoercible) -> xr.DataArray:
+    """Coerce array-like input into a mikro-compliant 5D ``ctzyx`` DataArray.
+
+    Bare numpy/dask arrays get their trailing dimensions labelled (``c, t, z, y, x``);
+    explicitly labelled DataArrays must carry ``x`` and ``y`` dimensions and have any
+    missing ``t``/``c``/``z`` dimensions expanded. The result is always transposed to
+    ``ctzyx`` so that it round-trips with the reader, which assumes that layout.
+
+    The array is returned lazily (dask chunks are preserved when present) so the upload
+    path can stream it to zarr chunk-by-chunk instead of materialising it in memory.
+    """
+    was_labeled = True
+    # If a bare array is passed, the user did not label the dimensions, so we assign
+    # the trailing ctzyx dims and run extra sanity checks on the inferred layout.
+    if isinstance(v, np.ndarray) or is_dask_array(v):
+        dims = ["c", "t", "z", "y", "x"]
+        v = xr.DataArray(v, dims=dims[5 - v.ndim :])
+        was_labeled = False
+
+    if not isinstance(v, xr.DataArray):
+        raise ValueError("This needs to be a instance of xarray.DataArray")
+
+    if "x" not in v.dims:
+        raise ValueError("Representations must always have a 'x' Dimension")
+
+    if "y" not in v.dims:
+        raise ValueError("Representations must always have a 'y' Dimension")
+
+    if "t" not in v.dims:
+        v = v.expand_dims("t")
+    if "c" not in v.dims:
+        v = v.expand_dims("c")
+    if "z" not in v.dims:
+        v = v.expand_dims("z")
+
+    if not was_labeled:
+        if v.sizes["t"] > v.sizes["x"] or v.sizes["t"] > v.sizes["y"]:
+            raise ValueError(
+                f"Probably Non sensical dimensions. T is bigger than x or y: Sizes {v.sizes}"
+            )
+        if v.sizes["z"] > v.sizes["x"] or v.sizes["z"] > v.sizes["y"]:
+            raise ValueError(
+                f"Probably Non sensical dimensions. Z is bigger than x or y: Sizes {v.sizes}"
+            )
+        if v.sizes["c"] > v.sizes["x"] or v.sizes["c"] > v.sizes["y"]:
+            raise ValueError(
+                f"Probably Non sensical dimensions. C is bigger than x or y: Sizes {v.sizes}"
+            )
+
+    return v.transpose(*"ctzyx")
 
 
 class RGBAColor(list[float]):
@@ -459,70 +530,8 @@ class ArrayLike:
 
     @classmethod
     def validate(cls, v: ArrayCoercible) -> "ArrayLike":
-        """Validate the input array and convert it to a xr.DataArray."""
-
-        if isinstance(v, xr.DataArray):
-            return cls(v)
-
-        if isinstance(v, np.ndarray) or is_dask_array(v):
-            return cls(xr.DataArray(v))  # type: ignore
-
-        raise ValueError(
-            f"Unsupported type {type(v)} for ArrayLike. Supported types are xr.DataArray, numpy.ndarray and dask.array.Array"
-        )
-        was_labeled = True
-        # initial coercion checks, if a numpy array is passed, we need to convert it to a xarray
-        # but that means the user didnt pass the dimensions explicitly so we need to add them
-        # but error if they do not make sense
-
-        if isinstance(v, np.ndarray) or is_dask_array(v):
-            dims = ["c", "t", "z", "y", "x"]
-            v = xr.DataArray(v, dims=dims[5 - v.ndim :])
-            was_labeled = False
-
-        if not isinstance(v, xr.DataArray):
-            raise ValueError("This needs to be a instance of xarray.DataArray")
-
-        if "x" not in v.dims:
-            raise ValueError("Representations must always have a 'x' Dimension")
-
-        if "y" not in v.dims:
-            raise ValueError("Representations must always have a 'y' Dimension")
-
-        if "t" not in v.dims:
-            v = v.expand_dims("t")
-        if "c" not in v.dims:
-            v = v.expand_dims("c")
-        if "z" not in v.dims:
-            v = v.expand_dims("z")
-
-        chunks = rechunk(
-            v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000
-        )
-        if not was_labeled:
-            if v.sizes["t"] > v.sizes["x"] or v.sizes["t"] > v.sizes["y"]:
-                raise ValueError(
-                    f"Probably Non sensical dimensions. T is bigger than x or y: Sizes {v.sizes}"
-                )
-            if v.sizes["z"] > v.sizes["x"] or v.sizes["z"] > v.sizes["y"]:
-                raise ValueError(
-                    f"Probably Non sensical dimensions. Z is bigger than x or y: Sizes {v.sizes}"
-                )
-            if v.sizes["c"] > v.sizes["x"] or v.sizes["c"] > v.sizes["y"]:
-                raise ValueError(
-                    f"Probably Non sensical dimensions. C is bigger than x or y: Sizes {v.sizes}"
-                )
-
-        v = v.chunk(
-            {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
-        )  # type: ignore
-
-        v = v.transpose(*"ctzyx")
-
-        if is_dask_array(v.data):
-            v = v.compute()  # type: ignore
-
-        return cls(v)
+        """Validate the input array and convert it to a ``ctzyx`` xr.DataArray."""
+        return cls(coerce_to_ctzyx(v))
 
     def __repr__(self) -> str:
         """Return a string representation of the ArrayLike scalar."""
@@ -556,61 +565,8 @@ class ImageLike:
 
     @classmethod
     def validate(cls, v: ArrayCoercible) -> "ImageLike":
-        """Validate the input array and convert it to a xr.DataArray."""
-
-        was_labeled = True
-        # initial coercion checks, if a numpy array is passed, we need to convert it to a xarray
-        # but that means the user didnt pass the dimensions explicitly so we need to add them
-        # but error if they do not make sense
-
-        if isinstance(v, np.ndarray) or is_dask_array(v):
-            dims = ["c", "t", "z", "y", "x"]
-            v = xr.DataArray(v, dims=dims[5 - v.ndim :])
-            was_labeled = False
-
-        if not isinstance(v, xr.DataArray):
-            raise ValueError("This needs to be a instance of xarray.DataArray")
-
-        if "x" not in v.dims:
-            raise ValueError("Representations must always have a 'x' Dimension")
-
-        if "y" not in v.dims:
-            raise ValueError("Representations must always have a 'y' Dimension")
-
-        if "t" not in v.dims:
-            v = v.expand_dims("t")
-        if "c" not in v.dims:
-            v = v.expand_dims("c")
-        if "z" not in v.dims:
-            v = v.expand_dims("z")
-
-        chunks = rechunk(
-            v.sizes, itemsize=v.data.itemsize, chunksize_in_bytes=20_000_000
-        )
-        if not was_labeled:
-            if v.sizes["t"] > v.sizes["x"] or v.sizes["t"] > v.sizes["y"]:
-                raise ValueError(
-                    f"Probably Non sensical dimensions. T is bigger than x or y: Sizes {v.sizes}"
-                )
-            if v.sizes["z"] > v.sizes["x"] or v.sizes["z"] > v.sizes["y"]:
-                raise ValueError(
-                    f"Probably Non sensical dimensions. Z is bigger than x or y: Sizes {v.sizes}"
-                )
-            if v.sizes["c"] > v.sizes["x"] or v.sizes["c"] > v.sizes["y"]:
-                raise ValueError(
-                    f"Probably Non sensical dimensions. C is bigger than x or y: Sizes {v.sizes}"
-                )
-
-        v = v.chunk(
-            {key: chunksize for key, chunksize in chunks.items() if key in v.dims}
-        )  # type: ignore
-
-        v = v.transpose(*"ctzyx")
-
-        if is_dask_array(v.data):
-            v = v.compute()  # type: ignore
-
-        return cls(v)
+        """Validate the input array and convert it to a ``ctzyx`` xr.DataArray."""
+        return cls(coerce_to_ctzyx(v))
 
     def __repr__(self) -> str:
         """Return a string representation of the ImageLike scalar."""
@@ -644,11 +600,8 @@ class LabelsLike:
 
     @classmethod
     def validate(cls, v: LabelsLikeCoercible) -> "LabelsLike":
-        """Validate the input array and convert it to a xr.DataArray."""
-        was_labeled = True
-        # initial coercion checks, if a numpy array is passed, we need to convert it to a xarray
-        # but that means the user didnt pass the dimensions explicitly so we need to add them
-        # but error if they do not make sense
+        """Validate the input array and convert it to a pandas DataFrame."""
+        pd = _require_pandas()
         if isinstance(v, dict):
             mask_to_labels: Dict[int, List[str]] = {}
 
@@ -762,8 +715,8 @@ class ParquetLike:
     @classmethod
     def validate(cls, v: ParquetCoercible) -> "ParquetLike":
         """Validate the validator function"""
-
-        if not isinstance(v, pd.DataFrame):  # type: ignore
+        pd = _require_pandas()
+        if not isinstance(v, pd.DataFrame):
             raise ValueError("This needs to be a instance of pandas DataFrame")
 
         return cls(v)

@@ -6,7 +6,7 @@ uploadable types (ArrayLike, ImageLike, ParquetLike, etc.) to the datalayer
 
 It provides both sync and async paths:
     - Sync (process_variables): Uses obstore for S3 uploads, called from execute().
-    - Async (aprocess_variables): Uses aiobotocore/s3fs, called from aexecute().
+    - Async (aprocess_variables): Uses obstore, called from aexecute().
 
 Credential acquisition always goes through rath.query/aquery directly
 (bypassing the middleware itself) to avoid infinite recursion.
@@ -32,7 +32,7 @@ from mikro_next.scalars import (
     ParquetLike,
 )
 from mikro_next.io.upload import (
-    # Async paths (aiobotocore / s3fs)
+    # Async paths (obstore)
     aupload_bigfile,
     aupload_xarray,
     aupload_parquet,
@@ -75,18 +75,14 @@ async def _apply_recursive_async(
 ) -> Any:  # noqa: ANN401
     """Recursively applies an async function to matching elements in a nested structure."""
     if isinstance(obj, dict):
-        return {
-            k: await _apply_recursive_async(func, v, typeguard) for k, v in obj.items()
-        }
+        return {k: await _apply_recursive_async(func, v, typeguard) for k, v in obj.items()}
     elif isinstance(obj, list):
         return await asyncio.gather(
             *[_apply_recursive_async(func, elem, typeguard) for elem in obj]
         )
     elif isinstance(obj, tuple):
         return tuple(
-            await asyncio.gather(
-                *[_apply_recursive_async(func, elem, typeguard) for elem in obj]
-            )
+            await asyncio.gather(*[_apply_recursive_async(func, elem, typeguard) for elem in obj])
         )
     elif isinstance(obj, typeguard):
         return await func(obj)
@@ -123,7 +119,7 @@ class UploadMiddleware(FuncsMiddleware):
     Provides two paths:
         - **Sync** (``process_variables``): Uses obstore for S3 operations.
           Called when the user invokes ``execute()`` / ``subscribe()``.
-        - **Async** (``aprocess_variables``): Uses aiobotocore/s3fs.
+        - **Async** (``aprocess_variables``): Uses obstore.
           Called when the user invokes ``aexecute()`` / ``asubscribe()``.
 
     Args:
@@ -163,9 +159,9 @@ class UploadMiddleware(FuncsMiddleware):
 
         x = rath.query(
             RequestZarrUploadMutation.Meta.document,
-            RequestZarrUploadMutation.Arguments(
-                input=RequestZarrUploadInput()
-            ).model_dump(by_alias=True, exclude_unset=True),
+            RequestZarrUploadMutation.Arguments(input=RequestZarrUploadInput()).model_dump(
+                by_alias=True, exclude_unset=True
+            ),
         )
         return RequestZarrUploadMutation(**x.data).request_zarr_upload
 
@@ -194,14 +190,14 @@ class UploadMiddleware(FuncsMiddleware):
 
         x = rath.query(
             RequestParquetUploadMutation.Meta.document,
-            RequestParquetUploadMutation.Arguments(
-                input=RequestParquetUploadInput()
-            ).model_dump(by_alias=True, exclude_unset=True),
+            RequestParquetUploadMutation.Arguments(input=RequestParquetUploadInput()).model_dump(
+                by_alias=True, exclude_unset=True
+            ),
         )
         return RequestParquetUploadMutation(**x.data).request_parquet_upload
 
     def _get_bigfile_credentials(
-        self, file: FileLike, datalayer: str, rath: "MikroNextRath"
+        self, file: FileLike | MeshLike, datalayer: str, rath: "MikroNextRath"
     ) -> "BigFileUploadGrant":
         """Get big file upload credentials synchronously."""
         from mikro_next.api.schema import (
@@ -209,10 +205,12 @@ class UploadMiddleware(FuncsMiddleware):
             RequestBigfileUploadMutation,
         )
 
+        original_file_name = getattr(file, "file_name", getattr(file, "key", "upload"))
+
         x = rath.query(
             RequestBigfileUploadMutation.Meta.document,
             RequestBigfileUploadMutation.Arguments(
-                input=RequestBigFileUploadInput(originalFileName=file.file_name)
+                input=RequestBigFileUploadInput(originalFileName=original_file_name)
             ).model_dump(by_alias=True, exclude_unset=True),
         )
         return RequestBigfileUploadMutation(**x.data).request_bigfile_upload
@@ -249,9 +247,9 @@ class UploadMiddleware(FuncsMiddleware):
 
         x = await rath.aquery(
             RequestZarrUploadMutation.Meta.document,
-            RequestZarrUploadMutation.Arguments(
-                input=RequestZarrUploadInput()
-            ).model_dump(by_alias=True, exclude_unset=True),
+            RequestZarrUploadMutation.Arguments(input=RequestZarrUploadInput()).model_dump(
+                by_alias=True, exclude_unset=True
+            ),
         )
         return RequestZarrUploadMutation(**x.data).request_zarr_upload
 
@@ -280,14 +278,14 @@ class UploadMiddleware(FuncsMiddleware):
 
         x = await rath.aquery(
             RequestParquetUploadMutation.Meta.document,
-            RequestParquetUploadMutation.Arguments(
-                input=RequestParquetUploadInput()
-            ).model_dump(by_alias=True, exclude_unset=True),
+            RequestParquetUploadMutation.Arguments(input=RequestParquetUploadInput()).model_dump(
+                by_alias=True, exclude_unset=True
+            ),
         )
         return RequestParquetUploadMutation(**x.data).request_parquet_upload
 
     async def _aget_bigfile_credentials(
-        self, file: FileLike, datalayer: str, rath: "MikroNextRath"
+        self, file: FileLike | MeshLike, datalayer: str, rath: "MikroNextRath"
     ) -> "BigFileUploadGrant":
         """Get big file upload credentials asynchronously."""
         from mikro_next.api.schema import (
@@ -295,10 +293,12 @@ class UploadMiddleware(FuncsMiddleware):
             RequestBigfileUploadMutation,
         )
 
+        original_file_name = getattr(file, "file_name", getattr(file, "key", "upload"))
+
         x = await rath.aquery(
             RequestBigfileUploadMutation.Meta.document,
             RequestBigfileUploadMutation.Arguments(
-                input=RequestBigFileUploadInput(originalFileName=file.file_name)
+                input=RequestBigFileUploadInput(originalFileName=original_file_name)
             ).model_dump(by_alias=True, exclude_unset=True),
         )
         return RequestBigfileUploadMutation(**x.data).request_bigfile_upload
@@ -353,9 +353,7 @@ class UploadMiddleware(FuncsMiddleware):
         credentials = self._get_table_credentials(parquet_input.key, endpoint_url, rath)
         return upload_parquet(parquet_input, credentials, datalayer)
 
-    def _upload_bigfile(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", file: FileLike
-    ) -> str:
+    def _upload_bigfile(self, datalayer: "DataLayer", rath: "MikroNextRath", file: FileLike) -> str:
         """Upload a big file synchronously via obstore."""
         endpoint_url = self.get_datalayer_url()
 
@@ -368,14 +366,10 @@ class UploadMiddleware(FuncsMiddleware):
         """Upload a media file synchronously via obstore."""
         endpoint_url = self.get_datalayer_url()
 
-        credentials = self._request_media_credentials(
-            file.file_name, endpoint_url, rath
-        )
+        credentials = self._request_media_credentials(file.file_name, endpoint_url, rath)
         return store_media_file(file, credentials, datalayer)
 
-    def _store_mesh(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", mesh: MeshLike
-    ) -> str:
+    def _store_mesh(self, datalayer: "DataLayer", rath: "MikroNextRath", mesh: MeshLike) -> str:
         """Store a mesh file synchronously via obstore."""
         endpoint_url = self.get_datalayer_url()
 
@@ -383,7 +377,7 @@ class UploadMiddleware(FuncsMiddleware):
         return store_mesh_file(mesh, credentials, datalayer)
 
     # ====================================================================
-    # Async upload methods (aiobotocore / s3fs path)
+    # Async upload methods (obstore path)
     # ====================================================================
 
     async def _aupload_xarray(
@@ -406,12 +400,8 @@ class UploadMiddleware(FuncsMiddleware):
         """Upload a Parquet file asynchronously."""
         endpoint_url = await datalayer.get_endpoint_url()
 
-        credentials = await self._aget_table_credentials(
-            parquet_input.key, endpoint_url, rath
-        )
-        return await aupload_parquet(
-            parquet_input, credentials, datalayer, self._executor_session
-        )
+        credentials = await self._aget_table_credentials(parquet_input.key, endpoint_url, rath)
+        return await aupload_parquet(parquet_input, credentials, datalayer, self._executor_session)
 
     async def _aupload_bigfile(
         self, datalayer: "DataLayer", rath: "MikroNextRath", file: FileLike
@@ -428,9 +418,7 @@ class UploadMiddleware(FuncsMiddleware):
         """Upload a media file asynchronously."""
         endpoint_url = await datalayer.get_endpoint_url()
 
-        credentials = await self._arequest_media_credentials(
-            file.file_name, endpoint_url, rath
-        )
+        credentials = await self._arequest_media_credentials(file.file_name, endpoint_url, rath)
         return await astore_media_file(file, credentials, datalayer)
 
     async def _astore_mesh(
@@ -501,7 +489,7 @@ class UploadMiddleware(FuncsMiddleware):
         operation: Type[TOperation],
         rath: "MikroNextRath",
     ) -> Dict[str, Any]:
-        """Process serialized variables asynchronously (aiobotocore path).
+        """Process serialized variables asynchronously (obstore path).
 
         Called from ``aexecute()`` and ``asubscribe()``. Uses async I/O
         for all S3 uploads.

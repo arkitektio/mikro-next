@@ -1,34 +1,43 @@
-from typing import TYPE_CHECKING, Protocol, cast
+"""Helpers for reading and writing Mikro S3 objects via obstore."""
+
+from io import BytesIO
+from typing import TYPE_CHECKING, Protocol
+
+import numpy as np
+import obstore
 import xarray as xr
-from obstore.store import S3Store
-from zarr.storage import ObjectStore, StorePath
-import asyncio
+import zarr
+from obstore.store import ObjectStore as ObstoreObjectStore, S3Store
+from zarr.storage import ObjectStore as ZarrObjectStore, StorePath
 import zarr.api.asynchronous as async_api
+
+from mikro_next.scalars import is_dask_array
+from mikro_next.utils import rechunk
 
 
 if TYPE_CHECKING:
-    from obstore.store import ClientConfig, RetryConfig, S3Credential
+    from pyarrow import Table  # type: ignore
+    from obstore.store import ClientConfig, RetryConfig
     from mikro_next.datalayer import DataLayer
 
 
 class S3UploadGrantLike(Protocol):
-    @property
-    def access_key(self) -> str: ...
+    """Protocol for grants that carry S3 credentials and object coordinates."""
 
     @property
-    def secret_key(self) -> str: ...
+    def access_key(self) -> str: ...  # noqa: D102
 
     @property
-    def session_token(self) -> str: ...
+    def secret_key(self) -> str: ...  # noqa: D102
 
     @property
-    def bucket(self) -> str: ...
+    def session_token(self) -> str: ...  # noqa: D102
 
     @property
-    def key(self) -> str: ...
+    def bucket(self) -> str: ...  # noqa: D102
 
     @property
-    def store(self) -> object: ...
+    def key(self) -> str: ...  # noqa: D102
 
 
 def create_s3_store(
@@ -37,29 +46,32 @@ def create_s3_store(
     client_options: "ClientConfig | None" = None,
     retry_config: "RetryConfig | None" = None,
 ) -> S3Store:
+    """Create an obstore S3 client from a Mikro grant and endpoint."""
     normalized_client_options: dict[str, object] = dict(client_options or {})
-    print(grant)
-    print(endpoint_url)
+    if endpoint_url.startswith("http://"):
+        normalized_client_options.setdefault("allow_http", True)
 
-    def get_credentials() -> "S3Credential":
-        return {
-            "access_key_id": grant.access_key,
-            "secret_access_key": grant.secret_key,
-            "token": grant.session_token,
-            "expires_at": None,  # Obstore does not currently support expiring credentials, but this field is required by the S3Credential protocol
-        }
+    store_kwargs: dict[str, object] = {
+        "access_key_id": grant.access_key,
+        "secret_access_key": grant.secret_key,
+        "endpoint": endpoint_url,
+        "virtual_hosted_style_request": False,
+        "client_options": normalized_client_options or None,
+        "retry_config": retry_config,
+    }
+    if grant.session_token:
+        store_kwargs["session_token"] = grant.session_token
 
-    # Using https for S3 if the endpoint URL specifies it or it will infer based on obstore handling
     return S3Store(
         grant.bucket,
-        access_key_id=grant.access_key,
-        secret_access_key=grant.secret_key,
-        session_token=grant.session_token,
-        endpoint=endpoint_url,
-        virtual_hosted_style_request=False,
-        client_options={"allow_http": True},
-        credential_provider=get_credentials,
+        **store_kwargs,
     )
+
+
+def create_zarr_store_path(endpoint_url: str, grant: "S3UploadGrantLike") -> StorePath:
+    """Create a Zarr store path rooted at the granted S3 prefix."""
+    zarr_store = ZarrObjectStore(create_s3_store(endpoint_url, grant))
+    return StorePath(zarr_store, grant.key)
 
 
 async def acreate_s3_store(
@@ -68,6 +80,7 @@ async def acreate_s3_store(
     client_options: "ClientConfig | None" = None,
     retry_config: "RetryConfig | None" = None,
 ) -> S3Store:
+    """Create an obstore S3 client asynchronously using the active datalayer."""
     endpoint_url = await datalayer.get_endpoint_url()
 
     return create_s3_store(
@@ -78,6 +91,70 @@ async def acreate_s3_store(
     )
 
 
+def _zarr_chunk_shape(array: xr.DataArray) -> tuple[int, ...]:
+    """Compute an on-disk zarr chunk shape (~20MB) aligned to the array dims.
+
+    The array is expected to be a 5D ``ctzyx`` DataArray (as produced by the
+    ``ArrayLike``/``ImageLike`` scalars). Returns a chunk tuple in the array's
+    own dimension order so it can be passed straight to zarr.
+    """
+    chunks = rechunk(
+        dict(array.sizes), itemsize=array.dtype.itemsize, chunksize_in_bytes=20_000_000
+    )
+    return tuple(int(chunks[dim]) for dim in array.dims)
+
+
+def write_dataarray_to_zarr(store_path: StorePath, array: xr.DataArray) -> None:
+    """Write a DataArray to a zarr v3 array synchronously with explicit chunks.
+
+    Dask-backed arrays are streamed chunk-by-chunk via ``dask.array.store`` so the
+    full array is never materialised in memory; numpy arrays are written directly.
+    """
+    chunk_shape = _zarr_chunk_shape(array)
+    zarr_array = zarr.create_array(
+        store_path,
+        shape=array.shape,
+        chunks=chunk_shape,
+        dtype=array.dtype,
+        dimension_names=[str(dim) for dim in array.dims],
+        zarr_format=3,
+        overwrite=True,
+    )
+    data = array.data
+    if is_dask_array(data):
+        from dask.array.core import store as dask_store
+
+        # Align dask blocks to the zarr chunk grid so concurrent, lock-free writes
+        # never target the same chunk from two blocks (which would race/corrupt).
+        data = data.rechunk(chunk_shape)
+        dask_store(data, zarr_array, lock=False)
+    else:
+        zarr_array[...] = np.asarray(data)
+
+
+async def awrite_dataarray_to_zarr(store_path: StorePath, array: xr.DataArray) -> None:
+    """Write a DataArray to a zarr v3 array asynchronously with explicit chunks.
+
+    The zarr async backend uploads the individual chunks to S3 concurrently via
+    obstore. Dask arrays are computed before the write (the dask scheduler is
+    synchronous), matching the previous behaviour but with proper chunking.
+    """
+    chunk_shape = _zarr_chunk_shape(array)
+    zarr_array = await async_api.create_array(
+        store_path,
+        shape=array.shape,
+        chunks=chunk_shape,
+        dtype=array.dtype,
+        dimension_names=[str(dim) for dim in array.dims],
+        zarr_format=3,
+        overwrite=True,
+    )
+    data = array.data
+    if is_dask_array(data):
+        data = data.compute()
+    await zarr_array.setitem(Ellipsis, np.asarray(data))
+
+
 async def awrite_xarray_to_obstore(
     da: xr.DataArray,
     grant: "S3UploadGrantLike",
@@ -86,13 +163,30 @@ async def awrite_xarray_to_obstore(
     """
     Asynchronously write an xarray dataset to S3 via obstore and Zarr.
     """
-    # 1. Await the HTTP store creation using your existing async function
-    obstore_s3_store = await acreate_s3_store(grant, datalayer)
+    store_path = create_zarr_store_path(await datalayer.get_endpoint_url(), grant)
+    await awrite_dataarray_to_zarr(store_path, da)
 
-    # 2. Wrap the obstore backend in Zarr's ObjectStore so Xarray can interpret it
-    zarr_store = ObjectStore(obstore_s3_store)
-    store_path = StorePath(zarr_store, grant.key)
-    print(f"Created Zarr ObjectStore with path: {store_path}")
 
-    # 3. Offload Xarray's synchronous write to a thread pool
-    await async_api.save_array(store_path, da.to_numpy(), zarr_format=3)  # type: ignore
+def get_bytes(store: ObstoreObjectStore, path: str) -> bytes:
+    """Read an object fully into memory."""
+    return bytes(obstore.get(store, path).bytes())
+
+
+async def aget_bytes(store: ObstoreObjectStore, path: str) -> bytes:
+    """Read an object fully into memory asynchronously."""
+    return bytes((await obstore.get_async(store, path)).bytes())
+
+
+class ParquetDatasetViaObstore:
+    """Minimal parquet dataset adapter backed by obstore."""
+
+    def __init__(self, store: ObstoreObjectStore, path: str) -> None:
+        """Bind a parquet object path to a concrete obstore-backed S3 client."""
+        self.store = store
+        self.path = path
+
+    def read_pandas(self) -> "Table":
+        """Read the parquet object into a pyarrow table."""
+        import pyarrow.parquet as pq  # type: ignore
+
+        return pq.read_table(BytesIO(get_bytes(self.store, self.path)))

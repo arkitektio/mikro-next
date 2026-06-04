@@ -13,6 +13,7 @@ services:
     - redis
     - db
     - minio
+    - initc
     image: jhnnsrs/mikro:dev
     command: bash run-debug.sh
     stop_grace_period: 1s

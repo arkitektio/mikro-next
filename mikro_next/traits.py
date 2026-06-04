@@ -11,22 +11,19 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 
 """
 
+from __future__ import annotations
+
 """A context manager to download the file and delete it after use"""
 from contextlib import contextmanager
-from operator import le
 import os
-from os import path
 from typing import Awaitable, Generator, List, Type, TypeVar, Tuple, Protocol, Optional
 import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel
 import xarray as xr
-import pandas as pd
 from typing import TYPE_CHECKING
 from dask.array.core import from_zarr  # type: ignore
-from zarr.storage import FsspecStore
-
-
+from zarr.storage import StorePath
 from .scalars import FiveDVector
 from rath.scalars import ID
 from typing import Any
@@ -39,6 +36,7 @@ OneDArray = NDArray[np.generic]
 
 
 if TYPE_CHECKING:
+    import pandas as pd
     from pyarrow.parquet import ParquetDataset  # type: ignore
     from mikro_next.api.schema import HasZarrStoreAccessor, Image, RoiKind, DataRoi
 
@@ -356,7 +354,7 @@ class HasZarrStoreAccessor(BaseModel):
     _openstore: Any = None
 
     @property
-    def zarr_store(self) -> FsspecStore:
+    def zarr_store(self) -> StorePath:
         """The zarr store of the ZarrStore object"""
         from mikro_next.io.download import open_zarr_store
 
@@ -659,7 +657,6 @@ class Lensable:
         from mikro_next.api.schema import (
             create_data_roi,
             Slice,
-            SliceInput,
             DimDescriptor,
             DimensionKind,
         )
