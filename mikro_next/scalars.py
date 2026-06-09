@@ -7,7 +7,6 @@ Custom scalars for mikro_next
 from __future__ import annotations
 
 import io
-import os
 from typing import Any, IO, Dict, List, Optional, TypeAlias, TYPE_CHECKING
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema
@@ -720,7 +719,7 @@ class ImageFileLike:
     def __init__(self, value: io.BufferedReader, name: str = "") -> None:
         """Initialize the ImageFileLike scalar with a file-like object."""
         self.value = value
-        self.file_name = os.path.basename(name)
+        self.file_name = Path(name).name
         self.mime_type = mimetypes.guess_type(self.file_name)[0]
 
     def __get__(self, instance, owner) -> "FileLike": ...  # noqa: ANN001, D105 # type: ignore
@@ -772,7 +771,7 @@ class FileLike:
     def __init__(self, value: IO[bytes], name: str = "") -> None:
         """Initialize the FileLike scalar with a file-like object."""
         self.value = value
-        self.file_name = os.path.basename(name)
+        self.file_name = Path(name).name
         self.mime_type = mimetypes.guess_type(self.file_name)[0]
 
     def __get__(self, instance, owner) -> "FileLike": ...  # noqa: ANN001, D105 # type: ignore

@@ -96,6 +96,8 @@ line-length = 100
 [tool.pytest.ini_options]
 markers = [
     "integration: marks tests that require a deployment via testcontainers",
+    "linux_only: marks tests that only run on Linux",
+    "no_windows: marks tests that are skipped on Windows",
 ]
 
 [[tool.pydoc-markdown.loaders]]

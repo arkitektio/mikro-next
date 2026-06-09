@@ -1,3 +1,4 @@
+import sys
 from typing import Generator
 import pytest
 from dokker import local, Deployment
@@ -16,6 +17,21 @@ from mikro_next.datalayer import DataLayer
 from mikro_next.middleware.upload import UploadMiddleware
 from graphql import OperationType
 from dataclasses import dataclass
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Register custom platform markers."""
+    config.addinivalue_line("markers", "linux_only: skip on non-Linux platforms")
+    config.addinivalue_line("markers", "no_windows: skip on Windows")
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:  # noqa: ARG001
+    """Skip tests marked linux_only or no_windows on the wrong platform."""
+    for item in items:
+        if item.get_closest_marker("linux_only") and sys.platform != "linux":
+            item.add_marker(pytest.mark.skip(reason="Linux only"))
+        if item.get_closest_marker("no_windows") and sys.platform == "win32":
+            item.add_marker(pytest.mark.skip(reason="Not supported on Windows"))
+
 
 project_path = os.path.join(os.path.dirname(__file__), "integration")
 docker_compose_file = os.path.join(project_path, "docker-compose.yml")

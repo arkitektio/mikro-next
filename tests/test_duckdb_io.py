@@ -42,7 +42,7 @@ def test_relation_roundtrips_local_parquet(tmp_path) -> None:
 
     duckdb = require_duckdb()
     con = duckdb.connect()
-    relation = con.sql(f"SELECT * FROM read_parquet('{path}')")
+    relation = con.sql(f"SELECT * FROM read_parquet('{path.as_posix()}')")
 
     assert relation.df().equals(df), "Materialised relation should match the source"
     # Lazy filtering happens in DuckDB, not by loading everything into pandas first.

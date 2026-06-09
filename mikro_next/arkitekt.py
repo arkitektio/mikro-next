@@ -1,5 +1,5 @@
 import json
-import os
+from pathlib import Path
 from typing import Any, Dict
 from fakts_next.contrib.rath.auth import FaktsAuthLink
 from rath.links.dictinglink import DictingLink
@@ -27,7 +27,7 @@ from rekuest_next.links.context import ContextLink
 def build_relative_path(*path: str) -> str:
     """Builds a relative path to the given path components, starting from the
     directory of this file. This is useful for building paths to files that are"""
-    return os.path.join(os.path.dirname(__file__), *path)
+    return str(Path(__file__).parent.joinpath(*path))
 
 
 class MikroService(BaseArkitektService):

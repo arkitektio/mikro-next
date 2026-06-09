@@ -1,9 +1,11 @@
+from rekuest_next import structure
 from rekuest_next.structures.default import (
     get_default_structure_registry,
     id_shrink,
 )
 from rekuest_next.widgets import SearchWidget
 from mikro_next.api.schema import (
+    ADataset,
     Image,
     Scene,
     Snapshot,
@@ -154,4 +156,13 @@ structure_reg.register_as_structure(
     aexpand=aget_scene,
     ashrink=id_shrink,
     default_widget=SearchWidget(query=SearchScenesQuery.Meta.document, ward="mikro"),
+)
+
+
+structure_reg.register_as_structure(
+    ADataset,
+    identifier="@mikro/adataset",
+    aexpand=aget_dataset,
+    ashrink=id_shrink,
+    default_widget=SearchWidget(query=SearchDatasetsQuery.Meta.document, ward="mikro"),
 )
