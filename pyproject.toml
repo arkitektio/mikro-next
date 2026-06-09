@@ -37,7 +37,7 @@ dev-dependencies =  [
     "ruff>0.11",
     "cryptography>=44.0.3",
     "pyjwt>=2.10.1",
-    "dokker>=2.3",
+    "dokker>=2.4.0",
     "pillow>=11.2.1",
     "fakts-next>=1.1.0",
     "rekuest-next>=0.12.2",
