@@ -42,9 +42,9 @@ dev-dependencies =  [
     "pillow>=11.2.1",
     "fakts-next>=1.1.0",
     "rekuest-next>=0.12.2",
-    "pyarrow>=18.1.0",
+    "pyarrow>=24",
     "arkitekt-next==0.17",
-    "duckdb>=1.0",
+    "duckdb>=1.5.3",
 ]
 
 

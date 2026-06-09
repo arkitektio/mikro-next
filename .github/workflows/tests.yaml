@@ -26,23 +26,42 @@ jobs:
 
       - name: Run tests
         run: uv run pytest -k "not integration"
-
-  test-arm:
-    runs-on: ubuntu-latest
+        
+  test_integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.14"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up QEMU for arm64 emulation
-        uses: docker/setup-qemu-action@v3
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v6
         with:
-          platforms: arm64
+          version: "latest"
+          python-version: ${{ matrix.python-version }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Install the project
+        run: uv sync --all-extras --dev
 
-      - name: Run tests under linux/arm64
-        run: |
-          docker run --rm --platform linux/arm64 \
-            -v ${{ github.workspace }}:/workspace -w /workspace \
-            python:3.12-slim \
-            bash -c "pip install uv && uv sync --all-extras --dev && uv run pytest -k 'not integration'"
+      - name: Run tests
+        run: uv run pytest
+
+  test-arm:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+          python-version: "3.12"
+
+      - name: Install the project
+        run: uv sync --all-extras --dev
+
+      - name: Run tests
+        run: uv run pytest -k "not integration"
