@@ -1,0 +1,47 @@
+name: Integration Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  test_integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.14"]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Switch Docker to Linux containers
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:ProgramFiles\Docker\Docker\DockerCli.exe" -SwitchLinuxEngine
+          Start-Sleep -Seconds 10
+
+      - name: Verify Docker is installed and using Linux containers
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          docker --version
+          container_os=$(docker info --format '{{.OSType}}')
+          echo "Docker container OS: $container_os"
+          if [ "$container_os" != "linux" ]; then
+            echo "Error: Docker is not using Linux containers (got: $container_os)"
+            exit 1
+          fi
+
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the project
+        run: uv sync --all-extras --dev
+
+      - name: Run tests
+        run: uv run pytest
