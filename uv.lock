@@ -789,15 +789,6 @@ wheels = [
 ]
 
 [[package]]
-name = "janus"
-version = "1.2.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d8/1f/5100f13bc13e24a041f60757b097b3c7c31cf8a08c1c1ef1f1caa2516f22/janus-1.2.0.tar.gz", hash = "sha256:c03475c3e10e042f2a08d31a7a894df2a2a95845ff794b7265e7e9c10a425e5d", size = 21534, upload-time = "2024-12-12T23:59:54.797Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d0/d6/6b3ac4df8d0e928521fe7d49cff8f3274b5012975ec0bdbb968ae50531aa/janus-1.2.0-py3-none-any.whl", hash = "sha256:3fa91456c00caed4905821a911e95c69d41306e463ea8da72c76c7a096abc698", size = 11674, upload-time = "2024-12-12T23:59:52.327Z" },
-]
-
-[[package]]
 name = "jinja2"
 version = "3.1.6"
 source = { registry = "https://pypi.org/simple" }
@@ -845,15 +836,14 @@ wheels = [
 
 [[package]]
 name = "koil"
-version = "2.0.4"
+version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "janus" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f7/65/66a1e16e6565bcbf168d09c9275e2672c96cb0b8195dc8ba2d730c9fdd7e/koil-2.0.4.tar.gz", hash = "sha256:862a4d4e1ccccb29576f8a6a1e30c9f955b5549efb37b3747d48a0718736320a", size = 15677, upload-time = "2025-05-13T12:32:49.555Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d0/33/93d970bc79a90ba8dad1773230d9ab85476df28d32411aa65986eb58a95e/koil-3.0.0.tar.gz", hash = "sha256:9d375a258a3e232a84c1505f9383bfc241c084b3bcd0b2bf1a5d412ff83d2a72", size = 23767, upload-time = "2026-06-08T10:38:01.339Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/42/ab/81bae99a8523476642f6bed8283d71068eec3f83d730fcab4272deb94391/koil-2.0.4-py3-none-any.whl", hash = "sha256:a1cf12471446a8f95966269bec0ba1410f350fbd4709575643328b49dfa778b6", size = 19241, upload-time = "2025-05-13T12:32:47.902Z" },
+    { url = "https://files.pythonhosted.org/packages/98/bd/d9c4064de94b50f2b3d0b6d1abc27b806c64055a94603fb3ca089045faf9/koil-3.0.0-py3-none-any.whl", hash = "sha256:14e08ba395df419106b52b0e49199192c7dd17c7f205df061fa68116c90b32c2", size = 28322, upload-time = "2026-06-08T10:38:02.221Z" },
 ]
 
 [[package]]
@@ -1000,7 +990,7 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'complete'", specifier = ">=12.0.1" },
     { name = "pyarrow", marker = "extra == 'table'", specifier = ">=12.0.1" },
     { name = "pytest", specifier = ">=8.3.5" },
-    { name = "rath", specifier = ">=3.7" },
+    { name = "rath", specifier = ">=3.10" },
     { name = "websockets", specifier = ">=15.0.1" },
     { name = "xarray", specifier = ">=2024.11.0" },
     { name = "zarr", specifier = ">=3.1" },
@@ -1744,16 +1734,16 @@ wheels = [
 
 [[package]]
 name = "rath"
-version = "3.7.0"
+version = "3.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "graphql-core" },
     { name = "koil" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9e/55/2875a493007a9c54afd6173fc69b0aa6d1d520e727d1ede0b9f02c72aab9/rath-3.7.0.tar.gz", hash = "sha256:5c901bb6e84b28936f0bd9763799c26c7ada8e221b711e0b5f5376b8eae501ad", size = 33569, upload-time = "2025-08-22T13:25:18.974Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d9/6d/819fdb8f09732c56703ec5eb252725a3e5a3c77631fa2ecc33e21ee29373/rath-3.10.0.tar.gz", hash = "sha256:89385b0c2f3734e202e2ba6e5a7ac7d2c033741e7dd4a77de8d4219de9033ecf", size = 34735, upload-time = "2026-06-08T14:39:14.268Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/05/6a/535b5f0c340416cc26e66c591437c864e0dd30ca35bebb5e9f551da9038e/rath-3.7.0-py3-none-any.whl", hash = "sha256:56697f9bdb02928030419c43c0ebd0e5fcc3184f9def2d840d2ae6282b5cf5d6", size = 50137, upload-time = "2025-08-22T13:25:17.838Z" },
+    { url = "https://files.pythonhosted.org/packages/36/c5/4cb5555ab70cc52175bf8bf06b00ebc642a1231ef1333f1d5373f9f9abfa/rath-3.10.0-py3-none-any.whl", hash = "sha256:ae3a6bc2a9e48d78d6890ff6070acc10e3a35f48f54936a740827de1d214e9af", size = 51805, upload-time = "2026-06-08T14:39:13.161Z" },
 ]
 
 [[package]]
