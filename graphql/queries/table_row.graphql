@@ -4,7 +4,7 @@ query GetTableRow($id: ID!) {
   }
 }
 
-query SearchTableRows($table: ID!, $search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {
+query SearchTableRows($search: String, $values: [ID!], $table: ID!, $limit: Int, $offset: Int = 0) {
   options: tableRows(
     table: $table
     filters: { search: $search, ids: $values }

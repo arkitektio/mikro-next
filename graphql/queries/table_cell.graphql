@@ -4,7 +4,7 @@ query GetTableCell($id: ID!) {
   }
 }
 
-query SearchTableCells($table: ID!, $search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {
+query SearchTableCells($search: String, $values: [ID!], $table: ID!, $limit: Int, $offset: Int = 0) {
   options: tableCells(
     table: $table
     filters: { search: $search, ids: $values }

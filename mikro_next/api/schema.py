@@ -1,12 +1,12 @@
-from pydantic import BaseModel, Field, ConfigDict
-from mikro_next.traits import HasPresignedDownloadAccessor, DatasetTrait, DataArrayTrait, HasParquetStoreAccesor, HasZarrStoreTrait, HasParquestStoreTrait, HasZarrStoreAccessor, CreateADatasetTrait, HasDownloadAccessor, MikroFetchable, FileTrait, IsVectorizableTrait, Lensable
-from typing import Union, Literal, Tuple, Iterator, Annotated, Optional, Any, AsyncIterator, List, Iterable
-from mikro_next.funcs import asubscribe, subscribe, aexecute, execute
-from mikro_next.scalars import ParquetCoercible, MeshLike, FourByFourMatrix, Micrometers, MeshCoercible, Milliseconds, ParquetLike, ArrayLike, ThreeDVector, FileLike, ImageLike, ArrayCoercible, ImageFileCoercible, LabelsLike, FiveDVector, ImageFileLike, ImageCoercible
-from mikro_next.rath import MikroNextRath
+from mikro_next.traits import IsVectorizableTrait, HasDownloadAccessor, Lensable, MikroFetchable, HasParquetStoreAccesor, DatasetTrait, FileTrait, DataArrayTrait, CreateADatasetTrait, HasZarrStoreTrait, HasZarrStoreAccessor, HasParquestStoreTrait, HasPresignedDownloadAccessor
+from mikro_next.funcs import subscribe, aexecute, asubscribe, execute
+from mikro_next.scalars import ImageLike, FileLike, FiveDVector, Milliseconds, ThreeDVector, MeshCoercible, LabelsLike, ImageFileLike, Micrometers, ArrayLike, MeshLike, ParquetLike, ImageFileCoercible, ImageCoercible, ArrayCoercible, FourByFourMatrix, ParquetCoercible
 from datetime import datetime
-from rath.scalars import IDCoercible, ID
+from pydantic import Field, BaseModel, ConfigDict
+from rath.scalars import ID, IDCoercible
+from typing import Iterator, Iterable, Tuple, AsyncIterator, Optional, Union, Literal, Any, Annotated, List
 from enum import Enum
+from mikro_next.rath import MikroNextRath
 
 class Blending(str, Enum):
     """The blending mode used to combine multiple channels or layers into a composite image."""
@@ -4322,16 +4322,16 @@ class SearchTableCellsQuery(BaseModel):
 
     class Arguments(BaseModel):
         """Arguments for SearchTableCells """
-        table: ID
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        table: ID
         limit: Optional[int] = Field(default=None)
         offset: Optional[int] = Field(default=0)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchTableCells """
-        document = 'query SearchTableCells($table: ID!, $search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: tableCells(\n    table: $table\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchTableCells($search: String, $values: [ID!], $table: ID!, $limit: Int, $offset: Int = 0) {\n  options: tableCells(\n    table: $table\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetTableRowQuery(BaseModel):
     """No documentation found for this operation."""
@@ -4362,16 +4362,16 @@ class SearchTableRowsQuery(BaseModel):
 
     class Arguments(BaseModel):
         """Arguments for SearchTableRows """
-        table: ID
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        table: ID
         limit: Optional[int] = Field(default=None)
         offset: Optional[int] = Field(default=0)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SearchTableRows """
-        document = 'query SearchTableRows($table: ID!, $search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: tableRows(\n    table: $table\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        document = 'query SearchTableRows($search: String, $values: [ID!], $table: ID!, $limit: Int, $offset: Int = 0) {\n  options: tableRows(\n    table: $table\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetRGBViewQuery(BaseModel):
     """No documentation found for this operation."""
@@ -7107,7 +7107,7 @@ Args:
 Returns:
     List[SearchTableCellsQueryTablecells]
 """
-    return (await aexecute(SearchTableCellsQuery, {'table': table, 'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    return (await aexecute(SearchTableCellsQuery, {'search': search, 'values': values, 'table': table, 'limit': limit, 'offset': offset}, rath=rath)).options
 
 def search_table_cells(table: ID, search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableCellsQueryOptions, ...]:
     """SearchTableCells 
@@ -7125,7 +7125,7 @@ Args:
 Returns:
     List[SearchTableCellsQueryTablecells]
 """
-    return execute(SearchTableCellsQuery, {'table': table, 'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    return execute(SearchTableCellsQuery, {'search': search, 'values': values, 'table': table, 'limit': limit, 'offset': offset}, rath=rath).options
 
 async def aget_table_row(id: ID, rath: Optional[MikroNextRath]=None) -> TableRow:
     """GetTableRow 
@@ -7171,7 +7171,7 @@ Args:
 Returns:
     List[SearchTableRowsQueryTablerows]
 """
-    return (await aexecute(SearchTableRowsQuery, {'table': table, 'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    return (await aexecute(SearchTableRowsQuery, {'search': search, 'values': values, 'table': table, 'limit': limit, 'offset': offset}, rath=rath)).options
 
 def search_table_rows(table: ID, search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableRowsQueryOptions, ...]:
     """SearchTableRows 
@@ -7189,7 +7189,7 @@ Args:
 Returns:
     List[SearchTableRowsQueryTablerows]
 """
-    return execute(SearchTableRowsQuery, {'table': table, 'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    return execute(SearchTableRowsQuery, {'search': search, 'values': values, 'table': table, 'limit': limit, 'offset': offset}, rath=rath).options
 
 async def aget_rgb_view(id: ID, rath: Optional[MikroNextRath]=None) -> RGBView:
     """GetRGBView 

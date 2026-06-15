@@ -139,7 +139,7 @@ structure_reg.register_as_structure(
     aexpand=aget_table_cell,
     ashrink=id_shrink,
     default_widget=SearchWidget(
-        query=SearchTableCellsQuery.Meta.document, ward="mikro"
+        query=SearchTableCellsQuery.Meta.document, ward="mikro", dependencies=["table"]
     ),
 )
 
@@ -148,7 +148,9 @@ structure_reg.register_as_structure(
     identifier="@mikro/tablerow",
     aexpand=aget_table_row,
     ashrink=id_shrink,
-    default_widget=SearchWidget(query=SearchTableRowsQuery.Meta.document, ward="mikro"),
+    default_widget=SearchWidget(
+        query=SearchTableRowsQuery.Meta.document, ward="mikro", dependencies=["table"]
+    ),
 )
 
 
