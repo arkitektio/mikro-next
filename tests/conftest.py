@@ -1,7 +1,7 @@
 import sys
 from typing import Generator
 import pytest
-from dokker import local, Deployment
+from dokker import local, Deployment, testing
 from dokker.log_watcher import LogWatcher
 import os
 from mikro_next.mikro_next import MikroNext
@@ -17,6 +17,7 @@ from mikro_next.datalayer import DataLayer
 from mikro_next.middleware.upload import UploadMiddleware
 from graphql import OperationType
 from dataclasses import dataclass
+
 
 def pytest_configure(config: pytest.Config) -> None:
     """Register custom platform markers."""
@@ -75,7 +76,7 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
         DeployedMikro: An instance containing the deployment, watchers, and MikroNext instance
 
     """
-    setup = local(docker_compose_file)
+    setup = testing(docker_compose_file)
     setup.add_health_check(
         url=lambda spec: (
             f"http://localhost:{spec.find_service('mikro').get_port_for_internal(80).published}/graphql"

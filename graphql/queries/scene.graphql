@@ -7,11 +7,12 @@ query GetScene($id: ID!) {
 query SearchScenes(
   $search: String
   $values: [ID!]
-  $pagination: OffsetPaginationInput
+  $limit: Int
+  $offset: Int = 0
 ) {
   options: scenes(
     filters: { search: $search, ids: $values }
-    pagination: $pagination
+    pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
     label: name

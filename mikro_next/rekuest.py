@@ -7,11 +7,13 @@ from rekuest_next.widgets import SearchWidget
 from mikro_next.api.schema import (
     ADataset,
     Image,
+    Lens,
     Scene,
     Snapshot,
     ROI,
     Stage,
     Dataset,
+    aget_lens,
     File,
     RGBContext,
     Mesh,
@@ -165,4 +167,13 @@ structure_reg.register_as_structure(
     aexpand=aget_dataset,
     ashrink=id_shrink,
     default_widget=SearchWidget(query=SearchDatasetsQuery.Meta.document, ward="mikro"),
+)
+
+
+structure_reg.register_as_structure(
+    Lens,
+    identifier="@mikro/lens",
+    aexpand=aget_lens,
+    ashrink=id_shrink,
+    default_widget=SearchWidget(query=SearchStagesQuery.Meta.document, ward="mikro"),
 )
