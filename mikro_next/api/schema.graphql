@@ -2018,7 +2018,7 @@ type GeneralMediaAccessGrant {
   expiresIn: Int!
 }
 
-"""Temporary S3 credentials for reading a Zarr store."""
+"""Temporary S3 credentials for reading a parquet object."""
 type GeneralParquetAccessGrant {
   path: String!
   store: String
@@ -6452,23 +6452,38 @@ type Task {
   """The rekuest task id"""
   taskId: String!
 
-  """The parent task id, if any"""
-  parentId: String
+  """The immediate parent task id, if any"""
+  parentTaskId: String
 
-  """The user that assigned the task"""
+  """The root task id of the whole causal tree"""
+  rootTaskId: String!
+
+  """The root human causer that assigned the task"""
   assigner: User
 
-  """The raw sub claim of the assigning user"""
+  """The raw root human causer sub claim"""
   assignerSub: String!
 
-  """The assigning app"""
-  app: String!
+  """The immediate causer of this hop"""
+  callerSub: String!
 
-  """The action hash"""
-  action: String!
+  """The executing agent user sub"""
+  agentSub: String!
 
-  """The arguments the task was assigned with"""
-  args: Any!
+  """The executing agent OAuth client id"""
+  agentClientId: String!
+
+  """The provenance issuer id"""
+  issuer: String!
+
+  """The unique single-use token id"""
+  tokenId: String!
+
+  """The SHA-256 of the canonicalized args"""
+  argsHash: String!
+
+  """The args canonicalization algorithm/version"""
+  argsHashAlgorithm: String!
 
   """The organization the task ran in"""
   organization: Organization!
@@ -6485,9 +6500,10 @@ input TaskFilter {
   """Filter for items created after this datetime"""
   createdAfter: DateTime
   taskId: StrFilterLookup
-  app: StrFilterLookup
-  action: StrFilterLookup
-  parentId: StrFilterLookup
+  parentTaskId: StrFilterLookup
+  rootTaskId: StrFilterLookup
+  agentClientId: StrFilterLookup
+  issuer: StrFilterLookup
   AND: TaskFilter
   OR: TaskFilter
   NOT: TaskFilter
@@ -6499,7 +6515,9 @@ input TaskFilter {
   """Filter by the assigner's database user ID"""
   assignerId: ID
 
-  """Search by app or action (case-insensitive substring)"""
+  """
+  Search by task id or executing agent client id (case-insensitive substring)
+  """
   search: String
 }
 

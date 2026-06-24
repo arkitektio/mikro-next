@@ -731,7 +731,7 @@ wheels = [
 
 [[package]]
 name = "fakts-next"
-version = "3.1.2"
+version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -739,11 +739,10 @@ dependencies = [
     { name = "koil" },
     { name = "oauthlib" },
     { name = "pydantic" },
-    { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b1/0d/d27fa1d73e016aad54a57caa716b728df4a2c88e21e178ed69d510d5b6f7/fakts_next-3.1.2.tar.gz", hash = "sha256:37a1620b65cae04e6ab735590b8a4431f0a23225d487b89426509f5b375d44d4", size = 30821, upload-time = "2026-04-15T07:10:50.426Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/5d/e00c1cab38721b7231bf80334af837d88ae480b7617abb642961a0726f0e/fakts_next-4.0.0.tar.gz", hash = "sha256:dd52d261d2fd26d516fb398e7299f7105d397105274c7663cd6f3866e032518d", size = 48718, upload-time = "2026-06-24T12:27:31.697Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/05/79081f62a7e2029a3c24eb317afaacb182418efa99f51a7513d4f0c2defc/fakts_next-3.1.2-py3-none-any.whl", hash = "sha256:13fe33559e53cf4abd3d0b8043477c5e8123065292af0356a8dc25813f7b1bce", size = 51811, upload-time = "2026-04-15T07:10:49.46Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/a6/b476a8fff622ae052bf8b4914e6b64d50b7ef84ad1bf59676953df1335da/fakts_next-4.0.0-py3-none-any.whl", hash = "sha256:28e92d81ed456c44789ee6180b906489ae6a295e4738144bb2c85a0894efb2d6", size = 69744, upload-time = "2026-06-24T12:27:30.417Z" },
 ]
 
 [[package]]
@@ -1031,14 +1030,14 @@ wheels = [
 
 [[package]]
 name = "koil"
-version = "3.1.1"
+version = "3.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5f/13/4b8166c293abb99cb6723b70616ab45cd47252eb903c41dcead518d547f1/koil-3.1.1.tar.gz", hash = "sha256:6a2dc1d0644fa1df90880d4966445618a66a93edc1bf6b6b2da00f66ae4a6ec7", size = 27495, upload-time = "2026-06-09T15:16:44.304Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f6/f2/c803075854fda0c08201a280358a694206b4dcbc1c1f19981eec73b0f107/koil-3.3.1.tar.gz", hash = "sha256:18415e55b9f87651127db9aed284fca5bdfdd8d9c5fa9e44b0acdfdccf7fccf6", size = 40936, upload-time = "2026-06-11T14:59:26.835Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/76/b0f377b446677ded337e50812c2c6bdd00065780b057eca5fe07ae2055e8/koil-3.1.1-py3-none-any.whl", hash = "sha256:a8ef58298bdb813bfa6506833c6491651549c6cb7542ba247d82ddd0ebf0c30b", size = 32388, upload-time = "2026-06-09T15:16:43.19Z" },
+    { url = "https://files.pythonhosted.org/packages/64/0b/af9f50f28c16a5378f23096766a7983b0904026fad24eee09a1b1eb17265/koil-3.3.1-py3-none-any.whl", hash = "sha256:603bb640c85bb70e9c9f08bbb90b2bf3196c8e15a3f287d79525539d5e34c3ab", size = 47270, upload-time = "2026-06-11T14:59:27.885Z" },
 ]
 
 [[package]]
@@ -1211,7 +1210,7 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'complete'", specifier = ">=12.0.1" },
     { name = "pyarrow", marker = "extra == 'table'", specifier = ">=12.0.1" },
     { name = "pytest", specifier = ">=8.3.5" },
-    { name = "rath", specifier = ">=3.10" },
+    { name = "rath", specifier = ">=3.12" },
     { name = "websockets", specifier = ">=15.0.1" },
     { name = "xarray", specifier = ">=2024.11.0" },
     { name = "zarr", specifier = ">=3.1" },
@@ -1227,7 +1226,7 @@ dev = [
     { name = "cryptography", specifier = ">=44.0.3" },
     { name = "dokker", specifier = ">=2.5" },
     { name = "duckdb", specifier = ">=1.5.3" },
-    { name = "fakts-next", specifier = ">=1.1.0" },
+    { name = "fakts-next", specifier = ">=4" },
     { name = "pillow", specifier = ">=11.2.1" },
     { name = "pyarrow", specifier = ">=24" },
     { name = "pyjwt", specifier = ">=2.10.1" },
@@ -2221,16 +2220,16 @@ wheels = [
 
 [[package]]
 name = "rath"
-version = "3.10.0"
+version = "3.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "graphql-core" },
     { name = "koil" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d9/6d/819fdb8f09732c56703ec5eb252725a3e5a3c77631fa2ecc33e21ee29373/rath-3.10.0.tar.gz", hash = "sha256:89385b0c2f3734e202e2ba6e5a7ac7d2c033741e7dd4a77de8d4219de9033ecf", size = 34735, upload-time = "2026-06-08T14:39:14.268Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/ef/63420fa273d059aa2c784e63af0430c3661f476c4ff27bcb5faf11c94537/rath-3.12.0.tar.gz", hash = "sha256:2360e0e24a206a473e43213b4993ecd0679d7dd0c4b3c31b8e6ef5037393fbc6", size = 37648, upload-time = "2026-06-21T08:48:08.677Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/36/c5/4cb5555ab70cc52175bf8bf06b00ebc642a1231ef1333f1d5373f9f9abfa/rath-3.10.0-py3-none-any.whl", hash = "sha256:ae3a6bc2a9e48d78d6890ff6070acc10e3a35f48f54936a740827de1d214e9af", size = 51805, upload-time = "2026-06-08T14:39:13.161Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/af/52786ec863b2bc5eb1c5d2c04c28ed7c32ef61225d407236514eb87d0a39/rath-3.12.0-py3-none-any.whl", hash = "sha256:65435ea42835cd246d9063c69fd4170c32651a02044c50790203738f82a638e3", size = 54824, upload-time = "2026-06-21T08:48:07.7Z" },
 ]
 
 [[package]]

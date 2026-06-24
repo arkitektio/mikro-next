@@ -1,12 +1,37 @@
-from mikro_next.traits import IsVectorizableTrait, HasDownloadAccessor, Lensable, MikroFetchable, HasParquetStoreAccesor, DatasetTrait, FileTrait, DataArrayTrait, CreateADatasetTrait, HasZarrStoreTrait, HasZarrStoreAccessor, HasParquestStoreTrait, HasPresignedDownloadAccessor
-from mikro_next.funcs import subscribe, aexecute, asubscribe, execute
-from mikro_next.scalars import ImageLike, FileLike, FiveDVector, Milliseconds, ThreeDVector, MeshCoercible, LabelsLike, ImageFileLike, Micrometers, ArrayLike, MeshLike, ParquetLike, ImageFileCoercible, ImageCoercible, ArrayCoercible, FourByFourMatrix, ParquetCoercible
-from datetime import datetime
-from pydantic import Field, BaseModel, ConfigDict
+from mikro_next.traits import DatasetTrait, CreateADatasetTrait, HasParquetStoreAccesor, Lensable, HasPresignedDownloadAccessor, HasZarrStoreTrait, IsVectorizableTrait, HasZarrStoreAccessor, FileTrait, DataArrayTrait, HasDownloadAccessor, MikroFetchable, HasParquestStoreTrait
+from typing import Any, Iterable, List, Annotated, Tuple, Dict, AsyncIterator, Optional, Iterator, Literal, Union
+from mikro_next.scalars import ParquetCoercible, FileLike, Milliseconds, ArrayCoercible, FourByFourMatrix, LabelsLike, ThreeDVector, MeshCoercible, ImageLike, MeshLike, FiveDVector, ArrayLike, Micrometers, ImageCoercible, ImageFileCoercible, ParquetLike, ImageFileLike
+from mikro_next.funcs import aexecute, execute, asubscribe, subscribe
 from rath.scalars import ID, IDCoercible
-from typing import Iterator, Iterable, Tuple, AsyncIterator, Optional, Union, Literal, Any, Annotated, List
-from enum import Enum
+from datetime import datetime
+from pydantic import ConfigDict, Field, BaseModel
 from mikro_next.rath import MikroNextRath
+from enum import Enum
+
+class UnsetType:
+    """Sentinel for arguments the caller did not provide. Such fields are omitted on serialization so the GraphQL server applies its own default."""
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self):
+        return 'UNSET'
+
+    def __bool__(self):
+        return False
+UNSET = UnsetType()
+
+class GraphQLDefault:
+    """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return 'GraphQLDefault(' + repr(self.value) + ')'
 
 class Blending(str, Enum):
     """The blending mode used to combine multiple channels or layers into a composite image."""
@@ -225,15 +250,11 @@ class TemporalUnit(str, Enum):
 
 class AffineTransformationViewFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = None
-    'Filter by list of IDs'
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
     is_global: Optional[bool] = Field(alias='isGlobal', default=None)
-    image: Optional[ID] = None
-    'Filter by the image this view belongs to'
-    images: Optional[Tuple[ID, ...]] = None
-    'Filter by a list of images this view belongs to'
-    search: Optional[str] = None
-    'Search by the name of the image this view belongs to'
+    image: Optional[ID] = Field(default=None, description='Filter by the image this view belongs to')
+    images: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of images this view belongs to')
+    search: Optional[str] = Field(default=None, description='Search by the name of the image this view belongs to')
     id: Optional[ID] = None
     stage: Optional['StageFilter'] = None
     and_: Optional['AffineTransformationViewFilter'] = Field(alias='AND', default=None)
@@ -252,34 +273,22 @@ class BeamStateInput(BaseModel):
 
 class CameraInput(BaseModel):
     """Input for creating or ensuring a camera"""
-    serial_number: str = Field(alias='serialNumber')
-    'The unique serial number of the camera'
-    name: Optional[str] = None
-    'The name of the camera'
-    model: Optional[str] = None
-    'The model of the camera'
-    bit_depth: Optional[int] = Field(alias='bitDepth', default=None)
-    'The bit depth of the camera sensor'
-    sensor_size_x: Optional[int] = Field(alias='sensorSizeX', default=None)
-    'The sensor size in x direction (pixels)'
-    sensor_size_y: Optional[int] = Field(alias='sensorSizeY', default=None)
-    'The sensor size in y direction (pixels)'
-    pixel_size_x: Optional[Micrometers] = Field(alias='pixelSizeX', default=None)
-    'The physical pixel size in x direction (micrometers)'
-    pixel_size_y: Optional[Micrometers] = Field(alias='pixelSizeY', default=None)
-    'The physical pixel size in y direction (micrometers)'
-    manufacturer: Optional[str] = None
-    'The manufacturer of the camera'
+    serial_number: str = Field(alias='serialNumber', description='The unique serial number of the camera')
+    name: Optional[str] = Field(default=None, description='The name of the camera')
+    model: Optional[str] = Field(default=None, description='The model of the camera')
+    bit_depth: Optional[int] = Field(alias='bitDepth', default=None, description='The bit depth of the camera sensor')
+    sensor_size_x: Optional[int] = Field(alias='sensorSizeX', default=None, description='The sensor size in x direction (pixels)')
+    sensor_size_y: Optional[int] = Field(alias='sensorSizeY', default=None, description='The sensor size in y direction (pixels)')
+    pixel_size_x: Optional[Micrometers] = Field(alias='pixelSizeX', default=None, description='The physical pixel size in x direction (micrometers)')
+    pixel_size_y: Optional[Micrometers] = Field(alias='pixelSizeY', default=None, description='The physical pixel size in y direction (micrometers)')
+    manufacturer: Optional[str] = Field(default=None, description='The manufacturer of the camera')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ChangeDatasetInput(BaseModel):
     """Input for changing an existing dataset's name or parent"""
-    name: str
-    'The name of the dataset'
-    parent: Optional[ID] = None
-    'The ID of the parent dataset to nest this dataset under'
-    id: ID
-    'The ID of the dataset to change'
+    name: str = Field(description='The name of the dataset')
+    parent: Optional[ID] = Field(default=None, description='The ID of the parent dataset to nest this dataset under')
+    id: ID = Field(description='The ID of the dataset to change')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CoordinateAnchorInput(BaseModel):
@@ -314,10 +323,8 @@ class CreateDataRoiInput(BaseModel):
 
 class CreateDatasetInput(BaseModel):
     """Input for creating a new dataset to organize images and files"""
-    name: str
-    'The name of the dataset'
-    parent: Optional[ID] = None
-    'The ID of the parent dataset to nest this dataset under'
+    name: str = Field(description='The name of the dataset')
+    parent: Optional[ID] = Field(default=None, description='The ID of the parent dataset to nest this dataset under')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CreateLayerInput(BaseModel):
@@ -344,20 +351,13 @@ class CreateLensInput(BaseModel):
 
 class CreateRGBContextInput(BaseModel):
     """Input for creating an RGB render context for an image"""
-    name: Optional[str] = None
-    'The name of the RGB context'
-    thumbnail: Optional[ID] = None
-    'The ID of an uploaded media store to use as the thumbnail snapshot'
-    image: ID
-    'The ID of the image this RGB context renders'
-    views: Optional[Tuple['PartialRGBViewInput', ...]] = None
-    'The RGB views (channel rendering settings) to attach to the context'
-    z: Optional[int] = None
-    'The z plane the context renders'
-    t: Optional[int] = None
-    'The timepoint the context renders'
-    c: Optional[int] = None
-    'The channel the context renders'
+    name: Optional[str] = Field(default=None, description='The name of the RGB context')
+    thumbnail: Optional[ID] = Field(default=None, description='The ID of an uploaded media store to use as the thumbnail snapshot')
+    image: ID = Field(description='The ID of the image this RGB context renders')
+    views: Optional[Tuple['PartialRGBViewInput', ...]] = Field(default=None, description='The RGB views (channel rendering settings) to attach to the context')
+    z: Optional[int] = Field(default=None, description='The z plane the context renders')
+    t: Optional[int] = Field(default=None, description='The timepoint the context renders')
+    c: Optional[int] = Field(default=None, description='The channel the context renders')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CreateSceneInput(BaseModel):
@@ -370,30 +370,18 @@ class CreateSceneInput(BaseModel):
 
 class DatasetFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = None
-    'Filter by list of IDs'
-    search: Optional[str] = None
-    'Search by name (full-text search)'
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None)
-    'Filter for items created before this datetime'
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None)
-    'Filter for items created after this datetime'
-    owner: Optional[ID] = None
-    "Filter by the creator's subject ID"
-    scope: Optional[ScopeKind] = None
-    'Filter by visibility scope'
-    pinned: Optional[bool] = None
-    'Filter by whether the current user has pinned the item'
-    tags: Optional[Tuple[str, ...]] = None
-    'Filter by tag names'
-    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None)
-    'Filter by the rekuest task id the item was created through'
-    created_through: Optional[ID] = Field(alias='createdThrough', default=None)
-    'Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)'
-    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None)
-    'Filter by the sub of the user that assigned the creating task'
-    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None)
-    'Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)'
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    search: Optional[str] = Field(default=None, description='Search by name (full-text search)')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    scope: Optional[ScopeKind] = Field(default=None, description='Filter by visibility scope')
+    pinned: Optional[bool] = Field(default=None, description='Filter by whether the current user has pinned the item')
+    tags: Optional[Tuple[str, ...]] = Field(default=None, description='Filter by tag names')
+    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
     id: Optional[ID] = None
     name: Optional['StrFilterLookup'] = None
     description: Optional['StrFilterLookup'] = None
@@ -402,16 +390,13 @@ class DatasetFilter(BaseModel):
     or_: Optional['DatasetFilter'] = Field(alias='OR', default=None)
     not_: Optional['DatasetFilter'] = Field(alias='NOT', default=None)
     distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    parentless: Optional[bool] = None
-    'Filter for datasets with (true) or without (false) a parent'
-    parent: Optional[ID] = None
-    'Filter by the parent dataset (list the children of a dataset)'
+    parentless: Optional[bool] = Field(default=None, description='Filter for datasets with (true) or without (false) a parent')
+    parent: Optional[ID] = Field(default=None, description='Filter by the parent dataset (list the children of a dataset)')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class DeleteRoiInput(BaseModel):
     """Input for deleting a ROI by ID"""
-    id: ID
-    'The ID of the ROI to delete'
+    id: ID = Field(description='The ID of the ROI to delete')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class DimAnchorInput(BaseModel):
@@ -428,26 +413,16 @@ class DimensionDescriptorInput(BaseModel):
 
 class EraFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = None
-    'Filter by list of IDs'
-    search: Optional[str] = None
-    'Search by name (case-insensitive substring)'
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None)
-    'Filter for items created before this datetime'
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None)
-    'Filter for items created after this datetime'
-    owner: Optional[ID] = None
-    "Filter by the creator's subject ID"
-    pinned: Optional[bool] = None
-    'Filter by whether the current user has pinned the item'
-    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None)
-    'Filter by the rekuest task id the item was created through'
-    created_through: Optional[ID] = Field(alias='createdThrough', default=None)
-    'Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)'
-    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None)
-    'Filter by the sub of the user that assigned the creating task'
-    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None)
-    'Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)'
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    pinned: Optional[bool] = Field(default=None, description='Filter by whether the current user has pinned the item')
+    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
     id: Optional[ID] = None
     name: Optional['StrFilterLookup'] = None
     begin: Optional[datetime] = None
@@ -456,16 +431,13 @@ class EraFilter(BaseModel):
     or_: Optional['EraFilter'] = Field(alias='OR', default=None)
     not_: Optional['EraFilter'] = Field(alias='NOT', default=None)
     distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    instrument: Optional[ID] = None
-    'Filter by the instrument this era belongs to'
+    instrument: Optional[ID] = Field(default=None, description='Filter by the instrument this era belongs to')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class EraInput(BaseModel):
     """Input for creating an era, a time period to which timepoint views relate"""
-    name: str
-    'The name of the era'
-    begin: Optional[datetime] = None
-    'The datetime at which the era begins'
+    name: str = Field(description='The name of the era')
+    begin: Optional[datetime] = Field(default=None, description='The datetime at which the era begins')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class EulerInput(BaseModel):
@@ -478,157 +450,105 @@ class EulerInput(BaseModel):
 class FinishBigFileUploadInput(BaseModel):
     """No documentation"""
     store_id: str = Field(alias='storeId')
-    valid: bool
+    valid: Annotated[Optional[bool], GraphQLDefault('True')] = None
+    'Default: True'
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class FinishMediaUploadInput(BaseModel):
     """No documentation"""
     store_id: str = Field(alias='storeId')
-    valid: bool
+    valid: Annotated[Optional[bool], GraphQLDefault('True')] = None
+    'Default: True'
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class FinishParquetUploadInput(BaseModel):
     """No documentation"""
     store_id: str = Field(alias='storeId')
-    valid: bool
+    valid: Annotated[Optional[bool], GraphQLDefault('True')] = None
+    'Default: True'
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class FinishZarrUploadInput(BaseModel):
     """No documentation"""
     store_id: str = Field(alias='storeId')
-    valid: bool
+    valid: Annotated[Optional[bool], GraphQLDefault('True')] = None
+    'Default: True'
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class FromArrayLikeInput(BaseModel):
     """Input type for creating an image from an array-like object"""
-    array: ImageLike
-    'The array-like object to create the image from'
-    name: str
-    'The name of the image'
-    dataset: Optional[ID] = None
-    'Optional dataset ID to associate the image with'
-    channel_views: Optional[Tuple['PartialChannelViewInput', ...]] = Field(alias='channelViews', default=None)
-    'Optional list of channel views'
-    transformation_views: Optional[Tuple['PartialAffineTransformationViewInput', ...]] = Field(alias='transformationViews', default=None)
-    'Optional list of affine transformation views'
-    acquisition_views: Optional[Tuple['PartialAcquisitionViewInput', ...]] = Field(alias='acquisitionViews', default=None)
-    'Optional list of acquisition views'
-    mask_views: Optional[Tuple['PartialMaskViewInput', ...]] = Field(alias='maskViews', default=None)
-    'Optional list of mask views'
-    reference_views: Optional[Tuple['PartialReferenceViewInput', ...]] = Field(alias='referenceViews', default=None)
-    'Optional list of reference views'
-    instance_mask_views: Optional[Tuple['PartialInstanceMaskViewInput', ...]] = Field(alias='instanceMaskViews', default=None)
-    'Optional list of instance mask views'
-    rgb_views: Optional[Tuple['PartialRGBViewInput', ...]] = Field(alias='rgbViews', default=None)
-    'Optional list of RGB views'
-    timepoint_views: Optional[Tuple['PartialTimepointViewInput', ...]] = Field(alias='timepointViews', default=None)
-    'Optional list of timepoint views'
-    optics_views: Optional[Tuple['PartialOpticsViewInput', ...]] = Field(alias='opticsViews', default=None)
-    'Optional list of optics views'
-    scale_views: Optional[Tuple['PartialScaleViewInput', ...]] = Field(alias='scaleViews', default=None)
-    'Optional list of scale views'
-    tags: Optional[Tuple[str, ...]] = None
-    'Optional list of tags to associate with the image'
-    roi_views: Optional[Tuple['PartialROIViewInput', ...]] = Field(alias='roiViews', default=None)
-    'Optional list of ROI views'
-    file_views: Optional[Tuple['PartialFileViewInput', ...]] = Field(alias='fileViews', default=None)
-    'Optional list of file views'
-    derived_views: Optional[Tuple['PartialDerivedViewInput', ...]] = Field(alias='derivedViews', default=None)
-    'Optional list of derived views'
-    lightpath_views: Optional[Tuple['PartialLightpathViewInput', ...]] = Field(alias='lightpathViews', default=None)
-    'Optional list of lightpath views'
+    array: ImageLike = Field(description='The array-like object to create the image from')
+    name: str = Field(description='The name of the image')
+    dataset: Optional[ID] = Field(default=None, description='Optional dataset ID to associate the image with')
+    channel_views: Optional[Tuple['PartialChannelViewInput', ...]] = Field(alias='channelViews', default=None, description='Optional list of channel views')
+    transformation_views: Optional[Tuple['PartialAffineTransformationViewInput', ...]] = Field(alias='transformationViews', default=None, description='Optional list of affine transformation views')
+    acquisition_views: Optional[Tuple['PartialAcquisitionViewInput', ...]] = Field(alias='acquisitionViews', default=None, description='Optional list of acquisition views')
+    mask_views: Optional[Tuple['PartialMaskViewInput', ...]] = Field(alias='maskViews', default=None, description='Optional list of mask views')
+    reference_views: Optional[Tuple['PartialReferenceViewInput', ...]] = Field(alias='referenceViews', default=None, description='Optional list of reference views')
+    instance_mask_views: Optional[Tuple['PartialInstanceMaskViewInput', ...]] = Field(alias='instanceMaskViews', default=None, description='Optional list of instance mask views')
+    rgb_views: Optional[Tuple['PartialRGBViewInput', ...]] = Field(alias='rgbViews', default=None, description='Optional list of RGB views')
+    timepoint_views: Optional[Tuple['PartialTimepointViewInput', ...]] = Field(alias='timepointViews', default=None, description='Optional list of timepoint views')
+    optics_views: Optional[Tuple['PartialOpticsViewInput', ...]] = Field(alias='opticsViews', default=None, description='Optional list of optics views')
+    scale_views: Optional[Tuple['PartialScaleViewInput', ...]] = Field(alias='scaleViews', default=None, description='Optional list of scale views')
+    tags: Optional[Tuple[str, ...]] = Field(default=None, description='Optional list of tags to associate with the image')
+    roi_views: Optional[Tuple['PartialROIViewInput', ...]] = Field(alias='roiViews', default=None, description='Optional list of ROI views')
+    file_views: Optional[Tuple['PartialFileViewInput', ...]] = Field(alias='fileViews', default=None, description='Optional list of file views')
+    derived_views: Optional[Tuple['PartialDerivedViewInput', ...]] = Field(alias='derivedViews', default=None, description='Optional list of derived views')
+    lightpath_views: Optional[Tuple['PartialLightpathViewInput', ...]] = Field(alias='lightpathViews', default=None, description='Optional list of lightpath views')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class FromFileLike(BaseModel):
     """Input for creating a file record from an uploaded big-file store"""
-    file: FileLike
-    'The uploaded big-file store to create the file from'
-    file_name: str = Field(alias='fileName')
-    'The name of the file'
-    dataset: Optional[ID] = None
-    'The ID of the dataset to put the file in (defaults to the current default dataset)'
-    origins: Optional[Tuple[ID, ...]] = None
-    'The IDs of entities this file was derived from'
+    file: FileLike = Field(description='The uploaded big-file store to create the file from')
+    file_name: str = Field(alias='fileName', description='The name of the file')
+    dataset: Optional[ID] = Field(default=None, description='The ID of the dataset to put the file in (defaults to the current default dataset)')
+    origins: Optional[Tuple[ID, ...]] = Field(default=None, description='The IDs of entities this file was derived from')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class FromParquetLike(BaseModel):
     """Input for creating a table from an uploaded parquet store"""
-    dataframe: ParquetLike
-    'The parquet dataframe to create the table from'
-    name: str
-    'The name of the table'
-    origins: Optional[Tuple[ID, ...]] = None
-    'The IDs of tables this table was derived from'
-    dataset: Optional[ID] = None
-    'The dataset ID this table belongs to'
-    label_accessors: Optional[Tuple['PartialLabelAccessorInput', ...]] = Field(alias='labelAccessors', default=None)
-    'Label accessors to create for this table'
-    image_accessors: Optional[Tuple['PartialImageAccessorInput', ...]] = Field(alias='imageAccessors', default=None)
-    'Image accessors to create for this table'
+    dataframe: ParquetLike = Field(description='The parquet dataframe to create the table from')
+    name: str = Field(description='The name of the table')
+    origins: Optional[Tuple[ID, ...]] = Field(default=None, description='The IDs of tables this table was derived from')
+    dataset: Optional[ID] = Field(default=None, description='The dataset ID this table belongs to')
+    label_accessors: Optional[Tuple['PartialLabelAccessorInput', ...]] = Field(alias='labelAccessors', default=None, description='Label accessors to create for this table')
+    image_accessors: Optional[Tuple['PartialImageAccessorInput', ...]] = Field(alias='imageAccessors', default=None, description='Image accessors to create for this table')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class HistogramViewInput(BaseModel):
     """Input for creating a histogram view on an existing image, referenced by ID"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    histogram: Tuple[float, ...]
-    'The histogram of the image (y values)'
-    bins: Tuple[float, ...]
-    'The bin indices of the histogram (x values)'
-    min: float
-    'The minimum pixel value of the histogram'
-    max: float
-    'The maximum pixel value of the histogram'
-    image: ID
-    'The ID of the image this view is for'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    histogram: Tuple[float, ...] = Field(description='The histogram of the image (y values)')
+    bins: Tuple[float, ...] = Field(description='The bin indices of the histogram (x values)')
+    min: float = Field(description='The minimum pixel value of the histogram')
+    max: float = Field(description='The maximum pixel value of the histogram')
+    image: ID = Field(description='The ID of the image this view is for')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ImageFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = None
-    'Filter by list of IDs'
-    search: Optional[str] = None
-    'Search by name (full-text search)'
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None)
-    'Filter for items created before this datetime'
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None)
-    'Filter for items created after this datetime'
-    owner: Optional[ID] = None
-    "Filter by the creator's subject ID"
-    scope: Optional[ScopeKind] = None
-    'Filter by visibility scope'
-    pinned: Optional[bool] = None
-    'Filter by whether the current user has pinned the item'
-    tags: Optional[Tuple[str, ...]] = None
-    'Filter by tag names'
-    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None)
-    'Filter by the rekuest task id the item was created through'
-    created_through: Optional[ID] = Field(alias='createdThrough', default=None)
-    'Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)'
-    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None)
-    'Filter by the sub of the user that assigned the creating task'
-    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None)
-    'Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)'
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    search: Optional[str] = Field(default=None, description='Search by name (full-text search)')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    scope: Optional[ScopeKind] = Field(default=None, description='Filter by visibility scope')
+    pinned: Optional[bool] = Field(default=None, description='Filter by whether the current user has pinned the item')
+    tags: Optional[Tuple[str, ...]] = Field(default=None, description='Filter by tag names')
+    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
     id: Optional[ID] = None
     name: Optional['StrFilterLookup'] = None
     description: Optional['StrFilterLookup'] = None
@@ -641,58 +561,36 @@ class ImageFilter(BaseModel):
     or_: Optional['ImageFilter'] = Field(alias='OR', default=None)
     not_: Optional['ImageFilter'] = Field(alias='NOT', default=None)
     distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    datasets: Optional[Tuple[ID, ...]] = None
-    'Filter by a list of dataset IDs'
-    not_derived: Optional[bool] = Field(alias='notDerived', default=None)
-    'Filter for images that are not derived from another image'
-    has_rois: Optional[bool] = Field(alias='hasRois', default=None)
-    'Filter for images that have (or have no) ROIs'
-    file: Optional[ID] = None
-    'Filter for images converted from this file (through their file views)'
+    datasets: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of dataset IDs')
+    not_derived: Optional[bool] = Field(alias='notDerived', default=None, description='Filter for images that are not derived from another image')
+    has_rois: Optional[bool] = Field(alias='hasRois', default=None, description='Filter for images that have (or have no) ROIs')
+    file: Optional[ID] = Field(default=None, description='Filter for images converted from this file (through their file views)')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class InstanceMaskViewInput(BaseModel):
     """Input for creating an instance mask view on an existing image, referenced by ID"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    reference_view: Optional[ID] = Field(alias='referenceView', default=None)
-    'The ID of the view that is masked by this instance mask'
-    labels: Optional[LabelsLike] = None
-    'The instance labels of the mask and their corresponding colors'
-    image: ID
-    'The ID of the image this view is for'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    reference_view: Optional[ID] = Field(alias='referenceView', default=None, description='The ID of the view that is masked by this instance mask')
+    labels: Optional[LabelsLike] = Field(default=None, description='The instance labels of the mask and their corresponding colors')
+    image: ID = Field(description='The ID of the image this view is for')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class InstrumentInput(BaseModel):
     """Input for creating or ensuring a microscope instrument"""
-    serial_number: str = Field(alias='serialNumber')
-    'The unique serial number of the instrument'
-    manufacturer: Optional[str] = None
-    'The manufacturer of the instrument'
-    name: Optional[str] = None
-    'The name of the instrument'
-    model: Optional[str] = None
-    'The model of the instrument'
+    serial_number: str = Field(alias='serialNumber', description='The unique serial number of the instrument')
+    manufacturer: Optional[str] = Field(default=None, description='The manufacturer of the instrument')
+    name: Optional[str] = Field(default=None, description='The name of the instrument')
+    model: Optional[str] = Field(default=None, description='The model of the instrument')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class IntFilterLookup(BaseModel):
@@ -729,8 +627,10 @@ class LightEdgeInput(BaseModel):
     target_element_id: ID = Field(alias='targetElementId')
     target_port_id: ID = Field(alias='targetPortId')
     path_length_mm: Optional[float] = Field(alias='pathLengthMm', default=None)
-    medium: Optional[str] = None
-    loss_db: Optional[float] = Field(alias='lossDb', default=None)
+    medium: Annotated[Optional[str], GraphQLDefault('AIR')] = None
+    'Default: AIR'
+    loss_db: Annotated[Optional[float], GraphQLDefault('0.0')] = Field(alias='lossDb', default=None)
+    'Default: 0.0'
     beam: Optional[BeamStateInput] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
@@ -739,7 +639,8 @@ class LightPortInput(BaseModel):
     id: ID
     name: str
     role: PortRole
-    channel: ChannelKind
+    channel: Annotated[Optional[ChannelKind], GraphQLDefault('FREE_SPACE')] = None
+    'Default: FREE_SPACE'
     spectrum: Optional['SpectrumInput'] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
@@ -751,68 +652,47 @@ class LightpathGraphInput(BaseModel):
 
 class MaskViewInput(BaseModel):
     """Input for creating a mask view on an existing image, referenced by ID"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    reference_view: Optional[ID] = Field(alias='referenceView', default=None)
-    'The ID of the view that is masked by this mask'
-    labels: Optional[LabelsLike] = None
-    'The labels of the mask and their corresponding colors'
-    image: ID
-    'The ID of the image this view is for'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    reference_view: Optional[ID] = Field(alias='referenceView', default=None, description='The ID of the view that is masked by this mask')
+    labels: Optional[LabelsLike] = Field(default=None, description='The labels of the mask and their corresponding colors')
+    image: ID = Field(description='The ID of the image this view is for')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class MeshInput(BaseModel):
     """Input for creating a 3D mesh from an uploaded mesh file"""
-    mesh: MeshLike
-    'The uploaded mesh file store to create the mesh from'
-    name: str
-    'The name of the mesh'
+    mesh: MeshLike = Field(description='The uploaded mesh file store to create the mesh from')
+    name: str = Field(description='The name of the mesh')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ObjectiveInput(BaseModel):
     """Input for creating or ensuring a microscope objective"""
-    serial_number: str = Field(alias='serialNumber')
-    'The unique serial number of the objective'
-    name: Optional[str] = None
-    'The name of the objective'
-    na: Optional[float] = None
-    'The numerical aperture of the objective'
-    magnification: Optional[float] = None
-    'The magnification of the objective'
-    immersion: Optional[str] = None
-    'The immersion medium of the objective (e.g. oil, water, air)'
+    serial_number: str = Field(alias='serialNumber', description='The unique serial number of the objective')
+    name: Optional[str] = Field(default=None, description='The name of the objective')
+    na: Optional[float] = Field(default=None, description='The numerical aperture of the objective')
+    magnification: Optional[float] = Field(default=None, description='The magnification of the objective')
+    immersion: Optional[str] = Field(default=None, description='The immersion medium of the objective (e.g. oil, water, air)')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class OffsetPaginationInput(BaseModel):
     """No documentation"""
-    offset: int
+    offset: Annotated[Optional[int], GraphQLDefault('0')] = None
+    'Default: 0'
     limit: Optional[int] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class OmeMetadataInput(BaseModel):
     """Input type for OME metadata"""
-    metadata_string: str = Field(alias='metadataString')
-    'The OME metadata as a JSON string'
+    metadata_string: str = Field(alias='metadataString', description='The OME metadata as a JSON string')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class OpticalElementInput(BaseModel):
@@ -855,468 +735,267 @@ class OpticalElementInput(BaseModel):
 
 class PartialAcquisitionViewInput(BaseModel):
     """Input for creating an acquisition view (when and by whom the image was acquired) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    description: Optional[str] = None
-    'A cleartext description of the image acquisition'
-    acquired_at: Optional[datetime] = Field(alias='acquiredAt', default=None)
-    'The time the image was acquired'
-    operator: Optional[ID] = None
-    'The ID of the user that acquired the image'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    description: Optional[str] = Field(default=None, description='A cleartext description of the image acquisition')
+    acquired_at: Optional[datetime] = Field(alias='acquiredAt', default=None, description='The time the image was acquired')
+    operator: Optional[ID] = Field(default=None, description='The ID of the user that acquired the image')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialAffineTransformationViewInput(BaseModel):
     """Input for creating an affine transformation view (mapping the image onto a stage) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    stage: Optional[ID] = None
-    'The ID of the stage this transformation maps the image onto'
-    affine_matrix: FourByFourMatrix = Field(alias='affineMatrix')
-    'The 4x4 affine matrix mapping image coordinates to stage coordinates'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    stage: Optional[ID] = Field(default=None, description='The ID of the stage this transformation maps the image onto')
+    affine_matrix: FourByFourMatrix = Field(alias='affineMatrix', description='The 4x4 affine matrix mapping image coordinates to stage coordinates')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialChannelViewInput(BaseModel):
     """Input for creating a channel view (channel metadata such as name and wavelengths) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    emission_wavelength: Optional[float] = Field(alias='emissionWavelength', default=None)
-    'The emission wavelength of the channel in nanometers'
-    excitation_wavelength: Optional[float] = Field(alias='excitationWavelength', default=None)
-    'The excitation wavelength of the channel in nanometers'
-    acquisition_mode: Optional[str] = Field(alias='acquisitionMode', default=None)
-    'The acquisition mode of the channel'
-    name: Optional[str] = None
-    'The name of the channel'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    emission_wavelength: Optional[float] = Field(alias='emissionWavelength', default=None, description='The emission wavelength of the channel in nanometers')
+    excitation_wavelength: Optional[float] = Field(alias='excitationWavelength', default=None, description='The excitation wavelength of the channel in nanometers')
+    acquisition_mode: Optional[str] = Field(alias='acquisitionMode', default=None, description='The acquisition mode of the channel')
+    name: Optional[str] = Field(default=None, description='The name of the channel')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialDerivedViewInput(BaseModel):
     """Input for creating a derived view (recording the image this image was derived from) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    origin_image: ID = Field(alias='originImage')
-    'The ID of the image this image was derived from'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    origin_image: ID = Field(alias='originImage', description='The ID of the image this image was derived from')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialFileViewInput(BaseModel):
     """Input for creating a file view (linking the image region to the originating file) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    file: ID
-    'The ID of the file this view represents'
-    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None)
-    'The series identifier of the file'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    file: ID = Field(description='The ID of the file this view represents')
+    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None, description='The series identifier of the file')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialImageAccessorInput(BaseModel):
     """Input for an image accessor on a table, linking columns to an image (without the table reference)"""
-    keys: Tuple[str, ...]
-    'The column keys of the table this accessor refers to'
-    min_index: Optional[int] = Field(alias='minIndex', default=None)
-    'The minimum row index this accessor applies to'
-    max_index: Optional[int] = Field(alias='maxIndex', default=None)
-    'The maximum row index this accessor applies to'
-    image: ID
-    'The ID of the image the accessor values refer to'
+    keys: Tuple[str, ...] = Field(description='The column keys of the table this accessor refers to')
+    min_index: Optional[int] = Field(alias='minIndex', default=None, description='The minimum row index this accessor applies to')
+    max_index: Optional[int] = Field(alias='maxIndex', default=None, description='The maximum row index this accessor applies to')
+    image: ID = Field(description='The ID of the image the accessor values refer to')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialInstanceMaskViewInput(BaseModel):
     """Input for creating an instance mask view (an instance mask of another image) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    reference_view: Optional[ID] = Field(alias='referenceView', default=None)
-    'The ID of the view that is masked by this instance mask'
-    labels: Optional[LabelsLike] = None
-    'The instance labels of the mask and their corresponding colors'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    reference_view: Optional[ID] = Field(alias='referenceView', default=None, description='The ID of the view that is masked by this instance mask')
+    labels: Optional[LabelsLike] = Field(default=None, description='The instance labels of the mask and their corresponding colors')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialLabelAccessorInput(BaseModel):
     """Input for a label accessor on a table, linking columns to a pixel view (without the table reference)"""
-    keys: Tuple[str, ...]
-    'The column keys of the table this accessor refers to'
-    min_index: Optional[int] = Field(alias='minIndex', default=None)
-    'The minimum row index this accessor applies to'
-    max_index: Optional[int] = Field(alias='maxIndex', default=None)
-    'The maximum row index this accessor applies to'
-    pixel_view: ID = Field(alias='pixelView')
-    'The ID of the pixel view the label values refer to'
+    keys: Tuple[str, ...] = Field(description='The column keys of the table this accessor refers to')
+    min_index: Optional[int] = Field(alias='minIndex', default=None, description='The minimum row index this accessor applies to')
+    max_index: Optional[int] = Field(alias='maxIndex', default=None, description='The maximum row index this accessor applies to')
+    pixel_view: ID = Field(alias='pixelView', description='The ID of the pixel view the label values refer to')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialLightpathViewInput(BaseModel):
     """Input for creating a lightpath view (the optical path of the instrument) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    graph: LightpathGraphInput
-    'The lightpath graph of the instrument'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    graph: LightpathGraphInput = Field(description='The lightpath graph of the instrument')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialMaskViewInput(BaseModel):
     """Input for creating a mask view (a label mask of another image) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    reference_view: Optional[ID] = Field(alias='referenceView', default=None)
-    'The ID of the view that is masked by this mask'
-    labels: Optional[LabelsLike] = None
-    'The labels of the mask and their corresponding colors'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    reference_view: Optional[ID] = Field(alias='referenceView', default=None, description='The ID of the view that is masked by this mask')
+    labels: Optional[LabelsLike] = Field(default=None, description='The labels of the mask and their corresponding colors')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialOpticsViewInput(BaseModel):
     """Input for creating an optics view (instrument, objective and camera used) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    instrument: Optional[ID] = None
-    'The ID of the instrument used to acquire the image'
-    objective: Optional[ID] = None
-    'The ID of the objective used to acquire the image'
-    camera: Optional[ID] = None
-    'The ID of the camera used to acquire the image'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    instrument: Optional[ID] = Field(default=None, description='The ID of the instrument used to acquire the image')
+    objective: Optional[ID] = Field(default=None, description='The ID of the objective used to acquire the image')
+    camera: Optional[ID] = Field(default=None, description='The ID of the camera used to acquire the image')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialRGBViewInput(BaseModel):
     """Input for creating an RGB render view (how a channel is rendered in an RGB context) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    context: Optional[ID] = None
-    'The ID of the RGB render context this view belongs to'
-    gamma: Optional[float] = None
-    'The gamma correction applied to the channel'
-    contrast_limit_min: Optional[float] = Field(alias='contrastLimitMin', default=None)
-    'The minimum contrast limit of the channel'
-    contrast_limit_max: Optional[float] = Field(alias='contrastLimitMax', default=None)
-    'The maximum contrast limit of the channel'
-    rescale: Optional[bool] = None
-    'Whether to rescale the channel data to the contrast limits'
-    scale: Optional[float] = None
-    'The scale factor applied to the channel when rendering'
-    active: Optional[bool] = None
-    'Whether the view is active'
-    color_map: Optional[ColorMap] = Field(alias='colorMap', default=None)
-    'The color map applied to the channel'
-    base_color: Optional[Tuple[float, ...]] = Field(alias='baseColor', default=None)
-    'The base color of the channel as RGBA values (if using a mapped scaler)'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    context: Optional[ID] = Field(default=None, description='The ID of the RGB render context this view belongs to')
+    gamma: Optional[float] = Field(default=None, description='The gamma correction applied to the channel')
+    contrast_limit_min: Optional[float] = Field(alias='contrastLimitMin', default=None, description='The minimum contrast limit of the channel')
+    contrast_limit_max: Optional[float] = Field(alias='contrastLimitMax', default=None, description='The maximum contrast limit of the channel')
+    rescale: Optional[bool] = Field(default=None, description='Whether to rescale the channel data to the contrast limits')
+    scale: Optional[float] = Field(default=None, description='The scale factor applied to the channel when rendering')
+    active: Optional[bool] = Field(default=None, description='Whether the view is active')
+    color_map: Optional[ColorMap] = Field(alias='colorMap', default=None, description='The color map applied to the channel')
+    base_color: Optional[Tuple[float, ...]] = Field(alias='baseColor', default=None, description='The base color of the channel as RGBA values (if using a mapped scaler)')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialROIViewInput(BaseModel):
     """Input for creating a ROI view (marking the image as a cutout of a parent image's ROI) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    roi: ID
-    'The ID of the ROI of the parent image this view is a cutout of'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    roi: ID = Field(description='The ID of the ROI of the parent image this view is a cutout of')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialReferenceViewInput(BaseModel):
     """Input for creating a reference view (marking the region as a reference for other views) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialScaleViewInput(BaseModel):
     """Input for creating a scale view (the scale factors relative to a parent view) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    parent: Optional[ID] = None
-    'The ID of the parent view this scale view is derived from'
-    scale_x: Optional[float] = Field(alias='scaleX', default=None)
-    'The scale in x direction'
-    scale_y: Optional[float] = Field(alias='scaleY', default=None)
-    'The scale in y direction'
-    scale_z: Optional[float] = Field(alias='scaleZ', default=None)
-    'The scale in z direction'
-    scale_t: Optional[float] = Field(alias='scaleT', default=None)
-    'The scale in t direction'
-    scale_c: Optional[float] = Field(alias='scaleC', default=None)
-    'The scale in c direction'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    parent: Optional[ID] = Field(default=None, description='The ID of the parent view this scale view is derived from')
+    scale_x: Optional[float] = Field(alias='scaleX', default=None, description='The scale in x direction')
+    scale_y: Optional[float] = Field(alias='scaleY', default=None, description='The scale in y direction')
+    scale_z: Optional[float] = Field(alias='scaleZ', default=None, description='The scale in z direction')
+    scale_t: Optional[float] = Field(alias='scaleT', default=None, description='The scale in t direction')
+    scale_c: Optional[float] = Field(alias='scaleC', default=None, description='The scale in c direction')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialTimepointViewInput(BaseModel):
     """Input for creating a timepoint view (placing the region in time relative to an era) as part of creating an image; the image is taken from the surrounding input"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    era: Optional[ID] = None
-    'The ID of the era this timepoint belongs to'
-    ms_since_start: Optional[Milliseconds] = Field(alias='msSinceStart', default=None)
-    'The time in ms since the start of the era'
-    index_since_start: Optional[int] = Field(alias='indexSinceStart', default=None)
-    'The index of the timepoint since the start of the era'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    era: Optional[ID] = Field(default=None, description='The ID of the era this timepoint belongs to')
+    ms_since_start: Optional[Milliseconds] = Field(alias='msSinceStart', default=None, description='The time in ms since the start of the era')
+    index_since_start: Optional[int] = Field(alias='indexSinceStart', default=None, description='The index of the timepoint since the start of the era')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class Pose3DInput(BaseModel):
@@ -1327,76 +1006,43 @@ class Pose3DInput(BaseModel):
 
 class RGBViewInput(BaseModel):
     """Input for creating an RGB render view on an existing image, referenced by ID"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    context: ID
-    'The ID of the RGB render context this view belongs to'
-    gamma: Optional[float] = None
-    'The gamma correction applied to the channel'
-    contrast_limit_min: Optional[float] = Field(alias='contrastLimitMin', default=None)
-    'The minimum contrast limit of the channel'
-    contrast_limit_max: Optional[float] = Field(alias='contrastLimitMax', default=None)
-    'The maximum contrast limit of the channel'
-    rescale: Optional[bool] = None
-    'Whether to rescale the channel data to the contrast limits'
-    scale: Optional[float] = None
-    'The scale factor applied to the channel when rendering'
-    active: Optional[bool] = None
-    'Whether the view is active'
-    color_map: Optional[ColorMap] = Field(alias='colorMap', default=None)
-    'The color map applied to the channel'
-    base_color: Optional[Tuple[float, ...]] = Field(alias='baseColor', default=None)
-    'The base color of the channel as RGBA values (if using a mapped scaler)'
-    image: ID
-    'The ID of the image this view is for'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    context: ID = Field(description='The ID of the RGB render context this view belongs to')
+    gamma: Optional[float] = Field(default=None, description='The gamma correction applied to the channel')
+    contrast_limit_min: Optional[float] = Field(alias='contrastLimitMin', default=None, description='The minimum contrast limit of the channel')
+    contrast_limit_max: Optional[float] = Field(alias='contrastLimitMax', default=None, description='The maximum contrast limit of the channel')
+    rescale: Optional[bool] = Field(default=None, description='Whether to rescale the channel data to the contrast limits')
+    scale: Optional[float] = Field(default=None, description='The scale factor applied to the channel when rendering')
+    active: Optional[bool] = Field(default=None, description='Whether the view is active')
+    color_map: Optional[ColorMap] = Field(alias='colorMap', default=None, description='The color map applied to the channel')
+    base_color: Optional[Tuple[float, ...]] = Field(alias='baseColor', default=None, description='The base color of the channel as RGBA values (if using a mapped scaler)')
+    image: ID = Field(description='The ID of the image this view is for')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ReferenceViewInput(BaseModel):
     """Input for creating a reference view on an existing image, referenced by ID"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    image: ID
-    'The ID of the image this view is for'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    image: ID = Field(description='The ID of the image this view is for')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class RenderTreeInput(BaseModel):
@@ -1459,31 +1105,23 @@ class RequestZarrUploadInput(BaseModel):
 
 class RevertInput(BaseModel):
     """Input for reverting a dataset to a previous history revision"""
-    id: ID
-    'The ID of the dataset to revert'
-    history_id: ID = Field(alias='historyId')
-    'The ID of the provenance history entry to revert the dataset to'
+    id: ID = Field(description='The ID of the dataset to revert')
+    history_id: ID = Field(alias='historyId', description='The ID of the provenance history entry to revert the dataset to')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class RoiInput(BaseModel):
     """Input for creating a region of interest (ROI) on an image"""
-    image: ID
-    'The image this ROI belongs to'
-    vectors: Tuple[FiveDVector, ...]
-    'The vector coordinates defining the ROI'
-    kind: RoiKind
-    'The type/kind of ROI'
+    image: ID = Field(description='The image this ROI belongs to')
+    vectors: Tuple[FiveDVector, ...] = Field(description='The vector coordinates defining the ROI')
+    kind: RoiKind = Field(description='The type/kind of ROI')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ScaleInput(BaseModel):
     """Input type for a scale, which specifies an array-like object to create the image from and optional scale factors for each dimension of the image"""
-    scale_method: Optional[str] = Field(alias='scaleMethod', default=None)
-    "The method used to create the scale, e.g. 'nearest', 'bilinear', 'bicubic', etc. This can be used to provide additional context about how the scale was created and the expected quality of the scale"
+    scale_method: Optional[str] = Field(alias='scaleMethod', default=None, description="The method used to create the scale, e.g. 'nearest', 'bilinear', 'bicubic', etc. This can be used to provide additional context about how the scale was created and the expected quality of the scale")
     level: int
-    array: ArrayLike
-    'The array-like object to create the image from'
-    scale_factors: Optional[Tuple[float, ...]] = Field(alias='scaleFactors', default=None)
-    'The scale factors for each dimension of the image, which specify the physical size of each pixel along each dimension and can be used to provide additional context about the spatial resolution of the image'
+    array: ArrayLike = Field(description='The array-like object to create the image from')
+    scale_factors: Optional[Tuple[float, ...]] = Field(alias='scaleFactors', default=None, description='The scale factors for each dimension of the image, which specify the physical size of each pixel along each dimension and can be used to provide additional context about the spatial resolution of the image')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class SliceInput(BaseModel):
@@ -1496,12 +1134,9 @@ class SliceInput(BaseModel):
 
 class SnapshotInput(BaseModel):
     """Input for creating a snapshot (pre-rendered thumbnail) of an image from an uploaded media file"""
-    file: ImageFileLike
-    'The uploaded media file store containing the rendered snapshot'
-    image: ID
-    'The ID of the image this snapshot belongs to'
-    name: Optional[str] = None
-    'The name of the snapshot'
+    file: ImageFileLike = Field(description='The uploaded media file store containing the rendered snapshot')
+    image: ID = Field(description='The ID of the image this snapshot belongs to')
+    name: Optional[str] = Field(default=None, description='The name of the snapshot')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class SpectrumInput(BaseModel):
@@ -1512,26 +1147,16 @@ class SpectrumInput(BaseModel):
 
 class StageFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = None
-    'Filter by list of IDs'
-    search: Optional[str] = None
-    'Search by name (case-insensitive substring)'
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None)
-    'Filter for items created before this datetime'
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None)
-    'Filter for items created after this datetime'
-    owner: Optional[ID] = None
-    "Filter by the creator's subject ID"
-    pinned: Optional[bool] = None
-    'Filter by whether the current user has pinned the item'
-    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None)
-    'Filter by the rekuest task id the item was created through'
-    created_through: Optional[ID] = Field(alias='createdThrough', default=None)
-    'Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)'
-    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None)
-    'Filter by the sub of the user that assigned the creating task'
-    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None)
-    'Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)'
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    pinned: Optional[bool] = Field(default=None, description='Filter by whether the current user has pinned the item')
+    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
     id: Optional[ID] = None
     kind: Optional[str] = None
     name: Optional['StrFilterLookup'] = None
@@ -1539,16 +1164,13 @@ class StageFilter(BaseModel):
     or_: Optional['StageFilter'] = Field(alias='OR', default=None)
     not_: Optional['StageFilter'] = Field(alias='NOT', default=None)
     distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    instrument: Optional[ID] = None
-    'Filter by the instrument this stage belongs to'
+    instrument: Optional[ID] = Field(default=None, description='Filter by the instrument this stage belongs to')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class StageInput(BaseModel):
     """Input for creating a stage, a physical coordinate system for positioning images"""
-    name: str
-    'The name of the stage'
-    instrument: Optional[ID] = None
-    'The ID of the instrument this stage belongs to'
+    name: str = Field(description='The name of the stage')
+    instrument: Optional[ID] = Field(default=None, description='The ID of the instrument this stage belongs to')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class StrFilterLookup(BaseModel):
@@ -1574,15 +1196,11 @@ class StrFilterLookup(BaseModel):
 
 class TimepointViewFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = None
-    'Filter by list of IDs'
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
     is_global: Optional[bool] = Field(alias='isGlobal', default=None)
-    image: Optional[ID] = None
-    'Filter by the image this view belongs to'
-    images: Optional[Tuple[ID, ...]] = None
-    'Filter by a list of images this view belongs to'
-    search: Optional[str] = None
-    'Search by the name of the image this view belongs to'
+    image: Optional[ID] = Field(default=None, description='Filter by the image this view belongs to')
+    images: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of images this view belongs to')
+    search: Optional[str] = Field(default=None, description='Search by the name of the image this view belongs to')
     id: Optional[ID] = None
     era: Optional[EraFilter] = None
     ms_since_start: Optional[float] = Field(alias='msSinceStart', default=None)
@@ -1595,7 +1213,8 @@ class TimepointViewFilter(BaseModel):
 
 class TreeInput(BaseModel):
     """No documentation"""
-    id: Optional[str] = None
+    id: Annotated[Optional[str], GraphQLDefault('root')] = None
+    'Default: root'
     children: Tuple['TreeNodeInput', ...]
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
@@ -1608,94 +1227,64 @@ class TreeNodeInput(BaseModel):
     children: Optional[Tuple['TreeNodeInput', ...]] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class UpdateImageInput(BaseModel):
+    """Input for updating an image's name or tags"""
+    id: ID = Field(description='The ID of the image to update')
+    tags: Optional[Tuple[str, ...]] = Field(default=None, description='Tags to add to the image')
+    name: Optional[str] = Field(default=None, description='The new name of the image')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class UpdateRGBContextInput(BaseModel):
     """Input for updating an existing RGB render context"""
-    id: ID
-    'The ID of the RGB context to update'
-    name: Optional[str] = None
-    'The new name of the RGB context'
-    thumbnail: Optional[ID] = None
-    'The ID of an uploaded media store to use as the thumbnail snapshot'
-    views: Optional[Tuple[PartialRGBViewInput, ...]] = None
-    "The RGB views (channel rendering settings) to replace the context's views with"
-    z: Optional[int] = None
-    'The z plane the context renders'
-    t: Optional[int] = None
-    'The timepoint the context renders'
-    c: Optional[int] = None
-    'The channel the context renders'
+    id: ID = Field(description='The ID of the RGB context to update')
+    name: Optional[str] = Field(default=None, description='The new name of the RGB context')
+    thumbnail: Optional[ID] = Field(default=None, description='The ID of an uploaded media store to use as the thumbnail snapshot')
+    views: Optional[Tuple[PartialRGBViewInput, ...]] = Field(default=None, description="The RGB views (channel rendering settings) to replace the context's views with")
+    z: Optional[int] = Field(default=None, description='The z plane the context renders')
+    t: Optional[int] = Field(default=None, description='The timepoint the context renders')
+    c: Optional[int] = Field(default=None, description='The channel the context renders')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class UpdateRGBViewInput(BaseModel):
     """Input for updating an existing RGB view, referenced by ID"""
-    collection: Optional[ID] = None
-    'The collection this view belongs to'
-    z_min: Optional[int] = Field(alias='zMin', default=None)
-    'The minimum z coordinate of the view'
-    z_max: Optional[int] = Field(alias='zMax', default=None)
-    'The maximum z coordinate of the view'
-    x_min: Optional[int] = Field(alias='xMin', default=None)
-    'The minimum x coordinate of the view'
-    x_max: Optional[int] = Field(alias='xMax', default=None)
-    'The maximum x coordinate of the view'
-    y_min: Optional[int] = Field(alias='yMin', default=None)
-    'The minimum y coordinate of the view'
-    y_max: Optional[int] = Field(alias='yMax', default=None)
-    'The maximum y coordinate of the view'
-    t_min: Optional[int] = Field(alias='tMin', default=None)
-    'The minimum t coordinate of the view'
-    t_max: Optional[int] = Field(alias='tMax', default=None)
-    'The maximum t coordinate of the view'
-    c_min: Optional[int] = Field(alias='cMin', default=None)
-    'The minimum c (channel) coordinate of the view'
-    c_max: Optional[int] = Field(alias='cMax', default=None)
-    'The maximum c (channel) coordinate of the view'
-    context: Optional[ID] = None
-    'The ID of the RGB render context this view belongs to'
-    gamma: Optional[float] = None
-    'The gamma correction applied to the channel'
-    contrast_limit_min: Optional[float] = Field(alias='contrastLimitMin', default=None)
-    'The minimum contrast limit of the channel'
-    contrast_limit_max: Optional[float] = Field(alias='contrastLimitMax', default=None)
-    'The maximum contrast limit of the channel'
-    rescale: Optional[bool] = None
-    'Whether to rescale the channel data to the contrast limits'
-    scale: Optional[float] = None
-    'The scale factor applied to the channel when rendering'
-    active: Optional[bool] = None
-    'Whether the view is active'
-    color_map: Optional[ColorMap] = Field(alias='colorMap', default=None)
-    'The color map applied to the channel'
-    base_color: Optional[Tuple[float, ...]] = Field(alias='baseColor', default=None)
-    'The base color of the channel as RGBA values (if using a mapped scaler)'
-    id: ID
-    'The ID of the RGB view to update'
+    collection: Optional[ID] = Field(default=None, description='The collection this view belongs to')
+    z_min: Optional[int] = Field(alias='zMin', default=None, description='The minimum z coordinate of the view')
+    z_max: Optional[int] = Field(alias='zMax', default=None, description='The maximum z coordinate of the view')
+    x_min: Optional[int] = Field(alias='xMin', default=None, description='The minimum x coordinate of the view')
+    x_max: Optional[int] = Field(alias='xMax', default=None, description='The maximum x coordinate of the view')
+    y_min: Optional[int] = Field(alias='yMin', default=None, description='The minimum y coordinate of the view')
+    y_max: Optional[int] = Field(alias='yMax', default=None, description='The maximum y coordinate of the view')
+    t_min: Optional[int] = Field(alias='tMin', default=None, description='The minimum t coordinate of the view')
+    t_max: Optional[int] = Field(alias='tMax', default=None, description='The maximum t coordinate of the view')
+    c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
+    c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
+    context: Optional[ID] = Field(default=None, description='The ID of the RGB render context this view belongs to')
+    gamma: Optional[float] = Field(default=None, description='The gamma correction applied to the channel')
+    contrast_limit_min: Optional[float] = Field(alias='contrastLimitMin', default=None, description='The minimum contrast limit of the channel')
+    contrast_limit_max: Optional[float] = Field(alias='contrastLimitMax', default=None, description='The maximum contrast limit of the channel')
+    rescale: Optional[bool] = Field(default=None, description='Whether to rescale the channel data to the contrast limits')
+    scale: Optional[float] = Field(default=None, description='The scale factor applied to the channel when rendering')
+    active: Optional[bool] = Field(default=None, description='Whether the view is active')
+    color_map: Optional[ColorMap] = Field(alias='colorMap', default=None, description='The color map applied to the channel')
+    base_color: Optional[Tuple[float, ...]] = Field(alias='baseColor', default=None, description='The base color of the channel as RGBA values (if using a mapped scaler)')
+    id: ID = Field(description='The ID of the RGB view to update')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class UpdateRoiInput(BaseModel):
     """Input for updating an existing region of interest (ROI)"""
-    roi: ID
-    'The ID of the ROI to update'
-    vectors: Optional[Tuple[FiveDVector, ...]] = None
-    'The new vector coordinates defining the ROI'
-    kind: Optional[RoiKind] = None
-    'The new type/kind of ROI'
+    roi: ID = Field(description='The ID of the ROI to update')
+    vectors: Optional[Tuple[FiveDVector, ...]] = Field(default=None, description='The new vector coordinates defining the ROI')
+    kind: Optional[RoiKind] = Field(default=None, description='The new type/kind of ROI')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ValueHistogramInput(BaseModel):
     """Input type for a value histogram, which specifies the histogram of pixel values along certain dimensions to provide additional context about the distribution of pixel values in an image"""
-    histogram: Tuple[float, ...]
-    'The histogram of the pixel values (y values)'
-    bins: Tuple[float, ...]
-    'The bin indices of the histogram (x values)'
-    min: Optional[float] = None
-    'The minimum pixel value of the histogram'
-    max: Optional[float] = None
-    'The maximum pixel value of the histogram'
-    p1: Optional[float] = None
-    'The 1st percentile pixel value of the histogram'
-    p99: Optional[float] = None
-    'The 99th percentile pixel value of the histogram'
+    histogram: Tuple[float, ...] = Field(description='The histogram of the pixel values (y values)')
+    bins: Tuple[float, ...] = Field(description='The bin indices of the histogram (x values)')
+    min: Optional[float] = Field(default=None, description='The minimum pixel value of the histogram')
+    max: Optional[float] = Field(default=None, description='The maximum pixel value of the histogram')
+    p1: Optional[float] = Field(default=None, description='The 1st percentile pixel value of the histogram')
+    p99: Optional[float] = Field(default=None, description='The 99th percentile pixel value of the histogram')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class Vec3Input(BaseModel):
@@ -1707,14 +1296,12 @@ class Vec3Input(BaseModel):
 
 class ViewCollectionInput(BaseModel):
     """Input for creating a view collection to group views"""
-    name: str
-    'The name of the view collection'
+    name: str = Field(description='The name of the view collection')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ViewFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = None
-    'Filter by list of IDs'
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
     is_global: Optional[bool] = Field(alias='isGlobal', default=None)
     and_: Optional['ViewFilter'] = Field(alias='AND', default=None)
     or_: Optional['ViewFilter'] = Field(alias='OR', default=None)
@@ -3306,6 +2893,20 @@ class From_array_likeMutation(BaseModel):
         """Meta class for from_array_like """
         document = 'fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation from_array_like($input: FromArrayLikeInput!) {\n  fromArrayLike(input: $input) {\n    ...Image\n    __typename\n  }\n}'
 
+class UpdateImageMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_image: Image = Field(alias='updateImage')
+    "Update an existing image's metadata"
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateImage """
+        input: UpdateImageInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for UpdateImage """
+        document = 'fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  msSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateImage($input: UpdateImageInput!) {\n  updateImage(input: $input) {\n    ...Image\n    __typename\n  }\n}'
+
 class CreateInstrumentMutationCreateinstrument(BaseModel):
     """A microscope or other instrument, identified by its manufacturer, model and serial number. Clients use it through optics views to record which instrument acquired an image."""
     typename: Literal['Instrument'] = Field(alias='__typename', default='Instrument', exclude=True)
@@ -3740,7 +3341,7 @@ class SearchDatasetsQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -3778,7 +3379,7 @@ class SearchFilesQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -3830,7 +3431,7 @@ class SearchImagesQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -4054,7 +3655,7 @@ class SearchMeshesQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -4134,7 +3735,7 @@ class SearchRoisQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -4172,7 +3773,7 @@ class SearchScenesQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -4210,7 +3811,7 @@ class SearchSnapshotsQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -4248,7 +3849,7 @@ class SearchStagesQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -4286,7 +3887,7 @@ class SearchTablesQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -4326,7 +3927,7 @@ class SearchTableCellsQuery(BaseModel):
         values: Optional[List[ID]] = Field(default=None)
         table: ID
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -4366,7 +3967,7 @@ class SearchTableRowsQuery(BaseModel):
         values: Optional[List[ID]] = Field(default=None)
         table: ID
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -4404,7 +4005,7 @@ class SearchRGBViewsQuery(BaseModel):
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         limit: Optional[int] = Field(default=None)
-        offset: Optional[int] = Field(default=0)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
@@ -4477,7 +4078,7 @@ class WatchRoisSubscription(BaseModel):
         """Meta class for WatchRois """
         document = 'fragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ROI on ROI {\n  id\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nsubscription WatchRois($image: ID!) {\n  rois(image: $image) {\n    create {\n      ...ROI\n      __typename\n    }\n    delete\n    update {\n      ...ROI\n      __typename\n    }\n    __typename\n  }\n}'
 
-async def acreate_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, dim_descriptors: Iterable[DimensionDescriptorInput], anchors: Optional[Iterable[CoordinateAnchorInput]]=None, rath: Optional[MikroNextRath]=None) -> ADataset:
+async def acreate_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, dim_descriptors: Iterable[DimensionDescriptorInput], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
     """CreateADataset 
 
 Create a new dataset from array-like data with optional choordinate anchors and OME  metadata
@@ -4493,9 +4094,18 @@ Args:
 Returns:
     ADataset
 """
-    return (await aexecute(CreateADatasetMutation, {'input': {'data': data, 'scales': scales, 'name': name, 'dimDescriptors': dim_descriptors, 'anchors': anchors}}, rath=rath)).create_adataset
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['data'] = data
+    _input['scales'] = scales
+    _input['name'] = name
+    _input['dimDescriptors'] = dim_descriptors
+    if anchors is not UNSET:
+        _input['anchors'] = anchors
+    variables['input'] = _input
+    return (await aexecute(CreateADatasetMutation, variables, rath=rath)).create_adataset
 
-def create_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, dim_descriptors: Iterable[DimensionDescriptorInput], anchors: Optional[Iterable[CoordinateAnchorInput]]=None, rath: Optional[MikroNextRath]=None) -> ADataset:
+def create_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, dim_descriptors: Iterable[DimensionDescriptorInput], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
     """CreateADataset 
 
 Create a new dataset from array-like data with optional choordinate anchors and OME  metadata
@@ -4511,9 +4121,18 @@ Args:
 Returns:
     ADataset
 """
-    return execute(CreateADatasetMutation, {'input': {'data': data, 'scales': scales, 'name': name, 'dimDescriptors': dim_descriptors, 'anchors': anchors}}, rath=rath).create_adataset
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['data'] = data
+    _input['scales'] = scales
+    _input['name'] = name
+    _input['dimDescriptors'] = dim_descriptors
+    if anchors is not UNSET:
+        _input['anchors'] = anchors
+    variables['input'] = _input
+    return execute(CreateADatasetMutation, variables, rath=rath).create_adataset
 
-async def acreate_camera(serial_number: str, name: Optional[str]=None, model: Optional[str]=None, bit_depth: Optional[int]=None, sensor_size_x: Optional[int]=None, sensor_size_y: Optional[int]=None, pixel_size_x: Optional[Micrometers]=None, pixel_size_y: Optional[Micrometers]=None, manufacturer: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> CreateCameraMutationCreatecamera:
+async def acreate_camera(serial_number: str, name: Union[Optional[str], UnsetType]=UNSET, model: Union[Optional[str], UnsetType]=UNSET, bit_depth: Union[Optional[int], UnsetType]=UNSET, sensor_size_x: Union[Optional[int], UnsetType]=UNSET, sensor_size_y: Union[Optional[int], UnsetType]=UNSET, pixel_size_x: Union[Optional[Micrometers], UnsetType]=UNSET, pixel_size_y: Union[Optional[Micrometers], UnsetType]=UNSET, manufacturer: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateCameraMutationCreatecamera:
     """CreateCamera 
 
 Create a new camera configuration
@@ -4533,9 +4152,29 @@ Args:
 Returns:
     CreateCameraMutationCreatecamera
 """
-    return (await aexecute(CreateCameraMutation, {'input': {'serialNumber': serial_number, 'name': name, 'model': model, 'bitDepth': bit_depth, 'sensorSizeX': sensor_size_x, 'sensorSizeY': sensor_size_y, 'pixelSizeX': pixel_size_x, 'pixelSizeY': pixel_size_y, 'manufacturer': manufacturer}}, rath=rath)).create_camera
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if name is not UNSET:
+        _input['name'] = name
+    if model is not UNSET:
+        _input['model'] = model
+    if bit_depth is not UNSET:
+        _input['bitDepth'] = bit_depth
+    if sensor_size_x is not UNSET:
+        _input['sensorSizeX'] = sensor_size_x
+    if sensor_size_y is not UNSET:
+        _input['sensorSizeY'] = sensor_size_y
+    if pixel_size_x is not UNSET:
+        _input['pixelSizeX'] = pixel_size_x
+    if pixel_size_y is not UNSET:
+        _input['pixelSizeY'] = pixel_size_y
+    if manufacturer is not UNSET:
+        _input['manufacturer'] = manufacturer
+    variables['input'] = _input
+    return (await aexecute(CreateCameraMutation, variables, rath=rath)).create_camera
 
-def create_camera(serial_number: str, name: Optional[str]=None, model: Optional[str]=None, bit_depth: Optional[int]=None, sensor_size_x: Optional[int]=None, sensor_size_y: Optional[int]=None, pixel_size_x: Optional[Micrometers]=None, pixel_size_y: Optional[Micrometers]=None, manufacturer: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> CreateCameraMutationCreatecamera:
+def create_camera(serial_number: str, name: Union[Optional[str], UnsetType]=UNSET, model: Union[Optional[str], UnsetType]=UNSET, bit_depth: Union[Optional[int], UnsetType]=UNSET, sensor_size_x: Union[Optional[int], UnsetType]=UNSET, sensor_size_y: Union[Optional[int], UnsetType]=UNSET, pixel_size_x: Union[Optional[Micrometers], UnsetType]=UNSET, pixel_size_y: Union[Optional[Micrometers], UnsetType]=UNSET, manufacturer: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateCameraMutationCreatecamera:
     """CreateCamera 
 
 Create a new camera configuration
@@ -4555,9 +4194,29 @@ Args:
 Returns:
     CreateCameraMutationCreatecamera
 """
-    return execute(CreateCameraMutation, {'input': {'serialNumber': serial_number, 'name': name, 'model': model, 'bitDepth': bit_depth, 'sensorSizeX': sensor_size_x, 'sensorSizeY': sensor_size_y, 'pixelSizeX': pixel_size_x, 'pixelSizeY': pixel_size_y, 'manufacturer': manufacturer}}, rath=rath).create_camera
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if name is not UNSET:
+        _input['name'] = name
+    if model is not UNSET:
+        _input['model'] = model
+    if bit_depth is not UNSET:
+        _input['bitDepth'] = bit_depth
+    if sensor_size_x is not UNSET:
+        _input['sensorSizeX'] = sensor_size_x
+    if sensor_size_y is not UNSET:
+        _input['sensorSizeY'] = sensor_size_y
+    if pixel_size_x is not UNSET:
+        _input['pixelSizeX'] = pixel_size_x
+    if pixel_size_y is not UNSET:
+        _input['pixelSizeY'] = pixel_size_y
+    if manufacturer is not UNSET:
+        _input['manufacturer'] = manufacturer
+    variables['input'] = _input
+    return execute(CreateCameraMutation, variables, rath=rath).create_camera
 
-async def aensure_camera(serial_number: str, name: Optional[str]=None, model: Optional[str]=None, bit_depth: Optional[int]=None, sensor_size_x: Optional[int]=None, sensor_size_y: Optional[int]=None, pixel_size_x: Optional[Micrometers]=None, pixel_size_y: Optional[Micrometers]=None, manufacturer: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> EnsureCameraMutationEnsurecamera:
+async def aensure_camera(serial_number: str, name: Union[Optional[str], UnsetType]=UNSET, model: Union[Optional[str], UnsetType]=UNSET, bit_depth: Union[Optional[int], UnsetType]=UNSET, sensor_size_x: Union[Optional[int], UnsetType]=UNSET, sensor_size_y: Union[Optional[int], UnsetType]=UNSET, pixel_size_x: Union[Optional[Micrometers], UnsetType]=UNSET, pixel_size_y: Union[Optional[Micrometers], UnsetType]=UNSET, manufacturer: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> EnsureCameraMutationEnsurecamera:
     """EnsureCamera 
 
 Ensure a camera exists, creating if needed
@@ -4577,9 +4236,29 @@ Args:
 Returns:
     EnsureCameraMutationEnsurecamera
 """
-    return (await aexecute(EnsureCameraMutation, {'input': {'serialNumber': serial_number, 'name': name, 'model': model, 'bitDepth': bit_depth, 'sensorSizeX': sensor_size_x, 'sensorSizeY': sensor_size_y, 'pixelSizeX': pixel_size_x, 'pixelSizeY': pixel_size_y, 'manufacturer': manufacturer}}, rath=rath)).ensure_camera
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if name is not UNSET:
+        _input['name'] = name
+    if model is not UNSET:
+        _input['model'] = model
+    if bit_depth is not UNSET:
+        _input['bitDepth'] = bit_depth
+    if sensor_size_x is not UNSET:
+        _input['sensorSizeX'] = sensor_size_x
+    if sensor_size_y is not UNSET:
+        _input['sensorSizeY'] = sensor_size_y
+    if pixel_size_x is not UNSET:
+        _input['pixelSizeX'] = pixel_size_x
+    if pixel_size_y is not UNSET:
+        _input['pixelSizeY'] = pixel_size_y
+    if manufacturer is not UNSET:
+        _input['manufacturer'] = manufacturer
+    variables['input'] = _input
+    return (await aexecute(EnsureCameraMutation, variables, rath=rath)).ensure_camera
 
-def ensure_camera(serial_number: str, name: Optional[str]=None, model: Optional[str]=None, bit_depth: Optional[int]=None, sensor_size_x: Optional[int]=None, sensor_size_y: Optional[int]=None, pixel_size_x: Optional[Micrometers]=None, pixel_size_y: Optional[Micrometers]=None, manufacturer: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> EnsureCameraMutationEnsurecamera:
+def ensure_camera(serial_number: str, name: Union[Optional[str], UnsetType]=UNSET, model: Union[Optional[str], UnsetType]=UNSET, bit_depth: Union[Optional[int], UnsetType]=UNSET, sensor_size_x: Union[Optional[int], UnsetType]=UNSET, sensor_size_y: Union[Optional[int], UnsetType]=UNSET, pixel_size_x: Union[Optional[Micrometers], UnsetType]=UNSET, pixel_size_y: Union[Optional[Micrometers], UnsetType]=UNSET, manufacturer: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> EnsureCameraMutationEnsurecamera:
     """EnsureCamera 
 
 Ensure a camera exists, creating if needed
@@ -4599,9 +4278,29 @@ Args:
 Returns:
     EnsureCameraMutationEnsurecamera
 """
-    return execute(EnsureCameraMutation, {'input': {'serialNumber': serial_number, 'name': name, 'model': model, 'bitDepth': bit_depth, 'sensorSizeX': sensor_size_x, 'sensorSizeY': sensor_size_y, 'pixelSizeX': pixel_size_x, 'pixelSizeY': pixel_size_y, 'manufacturer': manufacturer}}, rath=rath).ensure_camera
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if name is not UNSET:
+        _input['name'] = name
+    if model is not UNSET:
+        _input['model'] = model
+    if bit_depth is not UNSET:
+        _input['bitDepth'] = bit_depth
+    if sensor_size_x is not UNSET:
+        _input['sensorSizeX'] = sensor_size_x
+    if sensor_size_y is not UNSET:
+        _input['sensorSizeY'] = sensor_size_y
+    if pixel_size_x is not UNSET:
+        _input['pixelSizeX'] = pixel_size_x
+    if pixel_size_y is not UNSET:
+        _input['pixelSizeY'] = pixel_size_y
+    if manufacturer is not UNSET:
+        _input['manufacturer'] = manufacturer
+    variables['input'] = _input
+    return execute(EnsureCameraMutation, variables, rath=rath).ensure_camera
 
-async def acreate_data_roi(dataset: IDCoercible, kind: RoiKind, x_dim: str, y_dim: str, vectors: Iterable[ThreeDVector], slices: Iterable[SliceInput], z_dim: Optional[str]=None, drawn_on_lens: Optional[IDCoercible]=None, rath: Optional[MikroNextRath]=None) -> DataRoi:
+async def acreate_data_roi(dataset: IDCoercible, kind: RoiKind, x_dim: str, y_dim: str, vectors: Iterable[ThreeDVector], slices: Iterable[SliceInput], z_dim: Union[Optional[str], UnsetType]=UNSET, drawn_on_lens: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> DataRoi:
     """CreateDataRoi 
 
 Create a new data ROI from vector or slice definitions with optional choordinate anchors and OME metadata
@@ -4620,9 +4319,22 @@ Args:
 Returns:
     DataRoi
 """
-    return (await aexecute(CreateDataRoiMutation, {'input': {'dataset': dataset, 'kind': kind, 'xDim': x_dim, 'yDim': y_dim, 'zDim': z_dim, 'vectors': vectors, 'slices': slices, 'drawnOnLens': drawn_on_lens}}, rath=rath)).create_data_roi
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['dataset'] = dataset
+    _input['kind'] = kind
+    _input['xDim'] = x_dim
+    _input['yDim'] = y_dim
+    if z_dim is not UNSET:
+        _input['zDim'] = z_dim
+    _input['vectors'] = vectors
+    _input['slices'] = slices
+    if drawn_on_lens is not UNSET:
+        _input['drawnOnLens'] = drawn_on_lens
+    variables['input'] = _input
+    return (await aexecute(CreateDataRoiMutation, variables, rath=rath)).create_data_roi
 
-def create_data_roi(dataset: IDCoercible, kind: RoiKind, x_dim: str, y_dim: str, vectors: Iterable[ThreeDVector], slices: Iterable[SliceInput], z_dim: Optional[str]=None, drawn_on_lens: Optional[IDCoercible]=None, rath: Optional[MikroNextRath]=None) -> DataRoi:
+def create_data_roi(dataset: IDCoercible, kind: RoiKind, x_dim: str, y_dim: str, vectors: Iterable[ThreeDVector], slices: Iterable[SliceInput], z_dim: Union[Optional[str], UnsetType]=UNSET, drawn_on_lens: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> DataRoi:
     """CreateDataRoi 
 
 Create a new data ROI from vector or slice definitions with optional choordinate anchors and OME metadata
@@ -4641,9 +4353,22 @@ Args:
 Returns:
     DataRoi
 """
-    return execute(CreateDataRoiMutation, {'input': {'dataset': dataset, 'kind': kind, 'xDim': x_dim, 'yDim': y_dim, 'zDim': z_dim, 'vectors': vectors, 'slices': slices, 'drawnOnLens': drawn_on_lens}}, rath=rath).create_data_roi
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['dataset'] = dataset
+    _input['kind'] = kind
+    _input['xDim'] = x_dim
+    _input['yDim'] = y_dim
+    if z_dim is not UNSET:
+        _input['zDim'] = z_dim
+    _input['vectors'] = vectors
+    _input['slices'] = slices
+    if drawn_on_lens is not UNSET:
+        _input['drawnOnLens'] = drawn_on_lens
+    variables['input'] = _input
+    return execute(CreateDataRoiMutation, variables, rath=rath).create_data_roi
 
-async def arequest_bigfile_upload(original_file_name: str, file_size: Optional[int]=None, content_type: Optional[str]=None, host: Optional[str]=None, port: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> BigFileUploadGrant:
+async def arequest_bigfile_upload(original_file_name: str, file_size: Union[Optional[int], UnsetType]=UNSET, content_type: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> BigFileUploadGrant:
     """RequestBigfileUpload 
 
 Request an upload grant for a big file store
@@ -4659,9 +4384,21 @@ Args:
 Returns:
     BigFileUploadGrant
 """
-    return (await aexecute(RequestBigfileUploadMutation, {'input': {'originalFileName': original_file_name, 'fileSize': file_size, 'contentType': content_type, 'host': host, 'port': port}}, rath=rath)).request_bigfile_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['originalFileName'] = original_file_name
+    if file_size is not UNSET:
+        _input['fileSize'] = file_size
+    if content_type is not UNSET:
+        _input['contentType'] = content_type
+    if host is not UNSET:
+        _input['host'] = host
+    if port is not UNSET:
+        _input['port'] = port
+    variables['input'] = _input
+    return (await aexecute(RequestBigfileUploadMutation, variables, rath=rath)).request_bigfile_upload
 
-def request_bigfile_upload(original_file_name: str, file_size: Optional[int]=None, content_type: Optional[str]=None, host: Optional[str]=None, port: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> BigFileUploadGrant:
+def request_bigfile_upload(original_file_name: str, file_size: Union[Optional[int], UnsetType]=UNSET, content_type: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> BigFileUploadGrant:
     """RequestBigfileUpload 
 
 Request an upload grant for a big file store
@@ -4677,7 +4414,19 @@ Args:
 Returns:
     BigFileUploadGrant
 """
-    return execute(RequestBigfileUploadMutation, {'input': {'originalFileName': original_file_name, 'fileSize': file_size, 'contentType': content_type, 'host': host, 'port': port}}, rath=rath).request_bigfile_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['originalFileName'] = original_file_name
+    if file_size is not UNSET:
+        _input['fileSize'] = file_size
+    if content_type is not UNSET:
+        _input['contentType'] = content_type
+    if host is not UNSET:
+        _input['host'] = host
+    if port is not UNSET:
+        _input['port'] = port
+    variables['input'] = _input
+    return execute(RequestBigfileUploadMutation, variables, rath=rath).request_bigfile_upload
 
 async def afinish_bigfile_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> BigFileStore:
     """FinishBigfileUpload 
@@ -4692,7 +4441,12 @@ Args:
 Returns:
     BigFileStore
 """
-    return (await aexecute(FinishBigfileUploadMutation, {'input': {'storeId': store_id, 'valid': valid}}, rath=rath)).finish_bigfile_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return (await aexecute(FinishBigfileUploadMutation, variables, rath=rath)).finish_bigfile_upload
 
 def finish_bigfile_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> BigFileStore:
     """FinishBigfileUpload 
@@ -4707,7 +4461,12 @@ Args:
 Returns:
     BigFileStore
 """
-    return execute(FinishBigfileUploadMutation, {'input': {'storeId': store_id, 'valid': valid}}, rath=rath).finish_bigfile_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return execute(FinishBigfileUploadMutation, variables, rath=rath).finish_bigfile_upload
 
 async def arequest_bigfile_access(store_id: str, rath: Optional[MikroNextRath]=None) -> BigFileAccessGrant:
     """RequestBigfileAccess 
@@ -4721,7 +4480,11 @@ Args:
 Returns:
     BigFileAccessGrant
 """
-    return (await aexecute(RequestBigfileAccessMutation, {'input': {'storeId': store_id}}, rath=rath)).request_bigfile_access
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    variables['input'] = _input
+    return (await aexecute(RequestBigfileAccessMutation, variables, rath=rath)).request_bigfile_access
 
 def request_bigfile_access(store_id: str, rath: Optional[MikroNextRath]=None) -> BigFileAccessGrant:
     """RequestBigfileAccess 
@@ -4735,9 +4498,13 @@ Args:
 Returns:
     BigFileAccessGrant
 """
-    return execute(RequestBigfileAccessMutation, {'input': {'storeId': store_id}}, rath=rath).request_bigfile_access
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    variables['input'] = _input
+    return execute(RequestBigfileAccessMutation, variables, rath=rath).request_bigfile_access
 
-async def arequest_media_upload(original_file_name: str, file_size: Optional[int]=None, content_type: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> MediaUploadGrant:
+async def arequest_media_upload(original_file_name: str, file_size: Union[Optional[int], UnsetType]=UNSET, content_type: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MediaUploadGrant:
     """RequestMediaUpload 
 
 Upload media and return a URL for access
@@ -4751,9 +4518,17 @@ Args:
 Returns:
     MediaUploadGrant
 """
-    return (await aexecute(RequestMediaUploadMutation, {'input': {'originalFileName': original_file_name, 'fileSize': file_size, 'contentType': content_type}}, rath=rath)).request_media_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['originalFileName'] = original_file_name
+    if file_size is not UNSET:
+        _input['fileSize'] = file_size
+    if content_type is not UNSET:
+        _input['contentType'] = content_type
+    variables['input'] = _input
+    return (await aexecute(RequestMediaUploadMutation, variables, rath=rath)).request_media_upload
 
-def request_media_upload(original_file_name: str, file_size: Optional[int]=None, content_type: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> MediaUploadGrant:
+def request_media_upload(original_file_name: str, file_size: Union[Optional[int], UnsetType]=UNSET, content_type: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MediaUploadGrant:
     """RequestMediaUpload 
 
 Upload media and return a URL for access
@@ -4767,7 +4542,15 @@ Args:
 Returns:
     MediaUploadGrant
 """
-    return execute(RequestMediaUploadMutation, {'input': {'originalFileName': original_file_name, 'fileSize': file_size, 'contentType': content_type}}, rath=rath).request_media_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['originalFileName'] = original_file_name
+    if file_size is not UNSET:
+        _input['fileSize'] = file_size
+    if content_type is not UNSET:
+        _input['contentType'] = content_type
+    variables['input'] = _input
+    return execute(RequestMediaUploadMutation, variables, rath=rath).request_media_upload
 
 async def afinish_media_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> MediaStore:
     """FinishMediaUpload 
@@ -4782,7 +4565,12 @@ Args:
 Returns:
     MediaStore
 """
-    return (await aexecute(FinishMediaUploadMutation, {'input': {'storeId': store_id, 'valid': valid}}, rath=rath)).finish_media_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return (await aexecute(FinishMediaUploadMutation, variables, rath=rath)).finish_media_upload
 
 def finish_media_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> MediaStore:
     """FinishMediaUpload 
@@ -4797,7 +4585,12 @@ Args:
 Returns:
     MediaStore
 """
-    return execute(FinishMediaUploadMutation, {'input': {'storeId': store_id, 'valid': valid}}, rath=rath).finish_media_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return execute(FinishMediaUploadMutation, variables, rath=rath).finish_media_upload
 
 async def arequest_media_access(store_id: str, rath: Optional[MikroNextRath]=None) -> MediaAccessGrant:
     """RequestMediaAccess 
@@ -4811,7 +4604,11 @@ Args:
 Returns:
     MediaAccessGrant
 """
-    return (await aexecute(RequestMediaAccessMutation, {'input': {'storeId': store_id}}, rath=rath)).request_media_access
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    variables['input'] = _input
+    return (await aexecute(RequestMediaAccessMutation, variables, rath=rath)).request_media_access
 
 def request_media_access(store_id: str, rath: Optional[MikroNextRath]=None) -> MediaAccessGrant:
     """RequestMediaAccess 
@@ -4825,9 +4622,13 @@ Args:
 Returns:
     MediaAccessGrant
 """
-    return execute(RequestMediaAccessMutation, {'input': {'storeId': store_id}}, rath=rath).request_media_access
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    variables['input'] = _input
+    return execute(RequestMediaAccessMutation, variables, rath=rath).request_media_access
 
-async def arequest_parquet_upload(content_type: Optional[str]=None, host: Optional[str]=None, port: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> ParquetUploadGrant:
+async def arequest_parquet_upload(content_type: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ParquetUploadGrant:
     """RequestParquetUpload 
 
 Request an upload grant for a Parquet store
@@ -4841,9 +4642,18 @@ Args:
 Returns:
     ParquetUploadGrant
 """
-    return (await aexecute(RequestParquetUploadMutation, {'input': {'contentType': content_type, 'host': host, 'port': port}}, rath=rath)).request_parquet_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if content_type is not UNSET:
+        _input['contentType'] = content_type
+    if host is not UNSET:
+        _input['host'] = host
+    if port is not UNSET:
+        _input['port'] = port
+    variables['input'] = _input
+    return (await aexecute(RequestParquetUploadMutation, variables, rath=rath)).request_parquet_upload
 
-def request_parquet_upload(content_type: Optional[str]=None, host: Optional[str]=None, port: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> ParquetUploadGrant:
+def request_parquet_upload(content_type: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ParquetUploadGrant:
     """RequestParquetUpload 
 
 Request an upload grant for a Parquet store
@@ -4857,7 +4667,16 @@ Args:
 Returns:
     ParquetUploadGrant
 """
-    return execute(RequestParquetUploadMutation, {'input': {'contentType': content_type, 'host': host, 'port': port}}, rath=rath).request_parquet_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if content_type is not UNSET:
+        _input['contentType'] = content_type
+    if host is not UNSET:
+        _input['host'] = host
+    if port is not UNSET:
+        _input['port'] = port
+    variables['input'] = _input
+    return execute(RequestParquetUploadMutation, variables, rath=rath).request_parquet_upload
 
 async def afinish_parquet_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> ParquetStore:
     """FinishParquetUpload 
@@ -4872,7 +4691,12 @@ Args:
 Returns:
     ParquetStore
 """
-    return (await aexecute(FinishParquetUploadMutation, {'input': {'storeId': store_id, 'valid': valid}}, rath=rath)).finish_parquet_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return (await aexecute(FinishParquetUploadMutation, variables, rath=rath)).finish_parquet_upload
 
 def finish_parquet_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> ParquetStore:
     """FinishParquetUpload 
@@ -4887,7 +4711,12 @@ Args:
 Returns:
     ParquetStore
 """
-    return execute(FinishParquetUploadMutation, {'input': {'storeId': store_id, 'valid': valid}}, rath=rath).finish_parquet_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return execute(FinishParquetUploadMutation, variables, rath=rath).finish_parquet_upload
 
 async def arequest_parquet_access(store_id: str, rath: Optional[MikroNextRath]=None) -> ParquetAccessGrant:
     """RequestParquetAccess 
@@ -4901,7 +4730,11 @@ Args:
 Returns:
     ParquetAccessGrant
 """
-    return (await aexecute(RequestParquetAccessMutation, {'input': {'storeId': store_id}}, rath=rath)).request_parquet_access
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    variables['input'] = _input
+    return (await aexecute(RequestParquetAccessMutation, variables, rath=rath)).request_parquet_access
 
 def request_parquet_access(store_id: str, rath: Optional[MikroNextRath]=None) -> ParquetAccessGrant:
     """RequestParquetAccess 
@@ -4915,9 +4748,13 @@ Args:
 Returns:
     ParquetAccessGrant
 """
-    return execute(RequestParquetAccessMutation, {'input': {'storeId': store_id}}, rath=rath).request_parquet_access
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    variables['input'] = _input
+    return execute(RequestParquetAccessMutation, variables, rath=rath).request_parquet_access
 
-async def arequest_zarr_upload(shape: Optional[Iterable[int]]=None, chunks: Optional[Iterable[int]]=None, version: Optional[str]=None, host: Optional[str]=None, port: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> ZarrUploadGrant:
+async def arequest_zarr_upload(shape: Union[Optional[Iterable[int]], UnsetType]=UNSET, chunks: Union[Optional[Iterable[int]], UnsetType]=UNSET, version: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ZarrUploadGrant:
     """RequestZarrUpload 
 
 Request an upload grant for a Zarr store
@@ -4933,9 +4770,22 @@ Args:
 Returns:
     ZarrUploadGrant
 """
-    return (await aexecute(RequestZarrUploadMutation, {'input': {'shape': shape, 'chunks': chunks, 'version': version, 'host': host, 'port': port}}, rath=rath)).request_zarr_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if shape is not UNSET:
+        _input['shape'] = shape
+    if chunks is not UNSET:
+        _input['chunks'] = chunks
+    if version is not UNSET:
+        _input['version'] = version
+    if host is not UNSET:
+        _input['host'] = host
+    if port is not UNSET:
+        _input['port'] = port
+    variables['input'] = _input
+    return (await aexecute(RequestZarrUploadMutation, variables, rath=rath)).request_zarr_upload
 
-def request_zarr_upload(shape: Optional[Iterable[int]]=None, chunks: Optional[Iterable[int]]=None, version: Optional[str]=None, host: Optional[str]=None, port: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> ZarrUploadGrant:
+def request_zarr_upload(shape: Union[Optional[Iterable[int]], UnsetType]=UNSET, chunks: Union[Optional[Iterable[int]], UnsetType]=UNSET, version: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ZarrUploadGrant:
     """RequestZarrUpload 
 
 Request an upload grant for a Zarr store
@@ -4951,7 +4801,20 @@ Args:
 Returns:
     ZarrUploadGrant
 """
-    return execute(RequestZarrUploadMutation, {'input': {'shape': shape, 'chunks': chunks, 'version': version, 'host': host, 'port': port}}, rath=rath).request_zarr_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if shape is not UNSET:
+        _input['shape'] = shape
+    if chunks is not UNSET:
+        _input['chunks'] = chunks
+    if version is not UNSET:
+        _input['version'] = version
+    if host is not UNSET:
+        _input['host'] = host
+    if port is not UNSET:
+        _input['port'] = port
+    variables['input'] = _input
+    return execute(RequestZarrUploadMutation, variables, rath=rath).request_zarr_upload
 
 async def afinish_zarr_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> ZarrStore:
     """FinishZarrUpload 
@@ -4966,7 +4829,12 @@ Args:
 Returns:
     ZarrStore
 """
-    return (await aexecute(FinishZarrUploadMutation, {'input': {'storeId': store_id, 'valid': valid}}, rath=rath)).finish_zarr_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return (await aexecute(FinishZarrUploadMutation, variables, rath=rath)).finish_zarr_upload
 
 def finish_zarr_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> ZarrStore:
     """FinishZarrUpload 
@@ -4981,7 +4849,12 @@ Args:
 Returns:
     ZarrStore
 """
-    return execute(FinishZarrUploadMutation, {'input': {'storeId': store_id, 'valid': valid}}, rath=rath).finish_zarr_upload
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return execute(FinishZarrUploadMutation, variables, rath=rath).finish_zarr_upload
 
 async def arequest_zarr_access(store_id: str, rath: Optional[MikroNextRath]=None) -> ZarrAccessGrant:
     """RequestZarrAccess 
@@ -4995,7 +4868,11 @@ Args:
 Returns:
     ZarrAccessGrant
 """
-    return (await aexecute(RequestZarrAccessMutation, {'input': {'storeId': store_id}}, rath=rath)).request_zarr_access
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    variables['input'] = _input
+    return (await aexecute(RequestZarrAccessMutation, variables, rath=rath)).request_zarr_access
 
 def request_zarr_access(store_id: str, rath: Optional[MikroNextRath]=None) -> ZarrAccessGrant:
     """RequestZarrAccess 
@@ -5009,9 +4886,13 @@ Args:
 Returns:
     ZarrAccessGrant
 """
-    return execute(RequestZarrAccessMutation, {'input': {'storeId': store_id}}, rath=rath).request_zarr_access
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['storeId'] = store_id
+    variables['input'] = _input
+    return execute(RequestZarrAccessMutation, variables, rath=rath).request_zarr_access
 
-async def acreate_dataset(name: str, parent: Optional[IDCoercible]=None, rath: Optional[MikroNextRath]=None) -> Dataset:
+async def acreate_dataset(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
     """CreateDataset 
 
 Create a new dataset to organize data
@@ -5024,9 +4905,15 @@ Args:
 Returns:
     Dataset
 """
-    return (await aexecute(CreateDatasetMutation, {'input': {'name': name, 'parent': parent}}, rath=rath)).create_dataset
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    variables['input'] = _input
+    return (await aexecute(CreateDatasetMutation, variables, rath=rath)).create_dataset
 
-def create_dataset(name: str, parent: Optional[IDCoercible]=None, rath: Optional[MikroNextRath]=None) -> Dataset:
+def create_dataset(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
     """CreateDataset 
 
 Create a new dataset to organize data
@@ -5039,9 +4926,15 @@ Args:
 Returns:
     Dataset
 """
-    return execute(CreateDatasetMutation, {'input': {'name': name, 'parent': parent}}, rath=rath).create_dataset
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    variables['input'] = _input
+    return execute(CreateDatasetMutation, variables, rath=rath).create_dataset
 
-async def aensure_dataset(name: str, parent: Optional[IDCoercible]=None, rath: Optional[MikroNextRath]=None) -> Dataset:
+async def aensure_dataset(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
     """EnsureDataset 
 
 Create a new dataset to organize data
@@ -5054,9 +4947,15 @@ Args:
 Returns:
     Dataset
 """
-    return (await aexecute(EnsureDatasetMutation, {'input': {'name': name, 'parent': parent}}, rath=rath)).ensure_dataset
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    variables['input'] = _input
+    return (await aexecute(EnsureDatasetMutation, variables, rath=rath)).ensure_dataset
 
-def ensure_dataset(name: str, parent: Optional[IDCoercible]=None, rath: Optional[MikroNextRath]=None) -> Dataset:
+def ensure_dataset(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
     """EnsureDataset 
 
 Create a new dataset to organize data
@@ -5069,9 +4968,15 @@ Args:
 Returns:
     Dataset
 """
-    return execute(EnsureDatasetMutation, {'input': {'name': name, 'parent': parent}}, rath=rath).ensure_dataset
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    variables['input'] = _input
+    return execute(EnsureDatasetMutation, variables, rath=rath).ensure_dataset
 
-async def aupdate_dataset(name: str, id: IDCoercible, parent: Optional[IDCoercible]=None, rath: Optional[MikroNextRath]=None) -> Dataset:
+async def aupdate_dataset(name: str, id: IDCoercible, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
     """UpdateDataset 
 
 Update dataset metadata
@@ -5085,9 +4990,16 @@ Args:
 Returns:
     Dataset
 """
-    return (await aexecute(UpdateDatasetMutation, {'input': {'name': name, 'parent': parent, 'id': id}}, rath=rath)).update_dataset
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(UpdateDatasetMutation, variables, rath=rath)).update_dataset
 
-def update_dataset(name: str, id: IDCoercible, parent: Optional[IDCoercible]=None, rath: Optional[MikroNextRath]=None) -> Dataset:
+def update_dataset(name: str, id: IDCoercible, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
     """UpdateDataset 
 
 Update dataset metadata
@@ -5101,7 +5013,14 @@ Args:
 Returns:
     Dataset
 """
-    return execute(UpdateDatasetMutation, {'input': {'name': name, 'parent': parent, 'id': id}}, rath=rath).update_dataset
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(UpdateDatasetMutation, variables, rath=rath).update_dataset
 
 async def arevert_dataset(id: IDCoercible, history_id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Dataset:
     """RevertDataset 
@@ -5116,7 +5035,12 @@ Args:
 Returns:
     Dataset
 """
-    return (await aexecute(RevertDatasetMutation, {'input': {'id': id, 'historyId': history_id}}, rath=rath)).revert_dataset
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    _input['historyId'] = history_id
+    variables['input'] = _input
+    return (await aexecute(RevertDatasetMutation, variables, rath=rath)).revert_dataset
 
 def revert_dataset(id: IDCoercible, history_id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Dataset:
     """RevertDataset 
@@ -5131,9 +5055,14 @@ Args:
 Returns:
     Dataset
 """
-    return execute(RevertDatasetMutation, {'input': {'id': id, 'historyId': history_id}}, rath=rath).revert_dataset
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    _input['historyId'] = history_id
+    variables['input'] = _input
+    return execute(RevertDatasetMutation, variables, rath=rath).revert_dataset
 
-async def acreate_era(name: str, begin: Optional[datetime]=None, rath: Optional[MikroNextRath]=None) -> CreateEraMutationCreateera:
+async def acreate_era(name: str, begin: Union[Optional[datetime], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateEraMutationCreateera:
     """CreateEra 
 
 Create a new era for temporal organization
@@ -5146,9 +5075,15 @@ Args:
 Returns:
     CreateEraMutationCreateera
 """
-    return (await aexecute(CreateEraMutation, {'input': {'name': name, 'begin': begin}}, rath=rath)).create_era
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if begin is not UNSET:
+        _input['begin'] = begin
+    variables['input'] = _input
+    return (await aexecute(CreateEraMutation, variables, rath=rath)).create_era
 
-def create_era(name: str, begin: Optional[datetime]=None, rath: Optional[MikroNextRath]=None) -> CreateEraMutationCreateera:
+def create_era(name: str, begin: Union[Optional[datetime], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateEraMutationCreateera:
     """CreateEra 
 
 Create a new era for temporal organization
@@ -5161,9 +5096,15 @@ Args:
 Returns:
     CreateEraMutationCreateera
 """
-    return execute(CreateEraMutation, {'input': {'name': name, 'begin': begin}}, rath=rath).create_era
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if begin is not UNSET:
+        _input['begin'] = begin
+    variables['input'] = _input
+    return execute(CreateEraMutation, variables, rath=rath).create_era
 
-async def afrom_file_like(file: ImageFileCoercible, file_name: str, dataset: Optional[IDCoercible]=None, origins: Optional[Iterable[IDCoercible]]=None, rath: Optional[MikroNextRath]=None) -> File:
+async def afrom_file_like(file: ImageFileCoercible, file_name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, origins: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
     """FromFileLike 
 
 Create a file from file-like data
@@ -5178,9 +5119,18 @@ Args:
 Returns:
     File
 """
-    return (await aexecute(FromFileLikeMutation, {'input': {'file': file, 'fileName': file_name, 'dataset': dataset, 'origins': origins}}, rath=rath)).from_file_like
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['file'] = file
+    _input['fileName'] = file_name
+    if dataset is not UNSET:
+        _input['dataset'] = dataset
+    if origins is not UNSET:
+        _input['origins'] = origins
+    variables['input'] = _input
+    return (await aexecute(FromFileLikeMutation, variables, rath=rath)).from_file_like
 
-def from_file_like(file: ImageFileCoercible, file_name: str, dataset: Optional[IDCoercible]=None, origins: Optional[Iterable[IDCoercible]]=None, rath: Optional[MikroNextRath]=None) -> File:
+def from_file_like(file: ImageFileCoercible, file_name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, origins: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
     """FromFileLike 
 
 Create a file from file-like data
@@ -5195,9 +5145,18 @@ Args:
 Returns:
     File
 """
-    return execute(FromFileLikeMutation, {'input': {'file': file, 'fileName': file_name, 'dataset': dataset, 'origins': origins}}, rath=rath).from_file_like
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['file'] = file
+    _input['fileName'] = file_name
+    if dataset is not UNSET:
+        _input['dataset'] = dataset
+    if origins is not UNSET:
+        _input['origins'] = origins
+    variables['input'] = _input
+    return execute(FromFileLikeMutation, variables, rath=rath).from_file_like
 
-async def afrom_array_like(array: ImageCoercible, name: str, dataset: Optional[IDCoercible]=None, channel_views: Optional[Iterable[PartialChannelViewInput]]=None, transformation_views: Optional[Iterable[PartialAffineTransformationViewInput]]=None, acquisition_views: Optional[Iterable[PartialAcquisitionViewInput]]=None, mask_views: Optional[Iterable[PartialMaskViewInput]]=None, reference_views: Optional[Iterable[PartialReferenceViewInput]]=None, instance_mask_views: Optional[Iterable[PartialInstanceMaskViewInput]]=None, rgb_views: Optional[Iterable[PartialRGBViewInput]]=None, timepoint_views: Optional[Iterable[PartialTimepointViewInput]]=None, optics_views: Optional[Iterable[PartialOpticsViewInput]]=None, scale_views: Optional[Iterable[PartialScaleViewInput]]=None, tags: Optional[Iterable[str]]=None, roi_views: Optional[Iterable[PartialROIViewInput]]=None, file_views: Optional[Iterable[PartialFileViewInput]]=None, derived_views: Optional[Iterable[PartialDerivedViewInput]]=None, lightpath_views: Optional[Iterable[PartialLightpathViewInput]]=None, rath: Optional[MikroNextRath]=None) -> Image:
+async def afrom_array_like(array: ImageCoercible, name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, channel_views: Union[Optional[Iterable[PartialChannelViewInput]], UnsetType]=UNSET, transformation_views: Union[Optional[Iterable[PartialAffineTransformationViewInput]], UnsetType]=UNSET, acquisition_views: Union[Optional[Iterable[PartialAcquisitionViewInput]], UnsetType]=UNSET, mask_views: Union[Optional[Iterable[PartialMaskViewInput]], UnsetType]=UNSET, reference_views: Union[Optional[Iterable[PartialReferenceViewInput]], UnsetType]=UNSET, instance_mask_views: Union[Optional[Iterable[PartialInstanceMaskViewInput]], UnsetType]=UNSET, rgb_views: Union[Optional[Iterable[PartialRGBViewInput]], UnsetType]=UNSET, timepoint_views: Union[Optional[Iterable[PartialTimepointViewInput]], UnsetType]=UNSET, optics_views: Union[Optional[Iterable[PartialOpticsViewInput]], UnsetType]=UNSET, scale_views: Union[Optional[Iterable[PartialScaleViewInput]], UnsetType]=UNSET, tags: Union[Optional[Iterable[str]], UnsetType]=UNSET, roi_views: Union[Optional[Iterable[PartialROIViewInput]], UnsetType]=UNSET, file_views: Union[Optional[Iterable[PartialFileViewInput]], UnsetType]=UNSET, derived_views: Union[Optional[Iterable[PartialDerivedViewInput]], UnsetType]=UNSET, lightpath_views: Union[Optional[Iterable[PartialLightpathViewInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Image:
     """from_array_like 
 
 Create an image from array-like data
@@ -5226,9 +5185,46 @@ Args:
 Returns:
     Image
 """
-    return (await aexecute(From_array_likeMutation, {'input': {'array': array, 'name': name, 'dataset': dataset, 'channelViews': channel_views, 'transformationViews': transformation_views, 'acquisitionViews': acquisition_views, 'maskViews': mask_views, 'referenceViews': reference_views, 'instanceMaskViews': instance_mask_views, 'rgbViews': rgb_views, 'timepointViews': timepoint_views, 'opticsViews': optics_views, 'scaleViews': scale_views, 'tags': tags, 'roiViews': roi_views, 'fileViews': file_views, 'derivedViews': derived_views, 'lightpathViews': lightpath_views}}, rath=rath)).from_array_like
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['array'] = array
+    _input['name'] = name
+    if dataset is not UNSET:
+        _input['dataset'] = dataset
+    if channel_views is not UNSET:
+        _input['channelViews'] = channel_views
+    if transformation_views is not UNSET:
+        _input['transformationViews'] = transformation_views
+    if acquisition_views is not UNSET:
+        _input['acquisitionViews'] = acquisition_views
+    if mask_views is not UNSET:
+        _input['maskViews'] = mask_views
+    if reference_views is not UNSET:
+        _input['referenceViews'] = reference_views
+    if instance_mask_views is not UNSET:
+        _input['instanceMaskViews'] = instance_mask_views
+    if rgb_views is not UNSET:
+        _input['rgbViews'] = rgb_views
+    if timepoint_views is not UNSET:
+        _input['timepointViews'] = timepoint_views
+    if optics_views is not UNSET:
+        _input['opticsViews'] = optics_views
+    if scale_views is not UNSET:
+        _input['scaleViews'] = scale_views
+    if tags is not UNSET:
+        _input['tags'] = tags
+    if roi_views is not UNSET:
+        _input['roiViews'] = roi_views
+    if file_views is not UNSET:
+        _input['fileViews'] = file_views
+    if derived_views is not UNSET:
+        _input['derivedViews'] = derived_views
+    if lightpath_views is not UNSET:
+        _input['lightpathViews'] = lightpath_views
+    variables['input'] = _input
+    return (await aexecute(From_array_likeMutation, variables, rath=rath)).from_array_like
 
-def from_array_like(array: ImageCoercible, name: str, dataset: Optional[IDCoercible]=None, channel_views: Optional[Iterable[PartialChannelViewInput]]=None, transformation_views: Optional[Iterable[PartialAffineTransformationViewInput]]=None, acquisition_views: Optional[Iterable[PartialAcquisitionViewInput]]=None, mask_views: Optional[Iterable[PartialMaskViewInput]]=None, reference_views: Optional[Iterable[PartialReferenceViewInput]]=None, instance_mask_views: Optional[Iterable[PartialInstanceMaskViewInput]]=None, rgb_views: Optional[Iterable[PartialRGBViewInput]]=None, timepoint_views: Optional[Iterable[PartialTimepointViewInput]]=None, optics_views: Optional[Iterable[PartialOpticsViewInput]]=None, scale_views: Optional[Iterable[PartialScaleViewInput]]=None, tags: Optional[Iterable[str]]=None, roi_views: Optional[Iterable[PartialROIViewInput]]=None, file_views: Optional[Iterable[PartialFileViewInput]]=None, derived_views: Optional[Iterable[PartialDerivedViewInput]]=None, lightpath_views: Optional[Iterable[PartialLightpathViewInput]]=None, rath: Optional[MikroNextRath]=None) -> Image:
+def from_array_like(array: ImageCoercible, name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, channel_views: Union[Optional[Iterable[PartialChannelViewInput]], UnsetType]=UNSET, transformation_views: Union[Optional[Iterable[PartialAffineTransformationViewInput]], UnsetType]=UNSET, acquisition_views: Union[Optional[Iterable[PartialAcquisitionViewInput]], UnsetType]=UNSET, mask_views: Union[Optional[Iterable[PartialMaskViewInput]], UnsetType]=UNSET, reference_views: Union[Optional[Iterable[PartialReferenceViewInput]], UnsetType]=UNSET, instance_mask_views: Union[Optional[Iterable[PartialInstanceMaskViewInput]], UnsetType]=UNSET, rgb_views: Union[Optional[Iterable[PartialRGBViewInput]], UnsetType]=UNSET, timepoint_views: Union[Optional[Iterable[PartialTimepointViewInput]], UnsetType]=UNSET, optics_views: Union[Optional[Iterable[PartialOpticsViewInput]], UnsetType]=UNSET, scale_views: Union[Optional[Iterable[PartialScaleViewInput]], UnsetType]=UNSET, tags: Union[Optional[Iterable[str]], UnsetType]=UNSET, roi_views: Union[Optional[Iterable[PartialROIViewInput]], UnsetType]=UNSET, file_views: Union[Optional[Iterable[PartialFileViewInput]], UnsetType]=UNSET, derived_views: Union[Optional[Iterable[PartialDerivedViewInput]], UnsetType]=UNSET, lightpath_views: Union[Optional[Iterable[PartialLightpathViewInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Image:
     """from_array_like 
 
 Create an image from array-like data
@@ -5257,9 +5253,94 @@ Args:
 Returns:
     Image
 """
-    return execute(From_array_likeMutation, {'input': {'array': array, 'name': name, 'dataset': dataset, 'channelViews': channel_views, 'transformationViews': transformation_views, 'acquisitionViews': acquisition_views, 'maskViews': mask_views, 'referenceViews': reference_views, 'instanceMaskViews': instance_mask_views, 'rgbViews': rgb_views, 'timepointViews': timepoint_views, 'opticsViews': optics_views, 'scaleViews': scale_views, 'tags': tags, 'roiViews': roi_views, 'fileViews': file_views, 'derivedViews': derived_views, 'lightpathViews': lightpath_views}}, rath=rath).from_array_like
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['array'] = array
+    _input['name'] = name
+    if dataset is not UNSET:
+        _input['dataset'] = dataset
+    if channel_views is not UNSET:
+        _input['channelViews'] = channel_views
+    if transformation_views is not UNSET:
+        _input['transformationViews'] = transformation_views
+    if acquisition_views is not UNSET:
+        _input['acquisitionViews'] = acquisition_views
+    if mask_views is not UNSET:
+        _input['maskViews'] = mask_views
+    if reference_views is not UNSET:
+        _input['referenceViews'] = reference_views
+    if instance_mask_views is not UNSET:
+        _input['instanceMaskViews'] = instance_mask_views
+    if rgb_views is not UNSET:
+        _input['rgbViews'] = rgb_views
+    if timepoint_views is not UNSET:
+        _input['timepointViews'] = timepoint_views
+    if optics_views is not UNSET:
+        _input['opticsViews'] = optics_views
+    if scale_views is not UNSET:
+        _input['scaleViews'] = scale_views
+    if tags is not UNSET:
+        _input['tags'] = tags
+    if roi_views is not UNSET:
+        _input['roiViews'] = roi_views
+    if file_views is not UNSET:
+        _input['fileViews'] = file_views
+    if derived_views is not UNSET:
+        _input['derivedViews'] = derived_views
+    if lightpath_views is not UNSET:
+        _input['lightpathViews'] = lightpath_views
+    variables['input'] = _input
+    return execute(From_array_likeMutation, variables, rath=rath).from_array_like
 
-async def acreate_instrument(serial_number: str, manufacturer: Optional[str]=None, name: Optional[str]=None, model: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> CreateInstrumentMutationCreateinstrument:
+async def aupdate_image(id: IDCoercible, tags: Union[Optional[Iterable[str]], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Image:
+    """UpdateImage 
+
+Update an existing image's metadata
+
+Args:
+    id: The ID of the image to update
+    tags: Tags to add to the image
+    name: The new name of the image
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Image
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if tags is not UNSET:
+        _input['tags'] = tags
+    if name is not UNSET:
+        _input['name'] = name
+    variables['input'] = _input
+    return (await aexecute(UpdateImageMutation, variables, rath=rath)).update_image
+
+def update_image(id: IDCoercible, tags: Union[Optional[Iterable[str]], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Image:
+    """UpdateImage 
+
+Update an existing image's metadata
+
+Args:
+    id: The ID of the image to update
+    tags: Tags to add to the image
+    name: The new name of the image
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Image
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if tags is not UNSET:
+        _input['tags'] = tags
+    if name is not UNSET:
+        _input['name'] = name
+    variables['input'] = _input
+    return execute(UpdateImageMutation, variables, rath=rath).update_image
+
+async def acreate_instrument(serial_number: str, manufacturer: Union[Optional[str], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, model: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateInstrumentMutationCreateinstrument:
     """CreateInstrument 
 
 Create a new instrument configuration
@@ -5274,9 +5355,19 @@ Args:
 Returns:
     CreateInstrumentMutationCreateinstrument
 """
-    return (await aexecute(CreateInstrumentMutation, {'input': {'serialNumber': serial_number, 'manufacturer': manufacturer, 'name': name, 'model': model}}, rath=rath)).create_instrument
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if manufacturer is not UNSET:
+        _input['manufacturer'] = manufacturer
+    if name is not UNSET:
+        _input['name'] = name
+    if model is not UNSET:
+        _input['model'] = model
+    variables['input'] = _input
+    return (await aexecute(CreateInstrumentMutation, variables, rath=rath)).create_instrument
 
-def create_instrument(serial_number: str, manufacturer: Optional[str]=None, name: Optional[str]=None, model: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> CreateInstrumentMutationCreateinstrument:
+def create_instrument(serial_number: str, manufacturer: Union[Optional[str], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, model: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateInstrumentMutationCreateinstrument:
     """CreateInstrument 
 
 Create a new instrument configuration
@@ -5291,9 +5382,19 @@ Args:
 Returns:
     CreateInstrumentMutationCreateinstrument
 """
-    return execute(CreateInstrumentMutation, {'input': {'serialNumber': serial_number, 'manufacturer': manufacturer, 'name': name, 'model': model}}, rath=rath).create_instrument
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if manufacturer is not UNSET:
+        _input['manufacturer'] = manufacturer
+    if name is not UNSET:
+        _input['name'] = name
+    if model is not UNSET:
+        _input['model'] = model
+    variables['input'] = _input
+    return execute(CreateInstrumentMutation, variables, rath=rath).create_instrument
 
-async def aensure_instrument(serial_number: str, manufacturer: Optional[str]=None, name: Optional[str]=None, model: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> EnsureInstrumentMutationEnsureinstrument:
+async def aensure_instrument(serial_number: str, manufacturer: Union[Optional[str], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, model: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> EnsureInstrumentMutationEnsureinstrument:
     """EnsureInstrument 
 
 Ensure an instrument exists, creating if needed
@@ -5308,9 +5409,19 @@ Args:
 Returns:
     EnsureInstrumentMutationEnsureinstrument
 """
-    return (await aexecute(EnsureInstrumentMutation, {'input': {'serialNumber': serial_number, 'manufacturer': manufacturer, 'name': name, 'model': model}}, rath=rath)).ensure_instrument
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if manufacturer is not UNSET:
+        _input['manufacturer'] = manufacturer
+    if name is not UNSET:
+        _input['name'] = name
+    if model is not UNSET:
+        _input['model'] = model
+    variables['input'] = _input
+    return (await aexecute(EnsureInstrumentMutation, variables, rath=rath)).ensure_instrument
 
-def ensure_instrument(serial_number: str, manufacturer: Optional[str]=None, name: Optional[str]=None, model: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> EnsureInstrumentMutationEnsureinstrument:
+def ensure_instrument(serial_number: str, manufacturer: Union[Optional[str], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, model: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> EnsureInstrumentMutationEnsureinstrument:
     """EnsureInstrument 
 
 Ensure an instrument exists, creating if needed
@@ -5325,9 +5436,19 @@ Args:
 Returns:
     EnsureInstrumentMutationEnsureinstrument
 """
-    return execute(EnsureInstrumentMutation, {'input': {'serialNumber': serial_number, 'manufacturer': manufacturer, 'name': name, 'model': model}}, rath=rath).ensure_instrument
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if manufacturer is not UNSET:
+        _input['manufacturer'] = manufacturer
+    if name is not UNSET:
+        _input['name'] = name
+    if model is not UNSET:
+        _input['model'] = model
+    variables['input'] = _input
+    return execute(EnsureInstrumentMutation, variables, rath=rath).ensure_instrument
 
-async def acreate_layer(lens: IDCoercible, scene: IDCoercible, affine_matrix: Optional[Iterable[Iterable[float]]]=None, colormap: Optional[ColorMap]=None, color: Optional[Iterable[int]]=None, clim_min: Optional[float]=None, clim_max: Optional[float]=None, x_dim: Optional[str]=None, y_dim: Optional[str]=None, z_dim: Optional[str]=None, t_dim: Optional[str]=None, intensity_dim: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> Layer:
+async def acreate_layer(lens: IDCoercible, scene: IDCoercible, affine_matrix: Union[Optional[Iterable[Iterable[float]]], UnsetType]=UNSET, colormap: Union[Optional[ColorMap], UnsetType]=UNSET, color: Union[Optional[Iterable[int]], UnsetType]=UNSET, clim_min: Union[Optional[float], UnsetType]=UNSET, clim_max: Union[Optional[float], UnsetType]=UNSET, x_dim: Union[Optional[str], UnsetType]=UNSET, y_dim: Union[Optional[str], UnsetType]=UNSET, z_dim: Union[Optional[str], UnsetType]=UNSET, t_dim: Union[Optional[str], UnsetType]=UNSET, intensity_dim: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Layer:
     """CreateLayer 
 
 Create a new layer from an existing lens with optional affine transformation and colormap settings
@@ -5350,9 +5471,34 @@ Args:
 Returns:
     Layer
 """
-    return (await aexecute(CreateLayerMutation, {'input': {'lens': lens, 'scene': scene, 'affineMatrix': affine_matrix, 'colormap': colormap, 'color': color, 'climMin': clim_min, 'climMax': clim_max, 'xDim': x_dim, 'yDim': y_dim, 'zDim': z_dim, 'tDim': t_dim, 'intensityDim': intensity_dim}}, rath=rath)).create_layer
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if affine_matrix is not UNSET:
+        _input['affineMatrix'] = affine_matrix
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if color is not UNSET:
+        _input['color'] = color
+    if clim_min is not UNSET:
+        _input['climMin'] = clim_min
+    if clim_max is not UNSET:
+        _input['climMax'] = clim_max
+    if x_dim is not UNSET:
+        _input['xDim'] = x_dim
+    if y_dim is not UNSET:
+        _input['yDim'] = y_dim
+    if z_dim is not UNSET:
+        _input['zDim'] = z_dim
+    if t_dim is not UNSET:
+        _input['tDim'] = t_dim
+    if intensity_dim is not UNSET:
+        _input['intensityDim'] = intensity_dim
+    variables['input'] = _input
+    return (await aexecute(CreateLayerMutation, variables, rath=rath)).create_layer
 
-def create_layer(lens: IDCoercible, scene: IDCoercible, affine_matrix: Optional[Iterable[Iterable[float]]]=None, colormap: Optional[ColorMap]=None, color: Optional[Iterable[int]]=None, clim_min: Optional[float]=None, clim_max: Optional[float]=None, x_dim: Optional[str]=None, y_dim: Optional[str]=None, z_dim: Optional[str]=None, t_dim: Optional[str]=None, intensity_dim: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> Layer:
+def create_layer(lens: IDCoercible, scene: IDCoercible, affine_matrix: Union[Optional[Iterable[Iterable[float]]], UnsetType]=UNSET, colormap: Union[Optional[ColorMap], UnsetType]=UNSET, color: Union[Optional[Iterable[int]], UnsetType]=UNSET, clim_min: Union[Optional[float], UnsetType]=UNSET, clim_max: Union[Optional[float], UnsetType]=UNSET, x_dim: Union[Optional[str], UnsetType]=UNSET, y_dim: Union[Optional[str], UnsetType]=UNSET, z_dim: Union[Optional[str], UnsetType]=UNSET, t_dim: Union[Optional[str], UnsetType]=UNSET, intensity_dim: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Layer:
     """CreateLayer 
 
 Create a new layer from an existing lens with optional affine transformation and colormap settings
@@ -5375,7 +5521,32 @@ Args:
 Returns:
     Layer
 """
-    return execute(CreateLayerMutation, {'input': {'lens': lens, 'scene': scene, 'affineMatrix': affine_matrix, 'colormap': colormap, 'color': color, 'climMin': clim_min, 'climMax': clim_max, 'xDim': x_dim, 'yDim': y_dim, 'zDim': z_dim, 'tDim': t_dim, 'intensityDim': intensity_dim}}, rath=rath).create_layer
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if affine_matrix is not UNSET:
+        _input['affineMatrix'] = affine_matrix
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if color is not UNSET:
+        _input['color'] = color
+    if clim_min is not UNSET:
+        _input['climMin'] = clim_min
+    if clim_max is not UNSET:
+        _input['climMax'] = clim_max
+    if x_dim is not UNSET:
+        _input['xDim'] = x_dim
+    if y_dim is not UNSET:
+        _input['yDim'] = y_dim
+    if z_dim is not UNSET:
+        _input['zDim'] = z_dim
+    if t_dim is not UNSET:
+        _input['tDim'] = t_dim
+    if intensity_dim is not UNSET:
+        _input['intensityDim'] = intensity_dim
+    variables['input'] = _input
+    return execute(CreateLayerMutation, variables, rath=rath).create_layer
 
 async def acreate_lens(dataset: IDCoercible, slices: Iterable[SliceInput], rath: Optional[MikroNextRath]=None) -> Lens:
     """CreateLens 
@@ -5390,7 +5561,12 @@ Args:
 Returns:
     Lens
 """
-    return (await aexecute(CreateLensMutation, {'input': {'dataset': dataset, 'slices': slices}}, rath=rath)).create_lens
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['dataset'] = dataset
+    _input['slices'] = slices
+    variables['input'] = _input
+    return (await aexecute(CreateLensMutation, variables, rath=rath)).create_lens
 
 def create_lens(dataset: IDCoercible, slices: Iterable[SliceInput], rath: Optional[MikroNextRath]=None) -> Lens:
     """CreateLens 
@@ -5405,7 +5581,12 @@ Args:
 Returns:
     Lens
 """
-    return execute(CreateLensMutation, {'input': {'dataset': dataset, 'slices': slices}}, rath=rath).create_lens
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['dataset'] = dataset
+    _input['slices'] = slices
+    variables['input'] = _input
+    return execute(CreateLensMutation, variables, rath=rath).create_lens
 
 async def acreate_mesh(mesh: MeshCoercible, name: str, rath: Optional[MikroNextRath]=None) -> Mesh:
     """CreateMesh 
@@ -5420,7 +5601,12 @@ Args:
 Returns:
     Mesh
 """
-    return (await aexecute(CreateMeshMutation, {'input': {'mesh': mesh, 'name': name}}, rath=rath)).create_mesh
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['mesh'] = mesh
+    _input['name'] = name
+    variables['input'] = _input
+    return (await aexecute(CreateMeshMutation, variables, rath=rath)).create_mesh
 
 def create_mesh(mesh: MeshCoercible, name: str, rath: Optional[MikroNextRath]=None) -> Mesh:
     """CreateMesh 
@@ -5435,9 +5621,14 @@ Args:
 Returns:
     Mesh
 """
-    return execute(CreateMeshMutation, {'input': {'mesh': mesh, 'name': name}}, rath=rath).create_mesh
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['mesh'] = mesh
+    _input['name'] = name
+    variables['input'] = _input
+    return execute(CreateMeshMutation, variables, rath=rath).create_mesh
 
-async def acreate_objective(serial_number: str, name: Optional[str]=None, na: Optional[float]=None, magnification: Optional[float]=None, immersion: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> CreateObjectiveMutationCreateobjective:
+async def acreate_objective(serial_number: str, name: Union[Optional[str], UnsetType]=UNSET, na: Union[Optional[float], UnsetType]=UNSET, magnification: Union[Optional[float], UnsetType]=UNSET, immersion: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateObjectiveMutationCreateobjective:
     """CreateObjective 
 
 Create a new microscope objective configuration
@@ -5453,9 +5644,21 @@ Args:
 Returns:
     CreateObjectiveMutationCreateobjective
 """
-    return (await aexecute(CreateObjectiveMutation, {'input': {'serialNumber': serial_number, 'name': name, 'na': na, 'magnification': magnification, 'immersion': immersion}}, rath=rath)).create_objective
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if name is not UNSET:
+        _input['name'] = name
+    if na is not UNSET:
+        _input['na'] = na
+    if magnification is not UNSET:
+        _input['magnification'] = magnification
+    if immersion is not UNSET:
+        _input['immersion'] = immersion
+    variables['input'] = _input
+    return (await aexecute(CreateObjectiveMutation, variables, rath=rath)).create_objective
 
-def create_objective(serial_number: str, name: Optional[str]=None, na: Optional[float]=None, magnification: Optional[float]=None, immersion: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> CreateObjectiveMutationCreateobjective:
+def create_objective(serial_number: str, name: Union[Optional[str], UnsetType]=UNSET, na: Union[Optional[float], UnsetType]=UNSET, magnification: Union[Optional[float], UnsetType]=UNSET, immersion: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateObjectiveMutationCreateobjective:
     """CreateObjective 
 
 Create a new microscope objective configuration
@@ -5471,9 +5674,21 @@ Args:
 Returns:
     CreateObjectiveMutationCreateobjective
 """
-    return execute(CreateObjectiveMutation, {'input': {'serialNumber': serial_number, 'name': name, 'na': na, 'magnification': magnification, 'immersion': immersion}}, rath=rath).create_objective
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if name is not UNSET:
+        _input['name'] = name
+    if na is not UNSET:
+        _input['na'] = na
+    if magnification is not UNSET:
+        _input['magnification'] = magnification
+    if immersion is not UNSET:
+        _input['immersion'] = immersion
+    variables['input'] = _input
+    return execute(CreateObjectiveMutation, variables, rath=rath).create_objective
 
-async def aensure_objective(serial_number: str, name: Optional[str]=None, na: Optional[float]=None, magnification: Optional[float]=None, immersion: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> EnsureObjectiveMutationEnsureobjective:
+async def aensure_objective(serial_number: str, name: Union[Optional[str], UnsetType]=UNSET, na: Union[Optional[float], UnsetType]=UNSET, magnification: Union[Optional[float], UnsetType]=UNSET, immersion: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> EnsureObjectiveMutationEnsureobjective:
     """EnsureObjective 
 
 Ensure an objective exists, creating if needed
@@ -5489,9 +5704,21 @@ Args:
 Returns:
     EnsureObjectiveMutationEnsureobjective
 """
-    return (await aexecute(EnsureObjectiveMutation, {'input': {'serialNumber': serial_number, 'name': name, 'na': na, 'magnification': magnification, 'immersion': immersion}}, rath=rath)).ensure_objective
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if name is not UNSET:
+        _input['name'] = name
+    if na is not UNSET:
+        _input['na'] = na
+    if magnification is not UNSET:
+        _input['magnification'] = magnification
+    if immersion is not UNSET:
+        _input['immersion'] = immersion
+    variables['input'] = _input
+    return (await aexecute(EnsureObjectiveMutation, variables, rath=rath)).ensure_objective
 
-def ensure_objective(serial_number: str, name: Optional[str]=None, na: Optional[float]=None, magnification: Optional[float]=None, immersion: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> EnsureObjectiveMutationEnsureobjective:
+def ensure_objective(serial_number: str, name: Union[Optional[str], UnsetType]=UNSET, na: Union[Optional[float], UnsetType]=UNSET, magnification: Union[Optional[float], UnsetType]=UNSET, immersion: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> EnsureObjectiveMutationEnsureobjective:
     """EnsureObjective 
 
 Ensure an objective exists, creating if needed
@@ -5507,7 +5734,19 @@ Args:
 Returns:
     EnsureObjectiveMutationEnsureobjective
 """
-    return execute(EnsureObjectiveMutation, {'input': {'serialNumber': serial_number, 'name': name, 'na': na, 'magnification': magnification, 'immersion': immersion}}, rath=rath).ensure_objective
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['serialNumber'] = serial_number
+    if name is not UNSET:
+        _input['name'] = name
+    if na is not UNSET:
+        _input['na'] = na
+    if magnification is not UNSET:
+        _input['magnification'] = magnification
+    if immersion is not UNSET:
+        _input['immersion'] = immersion
+    variables['input'] = _input
+    return execute(EnsureObjectiveMutation, variables, rath=rath).ensure_objective
 
 async def acreate_render_tree(tree: TreeInput, name: str, rath: Optional[MikroNextRath]=None) -> CreateRenderTreeMutationCreaterendertree:
     """CreateRenderTree 
@@ -5522,7 +5761,12 @@ Args:
 Returns:
     CreateRenderTreeMutationCreaterendertree
 """
-    return (await aexecute(CreateRenderTreeMutation, {'input': {'tree': tree, 'name': name}}, rath=rath)).create_render_tree
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['tree'] = tree
+    _input['name'] = name
+    variables['input'] = _input
+    return (await aexecute(CreateRenderTreeMutation, variables, rath=rath)).create_render_tree
 
 def create_render_tree(tree: TreeInput, name: str, rath: Optional[MikroNextRath]=None) -> CreateRenderTreeMutationCreaterendertree:
     """CreateRenderTree 
@@ -5537,9 +5781,14 @@ Args:
 Returns:
     CreateRenderTreeMutationCreaterendertree
 """
-    return execute(CreateRenderTreeMutation, {'input': {'tree': tree, 'name': name}}, rath=rath).create_render_tree
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['tree'] = tree
+    _input['name'] = name
+    variables['input'] = _input
+    return execute(CreateRenderTreeMutation, variables, rath=rath).create_render_tree
 
-async def acreate_rgb_context(image: IDCoercible, name: Optional[str]=None, thumbnail: Optional[IDCoercible]=None, views: Optional[Iterable[PartialRGBViewInput]]=None, z: Optional[int]=None, t: Optional[int]=None, c: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> RGBContext:
+async def acreate_rgb_context(image: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, thumbnail: Union[Optional[IDCoercible], UnsetType]=UNSET, views: Union[Optional[Iterable[PartialRGBViewInput]], UnsetType]=UNSET, z: Union[Optional[int], UnsetType]=UNSET, t: Union[Optional[int], UnsetType]=UNSET, c: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> RGBContext:
     """CreateRGBContext 
 
 Create a new RGB context for image visualization
@@ -5557,9 +5806,25 @@ Args:
 Returns:
     RGBContext
 """
-    return (await aexecute(CreateRGBContextMutation, {'input': {'name': name, 'thumbnail': thumbnail, 'image': image, 'views': views, 'z': z, 't': t, 'c': c}}, rath=rath)).create_rgb_context
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if name is not UNSET:
+        _input['name'] = name
+    if thumbnail is not UNSET:
+        _input['thumbnail'] = thumbnail
+    _input['image'] = image
+    if views is not UNSET:
+        _input['views'] = views
+    if z is not UNSET:
+        _input['z'] = z
+    if t is not UNSET:
+        _input['t'] = t
+    if c is not UNSET:
+        _input['c'] = c
+    variables['input'] = _input
+    return (await aexecute(CreateRGBContextMutation, variables, rath=rath)).create_rgb_context
 
-def create_rgb_context(image: IDCoercible, name: Optional[str]=None, thumbnail: Optional[IDCoercible]=None, views: Optional[Iterable[PartialRGBViewInput]]=None, z: Optional[int]=None, t: Optional[int]=None, c: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> RGBContext:
+def create_rgb_context(image: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, thumbnail: Union[Optional[IDCoercible], UnsetType]=UNSET, views: Union[Optional[Iterable[PartialRGBViewInput]], UnsetType]=UNSET, z: Union[Optional[int], UnsetType]=UNSET, t: Union[Optional[int], UnsetType]=UNSET, c: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> RGBContext:
     """CreateRGBContext 
 
 Create a new RGB context for image visualization
@@ -5577,9 +5842,25 @@ Args:
 Returns:
     RGBContext
 """
-    return execute(CreateRGBContextMutation, {'input': {'name': name, 'thumbnail': thumbnail, 'image': image, 'views': views, 'z': z, 't': t, 'c': c}}, rath=rath).create_rgb_context
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if name is not UNSET:
+        _input['name'] = name
+    if thumbnail is not UNSET:
+        _input['thumbnail'] = thumbnail
+    _input['image'] = image
+    if views is not UNSET:
+        _input['views'] = views
+    if z is not UNSET:
+        _input['z'] = z
+    if t is not UNSET:
+        _input['t'] = t
+    if c is not UNSET:
+        _input['c'] = c
+    variables['input'] = _input
+    return execute(CreateRGBContextMutation, variables, rath=rath).create_rgb_context
 
-async def aupdate_rgb_context(id: IDCoercible, name: Optional[str]=None, thumbnail: Optional[IDCoercible]=None, views: Optional[Iterable[PartialRGBViewInput]]=None, z: Optional[int]=None, t: Optional[int]=None, c: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> RGBContext:
+async def aupdate_rgb_context(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, thumbnail: Union[Optional[IDCoercible], UnsetType]=UNSET, views: Union[Optional[Iterable[PartialRGBViewInput]], UnsetType]=UNSET, z: Union[Optional[int], UnsetType]=UNSET, t: Union[Optional[int], UnsetType]=UNSET, c: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> RGBContext:
     """UpdateRGBContext 
 
 Update settings of an existing RGB context
@@ -5597,9 +5878,25 @@ Args:
 Returns:
     RGBContext
 """
-    return (await aexecute(UpdateRGBContextMutation, {'input': {'id': id, 'name': name, 'thumbnail': thumbnail, 'views': views, 'z': z, 't': t, 'c': c}}, rath=rath)).update_rgb_context
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if thumbnail is not UNSET:
+        _input['thumbnail'] = thumbnail
+    if views is not UNSET:
+        _input['views'] = views
+    if z is not UNSET:
+        _input['z'] = z
+    if t is not UNSET:
+        _input['t'] = t
+    if c is not UNSET:
+        _input['c'] = c
+    variables['input'] = _input
+    return (await aexecute(UpdateRGBContextMutation, variables, rath=rath)).update_rgb_context
 
-def update_rgb_context(id: IDCoercible, name: Optional[str]=None, thumbnail: Optional[IDCoercible]=None, views: Optional[Iterable[PartialRGBViewInput]]=None, z: Optional[int]=None, t: Optional[int]=None, c: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> RGBContext:
+def update_rgb_context(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, thumbnail: Union[Optional[IDCoercible], UnsetType]=UNSET, views: Union[Optional[Iterable[PartialRGBViewInput]], UnsetType]=UNSET, z: Union[Optional[int], UnsetType]=UNSET, t: Union[Optional[int], UnsetType]=UNSET, c: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> RGBContext:
     """UpdateRGBContext 
 
 Update settings of an existing RGB context
@@ -5617,7 +5914,23 @@ Args:
 Returns:
     RGBContext
 """
-    return execute(UpdateRGBContextMutation, {'input': {'id': id, 'name': name, 'thumbnail': thumbnail, 'views': views, 'z': z, 't': t, 'c': c}}, rath=rath).update_rgb_context
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if thumbnail is not UNSET:
+        _input['thumbnail'] = thumbnail
+    if views is not UNSET:
+        _input['views'] = views
+    if z is not UNSET:
+        _input['z'] = z
+    if t is not UNSET:
+        _input['t'] = t
+    if c is not UNSET:
+        _input['c'] = c
+    variables['input'] = _input
+    return execute(UpdateRGBContextMutation, variables, rath=rath).update_rgb_context
 
 async def acreate_roi(image: IDCoercible, vectors: Iterable[FiveDVector], kind: RoiKind, rath: Optional[MikroNextRath]=None) -> ROI:
     """CreateRoi 
@@ -5633,7 +5946,13 @@ Args:
 Returns:
     ROI
 """
-    return (await aexecute(CreateRoiMutation, {'input': {'image': image, 'vectors': vectors, 'kind': kind}}, rath=rath)).create_roi
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['image'] = image
+    _input['vectors'] = vectors
+    _input['kind'] = kind
+    variables['input'] = _input
+    return (await aexecute(CreateRoiMutation, variables, rath=rath)).create_roi
 
 def create_roi(image: IDCoercible, vectors: Iterable[FiveDVector], kind: RoiKind, rath: Optional[MikroNextRath]=None) -> ROI:
     """CreateRoi 
@@ -5649,7 +5968,13 @@ Args:
 Returns:
     ROI
 """
-    return execute(CreateRoiMutation, {'input': {'image': image, 'vectors': vectors, 'kind': kind}}, rath=rath).create_roi
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['image'] = image
+    _input['vectors'] = vectors
+    _input['kind'] = kind
+    variables['input'] = _input
+    return execute(CreateRoiMutation, variables, rath=rath).create_roi
 
 async def adelete_roi(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
     """DeleteRoi 
@@ -5663,7 +5988,11 @@ Args:
 Returns:
     ID
 """
-    return (await aexecute(DeleteRoiMutation, {'input': {'id': id}}, rath=rath)).delete_roi
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteRoiMutation, variables, rath=rath)).delete_roi
 
 def delete_roi(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
     """DeleteRoi 
@@ -5677,9 +6006,13 @@ Args:
 Returns:
     ID
 """
-    return execute(DeleteRoiMutation, {'input': {'id': id}}, rath=rath).delete_roi
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteRoiMutation, variables, rath=rath).delete_roi
 
-async def aupdate_roi(roi: IDCoercible, vectors: Optional[Iterable[FiveDVector]]=None, kind: Optional[RoiKind]=None, rath: Optional[MikroNextRath]=None) -> ROI:
+async def aupdate_roi(roi: IDCoercible, vectors: Union[Optional[Iterable[FiveDVector]], UnsetType]=UNSET, kind: Union[Optional[RoiKind], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ROI:
     """UpdateRoi 
 
 Update an existing region of interest
@@ -5693,9 +6026,17 @@ Args:
 Returns:
     ROI
 """
-    return (await aexecute(UpdateRoiMutation, {'input': {'roi': roi, 'vectors': vectors, 'kind': kind}}, rath=rath)).update_roi
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['roi'] = roi
+    if vectors is not UNSET:
+        _input['vectors'] = vectors
+    if kind is not UNSET:
+        _input['kind'] = kind
+    variables['input'] = _input
+    return (await aexecute(UpdateRoiMutation, variables, rath=rath)).update_roi
 
-def update_roi(roi: IDCoercible, vectors: Optional[Iterable[FiveDVector]]=None, kind: Optional[RoiKind]=None, rath: Optional[MikroNextRath]=None) -> ROI:
+def update_roi(roi: IDCoercible, vectors: Union[Optional[Iterable[FiveDVector]], UnsetType]=UNSET, kind: Union[Optional[RoiKind], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ROI:
     """UpdateRoi 
 
 Update an existing region of interest
@@ -5709,9 +6050,17 @@ Args:
 Returns:
     ROI
 """
-    return execute(UpdateRoiMutation, {'input': {'roi': roi, 'vectors': vectors, 'kind': kind}}, rath=rath).update_roi
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['roi'] = roi
+    if vectors is not UNSET:
+        _input['vectors'] = vectors
+    if kind is not UNSET:
+        _input['kind'] = kind
+    variables['input'] = _input
+    return execute(UpdateRoiMutation, variables, rath=rath).update_roi
 
-async def acreate_scene(name: str, blending: Optional[Blending]=None, spatial_unit: Optional[SpatialUnit]=None, temporal_unit: Optional[TemporalUnit]=None, rath: Optional[MikroNextRath]=None) -> Scene:
+async def acreate_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, spatial_unit: Union[Optional[SpatialUnit], UnsetType]=UNSET, temporal_unit: Union[Optional[TemporalUnit], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
     """CreateScene 
 
 Create a new scene from an existing lens with optional blending mode
@@ -5726,9 +6075,19 @@ Args:
 Returns:
     Scene
 """
-    return (await aexecute(CreateSceneMutation, {'input': {'name': name, 'blending': blending, 'spatialUnit': spatial_unit, 'temporalUnit': temporal_unit}}, rath=rath)).create_scene
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if spatial_unit is not UNSET:
+        _input['spatialUnit'] = spatial_unit
+    if temporal_unit is not UNSET:
+        _input['temporalUnit'] = temporal_unit
+    variables['input'] = _input
+    return (await aexecute(CreateSceneMutation, variables, rath=rath)).create_scene
 
-def create_scene(name: str, blending: Optional[Blending]=None, spatial_unit: Optional[SpatialUnit]=None, temporal_unit: Optional[TemporalUnit]=None, rath: Optional[MikroNextRath]=None) -> Scene:
+def create_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, spatial_unit: Union[Optional[SpatialUnit], UnsetType]=UNSET, temporal_unit: Union[Optional[TemporalUnit], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
     """CreateScene 
 
 Create a new scene from an existing lens with optional blending mode
@@ -5743,9 +6102,19 @@ Args:
 Returns:
     Scene
 """
-    return execute(CreateSceneMutation, {'input': {'name': name, 'blending': blending, 'spatialUnit': spatial_unit, 'temporalUnit': temporal_unit}}, rath=rath).create_scene
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if spatial_unit is not UNSET:
+        _input['spatialUnit'] = spatial_unit
+    if temporal_unit is not UNSET:
+        _input['temporalUnit'] = temporal_unit
+    variables['input'] = _input
+    return execute(CreateSceneMutation, variables, rath=rath).create_scene
 
-async def acreate_snapshot(file: ImageFileCoercible, image: IDCoercible, name: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> Snapshot:
+async def acreate_snapshot(file: ImageFileCoercible, image: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Snapshot:
     """CreateSnapshot 
 
 Create a new state snapshot
@@ -5759,9 +6128,16 @@ Args:
 Returns:
     Snapshot
 """
-    return (await aexecute(CreateSnapshotMutation, {'input': {'file': file, 'image': image, 'name': name}}, rath=rath)).create_snapshot
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['file'] = file
+    _input['image'] = image
+    if name is not UNSET:
+        _input['name'] = name
+    variables['input'] = _input
+    return (await aexecute(CreateSnapshotMutation, variables, rath=rath)).create_snapshot
 
-def create_snapshot(file: ImageFileCoercible, image: IDCoercible, name: Optional[str]=None, rath: Optional[MikroNextRath]=None) -> Snapshot:
+def create_snapshot(file: ImageFileCoercible, image: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Snapshot:
     """CreateSnapshot 
 
 Create a new state snapshot
@@ -5775,9 +6151,16 @@ Args:
 Returns:
     Snapshot
 """
-    return execute(CreateSnapshotMutation, {'input': {'file': file, 'image': image, 'name': name}}, rath=rath).create_snapshot
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['file'] = file
+    _input['image'] = image
+    if name is not UNSET:
+        _input['name'] = name
+    variables['input'] = _input
+    return execute(CreateSnapshotMutation, variables, rath=rath).create_snapshot
 
-async def acreate_stage(name: str, instrument: Optional[IDCoercible]=None, rath: Optional[MikroNextRath]=None) -> Stage:
+async def acreate_stage(name: str, instrument: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Stage:
     """CreateStage 
 
 Create a new stage for organizing data
@@ -5790,9 +6173,15 @@ Args:
 Returns:
     Stage
 """
-    return (await aexecute(CreateStageMutation, {'input': {'name': name, 'instrument': instrument}}, rath=rath)).create_stage
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if instrument is not UNSET:
+        _input['instrument'] = instrument
+    variables['input'] = _input
+    return (await aexecute(CreateStageMutation, variables, rath=rath)).create_stage
 
-def create_stage(name: str, instrument: Optional[IDCoercible]=None, rath: Optional[MikroNextRath]=None) -> Stage:
+def create_stage(name: str, instrument: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Stage:
     """CreateStage 
 
 Create a new stage for organizing data
@@ -5805,9 +6194,15 @@ Args:
 Returns:
     Stage
 """
-    return execute(CreateStageMutation, {'input': {'name': name, 'instrument': instrument}}, rath=rath).create_stage
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if instrument is not UNSET:
+        _input['instrument'] = instrument
+    variables['input'] = _input
+    return execute(CreateStageMutation, variables, rath=rath).create_stage
 
-async def afrom_parquet_like(dataframe: ParquetCoercible, name: str, origins: Optional[Iterable[IDCoercible]]=None, dataset: Optional[IDCoercible]=None, label_accessors: Optional[Iterable[PartialLabelAccessorInput]]=None, image_accessors: Optional[Iterable[PartialImageAccessorInput]]=None, rath: Optional[MikroNextRath]=None) -> Table:
+async def afrom_parquet_like(dataframe: ParquetCoercible, name: str, origins: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, label_accessors: Union[Optional[Iterable[PartialLabelAccessorInput]], UnsetType]=UNSET, image_accessors: Union[Optional[Iterable[PartialImageAccessorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Table:
     """from_parquet_like 
 
 Create a table from parquet-like data
@@ -5824,9 +6219,22 @@ Args:
 Returns:
     Table
 """
-    return (await aexecute(From_parquet_likeMutation, {'input': {'dataframe': dataframe, 'name': name, 'origins': origins, 'dataset': dataset, 'labelAccessors': label_accessors, 'imageAccessors': image_accessors}}, rath=rath)).from_parquet_like
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['dataframe'] = dataframe
+    _input['name'] = name
+    if origins is not UNSET:
+        _input['origins'] = origins
+    if dataset is not UNSET:
+        _input['dataset'] = dataset
+    if label_accessors is not UNSET:
+        _input['labelAccessors'] = label_accessors
+    if image_accessors is not UNSET:
+        _input['imageAccessors'] = image_accessors
+    variables['input'] = _input
+    return (await aexecute(From_parquet_likeMutation, variables, rath=rath)).from_parquet_like
 
-def from_parquet_like(dataframe: ParquetCoercible, name: str, origins: Optional[Iterable[IDCoercible]]=None, dataset: Optional[IDCoercible]=None, label_accessors: Optional[Iterable[PartialLabelAccessorInput]]=None, image_accessors: Optional[Iterable[PartialImageAccessorInput]]=None, rath: Optional[MikroNextRath]=None) -> Table:
+def from_parquet_like(dataframe: ParquetCoercible, name: str, origins: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, label_accessors: Union[Optional[Iterable[PartialLabelAccessorInput]], UnsetType]=UNSET, image_accessors: Union[Optional[Iterable[PartialImageAccessorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Table:
     """from_parquet_like 
 
 Create a table from parquet-like data
@@ -5843,9 +6251,22 @@ Args:
 Returns:
     Table
 """
-    return execute(From_parquet_likeMutation, {'input': {'dataframe': dataframe, 'name': name, 'origins': origins, 'dataset': dataset, 'labelAccessors': label_accessors, 'imageAccessors': image_accessors}}, rath=rath).from_parquet_like
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['dataframe'] = dataframe
+    _input['name'] = name
+    if origins is not UNSET:
+        _input['origins'] = origins
+    if dataset is not UNSET:
+        _input['dataset'] = dataset
+    if label_accessors is not UNSET:
+        _input['labelAccessors'] = label_accessors
+    if image_accessors is not UNSET:
+        _input['imageAccessors'] = image_accessors
+    variables['input'] = _input
+    return execute(From_parquet_likeMutation, variables, rath=rath).from_parquet_like
 
-async def acreate_rgb_view(context: IDCoercible, image: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, gamma: Optional[float]=None, contrast_limit_min: Optional[float]=None, contrast_limit_max: Optional[float]=None, rescale: Optional[bool]=None, scale: Optional[float]=None, active: Optional[bool]=None, color_map: Optional[ColorMap]=None, base_color: Optional[Iterable[float]]=None, rath: Optional[MikroNextRath]=None) -> CreateRgbViewMutationCreatergbview:
+async def acreate_rgb_view(context: IDCoercible, image: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, gamma: Union[Optional[float], UnsetType]=UNSET, contrast_limit_min: Union[Optional[float], UnsetType]=UNSET, contrast_limit_max: Union[Optional[float], UnsetType]=UNSET, rescale: Union[Optional[bool], UnsetType]=UNSET, scale: Union[Optional[float], UnsetType]=UNSET, active: Union[Optional[bool], UnsetType]=UNSET, color_map: Union[Optional[ColorMap], UnsetType]=UNSET, base_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateRgbViewMutationCreatergbview:
     """CreateRgbView 
 
 Create a new view for RGB image data
@@ -5877,9 +6298,52 @@ Args:
 Returns:
     CreateRgbViewMutationCreatergbview
 """
-    return (await aexecute(CreateRgbViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'context': context, 'gamma': gamma, 'contrastLimitMin': contrast_limit_min, 'contrastLimitMax': contrast_limit_max, 'rescale': rescale, 'scale': scale, 'active': active, 'colorMap': color_map, 'baseColor': base_color, 'image': image}}, rath=rath)).create_rgb_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    _input['context'] = context
+    if gamma is not UNSET:
+        _input['gamma'] = gamma
+    if contrast_limit_min is not UNSET:
+        _input['contrastLimitMin'] = contrast_limit_min
+    if contrast_limit_max is not UNSET:
+        _input['contrastLimitMax'] = contrast_limit_max
+    if rescale is not UNSET:
+        _input['rescale'] = rescale
+    if scale is not UNSET:
+        _input['scale'] = scale
+    if active is not UNSET:
+        _input['active'] = active
+    if color_map is not UNSET:
+        _input['colorMap'] = color_map
+    if base_color is not UNSET:
+        _input['baseColor'] = base_color
+    _input['image'] = image
+    variables['input'] = _input
+    return (await aexecute(CreateRgbViewMutation, variables, rath=rath)).create_rgb_view
 
-def create_rgb_view(context: IDCoercible, image: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, gamma: Optional[float]=None, contrast_limit_min: Optional[float]=None, contrast_limit_max: Optional[float]=None, rescale: Optional[bool]=None, scale: Optional[float]=None, active: Optional[bool]=None, color_map: Optional[ColorMap]=None, base_color: Optional[Iterable[float]]=None, rath: Optional[MikroNextRath]=None) -> CreateRgbViewMutationCreatergbview:
+def create_rgb_view(context: IDCoercible, image: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, gamma: Union[Optional[float], UnsetType]=UNSET, contrast_limit_min: Union[Optional[float], UnsetType]=UNSET, contrast_limit_max: Union[Optional[float], UnsetType]=UNSET, rescale: Union[Optional[bool], UnsetType]=UNSET, scale: Union[Optional[float], UnsetType]=UNSET, active: Union[Optional[bool], UnsetType]=UNSET, color_map: Union[Optional[ColorMap], UnsetType]=UNSET, base_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateRgbViewMutationCreatergbview:
     """CreateRgbView 
 
 Create a new view for RGB image data
@@ -5911,9 +6375,52 @@ Args:
 Returns:
     CreateRgbViewMutationCreatergbview
 """
-    return execute(CreateRgbViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'context': context, 'gamma': gamma, 'contrastLimitMin': contrast_limit_min, 'contrastLimitMax': contrast_limit_max, 'rescale': rescale, 'scale': scale, 'active': active, 'colorMap': color_map, 'baseColor': base_color, 'image': image}}, rath=rath).create_rgb_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    _input['context'] = context
+    if gamma is not UNSET:
+        _input['gamma'] = gamma
+    if contrast_limit_min is not UNSET:
+        _input['contrastLimitMin'] = contrast_limit_min
+    if contrast_limit_max is not UNSET:
+        _input['contrastLimitMax'] = contrast_limit_max
+    if rescale is not UNSET:
+        _input['rescale'] = rescale
+    if scale is not UNSET:
+        _input['scale'] = scale
+    if active is not UNSET:
+        _input['active'] = active
+    if color_map is not UNSET:
+        _input['colorMap'] = color_map
+    if base_color is not UNSET:
+        _input['baseColor'] = base_color
+    _input['image'] = image
+    variables['input'] = _input
+    return execute(CreateRgbViewMutation, variables, rath=rath).create_rgb_view
 
-async def aupdate_rgb_view(id: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, context: Optional[IDCoercible]=None, gamma: Optional[float]=None, contrast_limit_min: Optional[float]=None, contrast_limit_max: Optional[float]=None, rescale: Optional[bool]=None, scale: Optional[float]=None, active: Optional[bool]=None, color_map: Optional[ColorMap]=None, base_color: Optional[Iterable[float]]=None, rath: Optional[MikroNextRath]=None) -> UpdateRgbViewMutationUpdatergbview:
+async def aupdate_rgb_view(id: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, context: Union[Optional[IDCoercible], UnsetType]=UNSET, gamma: Union[Optional[float], UnsetType]=UNSET, contrast_limit_min: Union[Optional[float], UnsetType]=UNSET, contrast_limit_max: Union[Optional[float], UnsetType]=UNSET, rescale: Union[Optional[bool], UnsetType]=UNSET, scale: Union[Optional[float], UnsetType]=UNSET, active: Union[Optional[bool], UnsetType]=UNSET, color_map: Union[Optional[ColorMap], UnsetType]=UNSET, base_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> UpdateRgbViewMutationUpdatergbview:
     """UpdateRgbView 
 
 Update an existing RGB view
@@ -5945,9 +6452,53 @@ Args:
 Returns:
     UpdateRgbViewMutationUpdatergbview
 """
-    return (await aexecute(UpdateRgbViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'context': context, 'gamma': gamma, 'contrastLimitMin': contrast_limit_min, 'contrastLimitMax': contrast_limit_max, 'rescale': rescale, 'scale': scale, 'active': active, 'colorMap': color_map, 'baseColor': base_color, 'id': id}}, rath=rath)).update_rgb_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    if context is not UNSET:
+        _input['context'] = context
+    if gamma is not UNSET:
+        _input['gamma'] = gamma
+    if contrast_limit_min is not UNSET:
+        _input['contrastLimitMin'] = contrast_limit_min
+    if contrast_limit_max is not UNSET:
+        _input['contrastLimitMax'] = contrast_limit_max
+    if rescale is not UNSET:
+        _input['rescale'] = rescale
+    if scale is not UNSET:
+        _input['scale'] = scale
+    if active is not UNSET:
+        _input['active'] = active
+    if color_map is not UNSET:
+        _input['colorMap'] = color_map
+    if base_color is not UNSET:
+        _input['baseColor'] = base_color
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(UpdateRgbViewMutation, variables, rath=rath)).update_rgb_view
 
-def update_rgb_view(id: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, context: Optional[IDCoercible]=None, gamma: Optional[float]=None, contrast_limit_min: Optional[float]=None, contrast_limit_max: Optional[float]=None, rescale: Optional[bool]=None, scale: Optional[float]=None, active: Optional[bool]=None, color_map: Optional[ColorMap]=None, base_color: Optional[Iterable[float]]=None, rath: Optional[MikroNextRath]=None) -> UpdateRgbViewMutationUpdatergbview:
+def update_rgb_view(id: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, context: Union[Optional[IDCoercible], UnsetType]=UNSET, gamma: Union[Optional[float], UnsetType]=UNSET, contrast_limit_min: Union[Optional[float], UnsetType]=UNSET, contrast_limit_max: Union[Optional[float], UnsetType]=UNSET, rescale: Union[Optional[bool], UnsetType]=UNSET, scale: Union[Optional[float], UnsetType]=UNSET, active: Union[Optional[bool], UnsetType]=UNSET, color_map: Union[Optional[ColorMap], UnsetType]=UNSET, base_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> UpdateRgbViewMutationUpdatergbview:
     """UpdateRgbView 
 
 Update an existing RGB view
@@ -5979,9 +6530,53 @@ Args:
 Returns:
     UpdateRgbViewMutationUpdatergbview
 """
-    return execute(UpdateRgbViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'context': context, 'gamma': gamma, 'contrastLimitMin': contrast_limit_min, 'contrastLimitMax': contrast_limit_max, 'rescale': rescale, 'scale': scale, 'active': active, 'colorMap': color_map, 'baseColor': base_color, 'id': id}}, rath=rath).update_rgb_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    if context is not UNSET:
+        _input['context'] = context
+    if gamma is not UNSET:
+        _input['gamma'] = gamma
+    if contrast_limit_min is not UNSET:
+        _input['contrastLimitMin'] = contrast_limit_min
+    if contrast_limit_max is not UNSET:
+        _input['contrastLimitMax'] = contrast_limit_max
+    if rescale is not UNSET:
+        _input['rescale'] = rescale
+    if scale is not UNSET:
+        _input['scale'] = scale
+    if active is not UNSET:
+        _input['active'] = active
+    if color_map is not UNSET:
+        _input['colorMap'] = color_map
+    if base_color is not UNSET:
+        _input['baseColor'] = base_color
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(UpdateRgbViewMutation, variables, rath=rath).update_rgb_view
 
-async def acreate_histogram_view(histogram: Iterable[float], bins: Iterable[float], min: float, max: float, image: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> HistogramView:
+async def acreate_histogram_view(histogram: Iterable[float], bins: Iterable[float], min: float, max: float, image: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> HistogramView:
     """CreateHistogramView 
 
 Create a new view for histogram data
@@ -6008,9 +6603,39 @@ Args:
 Returns:
     HistogramView
 """
-    return (await aexecute(CreateHistogramViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'histogram': histogram, 'bins': bins, 'min': min, 'max': max, 'image': image}}, rath=rath)).create_histogram_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    _input['histogram'] = histogram
+    _input['bins'] = bins
+    _input['min'] = min
+    _input['max'] = max
+    _input['image'] = image
+    variables['input'] = _input
+    return (await aexecute(CreateHistogramViewMutation, variables, rath=rath)).create_histogram_view
 
-def create_histogram_view(histogram: Iterable[float], bins: Iterable[float], min: float, max: float, image: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> HistogramView:
+def create_histogram_view(histogram: Iterable[float], bins: Iterable[float], min: float, max: float, image: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> HistogramView:
     """CreateHistogramView 
 
 Create a new view for histogram data
@@ -6037,9 +6662,39 @@ Args:
 Returns:
     HistogramView
 """
-    return execute(CreateHistogramViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'histogram': histogram, 'bins': bins, 'min': min, 'max': max, 'image': image}}, rath=rath).create_histogram_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    _input['histogram'] = histogram
+    _input['bins'] = bins
+    _input['min'] = min
+    _input['max'] = max
+    _input['image'] = image
+    variables['input'] = _input
+    return execute(CreateHistogramViewMutation, variables, rath=rath).create_histogram_view
 
-async def acreate_mask_view(image: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, reference_view: Optional[IDCoercible]=None, labels: Optional[LabelsLike]=None, rath: Optional[MikroNextRath]=None) -> MaskView:
+async def acreate_mask_view(image: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, reference_view: Union[Optional[IDCoercible], UnsetType]=UNSET, labels: Union[Optional[LabelsLike], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MaskView:
     """CreateMaskView 
 
 Create a new view for masked data
@@ -6064,9 +6719,39 @@ Args:
 Returns:
     MaskView
 """
-    return (await aexecute(CreateMaskViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'referenceView': reference_view, 'labels': labels, 'image': image}}, rath=rath)).create_mask_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    if reference_view is not UNSET:
+        _input['referenceView'] = reference_view
+    if labels is not UNSET:
+        _input['labels'] = labels
+    _input['image'] = image
+    variables['input'] = _input
+    return (await aexecute(CreateMaskViewMutation, variables, rath=rath)).create_mask_view
 
-def create_mask_view(image: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, reference_view: Optional[IDCoercible]=None, labels: Optional[LabelsLike]=None, rath: Optional[MikroNextRath]=None) -> MaskView:
+def create_mask_view(image: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, reference_view: Union[Optional[IDCoercible], UnsetType]=UNSET, labels: Union[Optional[LabelsLike], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MaskView:
     """CreateMaskView 
 
 Create a new view for masked data
@@ -6091,9 +6776,39 @@ Args:
 Returns:
     MaskView
 """
-    return execute(CreateMaskViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'referenceView': reference_view, 'labels': labels, 'image': image}}, rath=rath).create_mask_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    if reference_view is not UNSET:
+        _input['referenceView'] = reference_view
+    if labels is not UNSET:
+        _input['labels'] = labels
+    _input['image'] = image
+    variables['input'] = _input
+    return execute(CreateMaskViewMutation, variables, rath=rath).create_mask_view
 
-async def acreate_instance_mask_view(image: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, reference_view: Optional[IDCoercible]=None, labels: Optional[LabelsLike]=None, rath: Optional[MikroNextRath]=None) -> InstanceMaskView:
+async def acreate_instance_mask_view(image: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, reference_view: Union[Optional[IDCoercible], UnsetType]=UNSET, labels: Union[Optional[LabelsLike], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> InstanceMaskView:
     """CreateInstanceMaskView 
 
 Create a new view for instance mask data
@@ -6118,9 +6833,39 @@ Args:
 Returns:
     InstanceMaskView
 """
-    return (await aexecute(CreateInstanceMaskViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'referenceView': reference_view, 'labels': labels, 'image': image}}, rath=rath)).create_instance_mask_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    if reference_view is not UNSET:
+        _input['referenceView'] = reference_view
+    if labels is not UNSET:
+        _input['labels'] = labels
+    _input['image'] = image
+    variables['input'] = _input
+    return (await aexecute(CreateInstanceMaskViewMutation, variables, rath=rath)).create_instance_mask_view
 
-def create_instance_mask_view(image: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, reference_view: Optional[IDCoercible]=None, labels: Optional[LabelsLike]=None, rath: Optional[MikroNextRath]=None) -> InstanceMaskView:
+def create_instance_mask_view(image: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, reference_view: Union[Optional[IDCoercible], UnsetType]=UNSET, labels: Union[Optional[LabelsLike], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> InstanceMaskView:
     """CreateInstanceMaskView 
 
 Create a new view for instance mask data
@@ -6145,9 +6890,39 @@ Args:
 Returns:
     InstanceMaskView
 """
-    return execute(CreateInstanceMaskViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'referenceView': reference_view, 'labels': labels, 'image': image}}, rath=rath).create_instance_mask_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    if reference_view is not UNSET:
+        _input['referenceView'] = reference_view
+    if labels is not UNSET:
+        _input['labels'] = labels
+    _input['image'] = image
+    variables['input'] = _input
+    return execute(CreateInstanceMaskViewMutation, variables, rath=rath).create_instance_mask_view
 
-async def acreate_reference_view(image: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> ReferenceView:
+async def acreate_reference_view(image: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ReferenceView:
     """CreateReferenceView 
 
 Create a new reference view for image data
@@ -6170,9 +6945,35 @@ Args:
 Returns:
     ReferenceView
 """
-    return (await aexecute(CreateReferenceViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'image': image}}, rath=rath)).create_reference_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    _input['image'] = image
+    variables['input'] = _input
+    return (await aexecute(CreateReferenceViewMutation, variables, rath=rath)).create_reference_view
 
-def create_reference_view(image: IDCoercible, collection: Optional[IDCoercible]=None, z_min: Optional[int]=None, z_max: Optional[int]=None, x_min: Optional[int]=None, x_max: Optional[int]=None, y_min: Optional[int]=None, y_max: Optional[int]=None, t_min: Optional[int]=None, t_max: Optional[int]=None, c_min: Optional[int]=None, c_max: Optional[int]=None, rath: Optional[MikroNextRath]=None) -> ReferenceView:
+def create_reference_view(image: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ReferenceView:
     """CreateReferenceView 
 
 Create a new reference view for image data
@@ -6195,7 +6996,33 @@ Args:
 Returns:
     ReferenceView
 """
-    return execute(CreateReferenceViewMutation, {'input': {'collection': collection, 'zMin': z_min, 'zMax': z_max, 'xMin': x_min, 'xMax': x_max, 'yMin': y_min, 'yMax': y_max, 'tMin': t_min, 'tMax': t_max, 'cMin': c_min, 'cMax': c_max, 'image': image}}, rath=rath).create_reference_view
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if z_min is not UNSET:
+        _input['zMin'] = z_min
+    if z_max is not UNSET:
+        _input['zMax'] = z_max
+    if x_min is not UNSET:
+        _input['xMin'] = x_min
+    if x_max is not UNSET:
+        _input['xMax'] = x_max
+    if y_min is not UNSET:
+        _input['yMin'] = y_min
+    if y_max is not UNSET:
+        _input['yMax'] = y_max
+    if t_min is not UNSET:
+        _input['tMin'] = t_min
+    if t_max is not UNSET:
+        _input['tMax'] = t_max
+    if c_min is not UNSET:
+        _input['cMin'] = c_min
+    if c_max is not UNSET:
+        _input['cMax'] = c_max
+    _input['image'] = image
+    variables['input'] = _input
+    return execute(CreateReferenceViewMutation, variables, rath=rath).create_reference_view
 
 async def acreate_view_collection(name: str, rath: Optional[MikroNextRath]=None) -> CreateViewCollectionMutationCreateviewcollection:
     """CreateViewCollection 
@@ -6209,7 +7036,11 @@ Args:
 Returns:
     CreateViewCollectionMutationCreateviewcollection
 """
-    return (await aexecute(CreateViewCollectionMutation, {'input': {'name': name}}, rath=rath)).create_view_collection
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    variables['input'] = _input
+    return (await aexecute(CreateViewCollectionMutation, variables, rath=rath)).create_view_collection
 
 def create_view_collection(name: str, rath: Optional[MikroNextRath]=None) -> CreateViewCollectionMutationCreateviewcollection:
     """CreateViewCollection 
@@ -6223,7 +7054,11 @@ Args:
 Returns:
     CreateViewCollectionMutationCreateviewcollection
 """
-    return execute(CreateViewCollectionMutation, {'input': {'name': name}}, rath=rath).create_view_collection
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    variables['input'] = _input
+    return execute(CreateViewCollectionMutation, variables, rath=rath).create_view_collection
 
 async def aget_camera(id: ID, rath: Optional[MikroNextRath]=None) -> Camera:
     """GetCamera 
@@ -6237,7 +7072,9 @@ Args:
 Returns:
     Camera
 """
-    return (await aexecute(GetCameraQuery, {'id': id}, rath=rath)).camera
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetCameraQuery, variables, rath=rath)).camera
 
 def get_camera(id: ID, rath: Optional[MikroNextRath]=None) -> Camera:
     """GetCamera 
@@ -6251,7 +7088,9 @@ Args:
 Returns:
     Camera
 """
-    return execute(GetCameraQuery, {'id': id}, rath=rath).camera
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetCameraQuery, variables, rath=rath).camera
 
 async def aget_dataset(id: ID, rath: Optional[MikroNextRath]=None) -> Dataset:
     """GetDataset 
@@ -6265,7 +7104,9 @@ Args:
 Returns:
     Dataset
 """
-    return (await aexecute(GetDatasetQuery, {'id': id}, rath=rath)).dataset
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetDatasetQuery, variables, rath=rath)).dataset
 
 def get_dataset(id: ID, rath: Optional[MikroNextRath]=None) -> Dataset:
     """GetDataset 
@@ -6279,9 +7120,11 @@ Args:
 Returns:
     Dataset
 """
-    return execute(GetDatasetQuery, {'id': id}, rath=rath).dataset
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetDatasetQuery, variables, rath=rath).dataset
 
-async def asearch_datasets(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchDatasetsQueryOptions, ...]:
+async def asearch_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchDatasetsQueryOptions, ...]:
     """SearchDatasets 
 
 List datasets (folder-like collections of images, files and tables)
@@ -6296,9 +7139,18 @@ Args:
 Returns:
     List[SearchDatasetsQueryDatasets]
 """
-    return (await aexecute(SearchDatasetsQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchDatasetsQuery, variables, rath=rath)).options
 
-def search_datasets(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchDatasetsQueryOptions, ...]:
+def search_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchDatasetsQueryOptions, ...]:
     """SearchDatasets 
 
 List datasets (folder-like collections of images, files and tables)
@@ -6313,7 +7165,16 @@ Args:
 Returns:
     List[SearchDatasetsQueryDatasets]
 """
-    return execute(SearchDatasetsQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchDatasetsQuery, variables, rath=rath).options
 
 async def aget_file(id: ID, rath: Optional[MikroNextRath]=None) -> File:
     """GetFile 
@@ -6327,7 +7188,9 @@ Args:
 Returns:
     File
 """
-    return (await aexecute(GetFileQuery, {'id': id}, rath=rath)).file
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetFileQuery, variables, rath=rath)).file
 
 def get_file(id: ID, rath: Optional[MikroNextRath]=None) -> File:
     """GetFile 
@@ -6341,9 +7204,11 @@ Args:
 Returns:
     File
 """
-    return execute(GetFileQuery, {'id': id}, rath=rath).file
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetFileQuery, variables, rath=rath).file
 
-async def asearch_files(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFilesQueryOptions, ...]:
+async def asearch_files(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFilesQueryOptions, ...]:
     """SearchFiles 
 
 List files (raw microscopy files such as .czi or .ome.tiff)
@@ -6358,9 +7223,18 @@ Args:
 Returns:
     List[SearchFilesQueryFiles]
 """
-    return (await aexecute(SearchFilesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchFilesQuery, variables, rath=rath)).options
 
-def search_files(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFilesQueryOptions, ...]:
+def search_files(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFilesQueryOptions, ...]:
     """SearchFiles 
 
 List files (raw microscopy files such as .czi or .ome.tiff)
@@ -6375,7 +7249,16 @@ Args:
 Returns:
     List[SearchFilesQueryFiles]
 """
-    return execute(SearchFilesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchFilesQuery, variables, rath=rath).options
 
 async def aget_image(id: ID, rath: Optional[MikroNextRath]=None) -> Image:
     """GetImage 
@@ -6389,7 +7272,9 @@ Args:
 Returns:
     Image
 """
-    return (await aexecute(GetImageQuery, {'id': id}, rath=rath)).image
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetImageQuery, variables, rath=rath)).image
 
 def get_image(id: ID, rath: Optional[MikroNextRath]=None) -> Image:
     """GetImage 
@@ -6403,7 +7288,9 @@ Args:
 Returns:
     Image
 """
-    return execute(GetImageQuery, {'id': id}, rath=rath).image
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetImageQuery, variables, rath=rath).image
 
 async def aget_random_image(rath: Optional[MikroNextRath]=None) -> Image:
     """GetRandomImage 
@@ -6416,7 +7303,8 @@ Args:
 Returns:
     Image
 """
-    return (await aexecute(GetRandomImageQuery, {}, rath=rath)).random_image
+    variables: Dict[str, Any] = {}
+    return (await aexecute(GetRandomImageQuery, variables, rath=rath)).random_image
 
 def get_random_image(rath: Optional[MikroNextRath]=None) -> Image:
     """GetRandomImage 
@@ -6429,9 +7317,10 @@ Args:
 Returns:
     Image
 """
-    return execute(GetRandomImageQuery, {}, rath=rath).random_image
+    variables: Dict[str, Any] = {}
+    return execute(GetRandomImageQuery, variables, rath=rath).random_image
 
-async def asearch_images(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchImagesQueryOptions, ...]:
+async def asearch_images(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchImagesQueryOptions, ...]:
     """SearchImages 
 
 List images in the current organization, filterable and orderable
@@ -6446,9 +7335,18 @@ Args:
 Returns:
     List[SearchImagesQueryImages]
 """
-    return (await aexecute(SearchImagesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchImagesQuery, variables, rath=rath)).options
 
-def search_images(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchImagesQueryOptions, ...]:
+def search_images(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchImagesQueryOptions, ...]:
     """SearchImages 
 
 List images in the current organization, filterable and orderable
@@ -6463,9 +7361,18 @@ Args:
 Returns:
     List[SearchImagesQueryImages]
 """
-    return execute(SearchImagesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchImagesQuery, variables, rath=rath).options
 
-async def aimages(filter: Optional[ImageFilter]=None, pagination: Optional[OffsetPaginationInput]=None, rath: Optional[MikroNextRath]=None) -> Tuple[Image, ...]:
+async def aimages(filter: Union[Optional[ImageFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Image, ...]:
     """Images 
 
 List images in the current organization, filterable and orderable
@@ -6478,9 +7385,14 @@ Args:
 Returns:
     List[Image]
 """
-    return (await aexecute(ImagesQuery, {'filter': filter, 'pagination': pagination}, rath=rath)).images
+    variables: Dict[str, Any] = {}
+    if filter is not UNSET:
+        variables['filter'] = filter
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return (await aexecute(ImagesQuery, variables, rath=rath)).images
 
-def images(filter: Optional[ImageFilter]=None, pagination: Optional[OffsetPaginationInput]=None, rath: Optional[MikroNextRath]=None) -> Tuple[Image, ...]:
+def images(filter: Union[Optional[ImageFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Image, ...]:
     """Images 
 
 List images in the current organization, filterable and orderable
@@ -6493,9 +7405,14 @@ Args:
 Returns:
     List[Image]
 """
-    return execute(ImagesQuery, {'filter': filter, 'pagination': pagination}, rath=rath).images
+    variables: Dict[str, Any] = {}
+    if filter is not UNSET:
+        variables['filter'] = filter
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return execute(ImagesQuery, variables, rath=rath).images
 
-async def aview_image(id: ID, filtersggg: Optional[ViewFilter]=None, rath: Optional[MikroNextRath]=None) -> ViewImageQueryImage:
+async def aview_image(id: ID, filtersggg: Union[Optional[ViewFilter], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ViewImageQueryImage:
     """ViewImage 
 
 Returns a single image by ID
@@ -6508,9 +7425,13 @@ Args:
 Returns:
     ViewImageQueryImage
 """
-    return (await aexecute(ViewImageQuery, {'id': id, 'filtersggg': filtersggg}, rath=rath)).image
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    if filtersggg is not UNSET:
+        variables['filtersggg'] = filtersggg
+    return (await aexecute(ViewImageQuery, variables, rath=rath)).image
 
-def view_image(id: ID, filtersggg: Optional[ViewFilter]=None, rath: Optional[MikroNextRath]=None) -> ViewImageQueryImage:
+def view_image(id: ID, filtersggg: Union[Optional[ViewFilter], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ViewImageQueryImage:
     """ViewImage 
 
 Returns a single image by ID
@@ -6523,7 +7444,11 @@ Args:
 Returns:
     ViewImageQueryImage
 """
-    return execute(ViewImageQuery, {'id': id, 'filtersggg': filtersggg}, rath=rath).image
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    if filtersggg is not UNSET:
+        variables['filtersggg'] = filtersggg
+    return execute(ViewImageQuery, variables, rath=rath).image
 
 async def aartemiy_images(rath: Optional[MikroNextRath]=None) -> Tuple[ArtemiyImagesQueryImages, ...]:
     """ArtemiyImages 
@@ -6536,7 +7461,8 @@ Args:
 Returns:
     List[ArtemiyImagesQueryImages]
 """
-    return (await aexecute(ArtemiyImagesQuery, {}, rath=rath)).images
+    variables: Dict[str, Any] = {}
+    return (await aexecute(ArtemiyImagesQuery, variables, rath=rath)).images
 
 def artemiy_images(rath: Optional[MikroNextRath]=None) -> Tuple[ArtemiyImagesQueryImages, ...]:
     """ArtemiyImages 
@@ -6549,7 +7475,8 @@ Args:
 Returns:
     List[ArtemiyImagesQueryImages]
 """
-    return execute(ArtemiyImagesQuery, {}, rath=rath).images
+    variables: Dict[str, Any] = {}
+    return execute(ArtemiyImagesQuery, variables, rath=rath).images
 
 async def aget_instrument(id: ID, rath: Optional[MikroNextRath]=None) -> Instrument:
     """GetInstrument 
@@ -6563,7 +7490,9 @@ Args:
 Returns:
     Instrument
 """
-    return (await aexecute(GetInstrumentQuery, {'id': id}, rath=rath)).instrument
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetInstrumentQuery, variables, rath=rath)).instrument
 
 def get_instrument(id: ID, rath: Optional[MikroNextRath]=None) -> Instrument:
     """GetInstrument 
@@ -6577,7 +7506,9 @@ Args:
 Returns:
     Instrument
 """
-    return execute(GetInstrumentQuery, {'id': id}, rath=rath).instrument
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetInstrumentQuery, variables, rath=rath).instrument
 
 async def aget_lens(id: ID, rath: Optional[MikroNextRath]=None) -> Lens:
     """GetLens 
@@ -6591,7 +7522,9 @@ Args:
 Returns:
     Lens
 """
-    return (await aexecute(GetLensQuery, {'id': id}, rath=rath)).lens
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetLensQuery, variables, rath=rath)).lens
 
 def get_lens(id: ID, rath: Optional[MikroNextRath]=None) -> Lens:
     """GetLens 
@@ -6605,7 +7538,9 @@ Args:
 Returns:
     Lens
 """
-    return execute(GetLensQuery, {'id': id}, rath=rath).lens
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetLensQuery, variables, rath=rath).lens
 
 async def aget_mesh(id: ID, rath: Optional[MikroNextRath]=None) -> Mesh:
     """GetMesh 
@@ -6619,7 +7554,9 @@ Args:
 Returns:
     Mesh
 """
-    return (await aexecute(GetMeshQuery, {'id': id}, rath=rath)).mesh
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetMeshQuery, variables, rath=rath)).mesh
 
 def get_mesh(id: ID, rath: Optional[MikroNextRath]=None) -> Mesh:
     """GetMesh 
@@ -6633,9 +7570,11 @@ Args:
 Returns:
     Mesh
 """
-    return execute(GetMeshQuery, {'id': id}, rath=rath).mesh
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetMeshQuery, variables, rath=rath).mesh
 
-async def asearch_meshes(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchMeshesQueryOptions, ...]:
+async def asearch_meshes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchMeshesQueryOptions, ...]:
     """SearchMeshes 
 
 List 3D meshes
@@ -6650,9 +7589,18 @@ Args:
 Returns:
     List[SearchMeshesQueryMeshes]
 """
-    return (await aexecute(SearchMeshesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchMeshesQuery, variables, rath=rath)).options
 
-def search_meshes(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchMeshesQueryOptions, ...]:
+def search_meshes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchMeshesQueryOptions, ...]:
     """SearchMeshes 
 
 List 3D meshes
@@ -6667,7 +7615,16 @@ Args:
 Returns:
     List[SearchMeshesQueryMeshes]
 """
-    return execute(SearchMeshesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchMeshesQuery, variables, rath=rath).options
 
 async def aget_objective(id: ID, rath: Optional[MikroNextRath]=None) -> Objective:
     """GetObjective 
@@ -6681,7 +7638,9 @@ Args:
 Returns:
     Objective
 """
-    return (await aexecute(GetObjectiveQuery, {'id': id}, rath=rath)).objective
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetObjectiveQuery, variables, rath=rath)).objective
 
 def get_objective(id: ID, rath: Optional[MikroNextRath]=None) -> Objective:
     """GetObjective 
@@ -6695,7 +7654,9 @@ Args:
 Returns:
     Objective
 """
-    return execute(GetObjectiveQuery, {'id': id}, rath=rath).objective
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetObjectiveQuery, variables, rath=rath).objective
 
 async def aget_rgb_context(id: ID, rath: Optional[MikroNextRath]=None) -> RGBContext:
     """GetRGBContext 
@@ -6709,7 +7670,9 @@ Args:
 Returns:
     RGBContext
 """
-    return (await aexecute(GetRGBContextQuery, {'id': id}, rath=rath)).rgbcontext
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetRGBContextQuery, variables, rath=rath)).rgbcontext
 
 def get_rgb_context(id: ID, rath: Optional[MikroNextRath]=None) -> RGBContext:
     """GetRGBContext 
@@ -6723,7 +7686,9 @@ Args:
 Returns:
     RGBContext
 """
-    return execute(GetRGBContextQuery, {'id': id}, rath=rath).rgbcontext
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetRGBContextQuery, variables, rath=rath).rgbcontext
 
 async def aget_rois(image: ID, rath: Optional[MikroNextRath]=None) -> Tuple[ROI, ...]:
     """GetRois 
@@ -6737,7 +7702,9 @@ Args:
 Returns:
     List[ROI]
 """
-    return (await aexecute(GetRoisQuery, {'image': image}, rath=rath)).rois
+    variables: Dict[str, Any] = {}
+    variables['image'] = image
+    return (await aexecute(GetRoisQuery, variables, rath=rath)).rois
 
 def get_rois(image: ID, rath: Optional[MikroNextRath]=None) -> Tuple[ROI, ...]:
     """GetRois 
@@ -6751,7 +7718,9 @@ Args:
 Returns:
     List[ROI]
 """
-    return execute(GetRoisQuery, {'image': image}, rath=rath).rois
+    variables: Dict[str, Any] = {}
+    variables['image'] = image
+    return execute(GetRoisQuery, variables, rath=rath).rois
 
 async def aget_roi(id: ID, rath: Optional[MikroNextRath]=None) -> ROI:
     """GetRoi 
@@ -6765,7 +7734,9 @@ Args:
 Returns:
     ROI
 """
-    return (await aexecute(GetRoiQuery, {'id': id}, rath=rath)).roi
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetRoiQuery, variables, rath=rath)).roi
 
 def get_roi(id: ID, rath: Optional[MikroNextRath]=None) -> ROI:
     """GetRoi 
@@ -6779,9 +7750,11 @@ Args:
 Returns:
     ROI
 """
-    return execute(GetRoiQuery, {'id': id}, rath=rath).roi
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetRoiQuery, variables, rath=rath).roi
 
-async def asearch_rois(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRoisQueryOptions, ...]:
+async def asearch_rois(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRoisQueryOptions, ...]:
     """SearchRois 
 
 List regions of interest drawn on images
@@ -6796,9 +7769,18 @@ Args:
 Returns:
     List[SearchRoisQueryRois]
 """
-    return (await aexecute(SearchRoisQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchRoisQuery, variables, rath=rath)).options
 
-def search_rois(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRoisQueryOptions, ...]:
+def search_rois(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRoisQueryOptions, ...]:
     """SearchRois 
 
 List regions of interest drawn on images
@@ -6813,7 +7795,16 @@ Args:
 Returns:
     List[SearchRoisQueryRois]
 """
-    return execute(SearchRoisQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchRoisQuery, variables, rath=rath).options
 
 async def aget_scene(id: ID, rath: Optional[MikroNextRath]=None) -> Scene:
     """GetScene 
@@ -6827,7 +7818,9 @@ Args:
 Returns:
     Scene
 """
-    return (await aexecute(GetSceneQuery, {'id': id}, rath=rath)).scene
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetSceneQuery, variables, rath=rath)).scene
 
 def get_scene(id: ID, rath: Optional[MikroNextRath]=None) -> Scene:
     """GetScene 
@@ -6841,9 +7834,11 @@ Args:
 Returns:
     Scene
 """
-    return execute(GetSceneQuery, {'id': id}, rath=rath).scene
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetSceneQuery, variables, rath=rath).scene
 
-async def asearch_scenes(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchScenesQueryOptions, ...]:
+async def asearch_scenes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchScenesQueryOptions, ...]:
     """SearchScenes 
 
 List scenes (compositions of layers over array datasets)
@@ -6858,9 +7853,18 @@ Args:
 Returns:
     List[SearchScenesQueryScenes]
 """
-    return (await aexecute(SearchScenesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchScenesQuery, variables, rath=rath)).options
 
-def search_scenes(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchScenesQueryOptions, ...]:
+def search_scenes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchScenesQueryOptions, ...]:
     """SearchScenes 
 
 List scenes (compositions of layers over array datasets)
@@ -6875,7 +7879,16 @@ Args:
 Returns:
     List[SearchScenesQueryScenes]
 """
-    return execute(SearchScenesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchScenesQuery, variables, rath=rath).options
 
 async def aget_snapshot(id: ID, rath: Optional[MikroNextRath]=None) -> Snapshot:
     """GetSnapshot 
@@ -6889,7 +7902,9 @@ Args:
 Returns:
     Snapshot
 """
-    return (await aexecute(GetSnapshotQuery, {'id': id}, rath=rath)).snapshot
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetSnapshotQuery, variables, rath=rath)).snapshot
 
 def get_snapshot(id: ID, rath: Optional[MikroNextRath]=None) -> Snapshot:
     """GetSnapshot 
@@ -6903,9 +7918,11 @@ Args:
 Returns:
     Snapshot
 """
-    return execute(GetSnapshotQuery, {'id': id}, rath=rath).snapshot
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetSnapshotQuery, variables, rath=rath).snapshot
 
-async def asearch_snapshots(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSnapshotsQueryOptions, ...]:
+async def asearch_snapshots(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSnapshotsQueryOptions, ...]:
     """SearchSnapshots 
 
 List snapshots (pre-rendered thumbnail images of images)
@@ -6920,9 +7937,18 @@ Args:
 Returns:
     List[SearchSnapshotsQuerySnapshots]
 """
-    return (await aexecute(SearchSnapshotsQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchSnapshotsQuery, variables, rath=rath)).options
 
-def search_snapshots(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSnapshotsQueryOptions, ...]:
+def search_snapshots(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSnapshotsQueryOptions, ...]:
     """SearchSnapshots 
 
 List snapshots (pre-rendered thumbnail images of images)
@@ -6937,7 +7963,16 @@ Args:
 Returns:
     List[SearchSnapshotsQuerySnapshots]
 """
-    return execute(SearchSnapshotsQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchSnapshotsQuery, variables, rath=rath).options
 
 async def aget_stage(id: ID, rath: Optional[MikroNextRath]=None) -> Stage:
     """GetStage 
@@ -6951,7 +7986,9 @@ Args:
 Returns:
     Stage
 """
-    return (await aexecute(GetStageQuery, {'id': id}, rath=rath)).stage
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetStageQuery, variables, rath=rath)).stage
 
 def get_stage(id: ID, rath: Optional[MikroNextRath]=None) -> Stage:
     """GetStage 
@@ -6965,9 +8002,11 @@ Args:
 Returns:
     Stage
 """
-    return execute(GetStageQuery, {'id': id}, rath=rath).stage
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetStageQuery, variables, rath=rath).stage
 
-async def asearch_stages(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchStagesQueryOptions, ...]:
+async def asearch_stages(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchStagesQueryOptions, ...]:
     """SearchStages 
 
 List stages (the 3D physical spaces images are positioned in)
@@ -6982,9 +8021,18 @@ Args:
 Returns:
     List[SearchStagesQueryStages]
 """
-    return (await aexecute(SearchStagesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchStagesQuery, variables, rath=rath)).options
 
-def search_stages(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchStagesQueryOptions, ...]:
+def search_stages(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchStagesQueryOptions, ...]:
     """SearchStages 
 
 List stages (the 3D physical spaces images are positioned in)
@@ -6999,7 +8047,16 @@ Args:
 Returns:
     List[SearchStagesQueryStages]
 """
-    return execute(SearchStagesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchStagesQuery, variables, rath=rath).options
 
 async def aget_table(id: ID, rath: Optional[MikroNextRath]=None) -> Table:
     """GetTable 
@@ -7013,7 +8070,9 @@ Args:
 Returns:
     Table
 """
-    return (await aexecute(GetTableQuery, {'id': id}, rath=rath)).table
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetTableQuery, variables, rath=rath)).table
 
 def get_table(id: ID, rath: Optional[MikroNextRath]=None) -> Table:
     """GetTable 
@@ -7027,9 +8086,11 @@ Args:
 Returns:
     Table
 """
-    return execute(GetTableQuery, {'id': id}, rath=rath).table
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetTableQuery, variables, rath=rath).table
 
-async def asearch_tables(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTablesQueryOptions, ...]:
+async def asearch_tables(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTablesQueryOptions, ...]:
     """SearchTables 
 
 List tables (tabular data backed by parquet stores)
@@ -7044,9 +8105,18 @@ Args:
 Returns:
     List[SearchTablesQueryTables]
 """
-    return (await aexecute(SearchTablesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchTablesQuery, variables, rath=rath)).options
 
-def search_tables(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTablesQueryOptions, ...]:
+def search_tables(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTablesQueryOptions, ...]:
     """SearchTables 
 
 List tables (tabular data backed by parquet stores)
@@ -7061,7 +8131,16 @@ Args:
 Returns:
     List[SearchTablesQueryTables]
 """
-    return execute(SearchTablesQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchTablesQuery, variables, rath=rath).options
 
 async def aget_table_cell(id: ID, rath: Optional[MikroNextRath]=None) -> TableCell:
     """GetTableCell 
@@ -7075,7 +8154,9 @@ Args:
 Returns:
     TableCell
 """
-    return (await aexecute(GetTableCellQuery, {'id': id}, rath=rath)).table_cell
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetTableCellQuery, variables, rath=rath)).table_cell
 
 def get_table_cell(id: ID, rath: Optional[MikroNextRath]=None) -> TableCell:
     """GetTableCell 
@@ -7089,9 +8170,11 @@ Args:
 Returns:
     TableCell
 """
-    return execute(GetTableCellQuery, {'id': id}, rath=rath).table_cell
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetTableCellQuery, variables, rath=rath).table_cell
 
-async def asearch_table_cells(table: ID, search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableCellsQueryOptions, ...]:
+async def asearch_table_cells(table: ID, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableCellsQueryOptions, ...]:
     """SearchTableCells 
 
 List the cells of a table, row-major over the table's parquet data
@@ -7107,9 +8190,19 @@ Args:
 Returns:
     List[SearchTableCellsQueryTablecells]
 """
-    return (await aexecute(SearchTableCellsQuery, {'search': search, 'values': values, 'table': table, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    variables['table'] = table
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchTableCellsQuery, variables, rath=rath)).options
 
-def search_table_cells(table: ID, search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableCellsQueryOptions, ...]:
+def search_table_cells(table: ID, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableCellsQueryOptions, ...]:
     """SearchTableCells 
 
 List the cells of a table, row-major over the table's parquet data
@@ -7125,7 +8218,17 @@ Args:
 Returns:
     List[SearchTableCellsQueryTablecells]
 """
-    return execute(SearchTableCellsQuery, {'search': search, 'values': values, 'table': table, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    variables['table'] = table
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchTableCellsQuery, variables, rath=rath).options
 
 async def aget_table_row(id: ID, rath: Optional[MikroNextRath]=None) -> TableRow:
     """GetTableRow 
@@ -7139,7 +8242,9 @@ Args:
 Returns:
     TableRow
 """
-    return (await aexecute(GetTableRowQuery, {'id': id}, rath=rath)).table_row
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetTableRowQuery, variables, rath=rath)).table_row
 
 def get_table_row(id: ID, rath: Optional[MikroNextRath]=None) -> TableRow:
     """GetTableRow 
@@ -7153,9 +8258,11 @@ Args:
 Returns:
     TableRow
 """
-    return execute(GetTableRowQuery, {'id': id}, rath=rath).table_row
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetTableRowQuery, variables, rath=rath).table_row
 
-async def asearch_table_rows(table: ID, search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableRowsQueryOptions, ...]:
+async def asearch_table_rows(table: ID, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableRowsQueryOptions, ...]:
     """SearchTableRows 
 
 List the rows of a table, paginated over the table's parquet data
@@ -7171,9 +8278,19 @@ Args:
 Returns:
     List[SearchTableRowsQueryTablerows]
 """
-    return (await aexecute(SearchTableRowsQuery, {'search': search, 'values': values, 'table': table, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    variables['table'] = table
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchTableRowsQuery, variables, rath=rath)).options
 
-def search_table_rows(table: ID, search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableRowsQueryOptions, ...]:
+def search_table_rows(table: ID, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableRowsQueryOptions, ...]:
     """SearchTableRows 
 
 List the rows of a table, paginated over the table's parquet data
@@ -7189,7 +8306,17 @@ Args:
 Returns:
     List[SearchTableRowsQueryTablerows]
 """
-    return execute(SearchTableRowsQuery, {'search': search, 'values': values, 'table': table, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    variables['table'] = table
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchTableRowsQuery, variables, rath=rath).options
 
 async def aget_rgb_view(id: ID, rath: Optional[MikroNextRath]=None) -> RGBView:
     """GetRGBView 
@@ -7203,7 +8330,9 @@ Args:
 Returns:
     RGBView
 """
-    return (await aexecute(GetRGBViewQuery, {'id': id}, rath=rath)).rgb_view
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetRGBViewQuery, variables, rath=rath)).rgb_view
 
 def get_rgb_view(id: ID, rath: Optional[MikroNextRath]=None) -> RGBView:
     """GetRGBView 
@@ -7217,9 +8346,11 @@ Args:
 Returns:
     RGBView
 """
-    return execute(GetRGBViewQuery, {'id': id}, rath=rath).rgb_view
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetRGBViewQuery, variables, rath=rath).rgb_view
 
-async def asearch_rgb_views(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRGBViewsQueryOptions, ...]:
+async def asearch_rgb_views(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRGBViewsQueryOptions, ...]:
     """SearchRGBViews 
 
 List RGB render views (per-channel display settings)
@@ -7234,9 +8365,18 @@ Args:
 Returns:
     List[SearchRGBViewsQueryRgbviews]
 """
-    return (await aexecute(SearchRGBViewsQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath)).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchRGBViewsQuery, variables, rath=rath)).options
 
-def search_rgb_views(search: Optional[str]=None, values: Optional[List[ID]]=None, limit: Optional[int]=None, offset: Optional[int]=0, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRGBViewsQueryOptions, ...]:
+def search_rgb_views(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRGBViewsQueryOptions, ...]:
     """SearchRGBViews 
 
 List RGB render views (per-channel display settings)
@@ -7251,9 +8391,18 @@ Args:
 Returns:
     List[SearchRGBViewsQueryRgbviews]
 """
-    return execute(SearchRGBViewsQuery, {'search': search, 'values': values, 'limit': limit, 'offset': offset}, rath=rath).options
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchRGBViewsQuery, variables, rath=rath).options
 
-async def awatch_files(dataset: Optional[ID]=None, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchFilesSubscriptionFiles]:
+async def awatch_files(dataset: Union[Optional[ID], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchFilesSubscriptionFiles]:
     """WatchFiles 
 
 Subscribe to real-time file updates
@@ -7265,10 +8414,13 @@ Args:
 Returns:
     WatchFilesSubscriptionFiles
 """
-    async for event in asubscribe(WatchFilesSubscription, {'dataset': dataset}, rath=rath):
+    variables: Dict[str, Any] = {}
+    if dataset is not UNSET:
+        variables['dataset'] = dataset
+    async for event in asubscribe(WatchFilesSubscription, variables, rath=rath):
         yield event.files
 
-def watch_files(dataset: Optional[ID]=None, rath: Optional[MikroNextRath]=None) -> Iterator[WatchFilesSubscriptionFiles]:
+def watch_files(dataset: Union[Optional[ID], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Iterator[WatchFilesSubscriptionFiles]:
     """WatchFiles 
 
 Subscribe to real-time file updates
@@ -7280,10 +8432,13 @@ Args:
 Returns:
     WatchFilesSubscriptionFiles
 """
-    for event in subscribe(WatchFilesSubscription, {'dataset': dataset}, rath=rath):
+    variables: Dict[str, Any] = {}
+    if dataset is not UNSET:
+        variables['dataset'] = dataset
+    for event in subscribe(WatchFilesSubscription, variables, rath=rath):
         yield event.files
 
-async def awatch_images(dataset: Optional[ID]=None, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchImagesSubscriptionImages]:
+async def awatch_images(dataset: Union[Optional[ID], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchImagesSubscriptionImages]:
     """WatchImages 
 
 Subscribe to real-time image updates
@@ -7295,10 +8450,13 @@ Args:
 Returns:
     WatchImagesSubscriptionImages
 """
-    async for event in asubscribe(WatchImagesSubscription, {'dataset': dataset}, rath=rath):
+    variables: Dict[str, Any] = {}
+    if dataset is not UNSET:
+        variables['dataset'] = dataset
+    async for event in asubscribe(WatchImagesSubscription, variables, rath=rath):
         yield event.images
 
-def watch_images(dataset: Optional[ID]=None, rath: Optional[MikroNextRath]=None) -> Iterator[WatchImagesSubscriptionImages]:
+def watch_images(dataset: Union[Optional[ID], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Iterator[WatchImagesSubscriptionImages]:
     """WatchImages 
 
 Subscribe to real-time image updates
@@ -7310,7 +8468,10 @@ Args:
 Returns:
     WatchImagesSubscriptionImages
 """
-    for event in subscribe(WatchImagesSubscription, {'dataset': dataset}, rath=rath):
+    variables: Dict[str, Any] = {}
+    if dataset is not UNSET:
+        variables['dataset'] = dataset
+    for event in subscribe(WatchImagesSubscription, variables, rath=rath):
         yield event.images
 
 async def awatch_rois(image: ID, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchRoisSubscriptionRois]:
@@ -7325,7 +8486,9 @@ Args:
 Returns:
     WatchRoisSubscriptionRois
 """
-    async for event in asubscribe(WatchRoisSubscription, {'image': image}, rath=rath):
+    variables: Dict[str, Any] = {}
+    variables['image'] = image
+    async for event in asubscribe(WatchRoisSubscription, variables, rath=rath):
         yield event.rois
 
 def watch_rois(image: ID, rath: Optional[MikroNextRath]=None) -> Iterator[WatchRoisSubscriptionRois]:
@@ -7340,7 +8503,9 @@ Args:
 Returns:
     WatchRoisSubscriptionRois
 """
-    for event in subscribe(WatchRoisSubscription, {'image': image}, rath=rath):
+    variables: Dict[str, Any] = {}
+    variables['image'] = image
+    for event in subscribe(WatchRoisSubscription, variables, rath=rath):
         yield event.rois
 AffineTransformationViewFilter.model_rebuild()
 CoordinateAnchorInput.model_rebuild()

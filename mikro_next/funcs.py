@@ -153,7 +153,7 @@ async def asubscribe(
         raise NoMikroFound("No rath client found in context. Please provide a rath client.")
 
     # First serialize through operation.Arguments (pydantic validation + alias resolution)
-    serialized = operation.Arguments(**variables).model_dump(by_alias=True)
+    serialized = operation.Arguments(**variables).model_dump(by_alias=True, exclude_unset=True)
 
     # Apply async middleware chain
     serialized = await _apply_middlewares_async(serialized, operation, rath, rath.middlewares)

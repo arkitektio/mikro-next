@@ -3,3 +3,9 @@ mutation from_array_like($input: FromArrayLikeInput!) {
     ...Image
   }
 }
+
+mutation UpdateImage($input: UpdateImageInput!) {
+  updateImage(input: $input) {
+    ...Image
+  }
+}

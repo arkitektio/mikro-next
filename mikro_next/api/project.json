@@ -49,6 +49,12 @@
                 "ID": "rath.scalars.ID",
                 "RGBAColor": "mikro_next.scalars.RGBAColor"
             },
+            "coercible_scalars": {},
+            "graphql_default_class": null,
+            "deprecated_class": null,
+            "document_field_metadata": true,
+            "unset_type_class": null,
+            "unset_instance": null,
             "freeze": {
                 "enabled": true,
                 "types": [
