@@ -14,7 +14,7 @@ services:
     - db
     - minio
     - initc
-    image: jhnnsrs/mikro:dev
+    image: jhnnsrs/mikro:next
     command: bash run-debug.sh
     stop_grace_period: 1s
     ports:
