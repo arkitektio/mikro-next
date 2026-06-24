@@ -83,7 +83,7 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
         ),
         service="mikro",
         timeout=5,
-        max_retries=10,
+        max_retries=20,
     )
 
     watcher = setup.create_watcher("mikro")
