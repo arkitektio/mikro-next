@@ -33,6 +33,8 @@ class Namer(Protocol):
 
 @runtime_checkable
 class Downloader(Protocol):
+    """Protocol for objects that download a file from the DataLayer."""
+
     def __call__(
         self,
         file: str,
@@ -41,7 +43,9 @@ class Downloader(Protocol):
         key: str,
         credentials: "Credentials",
         executor: Optional[ThreadPoolExecutor] = None,
-    ) -> Any: ...
+    ) -> Any:
+        """Download a file from the DataLayer and return the local path."""
+        ...
 
 
 @runtime_checkable

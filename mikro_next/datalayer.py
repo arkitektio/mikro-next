@@ -51,17 +51,16 @@ class DataLayer(KoiledModel):
     and to ensure that the context is exited when the context manager is exited
     (for future cleanup purposes on other datalayers).
 
-    Attributes:
-        fs (s3fs.S3FileSystem): The filesystem object
-
     """
 
     endpoint_url: str = ""
 
-    async def get_endpoint_url(self):
+    async def get_endpoint_url(self) -> str:
+        """Return the configured S3 endpoint URL."""
         return self.endpoint_url
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "DataLayer":
+        """Enter the DataLayer context and register it as the active instance."""
         current_next_datalayer.set(self)
         return self
 
@@ -71,4 +70,5 @@ class DataLayer(KoiledModel):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
+        """Exit the DataLayer context and deregister the active instance."""
         current_next_datalayer.set(None)

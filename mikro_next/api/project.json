@@ -1,6 +1,6 @@
 {
     "schema_url": "http://jhnnsrs-lab/mikro/schema",
-    "documents": "graphql/mikro-next/**/**.graphql",
+    "documents": "graphql/**/**.graphql",
     "extensions": {
         "turms": {
             "pydantic_version": "v2",
@@ -11,7 +11,7 @@
             "dump_schema": true,
             "schema_name": "schema.graphql",
             "generated_name": "schema.py",
-            "documents": "graphql/mikro-next/**/**.graphql",
+            "documents": "graphql/**/**.graphql",
             "verbose": false,
             "exit_on_error": true,
             "allow_introspection": true,
@@ -49,6 +49,12 @@
                 "ID": "rath.scalars.ID",
                 "RGBAColor": "mikro_next.scalars.RGBAColor"
             },
+            "coercible_scalars": {},
+            "graphql_default_class": null,
+            "deprecated_class": null,
+            "document_field_metadata": true,
+            "unset_type_class": null,
+            "unset_instance": null,
             "freeze": {
                 "enabled": true,
                 "types": [
@@ -111,6 +117,9 @@
                 ],
                 "DataArray": [
                     "mikro_next.traits.DataArrayTrait"
+                ],
+                "CreateADatasetInput": [
+                    "mikro_next.traits.CreateADatasetTrait"
                 ],
                 "Expression": [
                     "mikro_next.traits.ExpressionTrait"
@@ -208,11 +217,7 @@
                     ]
                 }
             ],
-            "processors": [
-                {
-                    "type": "turms.processors.black.BlackProcessor"
-                }
-            ],
+            "processors": [],
             "stylers": [
                 {
                     "type": "turms.stylers.default.DefaultStyler"

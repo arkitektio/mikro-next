@@ -1,6 +1,7 @@
+import sys
 from typing import Generator
 import pytest
-from dokker import local, Deployment
+from dokker import local, Deployment, testing
 from dokker.log_watcher import LogWatcher
 import os
 from mikro_next.mikro_next import MikroNext
@@ -9,13 +10,29 @@ from rath.links.aiohttp import AIOHttpLink
 from rath.links.graphql_ws import GraphQLWSLink
 from mikro_next.rath import (
     MikroNextRath,
-    UploadLink,
     SplitLink,
     MikroNextLinkComposition,
 )
 from mikro_next.datalayer import DataLayer
+from mikro_next.middleware.upload import UploadMiddleware
 from graphql import OperationType
 from dataclasses import dataclass
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Register custom platform markers."""
+    config.addinivalue_line("markers", "linux_only: skip on non-Linux platforms")
+    config.addinivalue_line("markers", "no_windows: skip on Windows")
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:  # noqa: ARG001
+    """Skip tests marked linux_only or no_windows on the wrong platform."""
+    for item in items:
+        if item.get_closest_marker("linux_only") and sys.platform != "linux":
+            item.add_marker(pytest.mark.skip(reason="Linux only"))
+        if item.get_closest_marker("no_windows") and sys.platform == "win32":
+            item.add_marker(pytest.mark.skip(reason="Not supported on Windows"))
+
 
 project_path = os.path.join(os.path.dirname(__file__), "integration")
 docker_compose_file = os.path.join(project_path, "docker-compose.yml")
@@ -59,12 +76,14 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
         DeployedMikro: An instance containing the deployment, watchers, and MikroNext instance
 
     """
-    setup = local(docker_compose_file)
+    setup = testing(docker_compose_file)
     setup.add_health_check(
-        url=lambda spec: f"http://localhost:{spec.find_service('mikro').get_port_for_internal(80).published}/graphql",
+        url=lambda spec: (
+            f"http://localhost:{spec.find_service('mikro').get_port_for_internal(80).published}/graphql"
+        ),
         service="mikro",
         timeout=5,
-        max_retries=10,
+        max_retries=20,
     )
 
     watcher = setup.create_watcher("mikro")
@@ -85,13 +104,15 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
         y = MikroNextRath(
             link=MikroNextLinkComposition(
                 auth=ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
-                upload=UploadLink(datalayer=datalayer),
                 split=SplitLink(
                     left=AIOHttpLink(endpoint_url=mikro_http_url),
                     right=GraphQLWSLink(ws_endpoint_url=mikro_ws_url),
                     split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
                 ),
             ),
+            middlewares=[
+                UploadMiddleware(datalayer=datalayer),
+            ],
         )
 
         mikro = MikroNext(
@@ -100,6 +121,8 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
         )
 
         setup.up()
+
+        setup.run("initc", command="python init.py")
 
         setup.check_health()
 

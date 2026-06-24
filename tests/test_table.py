@@ -1,6 +1,13 @@
 import numpy as np
 import pytest
-from mikro_next.api.schema import from_parquet_like
+import xarray as xr
+from mikro_next.api.schema import (
+    from_array_like,
+    from_parquet_like,
+    create_reference_view,
+    PartialImageAccessorInput,
+    PartialLabelAccessorInput,
+)
 
 from .conftest import DeployedMikro
 import pandas as pd
@@ -24,6 +31,47 @@ def test_write_random(deployed_app: DeployedMikro) -> None:
         name="test_random_write",
     )
     assert x.id, "Did not get a random rep"
+
+    # x.data is a lazy DuckDB relation queried directly on S3; .df() materialises it.
+    assert x.data is not None, "Data should be present in the table"
+    assert x.data.df().equals(simple_df), (
+        "Materialised table data should match the original DataFrame"
+    )
+    # A lazy filter must run out-of-core (without downloading the whole object).
+    filtered = x.data.filter("value > 0.5").df()
+    assert (filtered["value"] > 0.5).all(), "Lazy DuckDB filter should be applied"
+
+
+@pytest.mark.integration
+def test_create_table_with_image_accessor(deployed_app: DeployedMikro) -> None:
+    """Test creating a table with an image accessor linking table rows to an image."""
+    image = from_array_like(
+        xr.DataArray(np.zeros((100, 100, 3), dtype=np.uint8), dims=("y", "x", "c")),
+        name="test_table_source_image",
+    )
+
+    ref_view = create_reference_view(image, c_min=0, c_max=1)
+
+    df = pd.DataFrame(
+        {
+            "label": np.arange(10),
+            "image": [image.id] * 10,
+            "value": np.random.random(10),
+        }
+    )
+
+    table = from_parquet_like(
+        df,
+        name="test_table_with_image_accessor",
+        image_accessors=[
+            PartialImageAccessorInput(
+                keys=("image",),
+                image=image.id,
+            )
+        ],
+    )
+
+    assert table.id, "Did not get a table back"
 
 
 def test_parquet_like_scalar_validation() -> None:

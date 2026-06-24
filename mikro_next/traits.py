@@ -11,22 +11,19 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 
 """
 
+from __future__ import annotations
+
 """A context manager to download the file and delete it after use"""
 from contextlib import contextmanager
-from operator import le
 import os
-from os import path
 from typing import Awaitable, Generator, List, Type, TypeVar, Tuple, Protocol, Optional
 import numpy as np
 from numpy.typing import NDArray
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 import xarray as xr
-import pandas as pd
 from typing import TYPE_CHECKING
 from dask.array.core import from_zarr  # type: ignore
-from zarr.storage import FsspecStore
-
-
+from zarr.storage import StorePath
 from .scalars import FiveDVector
 from rath.scalars import ID
 from typing import Any
@@ -39,6 +36,7 @@ OneDArray = NDArray[np.generic]
 
 
 if TYPE_CHECKING:
+    import duckdb
     from pyarrow.parquet import ParquetDataset  # type: ignore
     from mikro_next.api.schema import HasZarrStoreAccessor, Image, RoiKind, DataRoi
 
@@ -165,6 +163,16 @@ class PhysicalSizeTrait:
         tolerance: float = 0.02,
         raise_exception: Optional[bool] = False,
     ) -> bool:
+        """Check whether this physical size is close to another within a tolerance.
+
+        Args:
+            other: The other physical size to compare against.
+            tolerance: Maximum allowed absolute difference per axis.
+            raise_exception: If True, raise ValueError instead of returning False.
+
+        Returns:
+            True if all non-None shared axes are within tolerance, False otherwise.
+        """
         if hasattr(self, "x") and self.x is not None and other.x is not None:
             if abs(other.x - self.x) > tolerance:
                 if raise_exception:
@@ -331,14 +339,19 @@ class HasParquestStoreTrait(BaseModel):
     """
 
     @property
-    def data(self) -> pd.DataFrame:
-        """The data of this table as a pandas dataframe
+    def data(self) -> "duckdb.DuckDBPyRelation":
+        """The data of this table as a lazy DuckDB relation.
+
+        The relation queries the parquet object directly on S3 through DuckDB's
+        ``httpfs`` extension, so the table is never fully downloaded into memory.
+        Filter/aggregate on the relation and call ``.df()`` to materialise just
+        the result into a pandas DataFrame.
 
         Returns:
-            pd.DataFrame: The Dataframe
+            duckdb.DuckDBPyRelation: A lazy relation over the parquet object.
         """
         store: "HasParquetStoreAccesor" = get_attributes_or_error(self, "store")
-        return store.parquet_dataset.read_pandas().to_pandas()  # type: ignore
+        return store.duckdb_relation
 
 
 V = TypeVar("V")
@@ -356,7 +369,7 @@ class HasZarrStoreAccessor(BaseModel):
     _openstore: Any = None
 
     @property
-    def zarr_store(self) -> FsspecStore:
+    def zarr_store(self) -> StorePath:
         """The zarr store of the ZarrStore object"""
         from mikro_next.io.download import open_zarr_store
 
@@ -370,6 +383,8 @@ class HasParquetStoreAccesor(BaseModel):
     """Parquet Store Accessor"""
 
     _dataset: Any = None
+    _duckdb_con: Any = None
+    _duckdb_rel: Any = None
 
     @property
     def parquet_dataset(self) -> "ParquetDataset":
@@ -380,6 +395,21 @@ class HasParquetStoreAccesor(BaseModel):
             id = get_attributes_or_error(self, "id")
             self._dataset = open_parquet_filesystem(id)
         return self._dataset
+
+    @property
+    def duckdb_relation(self) -> "duckdb.DuckDBPyRelation":
+        """A lazy DuckDB relation over the parquet object, queried directly on S3.
+
+        Reads through DuckDB's ``httpfs`` extension so the object is never fully
+        downloaded. The backing connection is cached for the lifetime of this
+        accessor (the relation is only valid while its connection is alive).
+        """
+        from mikro_next.io.download import open_parquet_duckdb
+
+        if self._duckdb_rel is None:
+            id = get_attributes_or_error(self, "id")
+            self._duckdb_con, self._duckdb_rel = open_parquet_duckdb(id)
+        return self._duckdb_rel
 
 
 class HasDownloadAccessor(BaseModel):
@@ -550,6 +580,7 @@ class FileTrait:
 
     @contextmanager
     def temporary(self) -> Generator[str, None, None]:
+        """Download the file and yield its local path, deleting it on exit."""
         path = None
         try:
             path = self.download()
@@ -591,6 +622,49 @@ class DatasetTrait:
         arrays: List[DataArrayTrait] = get_attributes_or_error(self, "data_arrays")
         dims: list[str] = get_attributes_or_error(self, "dims")
         return xr.DataArray(arrays[0].data, dims=dims)
+
+
+class CreateADatasetTrait:
+    """Validation trait for the generic ``create_a_dataset`` input.
+
+    Unlike the classic image path, the dataset path lets the user supply an
+    arbitrarily-labelled array. This trait enforces that the labels are coherent
+    at the model level: every dimension of the ``data`` array must have exactly
+    one matching ``dim_descriptor`` (by key), and every scale's array must share
+    that same set of dimensions.
+    """
+
+    @model_validator(mode="after")
+    def _validate_dims_match_descriptors(self) -> "CreateADatasetTrait":
+        """Ensure dim descriptors (and scale arrays) match the data array dims."""
+        data = getattr(self, "data", None)
+        descriptors = getattr(self, "dim_descriptors", None)
+        if data is None or descriptors is None:
+            return self
+
+        array = getattr(data, "value", data)
+        array_dims = tuple(str(dim) for dim in array.dims)
+        descriptor_keys = tuple(descriptor.key for descriptor in descriptors)
+
+        if set(array_dims) != set(descriptor_keys):
+            raise ValueError(
+                f"dim_descriptors {descriptor_keys} do not match the data array "
+                f"dimensions {array_dims}. Every array dimension must have exactly "
+                f"one matching descriptor (and vice versa)."
+            )
+
+        for scale in getattr(self, "scales", ()) or ():
+            scale_array = getattr(getattr(scale, "array", None), "value", None)
+            if scale_array is None:
+                continue
+            scale_dims = tuple(str(dim) for dim in scale_array.dims)
+            if set(scale_dims) != set(array_dims):
+                raise ValueError(
+                    f"Scale level {getattr(scale, 'level', '?')} array dimensions "
+                    f"{scale_dims} do not match the data array dimensions {array_dims}."
+                )
+
+        return self
 
 
 class Lensable:
@@ -659,7 +733,6 @@ class Lensable:
         from mikro_next.api.schema import (
             create_data_roi,
             Slice,
-            SliceInput,
             DimDescriptor,
             DimensionKind,
         )
@@ -695,6 +768,7 @@ class Lensable:
 
     @contextmanager
     def temporary(self) -> Generator[str, None, None]:
+        """Download the file and yield its local path, deleting it on exit."""
         path = None
         try:
             path = self.download()

@@ -45,7 +45,3 @@ Make sure to set the access_key and secret_key and enter the context
 manager to connect to S3 (if authentication is required for the S3 instance
 and to ensure that the context is exited when the context manager is exited
 (for future cleanup purposes on other datalayers).
-
-**Attributes**:
-
-- `fs` _s3fs.S3FileSystem_ - The filesystem object

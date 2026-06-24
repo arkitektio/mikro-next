@@ -4,10 +4,10 @@ query GetSnapshot($id: ID!) {
   }
 }
 
-query SearchSnapshots($search: String, $values: [ID!]) {
+query SearchSnapshots($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {
   options: snapshots(
     filters: { name: { contains: $search }, ids: $values }
-    pagination: { limit: 10 }
+    pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
     label: name

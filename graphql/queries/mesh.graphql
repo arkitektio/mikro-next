@@ -7,11 +7,12 @@ query GetMesh($id: ID!) {
 query SearchMeshes(
   $search: String
   $values: [ID!]
-  $pagination: OffsetPaginationInput
+  $limit: Int
+  $offset: Int = 0
 ) {
   options: meshes(
     filters: { search: $search, ids: $values }
-    pagination: $pagination
+    pagination: { limit: $limit, offset: $offset }
   ) {
     value: id
     label: name
