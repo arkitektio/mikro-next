@@ -1,6 +1,6 @@
 [project]
 name = "mikro-next"
-version = "1.0.3"
+version = "2.0.0"
 description = "next images for arkitekt"
 authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
 requires-python = ">=3.11"
@@ -23,6 +23,7 @@ dependencies = [
 turms = []
 table = ["pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
 complete = ["pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
+
 
 [tool.uv]
 dev-dependencies =  [
@@ -53,9 +54,6 @@ include = ["mikro_next"]
 [tool.hatch.build.targets.wheel]
 include = ["mikro_next"]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
 
 [tool.mypy]
 exclude = ["venv/", "tests/"]
@@ -99,6 +97,7 @@ markers = [
     "no_windows: marks tests that are skipped on Windows",
 ]
 
+
 [[tool.pydoc-markdown.loaders]]
 type = "python"
 search_path = ["mikro"]
@@ -108,8 +107,14 @@ type = "docusaurus"
 docs_base_path = "website/docs"
 
 
+
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 upload_to_pypi = true
 branch = "main"
 build_command = "uv build"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+

@@ -1,6 +1,72 @@
 # CHANGELOG
 
 
+## v2.0.0 (2026-06-24)
+
+### Bug Fixes
+
+- Add integraiton tests
+  ([`cb6d09b`](https://github.com/arkitektio/mikro-next/commit/cb6d09be84d285092a6fd46c263b23f76ef0bb39))
+
+- Adding tests
+  ([`7190521`](https://github.com/arkitektio/mikro-next/commit/719052174d3249ef758ed8e7e97f02828ca7bbdb))
+
+- Fix rekuest-table widget
+  ([`01f7c04`](https://github.com/arkitektio/mikro-next/commit/01f7c04aa2b1cd6218fb7861064419da186195ba))
+
+- Increase timeout for arm64
+  ([`c85f8dc`](https://github.com/arkitektio/mikro-next/commit/c85f8dc31fbb64bf04170f6e634e4d2cb22a74a4))
+
+- More obfication
+  ([`5acfc24`](https://github.com/arkitektio/mikro-next/commit/5acfc24f5487ab978a5df950fb7dc65781fcd8ca))
+
+- More stuff
+  ([`618cbb7`](https://github.com/arkitektio/mikro-next/commit/618cbb7c0ebd44eae415ee1766d291b38ca0b946))
+
+- More type annotations
+  ([`4d03f81`](https://github.com/arkitektio/mikro-next/commit/4d03f819a7761656f3a7393e69ebd394a54f810b))
+
+- Remove windows and macos not compatibl docker containers
+  ([`6811470`](https://github.com/arkitektio/mikro-next/commit/6811470331cdadac1b6b2846d0d6732713515a66))
+
+- Update lock file
+  ([`6d93022`](https://github.com/arkitektio/mikro-next/commit/6d930220e8f2d5e790e853e1f6b7163e79018d44))
+
+- Update rath
+  ([`358d0b8`](https://github.com/arkitektio/mikro-next/commit/358d0b8dd469ec9f81e69e98182233b8966d6d7c))
+
+- Updated init container server side
+  ([`831319b`](https://github.com/arkitektio/mikro-next/commit/831319b6808c193b1a8248d7dcdae0a65ceeaabf))
+
+- With dokker 2.4.0
+  ([`6017ae5`](https://github.com/arkitektio/mikro-next/commit/6017ae5fb759cb9066158b1fb03dbff8ff02e2c4))
+
+- With update image mutation
+  ([`35c34df`](https://github.com/arkitektio/mikro-next/commit/35c34df817cc6dc7c968357221a025330593e3cb))
+
+### Chores
+
+- More tests
+  ([`2918ea0`](https://github.com/arkitektio/mikro-next/commit/2918ea0d4f5552924de3ee77c069e54d11aedd65))
+
+### Features
+
+- Duckdb implementation
+  ([`339b1a2`](https://github.com/arkitektio/mikro-next/commit/339b1a28ac6321aea53483b5f976c6785f6fd52a))
+
+- Move unit tests
+  ([`bdb7d5d`](https://github.com/arkitektio/mikro-next/commit/bdb7d5de8dd518983882a9bd043fa489a164d240))
+
+- New api updates to final version
+  ([`cb72923`](https://github.com/arkitektio/mikro-next/commit/cb729238cdebe3db16ce259bd9d87463ddadf2f5))
+
+- Table implementation working with tests
+  ([`e055903`](https://github.com/arkitektio/mikro-next/commit/e055903c65f82b6f77b9fd4bafc04b30e5dadfe2))
+
+- Update to new config style
+  ([`b272671`](https://github.com/arkitektio/mikro-next/commit/b272671759c9f2fd21a24eab451b69bf7b6660e9))
+
+
 ## v1.0.3 (2026-05-20)
 
 ### Bug Fixes
