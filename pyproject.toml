@@ -17,6 +17,7 @@ dependencies = [
     "fakts-next>=2",
     "numcodecs>=0.16.1",
     "obstore>=0.10.0",
+    "kanne>=2.5.0",
 ]
 
 [project.optional-dependencies]
