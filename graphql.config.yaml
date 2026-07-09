@@ -81,11 +81,9 @@ projects:
           Matrix: mikro_next.scalars.Matrix
           
           Metric: typing.Any
-          Milliseconds: mikro_next.scalars.Milliseconds
-          Micrometers: mikro_next.scalars.Micrometers
+          Duration: kanne.scalars.Duration
+          Length: kanne.scalars.Length
           MikroStore: mikro_next.scalars.MikroStore
-          Micrograms: mikro_next.scalars.Micrograms
-          Microliters: mikro_next.scalars.Microliters
           FourByFourMatrix: mikro_next.scalars.FourByFourMatrix
           ID: rath.scalars.ID
           RGBAColor: mikro_next.scalars.RGBAColor

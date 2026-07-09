@@ -1,9 +1,11 @@
-fragment Layer on Layer { 
+fragment Layer on Layer {
   scene {
     id
     name
   }
-  lens {
-    id
+  ... on ImageLayer {
+    lens {
+      id
+    }
   }
 }
