@@ -1,13 +1,22 @@
-from mikro_next.scalars import ImageFileCoercible, ArrayCoercible, ArrayLike, ImageLike, MeshLike, FileLike, LabelsLike, MeshCoercible, ThreeDVector, ParquetCoercible, ImageCoercible, ImageFileLike, FiveDVector, FourByFourMatrix, ParquetLike
-from mikro_next.traits import IsVectorizableTrait, DatasetTrait, HasPresignedDownloadAccessor, CreateADatasetTrait, HasParquestStoreTrait, HasParquetStoreAccesor, FileTrait, HasZarrStoreTrait, Lensable, MikroFetchable, DataArrayTrait, HasZarrStoreAccessor, HasDownloadAccessor
-from mikro_next.rath import MikroNextRath
-from mikro_next.funcs import execute, aexecute, asubscribe, subscribe
-from typing import Iterable, Annotated, Dict, AsyncIterator, Literal, Union, Any, Optional, List, Iterator, Tuple
-from rath.scalars import ID, IDCoercible
-from kanne.scalars import Duration, Length
-from datetime import datetime
+from mikro_next.scalars import ImageLike, ImageCoercible, MeshLike, LabelsLike, FiveDVector, ImageFileCoercible, FileLike, FourByFourMatrix, ParquetCoercible, ThreeDVector, MeshCoercible, ArrayLike, ParquetLike, ImageFileLike, ArrayCoercible
+from typing import Literal, Dict, Iterator, Any, Optional, Iterable, Tuple, Annotated, List, AsyncIterator, Union
+from mikro_next.traits import IsVectorizableTrait, HasParquestStoreTrait, HasParquetStoreAccesor, DataArrayTrait, HasDownloadAccessor, HasZarrStoreAccessor, FileTrait, HasPresignedDownloadAccessor, HasZarrStoreTrait, CreateADatasetTrait, DatasetTrait, Lensable, MikroFetchable
+from kanne.scalars import Power, Frequency, Length, Duration
 from pydantic import Field, BaseModel, ConfigDict
+from mikro_next.funcs import aexecute, subscribe, asubscribe, execute
+from rath.scalars import IDCoercible, ID
+from datetime import datetime
 from enum import Enum
+from mikro_next.rath import MikroNextRath
+
+class GraphQLDefault:
+    """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return 'GraphQLDefault(' + repr(self.value) + ')'
 
 class UnsetType:
     """Sentinel for arguments the caller did not provide. Such fields are omitted on serialization so the GraphQL server applies its own default."""
@@ -24,15 +33,6 @@ class UnsetType:
     def __bool__(self):
         return False
 UNSET = UnsetType()
-
-class GraphQLDefault:
-    """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
-
-    def __init__(self, value):
-        self.value = value
-
-    def __repr__(self):
-        return 'GraphQLDefault(' + repr(self.value) + ')'
 
 class Blending(str, Enum):
     """The blending mode used to combine multiple channels or layers into a composite image."""
@@ -268,8 +268,8 @@ class AffineTransformationViewFilter(BaseModel):
 
 class BeamStateInput(BaseModel):
     """State of the optical beam on a particular path segment."""
-    wavelength_nm: Optional[float] = Field(alias='wavelengthNm', default=None)
-    power_mw: Optional[float] = Field(alias='powerMw', default=None)
+    wavelength: Optional[Length] = None
+    power: Optional[Power] = None
     polarization: Optional[str] = None
     mode_hint: Optional[str] = Field(alias='modeHint', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
@@ -646,7 +646,7 @@ class LightEdgeInput(BaseModel):
     source_port_id: ID = Field(alias='sourcePortId')
     target_element_id: ID = Field(alias='targetElementId')
     target_port_id: ID = Field(alias='targetPortId')
-    path_length_mm: Optional[float] = Field(alias='pathLengthMm', default=None)
+    path_length: Optional[Length] = Field(alias='pathLength', default=None)
     medium: Annotated[Optional[str], GraphQLDefault('AIR')] = None
     'Default: AIR'
     loss_db: Annotated[Optional[float], GraphQLDefault('0.0')] = Field(alias='lossDb', default=None)
@@ -725,30 +725,30 @@ class OpticalElementInput(BaseModel):
     manufacturer: Optional[str] = None
     model: Optional[str] = None
     serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    nominal_wavelength_nm: Optional[float] = Field(alias='nominalWavelengthNm', default=None)
+    nominal_wavelength: Optional[Length] = Field(alias='nominalWavelength', default=None)
     channel: Optional[ChannelKind] = None
-    diameter_um: Optional[float] = Field(alias='diameterUm', default=None)
+    diameter: Optional[Length] = None
     nepd_w_per_sqrt_hz: Optional[float] = Field(alias='nepdWPerSqrtHz', default=None)
     angle_deg: Optional[float] = Field(alias='angleDeg', default=None)
-    band_min_nm: Optional[float] = Field(alias='bandMinNm', default=None)
-    band_max_nm: Optional[float] = Field(alias='bandMaxNm', default=None)
+    band_min: Optional[Length] = Field(alias='bandMin', default=None)
+    band_max: Optional[Length] = Field(alias='bandMax', default=None)
     r_fraction: Optional[float] = Field(alias='rFraction', default=None)
     t_fraction: Optional[float] = Field(alias='tFraction', default=None)
-    focal_length_mm: Optional[float] = Field(alias='focalLengthMm', default=None)
+    focal_length: Optional[Length] = Field(alias='focalLength', default=None)
     magnification: Optional[float] = None
     numerical_aperture: Optional[float] = Field(alias='numericalAperture', default=None)
     brand: Optional[str] = None
-    working_distance_mm: Optional[float] = Field(alias='workingDistanceMm', default=None)
+    working_distance: Optional[Length] = Field(alias='workingDistance', default=None)
     immersion_medium: Optional[ObjectiveImmersion] = Field(alias='immersionMedium', default=None)
     iris: Optional[bool] = None
     amplifier_gain_db: Optional[float] = Field(alias='amplifierGainDb', default=None)
     gain: Optional[float] = None
-    pixel_size_um: Optional[float] = Field(alias='pixelSizeUm', default=None)
+    pixel_size: Optional[Length] = Field(alias='pixelSize', default=None)
     resolution: Optional[Tuple[int, ...]] = None
-    power_mw: Optional[float] = Field(alias='powerMw', default=None)
+    power: Optional[Power] = None
     laser_medium: Optional[str] = Field(alias='laserMedium', default=None)
     pulse_kind: Optional[PulseKind] = Field(alias='pulseKind', default=None)
-    repetition_rate_hz: Optional[float] = Field(alias='repetitionRateHz', default=None)
+    repetition_rate: Optional[Frequency] = Field(alias='repetitionRate', default=None)
     has_pockels_cell: Optional[bool] = Field(alias='hasPockelsCell', default=None)
     has_q_switch: Optional[bool] = Field(alias='hasQSwitch', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
@@ -1160,9 +1160,9 @@ class SnapshotInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class SpectrumInput(BaseModel):
-    """Spectral window in nanometers for wavelength-dependent components."""
-    min_nm: float = Field(alias='minNm')
-    max_nm: float = Field(alias='maxNm')
+    """Spectral window for wavelength-dependent components."""
+    min: Length
+    max: Length
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class StageFilter(BaseModel):

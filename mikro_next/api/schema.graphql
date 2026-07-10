@@ -153,12 +153,12 @@ type AffineTransformationView implements View {
   id: ID!
   stage: Stage!
   affineMatrix: FourByFourMatrix!
-  pixelSize: ThreeDVector!
+  pixelSize: [Length!]!
   pixelSizeX: Length!
   isotropic: Boolean!
   pixelSizeZ: Length!
   pixelSizeY: Length!
-  position: ThreeDVector!
+  position: [Length!]!
 }
 
 type AffineTransformationViewEvent {
@@ -296,16 +296,16 @@ type BeamSplitterElement implements OpticalElement {
 
 """Beam properties carried on a light edge"""
 type BeamState {
-  wavelengthNm: Float
-  powerMw: Float
+  wavelength: Length
+  power: Power
   polarization: String
   modeHint: String
 }
 
 """State of the optical beam on a particular path segment."""
 input BeamStateInput {
-  wavelengthNm: Float = null
-  powerMw: Float = null
+  wavelength: Length = null
+  power: Power = null
   polarization: String = null
   modeHint: String = null
 }
@@ -413,7 +413,7 @@ type CCDElement implements OpticalElement {
   """List of ports on the element"""
   ports: [LightPort!]!
   serialNumber: String
-  pixelSizeUm: Float
+  pixelSize: Length
   resolution: [Int!]
 }
 
@@ -1338,9 +1338,21 @@ input DatasetOrder @oneOf {
 """Date with time (isoformat)"""
 scalar DateTime
 
+"""Input for deleting an array dataset by ID"""
+input DeleteADatasetInput {
+  """The ID of the array dataset to delete"""
+  id: ID!
+}
+
 """Input for deleting a camera by ID"""
 input DeleteCameraInput {
   """The ID of the camera to delete"""
+  id: ID!
+}
+
+"""Input for deleting a data array by ID"""
+input DeleteDataArrayInput {
+  """The ID of the data array to delete"""
   id: ID!
 }
 
@@ -1380,6 +1392,18 @@ input DeleteInstrumentInput {
   id: ID!
 }
 
+"""Input for deleting a layer by ID"""
+input DeleteLayerInput {
+  """The ID of the layer to delete"""
+  id: ID!
+}
+
+"""Input for deleting a lens by ID"""
+input DeleteLensInput {
+  """The ID of the lens to delete"""
+  id: ID!
+}
+
 """Input for deleting a mesh by ID"""
 input DeleteMeshInput {
   """The ID of the mesh to delete"""
@@ -1404,9 +1428,21 @@ input DeleteRGBContextInput {
   id: ID!
 }
 
+"""Input for deleting a render tree by ID"""
+input DeleteRenderTreeInput {
+  """The ID of the render tree to delete"""
+  id: ID!
+}
+
 """Input for deleting a ROI by ID"""
 input DeleteRoiInput {
   """The ID of the ROI to delete"""
+  id: ID!
+}
+
+"""Input for deleting a scene by ID"""
+input DeleteSceneInput {
+  """The ID of the scene to delete"""
   id: ID!
 }
 
@@ -2096,6 +2132,9 @@ scalar FourByFourMatrix
 type FrameInfo {
   label: String!
 }
+
+"""A quantity of frequency (``"50 Hz"``, ``"1 kHz"``)."""
+scalar Frequency
 
 """Input type for creating an image from an array-like object"""
 input FromArrayLikeInput {
@@ -2937,12 +2976,12 @@ type LaserElement implements OpticalElement {
   """List of ports on the element"""
   ports: [LightPort!]!
   serialNumber: String
-  nominalWavelengthNm: Float
-  powerMw: Float
+  nominalWavelength: Length
+  power: Power
   channel: ChannelKind
   laserMedium: String
   pulseKind: PulseKind
-  repetitionRateHz: Float
+  repetitionRate: Frequency
   hasPockelsCell: Boolean
   hasQSwitch: Boolean
 }
@@ -3096,7 +3135,7 @@ type LensElement implements OpticalElement {
   """List of ports on the element"""
   ports: [LightPort!]!
   serialNumber: String
-  focalLengthMm: Float!
+  focalLength: Length!
 }
 
 input LensFilter {
@@ -3123,7 +3162,7 @@ type LightEdge {
   sourcePortId: ID!
   targetElementId: ID!
   targetPortId: ID!
-  pathLengthMm: Float
+  pathLength: Length
   medium: String
   lossDb: Float
   beam: BeamState
@@ -3136,7 +3175,7 @@ input LightEdgeInput {
   sourcePortId: ID!
   targetElementId: ID!
   targetPortId: ID!
-  pathLengthMm: Float = null
+  pathLength: Length = null
   medium: String = "AIR"
   lossDb: Float = 0
   beam: BeamStateInput = null
@@ -3630,6 +3669,12 @@ type Mutation {
   """
   createAdataset(input: CreateADatasetInput!): ADataset!
 
+  """Delete an existing array dataset"""
+  deleteAdataset(input: DeleteADatasetInput!): ID!
+
+  """Delete an existing data array"""
+  deleteDataArray(input: DeleteDataArrayInput!): ID!
+
   """
   Create a new data ROI from vector or slice definitions with optional choordinate anchors and OME metadata
   """
@@ -3641,13 +3686,22 @@ type Mutation {
   """Create a new lens from an existing dataset and slicing constraints"""
   createLens(input: CreateLensInput!): Lens!
 
+  """Delete an existing lens"""
+  deleteLens(input: DeleteLensInput!): ID!
+
   """Create a new scene from an existing lens with optional blending mode"""
   createScene(input: CreateSceneInput!): Scene!
+
+  """Delete an existing scene"""
+  deleteScene(input: DeleteSceneInput!): ID!
 
   """
   Create a new layer from an existing lens with optional affine transformation and colormap settings
   """
   createLayer(input: CreateLayerInput!): ImageLayer!
+
+  """Delete an existing layer"""
+  deleteLayer(input: DeleteLayerInput!): ID!
 
   """
   Update an existing layer's lens, scene, affine transformation, and colormap settings
@@ -3699,6 +3753,9 @@ type Mutation {
 
   """Create a new render tree for image visualization"""
   createRenderTree(input: RenderTreeInput!): RenderTree!
+
+  """Delete an existing render tree"""
+  deleteRenderTree(input: DeleteRenderTreeInput!): ID!
 
   """Create a table from parquet-like data"""
   fromParquetLike(input: FromParquetLike!): Table!
@@ -3981,7 +4038,7 @@ type ObjectiveElement implements OpticalElement {
   iris: Boolean!
   magnification: Float
   numericalAperture: Float
-  workingDistanceMm: Float
+  workingDistance: Length
   immersionMedium: ObjectiveImmersion
   correctionKind: ObjectiveCorrectionKind
 }
@@ -4082,30 +4139,30 @@ input OpticalElementInput {
   manufacturer: String = null
   model: String = null
   serialNumber: String = null
-  nominalWavelengthNm: Float = null
+  nominalWavelength: Length = null
   channel: ChannelKind = null
-  diameterUm: Float = null
+  diameter: Length = null
   nepdWPerSqrtHz: Float = null
   angleDeg: Float = null
-  bandMinNm: Float = null
-  bandMaxNm: Float = null
+  bandMin: Length = null
+  bandMax: Length = null
   rFraction: Float = null
   tFraction: Float = null
-  focalLengthMm: Float = null
+  focalLength: Length = null
   magnification: Float = null
   numericalAperture: Float = null
   brand: String = null
-  workingDistanceMm: Float = null
+  workingDistance: Length = null
   immersionMedium: ObjectiveImmersion = null
   iris: Boolean = null
   amplifierGainDb: Float = null
   gain: Float = null
-  pixelSizeUm: Float = null
+  pixelSize: Length = null
   resolution: [Int!] = null
-  powerMw: Float = null
+  power: Power = null
   laserMedium: String = null
   pulseKind: PulseKind = null
-  repetitionRateHz: Float = null
+  repetitionRate: Frequency = null
   hasPockelsCell: Boolean = null
   hasQSwitch: Boolean = null
 }
@@ -5150,7 +5207,7 @@ type PinholeElement implements OpticalElement {
   """List of ports on the element"""
   ports: [LightPort!]!
   serialNumber: String
-  diameterUm: Float
+  diameter: Length
 }
 
 """Input for pinning or unpinning a multi-well plate for quick access"""
@@ -5222,6 +5279,9 @@ input Pose3DInput {
   position: Vec3Input = null
   orientation: EulerInput = null
 }
+
+"""A power (``"5 mW"``, ``"2 W"``)."""
+scalar Power
 
 """
 The 3D projection / rendering mode applied to a volumetric (z-stacked) render node.
@@ -6579,16 +6639,16 @@ enum SpatialUnit {
   UNKNOWN
 }
 
-"""Spectral window in nanometers"""
+"""Spectral window"""
 type Spectrum {
-  minNm: Float!
-  maxNm: Float!
+  min: Length!
+  max: Length!
 }
 
-"""Spectral window in nanometers for wavelength-dependent components."""
+"""Spectral window for wavelength-dependent components."""
 input SpectrumInput {
-  minNm: Float!
-  maxNm: Float!
+  min: Length!
+  max: Length!
 }
 
 """

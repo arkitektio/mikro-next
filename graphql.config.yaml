@@ -83,6 +83,8 @@ projects:
           Metric: typing.Any
           Duration: kanne.scalars.Duration
           Length: kanne.scalars.Length
+          Power: kanne.scalars.Power
+          Frequency: kanne.scalars.Frequency
           MikroStore: mikro_next.scalars.MikroStore
           FourByFourMatrix: mikro_next.scalars.FourByFourMatrix
           ID: rath.scalars.ID
