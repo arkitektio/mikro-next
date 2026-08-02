@@ -1,22 +1,13 @@
-from mikro_next.scalars import FileLike, FiveDVector, ArrayLike, ImageLike, ParquetCoercible, ParquetLike, ImageFileCoercible, LabelsLike, ArrayCoercible, ImageFileLike, FourByFourMatrix, ImageCoercible, ThreeDVector
-from pydantic import Field, BaseModel, ConfigDict
-from rath.scalars import IDCoercible, ID
-from mikro_next.traits import ValueHistogramInputTrait, MikroFetchable, CoordinateAnchorInputTrait, FileTrait, TransformationTrait, DatasetTrait, CreateADatasetTrait, IsVectorizableTrait, HasZarrStoreAccessor, HasParquetStoreAccesor, HasZarrStoreTrait, AxisInputTrait, DataArrayTrait, Lensable, HasPresignedDownloadAccessor, HasParquestStoreTrait, HasDownloadAccessor, SceneTrait, CoordinateSystemTrait
-from mikro_next.funcs import execute, subscribe, asubscribe, aexecute
-from kanne.scalars import Duration, Temperature, GenericQuantity, Frequency, Length, Power, Unit
-from typing import Optional, Dict, Union, Literal, AsyncIterator, Any, Iterator, Iterable, Tuple, Annotated, List
-from mikro_next.rath import MikroNextRath
-from enum import Enum
+from mikro_next.funcs import aexecute, asubscribe, subscribe, execute
+from typing import Iterator, Annotated, Any, Dict, List, Tuple, Literal, Iterable, AsyncIterator, Union, Optional
+from mikro_next.traits import SceneTrait, TransformationTrait, DataArrayTrait, CoordinateAnchorInputTrait, HasZarrStoreTrait, DatasetTrait, AxisInputTrait, FileTrait, MikroFetchable, CreateADatasetTrait, HasDownloadAccessor, IsVectorizableTrait, HasParquetStoreAccesor, RGBAColorInputTrait, ValueHistogramInputTrait, CoordinateSystemTrait, HasZarrStoreAccessor, Lensable, HasPresignedDownloadAccessor, HasParquestStoreTrait
+from kanne.scalars import Temperature, Unit, Power, Frequency, Duration, Length, GenericQuantity
+from mikro_next.scalars import ImageLike, ImageFileLike, FiveDVector, ArrayCoercible, FourByFourMatrix, ImageCoercible, ParquetLike, ParquetCoercible, ArrayLike, LabelsLike, ImageFileCoercible, ThreeDVector, FileLike
 from datetime import datetime
-
-class GraphQLDefault:
-    """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
-
-    def __init__(self, value):
-        self.value = value
-
-    def __repr__(self):
-        return 'GraphQLDefault(' + repr(self.value) + ')'
+from enum import Enum
+from pydantic import BaseModel, ConfigDict, Field
+from rath.scalars import ID, IDCoercible
+from mikro_next.rath import MikroNextRath
 
 class UnsetType:
     """Sentinel for arguments the caller did not provide. Such fields are omitted on serialization so the GraphQL server applies its own default."""
@@ -33,6 +24,15 @@ class UnsetType:
     def __bool__(self):
         return False
 UNSET = UnsetType()
+
+class GraphQLDefault:
+    """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return 'GraphQLDefault(' + repr(self.value) + ')'
 
 class ADatasetSpec(str, Enum):
     """What a dataset structurally is, materialized from the axes of its intrinsic coordinate system at creation. Specs stack: a 3D timelapse is VOLUME, TIMESERIES and MULTICHANNEL at once. Exactly one spatial member (SCALAR/PROFILE/IMAGE/VOLUME/HYPERVOLUME) ever holds."""
@@ -1316,6 +1316,7 @@ class CreateTableDatasetInput(BaseModel):
     'Default: []'
     description: Optional[str] = None
     derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
+    keyed_by: Optional[Tuple['KeyedByInput', ...]] = Field(alias='keyedBy', default=None)
     validate_schema: Annotated[Optional[bool], GraphQLDefault('False')] = Field(alias='validateSchema', default=None)
     'Default: False'
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
@@ -1624,6 +1625,13 @@ class IntFilterLookup(BaseModel):
     is_null: Optional[bool] = Field(alias='isNull', default=None)
     regex: Optional[str] = None
     i_regex: Optional[str] = Field(alias='iRegex', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class KeyedByInput(BaseModel):
+    """A label mask whose pixel values are the ids this table is indexed by. It authors the FIELD edge in the direction the map actually runs -- mask pixels -> table rows -- which is the direction attributePlans discovers, and the opposite of the lineage `derivedFrom` records"""
+    dataset: ID
+    name: Optional[str] = None
+    validity: Optional[PlacementValidity] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class LabelInput(BaseModel):
@@ -2021,7 +2029,7 @@ class PhasorCalibrationInput(BaseModel):
     reference: Optional[str] = Field(default=None, description='What the correction was measured against')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
-class PhasorCursorInput(BaseModel):
+class PhasorCursorInput(RGBAColorInputTrait, BaseModel):
     """A region of phasor space, and the color the pixels falling inside it are painted. A color rule on the image, not a plot widget"""
     kind: Optional[PhasorCursorKind] = None
     g: Optional[float] = None
@@ -2390,7 +2398,7 @@ class TimepointViewFilter(BaseModel):
     distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
-class TransferFunctionInput(BaseModel):
+class TransferFunctionInput(RGBAColorInputTrait, BaseModel):
     """Transfer-function settings for a channel source in a layer render graph"""
     clim_min: Optional[float] = Field(alias='climMin', default=None)
     clim_max: Optional[float] = Field(alias='climMax', default=None)
@@ -5971,6 +5979,210 @@ class SearchAnnotationCollectionsQuery(BaseModel):
     class Meta:
         """Meta class for SearchAnnotationCollections """
         document = 'query SearchAnnotationCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: annotationCollections(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
+class AttributePlansQueryAttributeplansEdgeInput(CoordinateSystemTrait, BaseModel):
+    """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansEdgeOutput(CoordinateSystemTrait, BaseModel):
+    """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansEdge(TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+    id: ID
+    kind: TransformKind
+    name: Optional[str] = Field(default=None)
+    version: int
+    validity: PlacementValidity
+    "How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world"
+    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
+    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
+    input: Optional[AttributePlansQueryAttributeplansEdgeInput] = Field(default=None)
+    output: Optional[AttributePlansQueryAttributeplansEdgeOutput] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansTable(BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    id: ID
+    kind: TransformKind
+    version: int
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseAffineTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseBijectionTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseByDimensionTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseFieldTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseIdentityTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseMapAxisTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseRotationTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseScaleTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseSequenceTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseTranslationTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseUnmappableTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class AttributePlansQueryAttributeplansPathTransformationBaseCatchAll(AttributePlansQueryAttributeplansPathTransformationBase, BaseModel):
+    """Catch all class for AttributePlansQueryAttributeplansPathTransformationBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class AttributePlansQueryAttributeplansPath(BaseModel):
+    """One step of a placement path: a transformation edge, plus whether it is traversed against its stored direction. The server returns the steps; composing them into a matrix is the client's job (invert the flagged ones first)"""
+    typename: Literal['PlacementStep'] = Field(alias='__typename', default='PlacementStep', exclude=True)
+    inverted: bool
+    'True when the edge is traversed output-to-input; the client must invert it before composing'
+    transformation: Union[Annotated[Union[AttributePlansQueryAttributeplansPathTransformationBaseAffineTransformation, AttributePlansQueryAttributeplansPathTransformationBaseBijectionTransformation, AttributePlansQueryAttributeplansPathTransformationBaseByDimensionTransformation, AttributePlansQueryAttributeplansPathTransformationBaseFieldTransformation, AttributePlansQueryAttributeplansPathTransformationBaseIdentityTransformation, AttributePlansQueryAttributeplansPathTransformationBaseMapAxisTransformation, AttributePlansQueryAttributeplansPathTransformationBaseRotationTransformation, AttributePlansQueryAttributeplansPathTransformationBaseScaleTransformation, AttributePlansQueryAttributeplansPathTransformationBaseSequenceTransformation, AttributePlansQueryAttributeplansPathTransformationBaseTranslationTransformation, AttributePlansQueryAttributeplansPathTransformationBaseUnmappableTransformation], Field(discriminator='typename')], AttributePlansQueryAttributeplansPathTransformationBaseCatchAll]
+    'The transformation edge this step walks along'
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansSampleSystem(CoordinateSystemTrait, BaseModel):
+    """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansSampleStore(HasZarrStoreAccessor, BaseModel):
+    """No documentation"""
+    typename: Literal['ZarrStore'] = Field(alias='__typename', default='ZarrStore', exclude=True)
+    id: ID
+    key: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansSample(BaseModel):
+    """The zarr half of a plan: sample this array at the point's coordinates. The client that is already rendering the array reads the value from the chunk it already has; a headless worker fetches it through the store's access grant. Either way the plan never says what is in the array -- the client owns pixels"""
+    typename: Literal['SampleStep'] = Field(alias='__typename', default='SampleStep', exclude=True)
+    consumes: Tuple[str, ...]
+    "The axes the sample consumes, in the field system's axis order: index the array here with the point's coordinates, e.g. ['y', 'x']"
+    produces: Tuple[str, ...]
+    "The axis names the sampled value produces, per-edge: two sibling edges off one mask may name their produced axis differently (`i`, `label_id`), so always zip the value against THIS edge's names, never a shared key set"
+    passthrough: Tuple[str, ...]
+    "The axes the edge did not consume, e.g. ['t']: their coordinates pass through by name and join the produced values as lookup keys"
+    system: AttributePlansQueryAttributeplansSampleSystem
+    "The coordinate system of the array being sampled. Equal to the queried system when the array's own pixels are the map (a label mask); a different, array-backed system when the map is a separate field. `consumes` is stated in this system's axis order"
+    store: AttributePlansQueryAttributeplansSampleStore
+    'The zarr store holding the array (the level-0 store for an intrinsic system). Ask it for an accessGrant to actually read chunks -- credentials never appear in a plan'
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansLookupStore(HasParquetStoreAccesor, BaseModel):
+    """No documentation"""
+    typename: Literal['ParquetStore'] = Field(alias='__typename', default='ParquetStore', exclude=True)
+    id: ID
+    key: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansLookupKeycolumnsColumn(BaseModel):
+    """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
+    typename: Literal['TableDatasetColumn'] = Field(alias='__typename', default='TableDatasetColumn', exclude=True)
+    name: str
+    dtype: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansLookupKeycolumns(BaseModel):
+    """One key binding of a lookup: the sampled or passthrough value named `axis` binds the parquet column `column`. For a depth-1 plan the two names coincide by construction (a coordinate column and its derived axis are the same fact), but the worker should always bind by this pair: values live under axis names, columns live in a file, and the plan is the bridge"""
+    typename: Literal['PlanKeyColumn'] = Field(alias='__typename', default='PlanKeyColumn', exclude=True)
+    axis: str
+    'The name the worker holds the value under: a passthrough axis of the sampled array (e.g. `t`) or an axis the sample produced (e.g. `i`)'
+    column: AttributePlansQueryAttributeplansLookupKeycolumnsColumn
+    'The declared coordinate column this value binds, carrying the parquet column name and its dtype'
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansLookupAttributes(BaseModel):
+    """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
+    typename: Literal['TableDatasetColumn'] = Field(alias='__typename', default='TableDatasetColumn', exclude=True)
+    name: str
+    dtype: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplansLookup(BaseModel):
+    """The duckdb half of a plan: look the sampled value up in the parquet. Bind order for `sql` is the parquet path/URL first (the read_parquet argument, supplied by the worker from its own access grant), then the key values in `keyColumns` order. Do not assume one row per point: (t, i) uniqueness is a convention no unique index backs, so the worker gets rows, plural"""
+    typename: Literal['LookupStep'] = Field(alias='__typename', default='LookupStep', exclude=True)
+    sql: str
+    'The parameterized DuckDB statement: identifiers from validated declared columns and quoted, values as `?` placeholders, never interpolated. Bind the parquet path first, then the key values in `keyColumns` order. A non-duckdb consumer ignores this and reads `keyColumns` + `attributes` instead'
+    store: AttributePlansQueryAttributeplansLookupStore
+    'The parquet store holding the rows. Ask it for an accessGrant to actually read it -- credentials and locations never appear in a plan'
+    key_columns: Tuple[AttributePlansQueryAttributeplansLookupKeycolumns, ...] = Field(alias='keyColumns')
+    'The key bindings, in bind order: each names the value the worker holds (by axis name) and the parquet column it binds'
+    attributes: Tuple[AttributePlansQueryAttributeplansLookupAttributes, ...]
+    "What the SQL selects -- every declared non-coordinate column, never `*`. A column whose `references` names another table holds row ids of that table; following them is the client's choice, one more lookup away"
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributeplans(BaseModel):
+    """One executable answer to 'what is under this point?': map the point along `path` if the plan is not rooted where you probed, sample the field array, then look the value up in the table's parquet. Plans are discovered across the fact component -- probe a source image and the plans of the instance mask derived from it are found through the derivation edge -- but never through a registration: which claims compose is a scene's say-so, and this query has no scene. A plan takes no coordinate -- it is the same plan for every point, so fetch it once, cache it, and execute per hover locally with zero round-trips. attributePlans returns instructions, never attributes: anything that wants values runs the plan"""
+    typename: Literal['AttributePlan'] = Field(alias='__typename', default='AttributePlan', exclude=True)
+    edge: AttributePlansQueryAttributeplansEdge
+    "The FIELD edge this plan was built from. The plan's cache key is this edge's (id, version) together with every `path` step's transformation (id, version): the stores and columns of a table are written once, so a deleted or version-bumped edge -- the FIELD, or any step on the way to it -- is the only thing that can stale a cached plan"
+    table: AttributePlansQueryAttributeplansTable
+    'The table the plan lands in: the home of the attributes, its columns and their `references`'
+    path: Tuple[AttributePlansQueryAttributeplansPath, ...]
+    "The steps from the PROBED system to this plan's root (the FIELD edge's input system -- equal to `sample.system` when the mask's own pixels are the map). Empty when the plan is rooted where you probed. Compose in order, inverting the flagged steps, to map a probed-space point into the space `consumes` and `passthrough` are stated in -- the same contract as `pathToWorld`. The path crosses derivations, levels, lenses and physical spaces, never a registration"
+    sample: AttributePlansQueryAttributeplansSample
+    'The zarr half: sample the field array at the (path-mapped) point'
+    lookup: AttributePlansQueryAttributeplansLookup
+    'The duckdb half: look the sampled value up in the parquet'
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQuery(BaseModel):
+    """ run it. Anything wanting the full table or store metadata queries those by id."""
+    attribute_plans: Tuple[AttributePlansQueryAttributeplans, ...] = Field(alias='attributePlans')
+    'Every attribute plan reachable from one system: one per FIELD edge landing on a table, discovered across the fact component -- probe a source image and the plans of the instance mask derived from it come back, each carrying the `path` of steps from the probed system to its root. Registrations are never crossed (no scene, no world). A plan is instructions, never attributes -- map along the path, sample this array, look the value up in this parquet -- and takes no coordinate, so a client fetches it once and executes it per hover against the chunks it is already rendering. Cache it against the FIELD edge plus every path step (ids and versions); `maxDepth` bounds the discovery. The server reads no store and composes nothing'
+
+    class Arguments(BaseModel):
+        """Arguments for AttributePlans """
+        system: ID
+        max_depth: Optional[int] = Field(alias='maxDepth', default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for AttributePlans """
+        document = 'query AttributePlans($system: ID!, $maxDepth: Int) {\n  attributePlans(system: $system, maxDepth: $maxDepth) {\n    edge {\n      id\n      kind\n      name\n      version\n      validity\n      inputAxes\n      outputAxes\n      input {\n        id\n        name\n        __typename\n      }\n      output {\n        id\n        name\n        __typename\n      }\n      __typename\n    }\n    table {\n      id\n      name\n      __typename\n    }\n    path {\n      inverted\n      transformation {\n        id\n        kind\n        version\n        __typename\n      }\n      __typename\n    }\n    sample {\n      consumes\n      produces\n      passthrough\n      system {\n        id\n        name\n        __typename\n      }\n      store {\n        id\n        key\n        __typename\n      }\n      __typename\n    }\n    lookup {\n      sql\n      store {\n        id\n        key\n        __typename\n      }\n      keyColumns {\n        axis\n        column {\n          name\n          dtype\n          __typename\n        }\n        __typename\n      }\n      attributes {\n        name\n        dtype\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}'
 
 class GetCameraQuery(BaseModel):
     """No documentation found for this operation."""
@@ -10589,7 +10801,7 @@ Returns:
     variables['input'] = _input
     return execute(From_parquet_likeMutation, variables, rath=rath).from_parquet_like
 
-async def acreate_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+async def acreate_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
     """CreateTableDataset 
 
 Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
@@ -10600,6 +10812,7 @@ Args:
     columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and optional unit and becomes an axis of the table's space (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    keyed_by: A label mask whose pixel values are the ids this table is indexed by. It authors the FIELD edge in the direction the map actually runs -- mask pixels -> table rows -- which is the direction attributePlans discovers, and the opposite of the lineage `derivedFrom` records (required) (list)
     validate_schema: The `Boolean` scalar type represents `true` or `false`. (required)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -10615,11 +10828,13 @@ Returns:
         _input['description'] = description
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
+    if keyed_by is not UNSET:
+        _input['keyedBy'] = keyed_by
     _input['validateSchema'] = validate_schema
     variables['input'] = _input
     return (await aexecute(CreateTableDatasetMutation, variables, rath=rath)).create_table_dataset
 
-def create_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+def create_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
     """CreateTableDataset 
 
 Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
@@ -10630,6 +10845,7 @@ Args:
     columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and optional unit and becomes an axis of the table's space (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    keyed_by: A label mask whose pixel values are the ids this table is indexed by. It authors the FIELD edge in the direction the map actually runs -- mask pixels -> table rows -- which is the direction attributePlans discovers, and the opposite of the lineage `derivedFrom` records (required) (list)
     validate_schema: The `Boolean` scalar type represents `true` or `false`. (required)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -10645,6 +10861,8 @@ Returns:
         _input['description'] = description
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
+    if keyed_by is not UNSET:
+        _input['keyedBy'] = keyed_by
     _input['validateSchema'] = validate_schema
     variables['input'] = _input
     return execute(CreateTableDatasetMutation, variables, rath=rath).create_table_dataset
@@ -12134,6 +12352,42 @@ Returns:
     if offset is not UNSET:
         variables['offset'] = offset
     return execute(SearchAnnotationCollectionsQuery, variables, rath=rath).options
+
+async def aattribute_plans(system: IDCoercible, max_depth: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[AttributePlansQueryAttributeplans, ...]:
+    """AttributePlans 
+ run it. Anything wanting the full table or store metadata queries those by id.
+
+Args:
+    system (ID): No description
+    max_depth (Optional[int], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[AttributePlansQueryAttributeplans]
+"""
+    variables: Dict[str, Any] = {}
+    variables['system'] = system
+    if max_depth is not UNSET:
+        variables['maxDepth'] = max_depth
+    return (await aexecute(AttributePlansQuery, variables, rath=rath)).attribute_plans
+
+def attribute_plans(system: IDCoercible, max_depth: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[AttributePlansQueryAttributeplans, ...]:
+    """AttributePlans 
+ run it. Anything wanting the full table or store metadata queries those by id.
+
+Args:
+    system (ID): No description
+    max_depth (Optional[int], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[AttributePlansQueryAttributeplans]
+"""
+    variables: Dict[str, Any] = {}
+    variables['system'] = system
+    if max_depth is not UNSET:
+        variables['maxDepth'] = max_depth
+    return execute(AttributePlansQuery, variables, rath=rath).attribute_plans
 
 async def aget_camera(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Camera:
     """GetCamera 

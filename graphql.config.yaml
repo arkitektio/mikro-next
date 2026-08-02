@@ -82,7 +82,6 @@ projects:
           FiveDVector: mikro_next.scalars.FiveDVector
           Matrix: mikro_next.scalars.Matrix
           GenericQuantity: kanne.scalars.GenericQuantity
-          
           Metric: typing.Any
           MetricMap: typing.Any
           Duration: kanne.scalars.Duration
@@ -100,6 +99,10 @@ projects:
             - mikro_next.traits.AxisInputTrait
           ValueHistogramInput:
             - mikro_next.traits.ValueHistogramInputTrait
+          TransferFunctionInput:
+            - mikro_next.traits.RGBAColorInputTrait
+          PhasorCursorInput:
+            - mikro_next.traits.RGBAColorInputTrait
           CoordinateAnchorInput:
             - mikro_next.traits.CoordinateAnchorInputTrait
           Image:

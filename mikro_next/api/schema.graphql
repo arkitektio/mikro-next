@@ -1,5 +1,7 @@
 directive @auth(required_scopes: [String!] = null, required_roles: [String!] = null) on FIELD_DEFINITION
 
+directive @oneOf on INPUT_OBJECT
+
 directive @unionElementOf(union: String!, discriminator: String!, key: String!) repeatable on INPUT_OBJECT
 
 """
@@ -153,7 +155,7 @@ input ADatasetFilter {
   notDerived: Boolean
 }
 
-input ADatasetOrder @oneOf {
+input ADatasetOrder {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -488,7 +490,7 @@ input AnimationFilter {
   scene: ID
 }
 
-input AnimationOrder @oneOf {
+input AnimationOrder {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -669,7 +671,7 @@ input AnnotationCollectionFilter {
   search: String
 }
 
-input AnnotationCollectionOrder @oneOf {
+input AnnotationCollectionOrder {
   name: Ordering
   createdAt: Ordering
   id: Ordering
@@ -757,7 +759,7 @@ type AnnotationLayer implements Layer {
   annotationCollection: AnnotationCollection!
 }
 
-input AnnotationOrder @oneOf {
+input AnnotationOrder {
   name: Ordering
   id: Ordering
 }
@@ -1967,7 +1969,7 @@ type CoordinateSystem {
   residents: [Resident!]!
 
   """
-  Every top-level edge landing in this space -- the claims that place something here. They belong to the space, so every scene composing over this system sees the same list, each entry unique for its data-tree, and `layers.pathToWorld` searches exactly these plus the datasets' own facts. On a shared world these are the registrations a client authored; on a container's own grid they are the lens crops and derived children that land in it. Composing the matrices stays the client's job
+  Every top-level edge landing in this space -- the claims that place something here. They belong to the space, so every scene composing over this system sees the same list, each entry unique for its data-tree, and `layers.pathToWorld` searches exactly these plus the datasets' own facts. On a shared world these are the registrations a client authored; on a container's own grid they are the lens crops and derived children that land in it. Composing the matrices stays the client's job. Not filtered by kind, so a table's own system also lists the FIELD edge of any mask keying it -- that one places nothing (a FIELD has no inverse, so no path walks it backwards); it is a dereference, and `attributePlans` is what reads it
   """
   registrations: [Transformation!]!
 
@@ -2038,7 +2040,7 @@ input CoordinateSystemFilter {
   scene: ID
 }
 
-input CoordinateSystemOrder @oneOf {
+input CoordinateSystemOrder {
   name: Ordering
   createdAt: Ordering
   id: Ordering
@@ -2424,6 +2426,7 @@ input CreateTableDatasetInput {
   columns: [TableColumnInput!]! = []
   description: String = null
   derivedFrom: [DerivedFromInput!] = null
+  keyedBy: [KeyedByInput!] = null
   validateSchema: Boolean! = false
 }
 
@@ -2508,7 +2511,7 @@ input DataArrayFilter {
   dataset: ID
 }
 
-input DataArrayOrder @oneOf {
+input DataArrayOrder {
   level: Ordering
   id: Ordering
 }
@@ -2610,7 +2613,7 @@ input DatasetFilter {
 
 union DatasetImageFile = Dataset | Image | File
 
-input DatasetOrder @oneOf {
+input DatasetOrder {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -3224,7 +3227,7 @@ input EraInput {
   begin: DateTime = null
 }
 
-input EraOrder @oneOf {
+input EraOrder {
   createdAt: Ordering
   begin: Ordering
   name: Ordering
@@ -3280,7 +3283,7 @@ input ExperimentFilter {
   DISTINCT: Boolean
 }
 
-input ExperimentOrder @oneOf {
+input ExperimentOrder {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -3462,7 +3465,7 @@ The `FileLike` scalar type represents a reference to a big file storage previous
 """
 scalar FileLike
 
-input FileOrder @oneOf {
+input FileOrder {
   createdAt: Ordering
   name: Ordering
   size: Ordering
@@ -3569,7 +3572,7 @@ input FileViewInput {
   image: ID!
 }
 
-input FileViewOrder @oneOf {
+input FileViewOrder {
   id: Ordering
 }
 
@@ -4232,7 +4235,7 @@ The `ImageLike` scalar type represents a reference to an image previously create
 """
 scalar ImageLike
 
-input ImageOrder @oneOf {
+input ImageOrder {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -4427,7 +4430,7 @@ input InstrumentInput {
   model: String = null
 }
 
-input InstrumentOrder @oneOf {
+input InstrumentOrder {
   name: Ordering
   id: Ordering
 }
@@ -4456,6 +4459,15 @@ input IntFilterLookup {
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
 """
 scalar JSON @specifiedBy(url: "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf")
+
+"""
+A label mask whose pixel values are the ids this table is indexed by. It authors the FIELD edge in the direction the map actually runs -- mask pixels -> table rows -- which is the direction attributePlans discovers, and the opposite of the lineage `derivedFrom` records
+"""
+input KeyedByInput {
+  dataset: ID!
+  name: String = null
+  validity: PlacementValidity = null
+}
 
 """
 A label accessor declares that the values of its table columns are pixel values of an associated mask view, allowing clients to join table rows to mask labels.
@@ -4746,7 +4758,7 @@ input LayerNodeInput {
   children: [LayerNodeInput!] = null
 }
 
-input LayerOrder @oneOf {
+input LayerOrder {
   id: Ordering
 }
 
@@ -4890,7 +4902,7 @@ input LensFilter {
   placeableIn: ID
 }
 
-input LensOrder @oneOf {
+input LensOrder {
   id: Ordering
 }
 
@@ -5004,6 +5016,26 @@ type LightpathView implements View {
   The lightpath graph describing the lightpath used to acquire this image
   """
   graph: LightpathGraph!
+}
+
+"""
+The provenance component around one piece of data: every container it was computed from or that was computed from it, transitively, and the derivation edges between them. The lineage counterpart of `coordinateGraph`, and the difference is which edges are *walked*: that one crosses every edge touching a space, so a registration pulls in everything else registered into the same world -- the neighbourhood, not the provenance. This crosses derivation edges only, in both directions, because asking a source what came out of it and asking a product what went into it are the same graph read from two ends
+"""
+type LineageGraph {
+  """
+  The coordinate system the walk started from. Its container is the node the graph is centred on
+  """
+  root: CoordinateSystem!
+
+  """
+  Every container in the component, the root's own included, ordered by kind and then by ID. Containers rather than spaces: a lineage is a story about data, and a dataset's pixel grid, its pyramid levels and its lenses are one node in it rather than three. Empty when the root space belongs to no container -- a world was computed from nothing and nothing was computed from it
+  """
+  nodes: [Resident!]!
+
+  """
+  Every derivation edge with both containers in `nodes`, ordered by ID. Stored direction throughout -- child to source -- so the arrow points the way provenance reads. **Kind-blind**: an UNMAPPABLE edge is here, and is the point of the kind existing, since 'this came from that and the geometry did not survive' is exactly how a measurement table hangs off the mask it was measured from. Filter on `kind` for the chain that actually places things; a registration is never here at all
+  """
+  edges: [Transformation!]!
 }
 
 """
@@ -5470,7 +5502,7 @@ input MultiWellPlateInput {
   rows: Int = null
 }
 
-input MultiWellPlateOrder @oneOf {
+input MultiWellPlateOrder {
   name: Ordering
   id: Ordering
 }
@@ -6118,7 +6150,7 @@ input ObjectiveInput {
   immersion: String = null
 }
 
-input ObjectiveOrder @oneOf {
+input ObjectiveOrder {
   name: Ordering
   magnification: Ordering
   id: Ordering
@@ -8154,6 +8186,11 @@ type Query {
   coordinateGraph(coordinateSystem: ID!, maxDepth: Int = null): CoordinateGraph!
 
   """
+  Walk the *derivation* edges out from one container and return its provenance component: everything this data was computed from, everything computed from it, transitively in both directions, and the edges between them. Distinct from `coordinateGraph`, which walks every edge touching a space -- a registration there drags in every other dataset registered into the same world, which is a neighbourhood rather than a lineage. Nodes are containers, not spaces: a dataset's grid, its levels and its lenses are one node in a provenance story. Kind-blind, so an UNMAPPABLE edge is included and is the point -- that is how a measurement table hangs off the mask it was measured from; filter on `kind` for the chain that actually places things. Root it at any container's coordinate system
+  """
+  lineageGraph(coordinateSystem: ID!, maxDepth: Int = null): LineageGraph!
+
+  """
   Every attribute plan reachable from one system: one per FIELD edge landing on a table, discovered across the fact component -- probe a source image and the plans of the instance mask derived from it come back, each carrying the `path` of steps from the probed system to its root. Registrations are never crossed (no scene, no world). A plan is instructions, never attributes -- map along the path, sample this array, look the value up in this parquet -- and takes no coordinate, so a client fetches it once and executes it per hover against the chunks it is already rendering. Cache it against the FIELD edge plus every path step (ids and versions); `maxDepth` bounds the discovery. The server reads no store and composes nothing
   """
   attributePlans(system: ID!, maxDepth: Int = null): [AttributePlan!]!
@@ -8381,7 +8418,7 @@ input RGBContextFilter {
   image: ID
 }
 
-input RGBContextOrder @oneOf {
+input RGBContextOrder {
   name: Ordering
   id: Ordering
 }
@@ -8602,7 +8639,7 @@ input ROIFilter {
   search: String
 }
 
-input ROIOrder @oneOf {
+input ROIOrder {
   createdAt: Ordering
   id: Ordering
 }
@@ -8861,7 +8898,7 @@ input RenderTreeInput {
   name: String!
 }
 
-input RenderTreeOrder @oneOf {
+input RenderTreeOrder {
   name: Ordering
   id: Ordering
 }
@@ -9357,7 +9394,7 @@ input SceneFilter {
   search: String
 }
 
-input SceneOrder @oneOf {
+input SceneOrder {
   name: Ordering
   id: Ordering
 }
@@ -9465,7 +9502,7 @@ input SceneSnapshotInput {
   name: String = null
 }
 
-input SceneSnapshotOrder @oneOf {
+input SceneSnapshotOrder {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -9695,7 +9732,7 @@ input SnapshotInput {
   name: String = null
 }
 
-input SnapshotOrder @oneOf {
+input SnapshotOrder {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -9835,7 +9872,7 @@ input StageInput {
   instrument: ID = null
 }
 
-input StageOrder @oneOf {
+input StageOrder {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -10117,7 +10154,7 @@ input TableDatasetFilter {
   placeableIn: ID
 }
 
-input TableDatasetOrder @oneOf {
+input TableDatasetOrder {
   name: Ordering
   createdAt: Ordering
   id: Ordering
@@ -10171,7 +10208,7 @@ input TableFilter {
   notDerived: Boolean
 }
 
-input TableOrder @oneOf {
+input TableOrder {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -10279,7 +10316,7 @@ input TaskFilter {
   search: String
 }
 
-input TaskOrder @oneOf {
+input TaskOrder {
   createdAt: Ordering
   id: Ordering
 }
@@ -10702,7 +10739,7 @@ input TransformationFilter {
   rootsOnly: Boolean
 }
 
-input TransformationOrder @oneOf {
+input TransformationOrder {
   order: Ordering
   createdAt: Ordering
   id: Ordering

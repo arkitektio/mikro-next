@@ -921,6 +921,13 @@ class DatasetTrait:
         many-to-one on purpose — an object is a set of voxels — and is never
         walked backwards.
 
+        For a table that does not exist yet, prefer ``create_table_dataset``'s
+        ``keyed_by=[KeyedByInput(dataset=mask.id)]``: it says the same thing in
+        the call that creates the table, so the pair is atomic, and the server
+        derives the consumed and produced axes from the two spaces rather than
+        taking them on trust. This method is the standalone form, for keying a
+        table that already exists.
+
         Args:
             table: The table dataset keyed by these labels (anything with a
                 ``coordinate_system``), or that coordinate system directly.
@@ -1009,6 +1016,52 @@ class CreateADatasetTrait:
                 )
 
         return self
+
+
+class RGBAColorInputTrait(BaseModel):
+    """Completes a colour to RGBA, and rejects one that cannot be completed.
+
+    The server takes ``color`` as exactly four components — red, green, blue,
+    alpha — but the field arrives here as a bare ``[Int!]``, so nothing in the
+    generated model says so and a three-component colour travels all the way to
+    the backend before being refused. Writing ``(0, 255, 255)`` for cyan is the
+    obvious thing to write, and the round trip is a poor way to find out it is
+    wrong.
+
+    So a three-component colour is completed with an opaque alpha, which is what
+    the caller meant, and anything else fails here with the length it actually
+    had::
+
+        TransferFunctionInput(color=(0, 255, 255))       # -> (0, 255, 255, 255)
+        TransferFunctionInput(color=(0, 255, 255, 128))  # left alone
+        TransferFunctionInput(color=(0, 255))            # ValueError
+
+    Alpha is 255 rather than 1.0 because these components are 0-255 integers;
+    ``mikro_next.scalars.RGBAColor`` completes with 1.0 for the same reason, its
+    components being floats. That scalar is not what validates this field —
+    nothing in the schema is typed ``RGBAColor`` — which is why this exists.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _complete_rgba(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        color = value.get("color")
+        if color is None or isinstance(color, (str, bytes)):
+            return value
+        try:
+            components = [int(c) for c in color]
+        except TypeError:
+            return value  # not a sequence; let the field's own validation speak
+        if len(components) == 3:
+            components.append(255)
+        elif len(components) != 4:
+            raise ValueError(
+                f"color is an RGBA colour, so it takes 3 components (alpha is "
+                f"completed to 255) or 4, but got {len(components)}: {list(color)}"
+            )
+        return {**value, "color": components}
 
 
 class AxisInputTrait(BaseModel):

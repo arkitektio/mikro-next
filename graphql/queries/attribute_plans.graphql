@@ -1,0 +1,71 @@
+# Every attribute plan reachable from one system: one per FIELD edge landing on a table.
+#
+# A plan is instructions, never attributes -- map along `path`, sample the field array,
+# look the value up in the parquet -- and it takes no coordinate, so a client fetches it
+# once and executes it per hover locally. This selection is deliberately lean: the ids and
+# axis lists that say *which* map was found, plus the SQL and key columns a worker needs to
+# run it. Anything wanting the full table or store metadata queries those by id.
+query AttributePlans($system: ID!, $maxDepth: Int) {
+  attributePlans(system: $system, maxDepth: $maxDepth) {
+    edge {
+      id
+      kind
+      name
+      version
+      validity
+      inputAxes
+      outputAxes
+      input {
+        id
+        name
+      }
+      output {
+        id
+        name
+      }
+    }
+    table {
+      id
+      name
+    }
+    path {
+      inverted
+      transformation {
+        id
+        kind
+        version
+      }
+    }
+    sample {
+      consumes
+      produces
+      passthrough
+      system {
+        id
+        name
+      }
+      store {
+        id
+        key
+      }
+    }
+    lookup {
+      sql
+      store {
+        id
+        key
+      }
+      keyColumns {
+        axis
+        column {
+          name
+          dtype
+        }
+      }
+      attributes {
+        name
+        dtype
+      }
+    }
+  }
+}

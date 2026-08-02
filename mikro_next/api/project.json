@@ -96,6 +96,12 @@
                 "ValueHistogramInput": [
                     "mikro_next.traits.ValueHistogramInputTrait"
                 ],
+                "TransferFunctionInput": [
+                    "mikro_next.traits.RGBAColorInputTrait"
+                ],
+                "PhasorCursorInput": [
+                    "mikro_next.traits.RGBAColorInputTrait"
+                ],
                 "CoordinateAnchorInput": [
                     "mikro_next.traits.CoordinateAnchorInputTrait"
                 ],
