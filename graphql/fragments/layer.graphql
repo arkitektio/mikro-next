@@ -1,4 +1,5 @@
 fragment Layer on Layer {
+  id
   scene {
     id
     name

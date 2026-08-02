@@ -1,4 +1,0 @@
-fragment DimDescriptor on DimDescriptor {
-  key
-  kind
-}

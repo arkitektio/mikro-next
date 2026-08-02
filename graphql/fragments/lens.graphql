@@ -1,16 +1,16 @@
 fragment Slice on Slice {
-  dim
+  axis
   start
   stop
   step
 }
 
 
-fragment Lens on Lens { 
+fragment Lens on Lens {
   id
   dataset {
     id
-    dims
+    axisNames
     dataArrays {
       id
       level
@@ -20,9 +20,16 @@ fragment Lens on Lens {
     }
   }
   shape
-  dims
-  dimDescriptors {
-    ...DimDescriptor
+  axisNames
+  coordinateSystem {
+    ...CoordinateSystem
+  }
+  renderAxes {
+    x
+    y
+    z
+    t
+    intensity
   }
   slices {
     ...Slice

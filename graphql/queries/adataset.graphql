@@ -1,0 +1,26 @@
+query GetADataset($id: ID!) {
+  adataset(id: $id) {
+    ...ADataset
+  }
+}
+
+query GetADatasets($filters: ADatasetFilter, $pagination: OffsetPaginationInput) {
+  adatasets(filters: $filters, pagination: $pagination) {
+    ...ADataset
+  }
+}
+
+query SearchADatasets(
+  $search: String
+  $values: [ID!]
+  $limit: Int
+  $offset: Int = 0
+) {
+  options: adatasets(
+    filters: { search: $search, ids: $values }
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    value: id
+    label: name
+  }
+}

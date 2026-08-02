@@ -1,0 +1,19 @@
+fragment MeshCollection on MeshCollection {
+  id
+  version
+  specVersion
+  grid
+  encoding
+  coordinateSystem {
+    ...CoordinateSystem
+  }
+  catalog {
+    ...ParquetStore
+  }
+  geometry {
+    ...ParquetStore
+  }
+  derivedFrom {
+    ...Transformation
+  }
+}

@@ -1,5 +1,0 @@
-mutation CreateMesh($input: MeshInput!) {
-  createMesh(input: $input) {
-    ...Mesh
-  }
-}

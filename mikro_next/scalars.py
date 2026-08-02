@@ -161,7 +161,7 @@ def coerce_to_labeled_array(v: ArrayCoercible) -> xr.DataArray:
     caller's dimension labels and order verbatim: no dimensions are added,
     removed, or transposed. This is the generic dataset path where the user
     supplies arbitrary, explicitly-labelled dimensions alongside matching
-    ``dim_descriptors`` (validated at the model level by ``CreateADatasetTrait``).
+    ``axes`` (validated at the model level by ``CreateADatasetTrait``).
 
     Bare numpy/dask arrays carry no labels, so they are wrapped with xarray's
     default dimension names (``dim_0``, ``dim_1``, ...). The array is returned

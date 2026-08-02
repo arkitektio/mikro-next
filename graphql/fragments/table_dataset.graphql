@@ -1,0 +1,26 @@
+fragment TableDataset on TableDataset {
+  id
+  name
+  description
+  store {
+    ...ParquetStore
+  }
+  columns {
+    id
+    order
+    name
+    dtype
+    role
+    axisType
+    unit
+    longName
+  }
+  coordinateSystem {
+    ...CoordinateSystem
+  }
+  derivedFrom {
+    ...Transformation
+  }
+  axisNames
+  provenanceMetadata
+}

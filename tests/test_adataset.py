@@ -1,8 +1,10 @@
 """Integration tests for the generic ``create_a_dataset`` (ArrayLike) path.
 
-Mirrors ``test_image.py`` but exercises arbitrarily-labelled arrays, multiscale
-pyramids, dimension descriptors and coordinate anchors, end-to-end against a
-deployed Mikro instance.
+Mirrors ``test_image.py`` but exercises arbitrarily-*named* axes, multiscale
+pyramids and coordinate anchors, end-to-end against a deployed Mikro instance.
+Axis order is not arbitrary: the server requires axes sorted by type -- time,
+then channel and custom types, then space -- and the array's dimension order is
+that order.
 """
 
 from typing import List
@@ -12,9 +14,9 @@ import pytest
 import xarray as xr
 
 from mikro_next.api.schema import (
+    AxisAnchorInput,
+    AxisInput,
     CoordinateAnchorInput,
-    DimAnchorInput,
-    DimensionDescriptorInput,
     ScaleInput,
     ValueHistogramInput,
     create_a_dataset,
@@ -24,19 +26,24 @@ from .conftest import DeployedMikro
 
 
 def _make_volume() -> xr.DataArray:
-    """A small labelled (z, y, x, c) volume suitable for fast uploads."""
+    """A small labelled (c, z, y, x) volume suitable for fast uploads.
+
+    The server requires axes ordered by type -- time, then channel and custom
+    types, then space -- and the array's dimension order *is* that order, so the
+    channel axis leads.
+    """
     return xr.DataArray(
-        np.random.random((4, 64, 64, 2)).astype("float32"),
-        dims=["z", "y", "x", "c"],
+        np.random.random((2, 4, 64, 64)).astype("float32"),
+        dims=["c", "z", "y", "x"],
     )
 
 
-def _descriptors() -> List[DimensionDescriptorInput]:
+def _axes() -> List[AxisInput]:
     return [
-        DimensionDescriptorInput(key="z", kind="space"),
-        DimensionDescriptorInput(key="y", kind="space"),
-        DimensionDescriptorInput(key="x", kind="space"),
-        DimensionDescriptorInput(key="c", kind="channel"),
+        AxisInput(name="c", type="CHANNEL"),
+        AxisInput(name="z", type="SPACE"),
+        AxisInput(name="y", type="SPACE"),
+        AxisInput(name="x", type="SPACE"),
     ]
 
 
@@ -72,14 +79,18 @@ def test_create_a_dataset(deployed_app: DeployedMikro) -> None:
     data = _make_volume()
     dataset = create_a_dataset(
         data=data,
-        scales=[ScaleInput(level=0, array=data, scale_factors=[1, 1, 1, 1])],
+        # ``data`` *is* level 0; listing it in ``scales`` too would upload it
+        # twice, which the server rejects (one_data_array_per_level).
+        scales=[],
         name="adataset_basic",
-        dim_descriptors=_descriptors(),
+        axes=_axes(),
     )
     assert dataset.id, "Dataset should have an ID"
     assert dataset.name == "adataset_basic"
-    # The arbitrary labels must round-trip rather than being coerced to ctzyx.
-    assert set(dataset.dims) == {"z", "y", "x", "c"}
+    # The axis names come back as given rather than being renamed into a fixed
+    # t/c/z/y/x vocabulary. Their *order* is no longer free -- the server
+    # requires axes sorted by type -- so only the names are asserted here.
+    assert set(dataset.axis_names) == {"z", "y", "x", "c"}
 
 
 @pytest.mark.integration
@@ -87,24 +98,21 @@ def test_create_a_dataset_with_pyramid(deployed_app: DeployedMikro) -> None:
     """Create a dataset with a multiscale pyramid of scale arrays."""
     data = _make_volume()
     pyramid = _pyramid(data, levels=3)
+    # ``pyramid[0]`` is ``data`` itself, which travels as level 0 via ``data=``;
+    # ``scales`` carries only the coarser levels, numbered from 1.
     scales = [
-        ScaleInput(
-            level=i,
-            array=arr,
-            scale_method="nearest" if i > 0 else None,
-            scale_factors=[2**i, 2**i, 2**i, 1],
-        )
-        for i, arr in enumerate(pyramid)
+        ScaleInput(level=i, array=arr, scaleMethod="nearest")
+        for i, arr in enumerate(pyramid[1:], start=1)
     ]
 
     dataset = create_a_dataset(
         data=data,
         scales=scales,
         name="adataset_pyramid",
-        dim_descriptors=_descriptors(),
+        axes=_axes(),
     )
     assert dataset.id
-    assert len(dataset.data_arrays) == len(pyramid + [data]), "All pyramid levels should be stored"
+    assert len(dataset.data_arrays) == len(pyramid), "All pyramid levels should be stored"
     assert {arr.level for arr in dataset.data_arrays} == set(range(len(pyramid))), (
         "Pyramid levels should be correctly labeled"
     )
@@ -116,7 +124,7 @@ def test_create_a_dataset_with_anchors(deployed_app: DeployedMikro) -> None:
     data = _make_volume()
     anchors = [
         CoordinateAnchorInput(
-            dimAnchors=(DimAnchorInput(dim="c", value=c),),
+            axisAnchors=(AxisAnchorInput(axis="c", value=c),),
             valueHistogram=_histogram(data.isel(c=c).to_numpy()),
         )
         for c in range(data.sizes["c"])
@@ -124,9 +132,11 @@ def test_create_a_dataset_with_anchors(deployed_app: DeployedMikro) -> None:
 
     dataset = create_a_dataset(
         data=data,
-        scales=[ScaleInput(level=0, array=data, scale_factors=[1, 1, 1, 1])],
+        # ``data`` *is* level 0; listing it in ``scales`` too would upload it
+        # twice, which the server rejects (one_data_array_per_level).
+        scales=[],
         name="adataset_anchored",
-        dim_descriptors=_descriptors(),
+        axes=_axes(),
         anchors=anchors,
     )
     assert dataset.id
@@ -134,20 +144,20 @@ def test_create_a_dataset_with_anchors(deployed_app: DeployedMikro) -> None:
 
 
 @pytest.mark.integration
-def test_create_a_dataset_rejects_mismatched_descriptors(
+def test_create_a_dataset_rejects_mismatched_axes(
     deployed_app: DeployedMikro,
 ) -> None:
-    """The model-level trait rejects descriptors that don't cover the data dims."""
+    """The model-level trait rejects axes that don't cover the data dims."""
     data = _make_volume()
     with pytest.raises(Exception):
         create_a_dataset(
             data=data,
-            scales=[ScaleInput(level=0, array=data, scale_factors=[1, 1, 1, 1])],
+            scales=[],
             name="adataset_bad",
-            # Missing the "c" descriptor -> should fail before any upload.
-            dim_descriptors=[
-                DimensionDescriptorInput(key="z", kind="space"),
-                DimensionDescriptorInput(key="y", kind="space"),
-                DimensionDescriptorInput(key="x", kind="space"),
+            # Missing the "c" axis -> should fail before any upload.
+            axes=[
+                AxisInput(name="z", type="SPACE"),
+                AxisInput(name="y", type="SPACE"),
+                AxisInput(name="x", type="SPACE"),
             ],
         )

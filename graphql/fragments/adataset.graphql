@@ -1,11 +1,19 @@
 fragment ADataset on ADataset {
   id
   name
-  dims
+  axisNames
+  shape
+  multiscale
+  intrinsicSystem {
+    ...CoordinateSystem
+  }
   dataArrays {
+    id
     level
     shape
     chunkShape
-    scaleFactors
+    store {
+      ...ZarrStore
+    }
   }
 }

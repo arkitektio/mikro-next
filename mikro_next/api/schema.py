@@ -1,13 +1,13 @@
-from mikro_next.scalars import ImageLike, ImageCoercible, MeshLike, LabelsLike, FiveDVector, ImageFileCoercible, FileLike, FourByFourMatrix, ParquetCoercible, ThreeDVector, MeshCoercible, ArrayLike, ParquetLike, ImageFileLike, ArrayCoercible
-from typing import Literal, Dict, Iterator, Any, Optional, Iterable, Tuple, Annotated, List, AsyncIterator, Union
-from mikro_next.traits import IsVectorizableTrait, HasParquestStoreTrait, HasParquetStoreAccesor, DataArrayTrait, HasDownloadAccessor, HasZarrStoreAccessor, FileTrait, HasPresignedDownloadAccessor, HasZarrStoreTrait, CreateADatasetTrait, DatasetTrait, Lensable, MikroFetchable
-from kanne.scalars import Power, Frequency, Length, Duration
+from mikro_next.scalars import FileLike, FiveDVector, ArrayLike, ImageLike, ParquetCoercible, ParquetLike, ImageFileCoercible, LabelsLike, ArrayCoercible, ImageFileLike, FourByFourMatrix, ImageCoercible, ThreeDVector
 from pydantic import Field, BaseModel, ConfigDict
-from mikro_next.funcs import aexecute, subscribe, asubscribe, execute
 from rath.scalars import IDCoercible, ID
-from datetime import datetime
-from enum import Enum
+from mikro_next.traits import ValueHistogramInputTrait, MikroFetchable, CoordinateAnchorInputTrait, FileTrait, TransformationTrait, DatasetTrait, CreateADatasetTrait, IsVectorizableTrait, HasZarrStoreAccessor, HasParquetStoreAccesor, HasZarrStoreTrait, AxisInputTrait, DataArrayTrait, Lensable, HasPresignedDownloadAccessor, HasParquestStoreTrait, HasDownloadAccessor, SceneTrait, CoordinateSystemTrait
+from mikro_next.funcs import execute, subscribe, asubscribe, aexecute
+from kanne.scalars import Duration, Temperature, GenericQuantity, Frequency, Length, Power, Unit
+from typing import Optional, Dict, Union, Literal, AsyncIterator, Any, Iterator, Iterable, Tuple, Annotated, List
 from mikro_next.rath import MikroNextRath
+from enum import Enum
+from datetime import datetime
 
 class GraphQLDefault:
     """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
@@ -34,6 +34,46 @@ class UnsetType:
         return False
 UNSET = UnsetType()
 
+class ADatasetSpec(str, Enum):
+    """What a dataset structurally is, materialized from the axes of its intrinsic coordinate system at creation. Specs stack: a 3D timelapse is VOLUME, TIMESERIES and MULTICHANNEL at once. Exactly one spatial member (SCALAR/PROFILE/IMAGE/VOLUME/HYPERVOLUME) ever holds."""
+    SCALAR = 'SCALAR'
+    'No spatial extent: the array carries no SPACE axis at all.'
+    PROFILE = 'PROFILE'
+    'One spatial axis -- a line profile, a depth trace.'
+    IMAGE = 'IMAGE'
+    'Two spatial axes: a plane. The ordinary micrograph.'
+    VOLUME = 'VOLUME'
+    'Three spatial axes: a stack. Holds whenever a z axis is present, even if it carries a single plane.'
+    HYPERVOLUME = 'HYPERVOLUME'
+    'Four or more spatial axes.'
+    TIMESERIES = 'TIMESERIES'
+    'Carries a TIME axis -- a timelapse. Presence only: a single-frame time axis still counts.'
+    MULTICHANNEL = 'MULTICHANNEL'
+    'Carries a CHANNEL axis. Presence only: a one-channel axis still counts.'
+    SPECTRAL = 'SPECTRAL'
+    'Carries a SPECTRUM axis: a spectrally resolved acquisition, a lambda stack.'
+    FLIM = 'FLIM'
+    'Carries a MICROTIME axis: fluorescence-lifetime arrival-time bins.'
+
+class AxisType(str, Enum):
+    """The semantic kind of an axis. A system's axes must be ordered by type: time first, then channel and custom types, then space."""
+    SPACE = 'SPACE'
+    'A spatial axis. Unitless pixel indices in a pixel-grid system; carries a physical length unit in a unit-carrying system.'
+    TIME = 'TIME'
+    'A time axis. Frame indices in a pixel-grid system; carries a physical duration unit in a unit-carrying system.'
+    CHANNEL = 'CHANNEL'
+    'A categorical channel axis: its coordinates index acquisitions, not positions. Never downsampled.'
+    COORDINATE = 'COORDINATE'
+    'The value axis of a coordinate-valued array: its positions enumerate the components of an absolute output position. This is what makes the array readable as the `field` of a FIELD edge. A scalar-valued field (a label mask, whose one value is an object id) carries no value axis at all -- absent means scalar, and scalar means COORDINATE.'
+    DISPLACEMENT = 'DISPLACEMENT'
+    'The value axis of a displacement-valued array: its positions enumerate the components of a per-point OFFSET, where COORDINATE enumerates absolute positions. Stating it here rather than on the edge is deliberate: it is a property of the array, and an array that says it twice can disagree with itself.'
+    MICROTIME = 'MICROTIME'
+    'A FLIM arrival-time bin. Continuous, so a pyramid may re-bin it, and a phasor may be taken over it.'
+    SPECTRUM = 'SPECTRUM'
+    'A wavelength bin of a spectrally resolved acquisition. Continuous -- unlike a CHANNEL axis, whose coordinates index acquisitions rather than positions -- so a pyramid may re-bin it, and a phasor may be taken over it.'
+    INDEX = 'INDEX'
+    'An enumerating axis with no metric: an object id, a row number. It has no unit because there is nothing to measure — the distance between object 3 and object 4 means nothing.'
+
 class Blending(str, Enum):
     """The blending mode used to combine multiple channels or layers into a composite image."""
     ADDITIVE = 'ADDITIVE'
@@ -42,6 +82,17 @@ class Blending(str, Enum):
     'Multiplicative blending, where the color values of overlapping layers are multiplied.'
     NORMAL = 'NORMAL'
     'Alpha-over compositing: the layer is blended over the layers below using its opacity.'
+
+class BootstrapLayerKind(str, Enum):
+    """The render recipe an image layer carries: which default graph createSceneFromCoordinateSystem builds, via `ScenePolicyInput.kind`."""
+    RGB = 'RGB'
+    'Composite three channels as red, green and blue. Inferred for a 2D dataset whose channel axis has exactly three positions -- a photograph, a brightfield slide.'
+    INTENSITY = 'INTENSITY'
+    'One colormapped source per channel, additively blended (grey for a single channel). The fluorescence default, and the fallback when nothing else is inferred.'
+    VOLUME = 'VOLUME'
+    'The channel sources under a maximum-intensity projection over z. Inferred when the dataset has a z axis with more than one plane.'
+    LABEL = 'LABEL'
+    'A single categorical source mapping discrete integer labels to distinct colors. Never inferred from structure -- nothing about an array distinguishes a label map from an image -- so it comes either from a derivation declared CATEGORIZED or from stating it outright.'
 
 class ChannelKind(str, Enum):
     """No documentation"""
@@ -97,12 +148,52 @@ class ColorMap(str, Enum):
     WARM = 'WARM'
     'A colormap of warm tones ranging from yellow to red.'
 
-class DimensionKind(str, Enum):
-    """No documentation"""
-    SPACE = 'SPACE'
-    CHANNEL = 'CHANNEL'
-    TIME = 'TIME'
-    FREQUENCY = 'FREQUENCY'
+class CreatableTransformKind(str, Enum):
+    """The kind of a transformation a client can author directly: the discriminator of `TransformInput`. SEQUENCE and BIJECTION are absent on purpose -- they are wrappers the ingest builds together with their children (pyramid levels, stepped lenses), never authored empty."""
+    IDENTITY = 'IDENTITY'
+    'The identity map. Input and output coordinates are the same, so it takes no parameters.'
+    SCALE = 'SCALE'
+    'A per-axis multiplication. Takes `scale`, one entry per input axis.'
+    TRANSLATION = 'TRANSLATION'
+    'A per-axis offset. Takes `translation`, one entry per input axis.'
+    MAP_AXIS = 'MAP_AXIS'
+    'A permutation of axes, mapping each input axis to an output axis by name. Takes `inputAxes` and `outputAxes`; the matrix is synthesized from them.'
+    AFFINE = 'AFFINE'
+    'A general affine map. Takes `affine`, an M x (N+1) matrix with rows outermost.'
+    ROTATION = 'ROTATION'
+    'A rotation. Takes `affine`: the orthonormal matrix, in the same layout an AFFINE uses.'
+    BY_DIMENSION = 'BY_DIMENSION'
+    'A map acting on a named subset of the axes and saying nothing about the rest. Takes `inputAxes` and `outputAxes`, and optionally `scale`, `translation` or `affine` acting on the named axes.'
+    FIELD = 'FIELD'
+    "A non-affine map given by the values of an array rather than by a formula. Takes `field` (the array's coordinate system), `inputAxes` and `outputAxes`."
+    UNMAPPABLE = 'UNMAPPABLE'
+    'A declared NON-correspondence: no point of either space maps to a point of the other. Takes only an optional `reason`.'
+
+class DerivationSourceKind(str, Enum):
+    """Which kind of thing a derivation names as the source its data was computed from: the discriminator of `DerivedFromInput`. The edge itself is the same whichever is chosen -- child space in, source space out -- so a table named as TABLE_DATASET and the same table named as COORDINATE_SYSTEM write the identical row; the read side reports what lives at the far end through `CoordinateSystem.residents`, not which member was used to say it"""
+    LENS = 'LENS'
+    "A selection over an array dataset, and the preferred way to name one: a lens' own edge back to its dataset already carries the crop, so pointing at it gets the rest of the chain for free."
+    DATASET = 'DATASET'
+    'An array dataset as a whole, through its intrinsic pixel grid. Use it when the source is the entire image and there is no lens worth minting.'
+    TABLE_DATASET = 'TABLE_DATASET'
+    'A table dataset, through the space its coordinate columns declare -- the direction an image reconstructed from a table of SMLM localizations is derived. A table with no coordinate columns enumerates objects rather than places them, and its only honest edge is UNMAPPABLE.'
+    MESH_COLLECTION = 'MESH_COLLECTION'
+    'A mesh collection, through its vertex coordinate system.'
+    ANNOTATION_COLLECTION = 'ANNOTATION_COLLECTION'
+    'An annotation collection, through the space its shapes are drawn in.'
+    COORDINATE_SYSTEM = 'COORDINATE_SYSTEM'
+    'A coordinate system directly, when the source is a space rather than a container -- a physical space, or a world.'
+
+class Easing(str, Enum):
+    """How a viewer eases the camera along the travel into an animation waypoint."""
+    LINEAR = 'LINEAR'
+    'Constant speed the whole way. Right for a leg in the middle of a continuous move, where an ease would read as a stutter.'
+    EASE_IN = 'EASE_IN'
+    'Start slow, arrive at full speed. Right for the first leg, pulling away from rest.'
+    EASE_OUT = 'EASE_OUT'
+    'Start at full speed, arrive slowly. Right for the last leg, settling onto the final pose.'
+    EASE_IN_OUT = 'EASE_IN_OUT'
+    'Slow at both ends, quick in the middle. The default: it reads as deliberate on a leg that stands alone.'
 
 class ElementKind(str, Enum):
     """No documentation"""
@@ -124,6 +215,17 @@ class ElementKind(str, Enum):
     SAMPLE = 'SAMPLE'
     OTHER = 'OTHER'
 
+class FilterKind(str, Enum):
+    """No documentation"""
+    DICHROIC = 'DICHROIC'
+    LONG_PASS = 'LONG_PASS'
+    SHORT_PASS = 'SHORT_PASS'
+    BAND_PASS = 'BAND_PASS'
+    MULTI_PASS = 'MULTI_PASS'
+    NEUTRAL_DENSITY = 'NEUTRAL_DENSITY'
+    TUNEABLE = 'TUNEABLE'
+    OTHER = 'OTHER'
+
 class ImageKind(str, Enum):
     """No documentation"""
     MASK = 'MASK'
@@ -141,10 +243,46 @@ class ObjectiveImmersion(str, Enum):
     GLYCEROL = 'GLYCEROL'
     OTHER = 'OTHER'
 
+class PhasorColorMode(str, Enum):
+    """What a phasor render node derives a pixel's color from."""
+    PHASE = 'PHASE'
+    'The angle of the phasor. Over a microtime axis this is the phase lifetime (tau_phi); over a spectrum axis, the spectral centre of mass.'
+    MODULATION = 'MODULATION'
+    'The modulus of the phasor. Over a microtime axis this is the modulation lifetime (tau_m); it exceeds tau_phi exactly when the decay is multi-exponential.'
+    AVERAGE = 'AVERAGE'
+    'The mean of the phase- and modulation-derived values.'
+
+class PhasorCursorKind(str, Enum):
+    """The shape of a region selected in phasor space."""
+    CIRCLE = 'CIRCLE'
+    'A disc, given by its centre (g, s) and a radius.'
+    POLYGON = 'POLYGON'
+    'An arbitrary closed region, given by at least three (g, s) vertices.'
+
+class PlacementValidity(str, Enum):
+    """How much a transformation edge's map is actually known: guessed, inferred from metadata, authored by someone, or validated against the data. A layer's validity is derived from it, never stored: the weakest edge on its path to world."""
+    MANUAL = 'MANUAL'
+    'Someone authored this map -- a registration pipeline, a human with a matrix. It exists on purpose, but nothing has checked it against the data.'
+    INFERRED = 'INFERRED'
+    'The numbers were read from acquisition metadata (a pixel size, a stage pose). As right as the metadata is.'
+    VALIDATED = 'VALIDATED'
+    'Exact or checked: either the server derived the map from shapes and slices, so it cannot be wrong, or someone validated an authored registration against the data.'
+    UNKNOWN = 'UNKNOWN'
+    'This map was assumed, never measured -- badge it. The server writes it nowhere: nothing fabricates a placement any more, so an edge wears UNKNOWN only because a client said so on `createTransformation`, or because it is a historical auto-registered edge.'
+
 class PortRole(str, Enum):
     """No documentation"""
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'
+
+class PreferredView(str, Enum):
+    """How a viewer should open a scene: flat, volumetric, or its own choice."""
+    TWO_D = 'TWO_D'
+    'Open flat: the cross-section view, one slice at a time.'
+    THREE_D = 'THREE_D'
+    'Open volumetric: the projection view, looking at the data as a body.'
+    AUTO = 'AUTO'
+    'No preference stated -- the viewer decides, e.g. from whether the data has a z axis with depth. The default: a scene nobody has expressed a preference for should not claim one.'
 
 class ProjectionMode(str, Enum):
     """The 3D projection / rendering mode applied to a volumetric (z-stacked) render node."""
@@ -176,11 +314,17 @@ class RenderNodeKind(str, Enum):
 class RoiKind(str, Enum):
     """The geometric kind of a region of interest (ROI), defining how its vectors are interpreted."""
     ELLIPSIS = 'ELLIPSIS'
-    'An elliptical region in the XY plane.'
+    "An ellipse in the XY plane, with a radius per axis. Vectors are the two opposite corners of its bounding rectangle; each semi-axis is half that axis' extent."
     POLYGON = 'POLYGON'
     'A closed polygon defined by a sequence of vertices.'
     LINE = 'LINE'
     'A straight line between two points.'
+    CIRCLE = 'CIRCLE'
+    'A circle in the XY plane. Vectors are the two opposite corners of its bounding square; the radius is half the (uniform by construction) extent.'
+    SPHERE = 'SPHERE'
+    'A sphere spanning the spatial axes (XYZ). Vectors are the two opposite corners of its bounding cube; the radius is half the (uniform by construction) extent.'
+    ELLIPSOID = 'ELLIPSOID'
+    "An ellipsoid spanning the spatial axes (XYZ), with a radius per axis. Vectors are the two opposite corners of its bounding cuboid; each semi-axis is half that axis' extent."
     RECTANGLE = 'RECTANGLE'
     'An axis-aligned rectangle in the XY plane.'
     SPECTRAL_RECTANGLE = 'SPECTRAL_RECTANGLE'
@@ -205,6 +349,31 @@ class RoiKind(str, Enum):
     'A single slice of the image, e.g. one Z plane.'
     POINT = 'POINT'
     'A single point.'
+    MULTI_POINT = 'MULTI_POINT'
+    'A set of unconnected points drawn as one region, e.g. a counting click set. Vectors are the points themselves, in no particular order and with no connectivity implied.'
+
+class RoiKindChoices(str, Enum):
+    """No documentation"""
+    ELLIPSIS = 'ELLIPSIS'
+    POLYGON = 'POLYGON'
+    LINE = 'LINE'
+    CIRCLE = 'CIRCLE'
+    SPHERE = 'SPHERE'
+    ELLIPSOID = 'ELLIPSOID'
+    RECTANGLE = 'RECTANGLE'
+    SPECTRAL_RECTANGLE = 'SPECTRAL_RECTANGLE'
+    TEMPORAL_RECTANGLE = 'TEMPORAL_RECTANGLE'
+    CUBE = 'CUBE'
+    SPECTRAL_CUBE = 'SPECTRAL_CUBE'
+    TEMPORAL_CUBE = 'TEMPORAL_CUBE'
+    HYPERCUBE = 'HYPERCUBE'
+    SPECTRAL_HYPERCUBE = 'SPECTRAL_HYPERCUBE'
+    PATH = 'PATH'
+    UNKNOWN = 'UNKNOWN'
+    FRAME = 'FRAME'
+    SLICE = 'SLICE'
+    POINT = 'POINT'
+    MULTI_POINT = 'MULTI_POINT'
 
 class ScanDirection(str, Enum):
     """The axis traversal order of a continuous scan, i.e. the order in which rows, columns and slices are acquired."""
@@ -221,35 +390,559 @@ class ScanDirection(str, Enum):
     SLICE_ROW_COLUMN_SNAKE = 'SLICE_ROW_COLUMN_SNAKE'
     'Scan slices, then rows, then columns, reversing direction on alternate lines (Slice -> Row -> Column, snake).'
 
-class SpatialUnit(str, Enum):
-    """The physical unit used to express spatial dimensions, e.g. of pixel sizes or stage positions."""
-    MICROMETERS = 'MICROMETERS'
-    'Micrometers (1e-6 meters), the typical scale of cells in light microscopy.'
-    NANOMETERS = 'NANOMETERS'
-    'Nanometers (1e-9 meters), the typical scale of subcellular structures.'
-    ANGSTROMS = 'ANGSTROMS'
-    'Angstroms (1e-10 meters), the typical scale of atomic and molecular structures.'
-    PIXELS = 'PIXELS'
-    'Raw pixel units without a calibrated physical size.'
-    UNKNOWN = 'UNKNOWN'
-    'The spatial unit is not known or not specified.'
+class TableColumnRole(str, Enum):
+    """What a table dataset's column is for: a coordinate that places the row, or data hanging off it."""
+    COORDINATE = 'COORDINATE'
+    "A spatial or temporal column whose values are coordinates. The coordinate columns become the axes of the table's own coordinate system, which is what makes the table placeable."
+    ATTRIBUTE = 'ATTRIBUTE'
+    'A measurement or property column — area, an intensity, a marker level. Data only; it does not place the row.'
+    ID = 'ID'
+    'A per-row identifier.'
+    TRACK_ID = 'TRACK_ID'
+    'Groups rows into a trajectory. Required to render a table as tracks.'
+    LABEL = 'LABEL'
+    'A per-row text label.'
+    COLOR = 'COLOR'
+    'A per-row color, or a value a layer colors the rows by.'
 
-class TemporalUnit(str, Enum):
-    """The physical unit used to express temporal dimensions, e.g. of time-lapse intervals."""
-    NANOSECONDS = 'NANOSECONDS'
-    'Nanoseconds (1e-9 seconds).'
-    MILLISECONDS = 'MILLISECONDS'
-    'Milliseconds (1e-3 seconds).'
-    SECONDS = 'SECONDS'
-    'Seconds, the SI base unit of time.'
-    MINUTES = 'MINUTES'
-    'Minutes (60 seconds).'
-    HOURS = 'HOURS'
-    'Hours (3600 seconds).'
-    DAYS = 'DAYS'
-    'Days (86400 seconds).'
-    UNKNOWN = 'UNKNOWN'
-    'The temporal unit is not known or not specified.'
+class TransformKind(str, Enum):
+    """The kind of a coordinate transformation, discriminating how its parameters are interpreted. Direction is always forward: input -> output."""
+    IDENTITY = 'IDENTITY'
+    'The identity map. Input and output coordinates are the same.'
+    SCALE = 'SCALE'
+    'A per-axis multiplication. Its `scale` has one entry per input axis.'
+    TRANSLATION = 'TRANSLATION'
+    'A per-axis offset. Its `translation` has one entry per input axis.'
+    MAP_AXIS = 'MAP_AXIS'
+    'A permutation of axes, mapping each input axis to an output axis by name.'
+    AFFINE = 'AFFINE'
+    'A general affine map, given as an M x (N+1) matrix with rows outermost.'
+    ROTATION = 'ROTATION'
+    'A rotation, given as an orthonormal matrix.'
+    SEQUENCE = 'SEQUENCE'
+    'An ordered composition of child transformations, applied first to last.'
+    BY_DIMENSION = 'BY_DIMENSION'
+    'A composition of child transformations, each acting on a named subset of the axes.'
+    FIELD = 'FIELD'
+    'A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a coordinate system, and so a node of this graph, not a payload on this edge. Whether its values are absolute POSITIONS or per-point OFFSETS is read from the value axis of that node -- COORDINATE or DISPLACEMENT -- never restated here. A label mask is the case where the field IS the input: its own pixels are the map. Not invertible in closed form, so a placement path never walks it backwards -- which is also the right semantics for a dereference, an object being a set of pixels.'
+    BIJECTION = 'BIJECTION'
+    'A pair of child transformations giving an explicit forward and inverse map. This is how an inverse that cannot be derived is instead *given*.'
+    UNMAPPABLE = 'UNMAPPABLE'
+    'A declared NON-correspondence: the two systems are related — one was derived from the other — and no point of either maps to a point of the other. It carries no parameters, is constrained by no rank, has no matrix, and is never walked by a placement search, in either direction. Recording an IDENTITY instead would be a lie; recording nothing would lose the lineage.'
+
+class TransformKindChoices(str, Enum):
+    """No documentation"""
+    IDENTITY = 'IDENTITY'
+    SCALE = 'SCALE'
+    TRANSLATION = 'TRANSLATION'
+    MAP_AXIS = 'MAP_AXIS'
+    AFFINE = 'AFFINE'
+    ROTATION = 'ROTATION'
+    SEQUENCE = 'SEQUENCE'
+    BY_DIMENSION = 'BY_DIMENSION'
+    FIELD = 'FIELD'
+    BIJECTION = 'BIJECTION'
+    UNMAPPABLE = 'UNMAPPABLE'
+
+class ValueRelation(str, Enum):
+    """What a derivation did to the values -- the axis the spatial kind says nothing about. A threshold is spatially IDENTITY with categorized values; a crop is value-identical. Stated on the derivation edge (one event, one row, two orthogonal statements); the algorithm and its parameters belong to task provenance, not here."""
+    IDENTICAL = 'IDENTICAL'
+    "The target's numbers are the source's numbers (a crop, an axis reorder): value statistics -- histograms, contrast limits -- transfer across the edge."
+    TRANSFORMED = 'TRANSFORMED'
+    "The same quantity with new numbers (a deconvolution, a normalization, a denoise): still an intensity, but nothing computed on the source's values transfers."
+    CATEGORIZED = 'CATEGORIZED'
+    'The values became labels or classes (a threshold, a segmentation): a different value domain. This is the structural signal that lets a bootstrapped scene render the data as a label map.'
+
+class AffineTransformInput(BaseModel):
+    """The fields an AFFINE member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
+    kind: Literal['AFFINE'] = Field(default='AFFINE')
+    affine: Tuple[Tuple[float, ...], ...]
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class AnnotationCollectionDerivedFromInput(BaseModel):
+    """The fields an ANNOTATION_COLLECTION derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
+    kind: Literal['ANNOTATION_COLLECTION'] = Field(default='ANNOTATION_COLLECTION')
+    transform: Optional['TransformInput'] = None
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    annotation_collection: ID = Field(alias='annotationCollection')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class ApertureElementInput(BaseModel):
+    """The fields an APERTURE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['APERTURE'] = Field(default='APERTURE')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    diameter: Optional[Length] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class BeamSplitterElementInput(BaseModel):
+    """The fields a BEAM_SPLITTER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['BEAM_SPLITTER'] = Field(default='BEAM_SPLITTER')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    r_fraction: Optional[float] = Field(alias='rFraction', default=None)
+    t_fraction: Optional[float] = Field(alias='tFraction', default=None)
+    band_min: Optional[Length] = Field(alias='bandMin', default=None)
+    band_max: Optional[Length] = Field(alias='bandMax', default=None)
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class ByDimensionTransformInput(BaseModel):
+    """The fields a BY_DIMENSION member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
+    kind: Literal['BY_DIMENSION'] = Field(default='BY_DIMENSION')
+    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    scale: Optional[Tuple[float, ...]] = None
+    translation: Optional[Tuple[float, ...]] = None
+    affine: Optional[Tuple[Tuple[float, ...], ...]] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CCDElementInput(BaseModel):
+    """The fields a CCD element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['CCD'] = Field(default='CCD')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    pixel_size: Optional[Length] = Field(alias='pixelSize', default=None)
+    resolution: Optional[Tuple[int, ...]] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CoordinateSystemDerivedFromInput(BaseModel):
+    """The fields a COORDINATE_SYSTEM derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
+    kind: Literal['COORDINATE_SYSTEM'] = Field(default='COORDINATE_SYSTEM')
+    transform: Optional['TransformInput'] = None
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    coordinate_system: ID = Field(alias='coordinateSystem')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class DatasetDerivedFromInput(BaseModel):
+    """The fields a DATASET derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
+    kind: Literal['DATASET'] = Field(default='DATASET')
+    transform: Optional['TransformInput'] = None
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    dataset: ID
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class DetectorElementInput(BaseModel):
+    """The fields a DETECTOR element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['DETECTOR'] = Field(default='DETECTOR')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    nepd_w_per_sqrt_hz: Optional[float] = Field(alias='nepdWPerSqrtHz', default=None)
+    amplifier_gain_db: Optional[float] = Field(alias='amplifierGainDb', default=None)
+    gain: Optional[float] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class FieldTransformInput(BaseModel):
+    """The fields a FIELD member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
+    kind: Literal['FIELD'] = Field(default='FIELD')
+    field: ID
+    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class FilterElementInput(BaseModel):
+    """The fields a FILTER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['FILTER'] = Field(default='FILTER')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    description: Optional[str] = None
+    filter_kind: Optional[FilterKind] = Field(alias='filterKind', default=None)
+    transmittance: Optional[float] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class LampElementInput(BaseModel):
+    """The fields a LAMP element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['LAMP'] = Field(default='LAMP')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    channel: Optional[ChannelKind] = None
+    lamp_type: Optional[str] = Field(alias='lampType', default=None)
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class LaserElementInput(BaseModel):
+    """The fields a LASER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['LASER'] = Field(default='LASER')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    nominal_wavelength: Length = Field(alias='nominalWavelength')
+    power: Optional[Power] = None
+    channel: Optional[ChannelKind] = None
+    laser_medium: Optional[str] = Field(alias='laserMedium', default=None)
+    pulse_kind: Optional[PulseKind] = Field(alias='pulseKind', default=None)
+    repetition_rate: Optional[Frequency] = Field(alias='repetitionRate', default=None)
+    has_pockels_cell: Optional[bool] = Field(alias='hasPockelsCell', default=None)
+    has_q_switch: Optional[bool] = Field(alias='hasQSwitch', default=None)
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class LensDerivedFromInput(BaseModel):
+    """The fields a LENS derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
+    kind: Literal['LENS'] = Field(default='LENS')
+    transform: Optional['TransformInput'] = None
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    lens: ID
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class LensElementInput(BaseModel):
+    """The fields a LENS element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['LENS'] = Field(default='LENS')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    focal_length: Optional[Length] = Field(alias='focalLength', default=None)
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class MapAxisTransformInput(BaseModel):
+    """The fields a MAP_AXIS member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
+    kind: Literal['MAP_AXIS'] = Field(default='MAP_AXIS')
+    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class MeshCollectionDerivedFromInput(BaseModel):
+    """The fields a MESH_COLLECTION derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
+    kind: Literal['MESH_COLLECTION'] = Field(default='MESH_COLLECTION')
+    transform: Optional['TransformInput'] = None
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    mesh_collection: ID = Field(alias='meshCollection')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class MirrorElementInput(BaseModel):
+    """The fields a MIRROR element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['MIRROR'] = Field(default='MIRROR')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    angle_deg: Optional[float] = Field(alias='angleDeg', default=None)
+    band_min: Optional[Length] = Field(alias='bandMin', default=None)
+    band_max: Optional[Length] = Field(alias='bandMax', default=None)
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class ObjectiveElementInput(BaseModel):
+    """The fields an OBJECTIVE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['OBJECTIVE'] = Field(default='OBJECTIVE')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    magnification: Optional[float] = None
+    numerical_aperture: Optional[float] = Field(alias='numericalAperture', default=None)
+    brand: Optional[str] = None
+    working_distance: Optional[Length] = Field(alias='workingDistance', default=None)
+    immersion_medium: Optional[ObjectiveImmersion] = Field(alias='immersionMedium', default=None)
+    iris: Optional[bool] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class OtherElementInput(BaseModel):
+    """The fields an OTHER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['OTHER'] = Field(default='OTHER')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    description: Optional[str] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class OtherSourceElementInput(BaseModel):
+    """The fields an OTHER_SOURCE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['OTHER_SOURCE'] = Field(default='OTHER_SOURCE')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    channel: Optional[ChannelKind] = None
+    lamp_type: Optional[str] = Field(alias='lampType', default=None)
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class PinholeElementInput(BaseModel):
+    """The fields a PINHOLE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['PINHOLE'] = Field(default='PINHOLE')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    diameter: Optional[Length] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class PolarizerElementInput(BaseModel):
+    """The fields a POLARIZER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['POLARIZER'] = Field(default='POLARIZER')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    angle_deg: Optional[float] = Field(alias='angleDeg', default=None)
+    extinction_ratio: Optional[float] = Field(alias='extinctionRatio', default=None)
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class RotationTransformInput(BaseModel):
+    """The fields a ROTATION member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
+    kind: Literal['ROTATION'] = Field(default='ROTATION')
+    affine: Tuple[Tuple[float, ...], ...]
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class SampleElementInput(BaseModel):
+    """The fields a SAMPLE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['SAMPLE'] = Field(default='SAMPLE')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    description: Optional[str] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class ScaleTransformInput(BaseModel):
+    """The fields a SCALE member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
+    kind: Literal['SCALE'] = Field(default='SCALE')
+    scale: Tuple[float, ...]
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class ShutterElementInput(BaseModel):
+    """The fields a SHUTTER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['SHUTTER'] = Field(default='SHUTTER')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    is_open: Optional[bool] = Field(alias='isOpen', default=None)
+    shutter_type: Optional[str] = Field(alias='shutterType', default=None)
+    gain: Optional[float] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class TableDatasetDerivedFromInput(BaseModel):
+    """The fields a TABLE_DATASET derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
+    kind: Literal['TABLE_DATASET'] = Field(default='TABLE_DATASET')
+    transform: Optional['TransformInput'] = None
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    table_dataset: ID = Field(alias='tableDataset')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class TranslationTransformInput(BaseModel):
+    """The fields a TRANSLATION member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
+    kind: Literal['TRANSLATION'] = Field(default='TRANSLATION')
+    translation: Tuple[float, ...]
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class UnmappableTransformInput(BaseModel):
+    """The fields an UNMAPPABLE member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
+    kind: Literal['UNMAPPABLE'] = Field(default='UNMAPPABLE')
+    reason: Optional[str] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class WaveplateElementInput(BaseModel):
+    """The fields a WAVEPLATE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
+    kind: Literal['WAVEPLATE'] = Field(default='WAVEPLATE')
+    id: Optional[ID] = None
+    label: str
+    pose: Optional['Pose3DInput'] = None
+    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
+    angle_deg: Optional[float] = Field(alias='angleDeg', default=None)
+    retardance: Optional[float] = None
+    design_wavelength: Optional[Length] = Field(alias='designWavelength', default=None)
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class ADatasetFilter(BaseModel):
+    """No documentation"""
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    id: Optional[ID] = None
+    name: Optional['StrFilterLookup'] = None
+    description: Optional['StrFilterLookup'] = None
+    and_: Optional['ADatasetFilter'] = Field(alias='AND', default=None)
+    or_: Optional['ADatasetFilter'] = Field(alias='OR', default=None)
+    not_: Optional['ADatasetFilter'] = Field(alias='NOT', default=None)
+    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    spec: Optional[Tuple[ADatasetSpec, ...]] = Field(default=None, description='Filter to datasets satisfying every one of these specs, e.g. [VOLUME, TIMESERIES] for 3D timelapses. Materialized from the axes of the intrinsic coordinate system at creation. A dataset carries one spatial spec (by how many SPACE axes it has) plus a modifier per acquisition axis present, so two spatial specs together match nothing')
+    has_axis_types: Optional[Tuple[AxisType, ...]] = Field(alias='hasAxisTypes', default=None, description='Filter to datasets whose intrinsic coordinate system carries every one of these axis types, e.g. [TIME, CHANNEL]. The raw form of `spec`, for the types no spec names: COORDINATE, DISPLACEMENT, INDEX')
+    multiscale: Optional[bool] = Field(default=None, description='Filter by whether the dataset carries a resolution pyramid: true for the multiscale ones, false for those with a single level')
+    has_physical_space: Optional[bool] = Field(alias='hasPhysicalSpace', default=None, description="Filter by whether the dataset has an edge into a space with real units. False finds the data that is still only pixels, with no pixel size or stage pose recorded. Unrelated to a phasor histogram's `calibrated`, which is about reference correction")
+    scene: Optional[ID] = Field(default=None, description="Filter to datasets rendered in this scene, through their lenses' layers. What is actually staged there -- for what merely could be, use `placeableIn`")
+    placeable_in: Optional[ID] = Field(alias='placeableIn', default=None, description='Filter to datasets placeable into this coordinate system: those with a lens whose space has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene, because that is all the answer depends on -- every scene over one world offers the same candidates. Pass `scene.worldCoordinateSystem.id` to ask it of a scene. What could be staged there -- for what already is, use `scene`')
+    derived_from: Optional[ID] = Field(alias='derivedFrom', default=None, description='Filter to the datasets computed from this one -- the deconvolutions, segmentations and projections that named a space of it as their parent. Every child, not just the ones it places: a fusion that named it second is listed, and so is a child whose derivation is UNMAPPABLE, since it still came from here')
+    not_derived: Optional[bool] = Field(alias='notDerived', default=None, description="Filter for datasets that were acquired rather than computed: true for the roots, those with no derivation edge into another dataset's space")
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class AffineTransformationViewFilter(BaseModel):
     """No documentation"""
@@ -266,12 +959,111 @@ class AffineTransformationViewFilter(BaseModel):
     distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class AnimationFilter(BaseModel):
+    """No documentation"""
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    id: Optional[ID] = None
+    name: Optional['StrFilterLookup'] = None
+    and_: Optional['AnimationFilter'] = Field(alias='AND', default=None)
+    or_: Optional['AnimationFilter'] = Field(alias='OR', default=None)
+    not_: Optional['AnimationFilter'] = Field(alias='NOT', default=None)
+    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    scene: Optional[ID] = Field(default=None, description='Filter by the scene this tour flies through')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class AnimationWaypointInput(BaseModel):
+    """One camera pose in a tour, and how the viewer travels to it. Its position in the tour is its position in the `waypoints` list -- there is no order field to pass"""
+    camera: 'CameraStateInput' = Field(description='Where the camera is at this stop')
+    name: Optional[str] = Field(default=None, description='What this stop shows')
+    duration_ms: Optional[int] = Field(alias='durationMs', default=None, description='How long the viewer takes to travel to this stop, in milliseconds')
+    easing: Optional[Easing] = Field(default=None, description='How the viewer eases the camera along that travel')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class AnnotationCollectionFilter(BaseModel):
+    """No documentation"""
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    id: Optional[ID] = None
+    name: Optional['StrFilterLookup'] = None
+    and_: Optional['AnnotationCollectionFilter'] = Field(alias='AND', default=None)
+    or_: Optional['AnnotationCollectionFilter'] = Field(alias='OR', default=None)
+    not_: Optional['AnnotationCollectionFilter'] = Field(alias='NOT', default=None)
+    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    scene: Optional[ID] = Field(default=None, description='Filter by the scene this collection was minted for as its default drawing surface')
+    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None, description="Filter by the coordinate system the annotations are drawn in (the collection's own)")
+    dataset: Optional[ID] = Field(default=None, description='Filter by the dataset the shapes are drawn over, following the derivation edge')
+    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class AnnotationFilter(BaseModel):
+    """No documentation"""
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    id: Optional[str] = None
+    name: Optional['StrFilterLookup'] = None
+    description: Optional['StrFilterLookup'] = None
+    kind: Optional[RoiKindChoices] = None
+    and_: Optional['AnnotationFilter'] = Field(alias='AND', default=None)
+    or_: Optional['AnnotationFilter'] = Field(alias='OR', default=None)
+    not_: Optional['AnnotationFilter'] = Field(alias='NOT', default=None)
+    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    collection: Optional[ID] = Field(default=None, description='Filter by the collection this annotation belongs to')
+    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None, description="Filter by the coordinate system this annotation is drawn in (its collection's own)")
+    dataset: Optional[ID] = Field(default=None, description="Filter by the dataset the annotations are drawn over, following the collection's derivation edge")
+    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
+    pinned_to: Optional[Tuple['CoordinateInput', ...]] = Field(alias='pinnedTo', default=None, description="Filter to annotations pinned to every one of these coordinates, e.g. [{name: 't', value: 3}]. GIN-backed containment on the stored coordinate dict; an annotation that spans a coordinate does not match a pin on it")
+    intersects: Optional['BoundingBoxInput'] = Field(default=None, description='Filter to annotations whose intrinsic bounding box overlaps this box (GiST-backed). Only meaningful within one frame: pass `collection` or `coordinateSystem` alongside. A box of lower rank is zero-filled on the missing coordinates')
+    contains_point: Optional[Tuple[float, ...]] = Field(alias='containsPoint', default=None, description='Filter to annotations whose intrinsic bounding box contains this point (GiST-backed). Only meaningful within one frame: pass `collection` or `coordinateSystem` alongside')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class AnnotationSpecInput(BaseModel):
+    """One shape of a bulk draw: the per-annotation subset of CreateAnnotationInput, without the collection/scene target"""
+    kind: RoiKind
+    vectors: Tuple[ThreeDVector, ...]
+    stroke_color: Optional[Tuple[int, ...]] = Field(alias='strokeColor', default=None)
+    fill_color: Optional[Tuple[int, ...]] = Field(alias='fillColor', default=None)
+    name: Optional[str] = None
+    description: Optional[str] = None
+    coordinates: Optional[Tuple['CoordinateInput', ...]] = None
+    stroke_width: Optional[float] = Field(alias='strokeWidth', default=None)
+    filled: Optional[bool] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class AxisAnchorInput(BaseModel):
+    """Input type for an axis anchor, which pins one axis to one discrete position"""
+    axis: str
+    value: int
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class AxisInput(AxisInputTrait, BaseModel):
+    """Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge"""
+    name: str
+    type: AxisType
+    long_name: Optional[str] = Field(alias='longName', default=None)
+    description: Optional[str] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class BeamStateInput(BaseModel):
     """State of the optical beam on a particular path segment."""
     wavelength: Optional[Length] = None
     power: Optional[Power] = None
     polarization: Optional[str] = None
     mode_hint: Optional[str] = Field(alias='modeHint', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class BoundingBoxInput(BaseModel):
+    """An axis-aligned box as a min and a max corner, in the coordinate order of the frame it is asked in"""
+    min: Tuple[float, ...]
+    max: Tuple[float, ...]
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CameraInput(BaseModel):
@@ -287,6 +1079,15 @@ class CameraInput(BaseModel):
     manufacturer: Optional[str] = Field(default=None, description='The manufacturer of the camera')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class CameraStateInput(BaseModel):
+    """Where a viewer's camera is in a scene, and how it is looking at it. Give the flat view, the volumetric view, or both -- one pose serves either, and `Scene.preferredView` picks which a viewer opens. Every number is read against the scene's world coordinate system, whose axes carry the units, so they are bare numbers here"""
+    position: Any = Field(description="Where the camera is centred, keyed by the world's axis names. Keyed rather than a positional list because the world's axes are named and a tour through a timelapse moves in t as much as in z -- a list would silently depend on axis order. Axes the pose does not name are left wherever the viewer already had them.")
+    cross_section_orientation: Optional[Tuple[float, ...]] = Field(alias='crossSectionOrientation', default=None, description="The flat view's orientation, as a quaternion. Null to leave it to the viewer.")
+    cross_section_scale: Optional[float] = Field(alias='crossSectionScale', default=None, description="The flat view's zoom, in world units per screen pixel. Null to leave it to the viewer.")
+    projection_orientation: Optional[Tuple[float, ...]] = Field(alias='projectionOrientation', default=None, description="The volumetric view's orientation, as a quaternion. Null to leave it to the viewer.")
+    projection_scale: Optional[float] = Field(alias='projectionScale', default=None, description="The volumetric view's zoom, in world units per screen pixel. Null to leave it to the viewer.")
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class ChangeDatasetInput(BaseModel):
     """Input for changing an existing dataset's name or parent"""
     name: str = Field(description='The name of the dataset')
@@ -294,34 +1095,107 @@ class ChangeDatasetInput(BaseModel):
     id: ID = Field(description='The ID of the dataset to change')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
-class CoordinateAnchorInput(BaseModel):
+class ClearCoordinateSystemInput(BaseModel):
+    """Input for clearing a shared coordinate system: delete every registration INTO it in one call, keeping the space, its scenes, and its own claims into wider spaces"""
+    id: ID = Field(description='The ID of the shared coordinate system to clear')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class ClearSceneInput(BaseModel):
+    """Input for clearing a scene: delete every layer, keep the scene and everything it composes over"""
+    id: ID = Field(description='The ID of the scene to clear')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CoordinateAnchorInput(CoordinateAnchorInputTrait, BaseModel):
     """Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to"""
-    dim_anchors: Tuple['DimAnchorInput', ...] = Field(alias='dimAnchors')
+    axis_anchors: Tuple[AxisAnchorInput, ...] = Field(alias='axisAnchors')
+    microscope: Optional['OptikitStateInput'] = None
     ome_metadata: Optional['OmeMetadataInput'] = Field(alias='omeMetadata', default=None)
     value_histogram: Optional['ValueHistogramInput'] = Field(alias='valueHistogram', default=None)
     label: Optional['LabelInput'] = None
     light_graph: Optional['LightpathGraphInput'] = Field(alias='lightGraph', default=None)
+    phasor_histogram: Optional['PhasorHistogramInput'] = Field(alias='phasorHistogram', default=None)
+    phasor_calibration: Optional['PhasorCalibrationInput'] = Field(alias='phasorCalibration', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CoordinateInput(BaseModel):
+    """A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel"""
+    name: str
+    value: int
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CoordinateSystemFilter(BaseModel):
+    """No documentation"""
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    id: Optional[ID] = None
+    name: Optional['StrFilterLookup'] = None
+    and_: Optional['CoordinateSystemFilter'] = Field(alias='AND', default=None)
+    or_: Optional['CoordinateSystemFilter'] = Field(alias='OR', default=None)
+    not_: Optional['CoordinateSystemFilter'] = Field(alias='NOT', default=None)
+    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    uninhabited: Optional[bool] = Field(default=None, description='Filter to the spaces nothing lives in: pure reference frames, the worlds and atlases sources are registered into. False finds the spaces some data actually occupies')
+    dataset: Optional[ID] = Field(default=None, description="Filter to the spaces this dataset's data lives in: its own grid, and the grids of its pyramid levels and lenses")
+    scene: Optional[ID] = Field(default=None, description='Filter by a scene composing over this system as its world')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CreateADatasetInput(CreateADatasetTrait, BaseModel):
-    """Input type for creating an image from an array-like object"""
+    """Input type for creating an array dataset. Its axes are structural (name and kind); physical units, if known, arrive afterwards through createCoordinateSystem with a registrations entry naming the dataset"""
     data: ArrayLike
     scales: Tuple['ScaleInput', ...]
     name: str
-    dim_descriptors: Tuple['DimensionDescriptorInput', ...] = Field(alias='dimDescriptors')
+    axes: Tuple[AxisInput, ...]
     anchors: Optional[Tuple[CoordinateAnchorInput, ...]] = None
+    derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
-class CreateDataRoiInput(BaseModel):
-    """Input type for creating an image from an array-like object"""
-    dataset: ID
+class CreateAnimationInput(BaseModel):
+    """Input for creating a named camera tour of a scene. The waypoints are given in tour order and that order is what is stored -- a tour is authored as a whole, never a stop at a time"""
+    scene: ID = Field(description='The ID of the scene this tour flies through')
+    name: str = Field(description='The name of the tour')
+    description: Optional[str] = Field(default=None, description='What the tour shows')
+    waypoints: Tuple[AnimationWaypointInput, ...] = Field(description='The poses the viewer pans through, in tour order')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CreateAnnotationCollectionInput(BaseModel):
+    """Input for creating an annotation collection. The collection gets a coordinate system of its own, and an edge relates it to the space the shapes are drawn over"""
+    name: str
+    description: Optional[str] = None
+    axes: Tuple[AxisInput, ...]
+    derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CreateAnnotationInput(BaseModel):
+    """Input for drawing an annotation. Provide exactly one of `collection` (append to it) or `scene` (draw on the scene: its annotation collection is found, or minted on first use together with its coordinate system, its registration into the world, and its layer)"""
     kind: RoiKind
-    x_dim: str = Field(alias='xDim')
-    y_dim: str = Field(alias='yDim')
-    z_dim: Optional[str] = Field(alias='zDim', default=None)
     vectors: Tuple[ThreeDVector, ...]
-    slices: Tuple['SliceInput', ...]
-    drawn_on_lens: Optional[ID] = Field(alias='drawnOnLens', default=None)
+    stroke_color: Optional[Tuple[int, ...]] = Field(alias='strokeColor', default=None)
+    fill_color: Optional[Tuple[int, ...]] = Field(alias='fillColor', default=None)
+    collection: Optional[ID] = None
+    scene: Optional[ID] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    coordinates: Optional[Tuple[CoordinateInput, ...]] = None
+    stroke_width: Optional[float] = Field(alias='strokeWidth', default=None)
+    filled: Optional[bool] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CreateAnnotationsInput(BaseModel):
+    """Input for drawing many annotations in one call. Provide exactly one of `collection` or `scene` (same semantics as createAnnotation); the transform chain and version resolve once for the whole batch"""
+    collection: Optional[ID] = None
+    scene: Optional[ID] = None
+    annotations: Tuple[AnnotationSpecInput, ...]
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CreateCoordinateSystemInput(BaseModel):
+    """Create a SHARED coordinate system -- a reference space with no owner, e.g. a world or an atlas -- and, in the same call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it. Every other system is owned by a container and created with it, so a shared space is the only system created directly. createSceneFromCoordinateSystem later builds a scene over it and materializes those sources as layers"""
+    name: str
+    axes: Tuple['PhysicalAxisInput', ...]
+    epoch: Optional[datetime] = None
+    registrations: Annotated[Optional[Tuple['RegistrationPathInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CreateDatasetInput(BaseModel):
@@ -334,23 +1208,74 @@ class CreateLayerInput(BaseModel):
     """Input type for creating an image from an array-like object"""
     lens: ID
     scene: ID
-    affine_matrix: Optional[Tuple[Tuple[float, ...], ...]] = Field(alias='affineMatrix', default=None)
     blending: Optional[Blending] = None
     opacity: Optional[float] = None
     visible: Optional[bool] = None
     order: Optional[int] = None
     render_graph: 'LayerRenderGraphInput' = Field(alias='renderGraph')
-    x_dim: Optional[str] = Field(alias='xDim', default=None)
-    y_dim: Optional[str] = Field(alias='yDim', default=None)
-    z_dim: Optional[str] = Field(alias='zDim', default=None)
-    t_dim: Optional[str] = Field(alias='tDim', default=None)
-    intensity_dim: Optional[str] = Field(alias='intensityDim', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CreateLensInput(BaseModel):
     """Input type for creating an image from an array-like object"""
     dataset: ID
     slices: Tuple['SliceInput', ...]
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CreateMeshCollectionInput(BaseModel):
+    """Input for registering an immutable, versioned mesh collection. The collection gets a coordinate system of its own, and an edge relates it to the space the meshes were extracted from"""
+    version: str
+    spec_version: str = Field(alias='specVersion')
+    catalog: ParquetLike
+    geometry: Optional[Tuple[ParquetLike, ...]] = None
+    axes: Tuple[AxisInput, ...]
+    derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
+    grid: Optional[Any] = None
+    encoding: Optional[Any] = None
+    provenance_metadata: Optional[Any] = Field(alias='provenanceMetadata', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CreatePhasorCalibrationInput(BaseModel):
+    """Attach an instrument-response correction to a dataset, taking a raw phasor to a calibrated one. Measured once per detector from a reference acquisition. Its absence is legitimate: an uncalibrated phasor still renders, its hue is just not traceable to an absolute lifetime"""
+    axis: str = Field(description='The axis the correction applies to')
+    harmonic: Optional[int] = Field(default=None, description='The harmonic the correction applies at')
+    phase_offset: Optional[float] = Field(alias='phaseOffset', default=None, description='The phase correction in radians')
+    modulation_factor: Optional[float] = Field(alias='modulationFactor', default=None, description='The modulation correction')
+    reference: Optional[str] = Field(default=None, description='What the correction was measured against')
+    dataset: ID = Field(description='The ID of the dataset the correction applies to')
+    axis_anchors: Optional[Tuple[AxisAnchorInput, ...]] = Field(alias='axisAnchors', default=None, description='The coordinates the correction is pinned to')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CreatePhasorHistogramInput(BaseModel):
+    """Attach a phasor distribution to a dataset: the 2D (g, s) density of a phasor taken over one axis at one harmonic. Computed after ingest by a task that reads the cube; recomputing at the same harmonic replaces it, while a second harmonic lands beside the first"""
+    axis: str = Field(description='The axis the phasor was taken over')
+    counts: Tuple[float, ...] = Field(description='The flattened bins x bins density')
+    harmonic: Optional[int] = Field(default=None, description='The harmonic the phasor was taken at')
+    bins: Optional[int] = Field(default=None, description='The resolution of the square (g, s) density grid')
+    g_min: Optional[float] = Field(alias='gMin', default=None)
+    g_max: Optional[float] = Field(alias='gMax', default=None)
+    s_min: Optional[float] = Field(alias='sMin', default=None)
+    s_max: Optional[float] = Field(alias='sMax', default=None)
+    total: Optional[int] = None
+    calibrated: Optional[bool] = None
+    profile: Optional[Tuple[float, ...]] = None
+    dataset: ID = Field(description='The ID of the dataset the phasor was computed from')
+    axis_anchors: Optional[Tuple[AxisAnchorInput, ...]] = Field(alias='axisAnchors', default=None, description='The coordinates the distribution is pinned to')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CreatePhasorLayerInput(BaseModel):
+    """Create a layer that reduces one axis of a lens to a phasor and colors each pixel by it -- a lifetime overlay over a FLIM cube, or a spectral one over a hyperspectral cube"""
+    lens: ID
+    scene: ID
+    phasor_axis: Optional[str] = Field(alias='phasorAxis', default=None)
+    intensity_axis: Optional[str] = Field(alias='intensityAxis', default=None)
+    intensity_index: Annotated[Optional[int], GraphQLDefault('0')] = Field(alias='intensityIndex', default=None)
+    'Default: 0'
+    harmonic: Optional[int] = None
+    transfer: Optional['PhasorTransferInput'] = None
+    blending: Optional[Blending] = None
+    opacity: Optional[float] = None
+    visible: Optional[bool] = None
+    order: Optional[int] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CreateRGBContextInput(BaseModel):
@@ -364,12 +1289,45 @@ class CreateRGBContextInput(BaseModel):
     c: Optional[int] = Field(default=None, description='The channel the context renders')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class CreateSceneFromCoordinateSystemInput(BaseModel):
+    """Bootstrap a renderable scene over an existing coordinate system. Over an ownerless SHARED space the sources already registered into it become layers, up to the policy's nchildren -- each source's path to world is the one registration createCoordinateSystem authored. Over an owned system (a dataset's intrinsic pixels, a physical space, a collection's space) the container's own data becomes the layer: it is in its own space by construction, so no edge exists or is authored. Rerunning makes another scene over the same space, which outlives them all"""
+    coordinate_system: ID = Field(alias='coordinateSystem')
+    name: Optional[str] = None
+    policy: Annotated[Optional['ScenePolicyInput'], GraphQLDefault("{'nchildren': 8, 'transformTables': False, 'includeMeshes': True, 'kind': None}")] = None
+    "Default: {'nchildren': 8, 'transformTables': False, 'includeMeshes': True, 'kind': None}"
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class CreateSceneInput(BaseModel):
-    """Input type for creating a scene from an array-like object"""
+    """Input type for creating a scene over a world coordinate system: an adopted existing system (a shared space, a dataset's intrinsic grid, a physical space), or one created for it"""
     name: str
     blending: Optional[Blending] = None
-    spatial_unit: Optional[SpatialUnit] = Field(alias='spatialUnit', default=None)
-    temporal_unit: Optional[TemporalUnit] = Field(alias='temporalUnit', default=None)
+    preferred_view: Optional[PreferredView] = Field(alias='preferredView', default=None)
+    background_color: Optional[Tuple[float, ...]] = Field(alias='backgroundColor', default=None)
+    axes: Optional[Tuple['PhysicalAxisInput', ...]] = None
+    epoch: Optional[datetime] = None
+    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CreateTableDatasetInput(BaseModel):
+    """Input for creating a table dataset from a Parquet store. Its coordinate columns become the axes of a coordinate system it owns; declare no coordinate columns for a pure measurement table (its rows enumerate objects and its lineage edge is UNMAPPABLE)"""
+    name: str
+    data: ParquetLike
+    columns: Annotated[Optional[Tuple['TableColumnInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
+    description: Optional[str] = None
+    derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
+    validate_schema: Annotated[Optional[bool], GraphQLDefault('False')] = Field(alias='validateSchema', default=None)
+    'Default: False'
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class CreateTransformationInput(BaseModel):
+    """Input for creating one edge of the coordinate graph, mapping an input coordinate system to an output one"""
+    input: ID
+    output: ID
+    transform: 'TransformInput'
+    name: Optional[str] = None
+    validity: Optional[PlacementValidity] = None
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class DatasetFilter(BaseModel):
@@ -397,21 +1355,73 @@ class DatasetFilter(BaseModel):
     parent: Optional[ID] = Field(default=None, description='Filter by the parent dataset (list the children of a dataset)')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class DeleteAnimationInput(BaseModel):
+    """Input for deleting a camera tour by ID"""
+    id: ID = Field(description='The ID of the tour to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class DeleteAnnotationCollectionInput(BaseModel):
+    """Input for deleting an annotation collection by ID"""
+    id: ID = Field(description='The ID of the annotation collection to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class DeleteAnnotationInput(BaseModel):
+    """Input for deleting an annotation by ID"""
+    id: ID
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class DeleteCoordinateSystemInput(BaseModel):
+    """Input for deleting a shared coordinate system by ID"""
+    id: ID = Field(description='The ID of the shared coordinate system to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class DeleteMeshCollectionInput(BaseModel):
+    """Input for deleting a mesh collection by ID"""
+    id: ID = Field(description='The ID of the mesh collection to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class DeleteRegistrationInput(BaseModel):
+    """Input for un-registering a source from a shared space by naming the source and the space, not the edge. Provide exactly one source -- the same selector registering it took"""
+    dataset: Optional[ID] = None
+    table_dataset: Optional[ID] = Field(alias='tableDataset', default=None)
+    mesh_collection: Optional[ID] = Field(alias='meshCollection', default=None)
+    annotation_collection: Optional[ID] = Field(alias='annotationCollection', default=None)
+    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None)
+    world: ID = Field(description='The shared space the registration goes into')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class DeleteRoiInput(BaseModel):
     """Input for deleting a ROI by ID"""
     id: ID = Field(description='The ID of the ROI to delete')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
-class DimAnchorInput(BaseModel):
-    """Input type for a dimension anchor, which specifies a dimension and a value to anchor to"""
-    dim: str
-    value: int
+class DeleteSceneInput(BaseModel):
+    """Input for deleting a scene by ID"""
+    id: ID = Field(description='The ID of the scene to delete')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
-class DimensionDescriptorInput(BaseModel):
-    """Input type for a dimension descriptor, which specifies a key and a kind for a dimension"""
-    key: str
-    kind: str
+class DeleteSceneSnapshotInput(BaseModel):
+    """Input for deleting a lens snapshot by ID"""
+    id: ID = Field(description='The ID of the snapshot to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class DeleteTableDatasetInput(BaseModel):
+    """Input for deleting a table dataset by ID"""
+    id: ID = Field(description='The ID of the table dataset to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class DeleteTransformationInput(BaseModel):
+    """Input for deleting a transformation by ID"""
+    id: ID = Field(description='The ID of the transformation to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+DerivedFromInput = Annotated[Union[AnnotationCollectionDerivedFromInput, CoordinateSystemDerivedFromInput, DatasetDerivedFromInput, LensDerivedFromInput, MeshCollectionDerivedFromInput, TableDatasetDerivedFromInput], Field(discriminator='kind')]
+
+class DeviceStateInput(BaseModel):
+    """One hardware device's recorded state: its identity in the setup plus its settings at this coordinate"""
+    label: str = Field(description="The device's identity in the setup, e.g. 'filter-wheel-1'")
+    kind: Optional[str] = Field(default=None, description="A free-form device kind, e.g. 'laser', 'filter-wheel'")
+    settings: Annotated[Optional[Tuple['SettingInput', ...]], GraphQLDefault('[]')] = None
+    'Default: []'
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class EraFilter(BaseModel):
@@ -622,15 +1632,18 @@ class LabelInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class LayerNodeInput(BaseModel):
-    """A node in a layer's internal render graph. A 'channel' node carries an intensity source and transfer function; a 'blend' node composites its children."""
+    """A node in a layer's internal render graph. A 'channel' node carries an intensity source and transfer function; a 'phasor' node reduces an axis to a phasor and colors the pixel by it; a 'blend' node composites its children; a 'projection' node projects theirs over z."""
     kind: str
     label: Optional[str] = None
-    intensity_dim: Optional[str] = Field(alias='intensityDim', default=None)
+    intensity_axis: Optional[str] = Field(alias='intensityAxis', default=None)
     intensity_index: Optional[int] = Field(alias='intensityIndex', default=None)
     visible: Optional[bool] = None
     transfer: Optional['TransferFunctionInput'] = None
     blending: Optional[Blending] = None
     mode: Optional[ProjectionMode] = None
+    phasor_axis: Optional[str] = Field(alias='phasorAxis', default=None)
+    harmonic: Optional[int] = None
+    phasor_transfer: Optional['PhasorTransferInput'] = Field(alias='phasorTransfer', default=None)
     children: Optional[Tuple['LayerNodeInput', ...]] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
@@ -688,10 +1701,20 @@ class MaskViewInput(BaseModel):
     image: ID = Field(description='The ID of the image this view is for')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
-class MeshInput(BaseModel):
-    """Input for creating a 3D mesh from an uploaded mesh file"""
-    mesh: MeshLike = Field(description='The uploaded mesh file store to create the mesh from')
-    name: str = Field(description='The name of the mesh')
+class MeshCollectionFilter(BaseModel):
+    """No documentation"""
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    id: Optional[ID] = None
+    version: Optional['StrFilterLookup'] = None
+    and_: Optional['MeshCollectionFilter'] = Field(alias='AND', default=None)
+    or_: Optional['MeshCollectionFilter'] = Field(alias='OR', default=None)
+    not_: Optional['MeshCollectionFilter'] = Field(alias='NOT', default=None)
+    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None, description="Filter by the coordinate system the mesh geometry is expressed in (the collection's own)")
+    dataset: Optional[ID] = Field(default=None, description='Filter by the dataset the meshes were extracted from, following the derivation edge')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ObjectiveInput(BaseModel):
@@ -714,43 +1737,14 @@ class OmeMetadataInput(BaseModel):
     """Input type for OME metadata"""
     metadata_string: str = Field(alias='metadataString', description='The OME metadata as a JSON string')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+OpticalElementInput = Annotated[Union[ApertureElementInput, BeamSplitterElementInput, CCDElementInput, DetectorElementInput, FilterElementInput, LampElementInput, LaserElementInput, LensElementInput, MirrorElementInput, ObjectiveElementInput, OtherElementInput, OtherSourceElementInput, PinholeElementInput, PolarizerElementInput, SampleElementInput, ShutterElementInput, WaveplateElementInput], Field(discriminator='kind')]
 
-class OpticalElementInput(BaseModel):
-    """Input for creating or updating any optical element. Fill only fields relevant to the chosen `kind`."""
-    id: ID
-    label: str
-    kind: ElementKind
-    pose: Optional['Pose3DInput'] = None
-    ports: Tuple[LightPortInput, ...]
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    nominal_wavelength: Optional[Length] = Field(alias='nominalWavelength', default=None)
-    channel: Optional[ChannelKind] = None
-    diameter: Optional[Length] = None
-    nepd_w_per_sqrt_hz: Optional[float] = Field(alias='nepdWPerSqrtHz', default=None)
-    angle_deg: Optional[float] = Field(alias='angleDeg', default=None)
-    band_min: Optional[Length] = Field(alias='bandMin', default=None)
-    band_max: Optional[Length] = Field(alias='bandMax', default=None)
-    r_fraction: Optional[float] = Field(alias='rFraction', default=None)
-    t_fraction: Optional[float] = Field(alias='tFraction', default=None)
-    focal_length: Optional[Length] = Field(alias='focalLength', default=None)
-    magnification: Optional[float] = None
-    numerical_aperture: Optional[float] = Field(alias='numericalAperture', default=None)
-    brand: Optional[str] = None
-    working_distance: Optional[Length] = Field(alias='workingDistance', default=None)
-    immersion_medium: Optional[ObjectiveImmersion] = Field(alias='immersionMedium', default=None)
-    iris: Optional[bool] = None
-    amplifier_gain_db: Optional[float] = Field(alias='amplifierGainDb', default=None)
-    gain: Optional[float] = None
-    pixel_size: Optional[Length] = Field(alias='pixelSize', default=None)
-    resolution: Optional[Tuple[int, ...]] = None
-    power: Optional[Power] = None
-    laser_medium: Optional[str] = Field(alias='laserMedium', default=None)
-    pulse_kind: Optional[PulseKind] = Field(alias='pulseKind', default=None)
-    repetition_rate: Optional[Frequency] = Field(alias='repetitionRate', default=None)
-    has_pockels_cell: Optional[bool] = Field(alias='hasPockelsCell', default=None)
-    has_q_switch: Optional[bool] = Field(alias='hasQSwitch', default=None)
+class OptikitStateInput(BaseModel):
+    """The recorded microscope (Optikit) state: the hardware truth at the moment of acquisition. The common facts (stage, environment) are first-class and quantity-typed; everything else is per-device named settings"""
+    stage: Optional['StageStateInput'] = None
+    temperature: Optional[Temperature] = None
+    devices: Annotated[Optional[Tuple[DeviceStateInput, ...]], GraphQLDefault('[]')] = None
+    'Default: []'
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class PartialAcquisitionViewInput(BaseModel):
@@ -1018,6 +2012,68 @@ class PartialTimepointViewInput(BaseModel):
     index_since_start: Optional[int] = Field(alias='indexSinceStart', default=None, description='The index of the timepoint since the start of the era')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class PhasorCalibrationInput(BaseModel):
+    """Input type for an instrument-response correction: the phase offset and modulation factor taking a raw phasor to a calibrated one"""
+    axis: str = Field(description='The axis the correction applies to')
+    harmonic: Optional[int] = Field(default=None, description='The harmonic the correction applies at')
+    phase_offset: Optional[float] = Field(alias='phaseOffset', default=None, description='The phase correction in radians')
+    modulation_factor: Optional[float] = Field(alias='modulationFactor', default=None, description='The modulation correction')
+    reference: Optional[str] = Field(default=None, description='What the correction was measured against')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class PhasorCursorInput(BaseModel):
+    """A region of phasor space, and the color the pixels falling inside it are painted. A color rule on the image, not a plot widget"""
+    kind: Optional[PhasorCursorKind] = None
+    g: Optional[float] = None
+    s: Optional[float] = None
+    radius: Optional[float] = None
+    points: Optional[Tuple[Tuple[float, ...], ...]] = None
+    color: Optional[Tuple[int, ...]] = None
+    label: Optional[str] = None
+    visible: Optional[bool] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class PhasorHistogramInput(BaseModel):
+    """Input type for a phasor distribution: the 2D (g, s) density of a phasor taken over one axis at one harmonic, plus the summed profile it came from. Persisted so a client can pick a value range for a phasor overlay without reading the cube"""
+    axis: str = Field(description='The axis the phasor was taken over')
+    counts: Tuple[float, ...] = Field(description='The flattened bins x bins density')
+    harmonic: Optional[int] = Field(default=None, description='The harmonic the phasor was taken at')
+    bins: Optional[int] = Field(default=None, description='The resolution of the square (g, s) density grid')
+    g_min: Optional[float] = Field(alias='gMin', default=None)
+    g_max: Optional[float] = Field(alias='gMax', default=None)
+    s_min: Optional[float] = Field(alias='sMin', default=None)
+    s_max: Optional[float] = Field(alias='sMax', default=None)
+    total: Optional[int] = None
+    calibrated: Optional[bool] = None
+    profile: Optional[Tuple[float, ...]] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class PhasorTransferInput(BaseModel):
+    """How a phasor becomes the pixel's color: the transfer function of a phasor source"""
+    mode: Optional[PhasorColorMode] = None
+    min: Optional[GenericQuantity] = None
+    max: Optional[GenericQuantity] = None
+    colormap: Optional[ColorMap] = None
+    weight_by_intensity: Optional[bool] = Field(alias='weightByIntensity', default=None)
+    intensity: Optional['TransferFunctionInput'] = None
+    cursors: Optional[Tuple[PhasorCursorInput, ...]] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class PhysicalAxisInput(BaseModel):
+    """Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit"""
+    name: str
+    type: AxisType
+    unit: Unit
+    long_name: Optional[str] = Field(alias='longName', default=None)
+    description: Optional[str] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class PinSceneSnapshotInput(BaseModel):
+    """Input for pinning or unpinning a lens snapshot for quick access"""
+    id: ID = Field(description='The ID of the snapshot to pin or unpin')
+    pin: bool = Field(description='True to pin, false to unpin')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class Pose3DInput(BaseModel):
     """A 3D pose consisting of position and orientation."""
     position: Optional['Vec3Input'] = None
@@ -1063,6 +2119,18 @@ class ReferenceViewInput(BaseModel):
     c_min: Optional[int] = Field(alias='cMin', default=None, description='The minimum c (channel) coordinate of the view')
     c_max: Optional[int] = Field(alias='cMax', default=None, description='The maximum c (channel) coordinate of the view')
     image: ID = Field(description='The ID of the image this view is for')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class RegistrationPathInput(BaseModel):
+    """A source (dataset, table dataset, mesh collection, or coordinate system) to register into a shared space, plus the edge that places it. The edge points from the source's own coordinate system to the shared space; the transform is validated exactly as createTransformation validates one"""
+    dataset: Optional[ID] = None
+    table_dataset: Optional[ID] = Field(alias='tableDataset', default=None)
+    mesh_collection: Optional[ID] = Field(alias='meshCollection', default=None)
+    annotation_collection: Optional[ID] = Field(alias='annotationCollection', default=None)
+    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None)
+    transform: Optional['TransformInput'] = None
+    name: Optional[str] = None
+    validity: Optional[PlacementValidity] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class RenderTreeInput(BaseModel):
@@ -1137,16 +2205,64 @@ class RoiInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ScaleInput(BaseModel):
-    """Input type for a scale, which specifies an array-like object to create the image from and optional scale factors for each dimension of the image"""
-    scale_method: Optional[str] = Field(alias='scaleMethod', default=None, description="The method used to create the scale, e.g. 'nearest', 'bilinear', 'bicubic', etc. This can be used to provide additional context about how the scale was created and the expected quality of the scale")
+    """Input type for one pyramid level: the array backing it. Its scale is derived from its actual shape, never supplied"""
+    scale_method: Optional[str] = Field(alias='scaleMethod', default=None, description="The method used to create the scale, e.g. 'nearest', 'bilinear', 'bicubic'. Recorded as provenance on the level's transformation")
     level: int
     array: ArrayLike = Field(description='The array-like object to create the image from')
-    scale_factors: Optional[Tuple[float, ...]] = Field(alias='scaleFactors', default=None, description='The scale factors for each dimension of the image, which specify the physical size of each pixel along each dimension and can be used to provide additional context about the spatial resolution of the image')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class ScenePolicyInput(BaseModel):
+    """The policy createSceneFromCoordinateSystem follows: at most `nchildren` layers, materialized from the sources living in or registered into the space, filtered by source kind and drawn by the recipe in `kind`"""
+    nchildren: Annotated[Optional[int], GraphQLDefault('8')] = None
+    'Default: 8'
+    transform_tables: Annotated[Optional[bool], GraphQLDefault('False')] = Field(alias='transformTables', default=None)
+    'Default: False'
+    include_meshes: Annotated[Optional[bool], GraphQLDefault('True')] = Field(alias='includeMeshes', default=None)
+    'Default: True'
+    kind: Optional[BootstrapLayerKind] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class SceneSnapshotFilter(BaseModel):
+    """No documentation"""
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    pinned: Optional[bool] = Field(default=None, description='Filter by whether the current user has pinned the item')
+    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    id: Optional[ID] = None
+    name: Optional['StrFilterLookup'] = None
+    and_: Optional['SceneSnapshotFilter'] = Field(alias='AND', default=None)
+    or_: Optional['SceneSnapshotFilter'] = Field(alias='OR', default=None)
+    not_: Optional['SceneSnapshotFilter'] = Field(alias='NOT', default=None)
+    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    scene: Optional[ID] = Field(default=None, description='Filter by the scene this snapshot is a picture of')
+    scenes: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of scenes (fetch the tiles for a set of scenes in one query, the way a picker does)')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class SceneSnapshotInput(BaseModel):
+    """Input for creating a snapshot (a pre-rendered picture) of a scene from an already-uploaded media file"""
+    file: ImageFileLike = Field(description='The uploaded media file store containing the rendered image')
+    scene: ID = Field(description='The ID of the scene this is a picture of')
+    name: Optional[str] = Field(default=None, description='The name of the snapshot')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class SettingInput(BaseModel):
+    """One named device setting with exactly one value slot filled: a quantity when the setting carries a unit, else a number, text or flag. A setting holding two values is two settings"""
+    name: str
+    quantity: Optional[GenericQuantity] = None
+    number: Optional[float] = None
+    text: Optional[str] = None
+    flag: Optional[bool] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class SliceInput(BaseModel):
-    """Input type for a dimension descriptor, which specifies a key and a kind for a dimension"""
-    dim: str
+    """Input type for a slice along one axis of a dataset"""
+    axis: str
     start: Optional[int] = None
     stop: Optional[int] = None
     step: Optional[int] = None
@@ -1193,6 +2309,13 @@ class StageInput(BaseModel):
     instrument: Optional[ID] = Field(default=None, description='The ID of the instrument this stage belongs to')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class StageStateInput(BaseModel):
+    """Where the stage was, per axis, as physical lengths (e.g. '100.5 um')"""
+    x: Optional[Length] = None
+    y: Optional[Length] = None
+    z: Optional[Length] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class StrFilterLookup(BaseModel):
     """No documentation"""
     exact: Optional[str] = None
@@ -1212,6 +2335,42 @@ class StrFilterLookup(BaseModel):
     is_null: Optional[bool] = Field(alias='isNull', default=None)
     regex: Optional[str] = None
     i_regex: Optional[str] = Field(alias='iRegex', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class TableColumnInput(BaseModel):
+    """One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and optional unit and becomes an axis of the table's space"""
+    name: str
+    dtype: str
+    role: Annotated[Optional[TableColumnRole], GraphQLDefault('ATTRIBUTE')] = None
+    'Default: ATTRIBUTE'
+    axis_type: Optional[AxisType] = Field(alias='axisType', default=None)
+    unit: Optional[str] = None
+    long_name: Optional[str] = Field(alias='longName', default=None)
+    description: Optional[str] = None
+    references: Optional[ID] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class TableDatasetFilter(BaseModel):
+    """No documentation"""
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    id: Optional[ID] = None
+    name: Optional[StrFilterLookup] = None
+    description: Optional[StrFilterLookup] = None
+    and_: Optional['TableDatasetFilter'] = Field(alias='AND', default=None)
+    or_: Optional['TableDatasetFilter'] = Field(alias='OR', default=None)
+    not_: Optional['TableDatasetFilter'] = Field(alias='NOT', default=None)
+    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    dataset: Optional[ID] = Field(default=None, description='Filter by the dataset the table was computed from, following its derivation edge')
+    has_column_role: Optional[TableColumnRole] = Field(alias='hasColumnRole', default=None, description='Filter to tables that declare a column of this role, e.g. TRACK_ID')
+    placeable_in: Optional[ID] = Field(alias='placeableIn', default=None, description='Filter to table datasets placeable into this coordinate system: those whose own coordinate system has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class TimepointViewFilter(BaseModel):
@@ -1242,6 +2401,25 @@ class TransferFunctionInput(BaseModel):
     invert: Optional[bool] = None
     categorical: Optional[bool] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+TransformInput = Annotated[Union[AffineTransformInput, ByDimensionTransformInput, FieldTransformInput, MapAxisTransformInput, RotationTransformInput, ScaleTransformInput, TranslationTransformInput, UnmappableTransformInput], Field(discriminator='kind')]
+
+class TransformationFilter(BaseModel):
+    """No documentation"""
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    id: Optional[ID] = None
+    kind: Optional[TransformKindChoices] = None
+    and_: Optional['TransformationFilter'] = Field(alias='AND', default=None)
+    or_: Optional['TransformationFilter'] = Field(alias='OR', default=None)
+    not_: Optional['TransformationFilter'] = Field(alias='NOT', default=None)
+    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    validity: Optional[PlacementValidity] = Field(default=None, description="Filter by how much the edge's map is actually known, e.g. UNKNOWN to list every placement that is still an assumption")
+    input: Optional[ID] = Field(default=None, description='Filter by the coordinate system this transformation maps from')
+    output: Optional[ID] = Field(default=None, description='Filter by the coordinate system this transformation maps to')
+    roots_only: Optional[bool] = Field(alias='rootsOnly', default=None, description='Show only top-level edges, excluding the children of SEQUENCE / BY_DIMENSION wrappers')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class TreeInput(BaseModel):
     """No documentation"""
@@ -1257,6 +2435,35 @@ class TreeNodeInput(BaseModel):
     context: Optional[str] = None
     gap: Optional[int] = None
     children: Optional[Tuple['TreeNodeInput', ...]] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class UpdateAnimationInput(BaseModel):
+    """Input for re-authoring a camera tour. Passing `waypoints` replaces every stop -- which is also how a tour is reordered, since a stop's position in the tour is its position in this list"""
+    id: ID = Field(description='The ID of the tour to update')
+    name: Optional[str] = Field(default=None, description='The name of the tour')
+    description: Optional[str] = Field(default=None, description='What the tour shows')
+    waypoints: Optional[Tuple[AnimationWaypointInput, ...]] = Field(default=None, description="The poses, in tour order. Replaces the tour's stops entirely")
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class UpdateAnnotationInput(BaseModel):
+    """Input for editing an annotation. Only the supplied fields change; new vectors re-derive the bounding box against the current transform chain"""
+    kind: Optional[RoiKind] = None
+    vectors: Optional[Tuple[ThreeDVector, ...]] = None
+    stroke_color: Optional[Tuple[int, ...]] = Field(alias='strokeColor', default=None)
+    fill_color: Optional[Tuple[int, ...]] = Field(alias='fillColor', default=None)
+    id: ID
+    name: Optional[str] = None
+    description: Optional[str] = None
+    coordinates: Optional[Tuple[CoordinateInput, ...]] = None
+    stroke_width: Optional[float] = Field(alias='strokeWidth', default=None)
+    filled: Optional[bool] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class UpdateCoordinateSystemInput(BaseModel):
+    """Input for renaming a shared coordinate system or anchoring its clock. Shared spaces only: every other system is named by the container that owns it"""
+    id: ID
+    name: Optional[str] = None
+    epoch: Optional[datetime] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class UpdateImageInput(BaseModel):
@@ -1309,7 +2516,31 @@ class UpdateRoiInput(BaseModel):
     kind: Optional[RoiKind] = Field(default=None, description='The new type/kind of ROI')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
-class ValueHistogramInput(BaseModel):
+class UpdateSceneInput(BaseModel):
+    """Input for setting a scene's viewer preferences. Every field is optional and an omitted one is left alone, so a client may set one preference without restating the others"""
+    id: ID = Field(description='The ID of the scene to update')
+    preferred_view: Optional[PreferredView] = Field(alias='preferredView', default=None)
+    background_color: Optional[Tuple[float, ...]] = Field(alias='backgroundColor', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class UpdateTableDatasetInput(BaseModel):
+    """Input for renaming or redescribing a table dataset. These two fields are the whole of what is editable: the store, the declared columns and the coordinate system derived from them are fixed at creation, and a recomputation is a new table"""
+    id: ID
+    name: Optional[str] = None
+    description: Optional[str] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class UpdateTransformationInput(BaseModel):
+    """Input for refining an edge's parameters. Bumps its version, which is what tells an ROI its chain has moved"""
+    id: ID
+    name: Optional[str] = None
+    scale: Optional[Tuple[float, ...]] = None
+    translation: Optional[Tuple[float, ...]] = None
+    affine: Optional[Tuple[Tuple[float, ...], ...]] = None
+    validity: Optional[PlacementValidity] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class ValueHistogramInput(ValueHistogramInputTrait, BaseModel):
     """Input type for a value histogram, which specifies the histogram of pixel values along certain dimensions to provide additional context about the distribution of pixel values in an image"""
     histogram: Tuple[float, ...] = Field(description='The histogram of the pixel values (y values)')
     bins: Tuple[float, ...] = Field(description='The bin indices of the histogram (x values)')
@@ -1450,30 +2681,26 @@ class ViewWellPositionView(ViewBase, BaseModel):
     """A view mapping an image region to a well (row/column) of a multi well plate, so plate-based acquisitions can be traced back to their well."""
     typename: Literal['WellPositionView'] = Field(alias='__typename', default='WellPositionView', exclude=True)
 
-class ADatasetDataarrays(DataArrayTrait, BaseModel):
-    """A single scale of a dataset's multiscale pyramid: a zarr-backed array described by its shape, chunk shape, scale factors and pyramid level"""
-    typename: Literal['DataArray'] = Field(alias='__typename', default='DataArray', exclude=True)
-    level: int
-    shape: Tuple[int, ...]
-    chunk_shape: Tuple[int, ...] = Field(alias='chunkShape')
-    scale_factors: Optional[Tuple[float, ...]] = Field(default=None, alias='scaleFactors')
-    model_config = ConfigDict(frozen=True)
-
-class ADataset(DatasetTrait, MikroFetchable, BaseModel):
-    """A multi-dimensional array dataset with named dimensions. It can have multiple scales attached to it, which are represented as DataArrays"""
-    typename: Literal['ADataset'] = Field(alias='__typename', default='ADataset', exclude=True)
-    id: ID
-    name: str
-    dims: Tuple[str, ...]
-    data_arrays: Tuple[ADatasetDataarrays, ...] = Field(alias='dataArrays')
-    'The multiscale data arrays belonging to this dataset'
+class CameraState(MikroFetchable, BaseModel):
+    """Where a viewer's camera is in a scene, and how it is looking at it. Carries a flat cross-section view and a volumetric projection view of one position, so a single pose serves both and `Scene.preferredView` picks which is used. Every number is read against the scene's world coordinate system, whose axes carry the units"""
+    typename: Literal['CameraState'] = Field(alias='__typename', default='CameraState', exclude=True)
+    position: Any
+    "Where the camera is centred, keyed by the world's axis names. Keyed rather than a positional list because the world's axes are named and a tour through a timelapse moves in t as much as in z -- a list would silently depend on axis order. Axes the pose does not name are left wherever the viewer already had them."
+    cross_section_orientation: Optional[Tuple[float, ...]] = Field(default=None, alias='crossSectionOrientation')
+    "The flat view's orientation, as a quaternion. Null to leave it to the viewer."
+    cross_section_scale: Optional[float] = Field(default=None, alias='crossSectionScale')
+    "The flat view's zoom, in world units per screen pixel. Null to leave it to the viewer."
+    projection_orientation: Optional[Tuple[float, ...]] = Field(default=None, alias='projectionOrientation')
+    "The volumetric view's orientation, as a quaternion. Null to leave it to the viewer."
+    projection_scale: Optional[float] = Field(default=None, alias='projectionScale')
+    "The volumetric view's zoom, in world units per screen pixel. Null to leave it to the viewer."
     model_config = ConfigDict(frozen=True)
 
     class Meta:
-        """Meta class for ADataset"""
-        document = 'fragment ADataset on ADataset {\n  id\n  name\n  dims\n  dataArrays {\n    level\n    shape\n    chunkShape\n    scaleFactors\n    __typename\n  }\n  __typename\n}'
-        name = 'ADataset'
-        type = 'ADataset'
+        """Meta class for CameraState"""
+        document = 'fragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}'
+        name = 'CameraState'
+        type = 'CameraState'
 
 class Camera(MikroFetchable, BaseModel):
     """A camera (detector) on a microscope, described by its sensor dimensions, pixel sizes and bit depth. Clients use it through optics views to record which detector acquired an image."""
@@ -1491,6 +2718,23 @@ class Camera(MikroFetchable, BaseModel):
         document = 'fragment Camera on Camera {\n  sensorSizeX\n  sensorSizeY\n  pixelSizeX\n  pixelSizeY\n  name\n  serialNumber\n  __typename\n}'
         name = 'Camera'
         type = 'Camera'
+
+class Axis(MikroFetchable, BaseModel):
+    """One named, typed dimension of a coordinate system. Its `order` is its index into the array shape"""
+    typename: Literal['Axis'] = Field(alias='__typename', default='Axis', exclude=True)
+    id: ID
+    order: int
+    name: str
+    type: AxisType
+    unit: Optional[Unit] = Field(default=None)
+    long_name: Optional[str] = Field(default=None, alias='longName')
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Axis"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}'
+        name = 'Axis'
+        type = 'Axis'
 
 class BigFileUploadGrant(MikroFetchable, BaseModel):
     """Temporary S3 credentials for uploading a big file."""
@@ -1665,21 +2909,6 @@ class Dataset(MikroFetchable, BaseModel):
         name = 'Dataset'
         type = 'Dataset'
 
-class DimDescriptor(MikroFetchable, BaseModel):
-    """A descriptor for a single named dimension of a dataset, recording its key, size and kind"""
-    typename: Literal['DimDescriptor'] = Field(alias='__typename', default='DimDescriptor', exclude=True)
-    key: str
-    "The key of the dimension, e.g. 'x', 'y', 'z', 'c', or 't'"
-    kind: DimensionKind
-    "The kind of the dimension, e.g. 'space', 'channel', or 'time'"
-    model_config = ConfigDict(frozen=True)
-
-    class Meta:
-        """Meta class for DimDescriptor"""
-        document = 'fragment DimDescriptor on DimDescriptor {\n  key\n  kind\n  __typename\n}'
-        name = 'DimDescriptor'
-        type = 'DimDescriptor'
-
 class Era(MikroFetchable, BaseModel):
     """An era is a time space corresponding to an epoch on a microscope during an experiment. Clients use eras to contextualize images in real-world time via timepoint views."""
     typename: Literal['Era'] = Field(alias='__typename', default='Era', exclude=True)
@@ -1736,8 +2965,8 @@ class Instrument(MikroFetchable, BaseModel):
         name = 'Instrument'
         type = 'Instrument'
 
-class LayerScene(BaseModel):
-    """The absolute coordinate universe in which layers are placed, with defined spatial and temporal base units"""
+class LayerScene(SceneTrait, BaseModel):
+    """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
     id: ID
     name: str
@@ -1750,17 +2979,23 @@ class LayerLens(Lensable, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class LayerBase(BaseModel):
-    """A layer placed in a scene and alpha-blended over the layers below it. The concrete kind (ImageLayer, ShapeLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings."""
+    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind (ImageLayer, AnnotationLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings."""
+    id: ID
     scene: LayerScene
 
 class LayerCatch(LayerBase):
     """Catch all class for LayerBase"""
     typename: str = Field(alias='__typename', exclude=True)
-    'A layer placed in a scene and alpha-blended over the layers below it. The concrete kind (ImageLayer, ShapeLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings.'
+    "A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind (ImageLayer, AnnotationLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings."
+    id: ID
     scene: LayerScene
 
+class LayerAnnotationLayer(LayerBase, BaseModel):
+    """A layer that renders an annotation collection's drawn shapes (polygons, boxes, ellipses, lines, paths) in a scene. One layer per collection: per-shape styling lives on the annotations themselves."""
+    typename: Literal['AnnotationLayer'] = Field(alias='__typename', default='AnnotationLayer', exclude=True)
+
 class LayerImageLayer(LayerBase, BaseModel):
-    """A layer that renders array (lens) data as an alpha-blended image. Its rendering is described entirely by the composable render graph."""
+    """A layer that renders array (lens) data as an alpha-blended image. Its rendering is described entirely by the composable render graph; its placement, entirely by the coordinate graph."""
     typename: Literal['ImageLayer'] = Field(alias='__typename', default='ImageLayer', exclude=True)
     lens: LayerLens
 
@@ -1769,22 +3004,18 @@ class LayerMeshLayer(LayerBase, BaseModel):
     typename: Literal['MeshLayer'] = Field(alias='__typename', default='MeshLayer', exclude=True)
 
 class LayerPointLayer(LayerBase, BaseModel):
-    """A layer that renders a point cloud (e.g. SMLM localisations, centroids) from columns of a table."""
+    """A layer that renders a point cloud (e.g. SMLM localisations, centroids) from a table dataset."""
     typename: Literal['PointLayer'] = Field(alias='__typename', default='PointLayer', exclude=True)
 
-class LayerShapeLayer(LayerBase, BaseModel):
-    """A layer that renders the vector geometry of a data ROI (polygons, boxes, ellipses, lines, paths), placed and styled in a scene."""
-    typename: Literal['ShapeLayer'] = Field(alias='__typename', default='ShapeLayer', exclude=True)
-
 class LayerTrackLayer(LayerBase, BaseModel):
-    """A layer that renders trajectories (e.g. particle/cell tracks) from columns of a table, grouped by a track id."""
+    """A layer that renders trajectories (e.g. particle/cell tracks) from a table dataset, grouped by its TRACK_ID column."""
     typename: Literal['TrackLayer'] = Field(alias='__typename', default='TrackLayer', exclude=True)
 
 class Slice(MikroFetchable, BaseModel):
-    """A slice along a named dimension, with optional start, stop and step"""
+    """A slice along a named axis, with optional start, stop and step"""
     typename: Literal['Slice'] = Field(alias='__typename', default='Slice', exclude=True)
-    dim: str
-    "The key of the dimension, e.g. 'x', 'y', 'z', 'c', or 't'"
+    axis: str
+    "The name of the axis the slice acts on, e.g. 'x', 'y', 'z', 'c', or 't'"
     start: Optional[int] = Field(default=None)
     'The starting index of the slice, or None to start from the beginning'
     stop: Optional[int] = Field(default=None)
@@ -1795,7 +3026,7 @@ class Slice(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for Slice"""
-        document = 'fragment Slice on Slice {\n  dim\n  start\n  stop\n  step\n  __typename\n}'
+        document = 'fragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}'
         name = 'Slice'
         type = 'Slice'
 
@@ -1814,18 +3045,47 @@ class Objective(MikroFetchable, BaseModel):
         name = 'Objective'
         type = 'Objective'
 
-class Scene(MikroFetchable, BaseModel):
-    """The absolute coordinate universe in which layers are placed, with defined spatial and temporal base units"""
-    typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
-    name: str
+class PhasorCalibration(MikroFetchable, BaseModel):
+    """The instrument-response correction taking a raw phasor to a calibrated one, pinned to a coordinate anchor. An acquisition fact, not a display choice: two layers over one dataset cannot coherently disagree about it. Its absence means the phasor is uncalibrated, which still renders"""
+    typename: Literal['PhasorCalibration'] = Field(alias='__typename', default='PhasorCalibration', exclude=True)
     id: ID
+    axis: str
+    harmonic: int
+    phase_offset: Optional[float] = Field(default=None, alias='phaseOffset')
+    modulation_factor: Optional[float] = Field(default=None, alias='modulationFactor')
+    reference: Optional[str] = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
     class Meta:
-        """Meta class for Scene"""
-        document = 'fragment Scene on Scene {\n  name\n  id\n  __typename\n}'
-        name = 'Scene'
-        type = 'Scene'
+        """Meta class for PhasorCalibration"""
+        document = 'fragment PhasorCalibration on PhasorCalibration {\n  id\n  axis\n  harmonic\n  phaseOffset\n  modulationFactor\n  reference\n  __typename\n}'
+        name = 'PhasorCalibration'
+        type = 'PhasorCalibration'
+
+class PhasorHistogram(MikroFetchable, BaseModel):
+    """The distribution of a phasor pinned to a coordinate anchor: a 2D (g, s) density plus the summed profile it was computed from. What ValueHistogram is to an intensity channel -- it lets a client pick a sane value range for a phasor overlay without reading the cube"""
+    typename: Literal['PhasorHistogram'] = Field(alias='__typename', default='PhasorHistogram', exclude=True)
+    id: ID
+    axis: str
+    harmonic: int
+    bins: int
+    g_min: float = Field(alias='gMin')
+    g_max: float = Field(alias='gMax')
+    s_min: float = Field(alias='sMin')
+    s_max: float = Field(alias='sMax')
+    total: Optional[int] = Field(default=None)
+    calibrated: bool
+    counts: Tuple[float, ...]
+    'The flattened bins x bins (g, s) density, row-major with s outermost'
+    profile: Tuple[float, ...]
+    'The summed profile along the phasor axis (a decay for a MICROTIME axis, a spectrum for a SPECTRUM one), one value per bin'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for PhasorHistogram"""
+        document = 'fragment PhasorHistogram on PhasorHistogram {\n  id\n  axis\n  harmonic\n  bins\n  gMin\n  gMax\n  sMin\n  sMax\n  total\n  calibrated\n  counts\n  profile\n  __typename\n}'
+        name = 'PhasorHistogram'
+        type = 'PhasorHistogram'
 
 class SnapshotStore(HasPresignedDownloadAccessor, BaseModel):
     """No documentation"""
@@ -1993,6 +3253,78 @@ class TableRow(MikroFetchable, BaseModel):
         document = 'fragment TableRow on TableRow {\n  id\n  values\n  table {\n    id\n    __typename\n  }\n  columns {\n    name\n    __typename\n  }\n  __typename\n}'
         name = 'TableRow'
         type = 'TableRow'
+
+class TransformationChildBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    id: ID
+    kind: TransformKind
+    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
+    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
+
+class TransformationChildCatch(TransformationChildBase):
+    """Catch all class for TransformationChildBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+    'A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters'
+    id: ID
+    kind: TransformKind
+    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
+    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
+
+class TransformationChildAffineTransformation(TransformationChildBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+    affine: Tuple[Tuple[float, ...], ...]
+    'The affine matrix, M x (N+1), rows outermost. The last column is the translation'
+
+class TransformationChildBijectionTransformation(TransformationChildBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class TransformationChildByDimensionTransformation(TransformationChildBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class TransformationChildFieldTransformation(TransformationChildBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class TransformationChildIdentityTransformation(TransformationChildBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class TransformationChildMapAxisTransformation(TransformationChildBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class TransformationChildRotationTransformation(TransformationChildBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+    affine: Tuple[Tuple[float, ...], ...]
+    'The rotation matrix'
+
+class TransformationChildScaleTransformation(TransformationChildBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+    scale: Tuple[float, ...]
+    "The per-axis scale factors, in the axis order of the input system, expressed in the units of the output system's axes (dimensionless between pixel systems, e.g. within a pyramid). Absolute, not relative to another level"
+
+class TransformationChildSequenceTransformation(TransformationChildBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class TransformationChildTranslationTransformation(TransformationChildBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+    translation: Tuple[float, ...]
+    'The per-axis offsets, in the axis order of the input system'
+
+class TransformationChildUnmappableTransformation(TransformationChildBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class ChannelView(ViewChannelView, MikroFetchable, BaseModel):
     """A channel view describes an acquisition channel of an image, carrying its name and optical properties such as emission and excitation wavelengths."""
@@ -2216,6 +3548,45 @@ class ContinousScanView(ViewContinousScanView, MikroFetchable, BaseModel):
         name = 'ContinousScanView'
         type = 'ContinousScanView'
 
+class AnimationWaypoint(MikroFetchable, BaseModel):
+    """One camera pose in a tour, and how the viewer travels to it"""
+    typename: Literal['AnimationWaypoint'] = Field(alias='__typename', default='AnimationWaypoint', exclude=True)
+    id: ID
+    order: int
+    "The pose's index in the tour. Written by enumeration when the tour is authored, so it always runs 0, 1, 2 ... with no gaps"
+    name: str
+    "What this stop shows, e.g. 'the nucleus'"
+    duration_ms: int = Field(alias='durationMs')
+    'How long the viewer takes to travel TO this pose, in milliseconds. Ignored for the first pose, which is where the tour starts'
+    easing: Easing
+    'How the viewer eases the camera along that travel'
+    camera: CameraState
+    "Where the camera is: a position keyed by the world's axis names, plus the flat and volumetric views of it"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for AnimationWaypoint"""
+        document = 'fragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}'
+        name = 'AnimationWaypoint'
+        type = 'AnimationWaypoint'
+
+class CoordinateSystem(CoordinateSystemTrait, MikroFetchable, BaseModel):
+    """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
+    id: ID
+    name: str
+    epoch: Optional[datetime] = Field(default=None)
+    "The wall-clock instant this system's time axis has its origin at: `wall_clock = epoch + t * unit`. A property of the space, not of any composition over it. Meaningful only for a unit-carrying system with a TIME axis (a shared world space); null when the clock is unanchored -- the time axis is still a perfectly composable relative coordinate"
+    axes: Tuple[Axis, ...]
+    "The system's axes, in array order (slowest-varying first). RFC-5 requires them ordered by type: time, then channel and custom types, then space"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for CoordinateSystem"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}'
+        name = 'CoordinateSystem'
+        type = 'CoordinateSystem'
+
 class TimepointView(ViewTimepointView, MikroFetchable, BaseModel):
     """A view anchoring an image region in real time: it places the region within an era (a named time epoch on the microscope) at a time offset or frame index since its start."""
     typename: Literal['TimepointView'] = Field(alias='__typename', default='TimepointView', exclude=True)
@@ -2290,71 +3661,6 @@ class RGBView(ViewRGBView, MikroFetchable, BaseModel):
         name = 'RGBView'
         type = 'RGBView'
 
-class DataRoiDatasetDataarrays(DataArrayTrait, BaseModel):
-    """A single scale of a dataset's multiscale pyramid: a zarr-backed array described by its shape, chunk shape, scale factors and pyramid level"""
-    typename: Literal['DataArray'] = Field(alias='__typename', default='DataArray', exclude=True)
-    id: ID
-    store: ZarrStore
-    model_config = ConfigDict(frozen=True)
-
-class DataRoiDataset(DatasetTrait, BaseModel):
-    """A multi-dimensional array dataset with named dimensions. It can have multiple scales attached to it, which are represented as DataArrays"""
-    typename: Literal['ADataset'] = Field(alias='__typename', default='ADataset', exclude=True)
-    id: ID
-    dim_descriptors: Tuple[DimDescriptor, ...] = Field(alias='dimDescriptors')
-    data_arrays: Tuple[DataRoiDatasetDataarrays, ...] = Field(alias='dataArrays')
-    'The multiscale data arrays belonging to this dataset'
-    model_config = ConfigDict(frozen=True)
-
-class DataRoi(MikroFetchable, BaseModel):
-    """A region of interest in a data array, described by its vectors and per-dimension constraints"""
-    typename: Literal['DataRoi'] = Field(alias='__typename', default='DataRoi', exclude=True)
-    id: str
-    dataset: DataRoiDataset
-    vectors: Tuple[Tuple[float, ...], ...]
-    kind: RoiKind
-    model_config = ConfigDict(frozen=True)
-
-    class Meta:
-        """Meta class for DataRoi"""
-        document = 'fragment DimDescriptor on DimDescriptor {\n  key\n  kind\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment DataRoi on DataRoi {\n  id\n  dataset {\n    id\n    dimDescriptors {\n      ...DimDescriptor\n      __typename\n    }\n    dataArrays {\n      id\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}'
-        name = 'DataRoi'
-        type = 'DataRoi'
-
-class LensDatasetDataarrays(DataArrayTrait, BaseModel):
-    """A single scale of a dataset's multiscale pyramid: a zarr-backed array described by its shape, chunk shape, scale factors and pyramid level"""
-    typename: Literal['DataArray'] = Field(alias='__typename', default='DataArray', exclude=True)
-    id: ID
-    level: int
-    store: ZarrStore
-    model_config = ConfigDict(frozen=True)
-
-class LensDataset(DatasetTrait, BaseModel):
-    """A multi-dimensional array dataset with named dimensions. It can have multiple scales attached to it, which are represented as DataArrays"""
-    typename: Literal['ADataset'] = Field(alias='__typename', default='ADataset', exclude=True)
-    id: ID
-    dims: Tuple[str, ...]
-    data_arrays: Tuple[LensDatasetDataarrays, ...] = Field(alias='dataArrays')
-    'The multiscale data arrays belonging to this dataset'
-    model_config = ConfigDict(frozen=True)
-
-class Lens(Lensable, MikroFetchable, BaseModel):
-    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
-    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
-    id: ID
-    dataset: LensDataset
-    shape: Tuple[int, ...]
-    dims: Tuple[str, ...]
-    dim_descriptors: Tuple[DimDescriptor, ...] = Field(alias='dimDescriptors')
-    slices: Tuple[Slice, ...]
-    model_config = ConfigDict(frozen=True)
-
-    class Meta:
-        """Meta class for Lens"""
-        document = 'fragment DimDescriptor on DimDescriptor {\n  key\n  kind\n  __typename\n}\n\nfragment Slice on Slice {\n  dim\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Lens on Lens {\n  id\n  dataset {\n    id\n    dims\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  dims\n  dimDescriptors {\n    ...DimDescriptor\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}'
-        name = 'Lens'
-        type = 'Lens'
-
 class ROIImage(HasZarrStoreTrait, BaseModel):
     """An image. Images are the central data type in mikro: a single 5D bioimage whose binary data is stored in a ZarrStore. Images can be annotated with views (coordinate-ordered subsets of the image) and are the primary container that rois, metrics, renders and generated tables are bound to."""
     typename: Literal['Image'] = Field(alias='__typename', default='Image', exclude=True)
@@ -2420,20 +3726,6 @@ class File(FileTrait, MikroFetchable, BaseModel):
         name = 'File'
         type = 'File'
 
-class Mesh(MikroFetchable, BaseModel):
-    """A 3D mesh belonging to a dataset, with its geometry kept in a big file store. Clients use it to download or visualize surface reconstructions derived from image data."""
-    typename: Literal['Mesh'] = Field(alias='__typename', default='Mesh', exclude=True)
-    id: ID
-    name: str
-    store: BigFileStore
-    model_config = ConfigDict(frozen=True)
-
-    class Meta:
-        """Meta class for Mesh"""
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment Mesh on Mesh {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}'
-        name = 'Mesh'
-        type = 'Mesh'
-
 class MaskView(ViewMaskView, MikroFetchable, BaseModel):
     """A view marking an image region as a semantic segmentation mask, where pixel values are class labels. It points to the reference view it was computed from and can carry a label table."""
     typename: Literal['MaskView'] = Field(alias='__typename', default='MaskView', exclude=True)
@@ -2459,6 +3751,404 @@ class InstanceMaskView(ViewInstanceMaskView, MikroFetchable, BaseModel):
         document = 'fragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}'
         name = 'InstanceMaskView'
         type = 'InstanceMaskView'
+
+class ADatasetDataarrays(DataArrayTrait, BaseModel):
+    """One level of a dataset's resolution pyramid: a zarr-backed array, with its own voxel-index coordinate system and a stored edge into the dataset's intrinsic space"""
+    typename: Literal['DataArray'] = Field(alias='__typename', default='DataArray', exclude=True)
+    id: ID
+    level: int
+    shape: Tuple[int, ...]
+    chunk_shape: Tuple[int, ...] = Field(alias='chunkShape')
+    store: ZarrStore
+    model_config = ConfigDict(frozen=True)
+
+class ADataset(DatasetTrait, MikroFetchable, BaseModel):
+    """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    typename: Literal['ADataset'] = Field(alias='__typename', default='ADataset', exclude=True)
+    id: ID
+    name: str
+    axis_names: Tuple[str, ...] = Field(alias='axisNames')
+    "The dataset's axis names, in array order. Derived from the axes of its intrinsic coordinate system"
+    shape: Tuple[int, ...]
+    "The dataset's shape: that of its level-0 array"
+    multiscale: bool
+    'Whether this dataset carries a resolution pyramid. Derived: true when it has more than one level'
+    intrinsic_system: Optional[CoordinateSystem] = Field(default=None, alias='intrinsicSystem')
+    "The dataset's INTRINSIC coordinate system: its level-0 pixel grid, the space every pyramid level and lens maps into and the space ROIs resolve against. Structural and unit-independent"
+    data_arrays: Tuple[ADatasetDataarrays, ...] = Field(alias='dataArrays')
+    'The multiscale data arrays belonging to this dataset'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for ADataset"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ADataset on ADataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}'
+        name = 'ADataset'
+        type = 'ADataset'
+
+class AnnotationCoordinates(BaseModel):
+    """A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel"""
+    typename: Literal['Coordinate'] = Field(alias='__typename', default='Coordinate', exclude=True)
+    name: str
+    "The name of the coordinate, e.g. 't' or 'c'"
+    value: int
+    'The value along that coordinate'
+    model_config = ConfigDict(frozen=True)
+
+class AnnotationIntrinsicbbox(BaseModel):
+    """An axis-aligned bounding box, as a min and a max corner"""
+    typename: Literal['BoundingBox'] = Field(alias='__typename', default='BoundingBox', exclude=True)
+    min: Tuple[float, ...]
+    'The lower corner, in the coordinate order of the coordinate system'
+    max: Tuple[float, ...]
+    'The upper corner, in the coordinate order of the coordinate system'
+    model_config = ConfigDict(frozen=True)
+
+class Annotation(MikroFetchable, BaseModel):
+    """A human-drawn shape in an annotation collection's coordinate system. It belongs to the collection, not to a scene: delete the scene and the annotation survives"""
+    typename: Literal['Annotation'] = Field(alias='__typename', default='Annotation', exclude=True)
+    id: str
+    name: str
+    kind: RoiKind
+    vectors: Tuple[Tuple[float, ...], ...]
+    coordinates: Tuple[AnnotationCoordinates, ...]
+    'The discrete coordinates this annotation is pinned to. A coordinate the annotation does not pin is one it spans'
+    coordinate_system: Optional[CoordinateSystem] = Field(default=None, alias='coordinateSystem')
+    "The coordinate system this annotation's vectors are expressed in: its collection's own system"
+    intrinsic_bbox: Optional[AnnotationIntrinsicbbox] = Field(default=None, alias='intrinsicBbox')
+    "The annotation's bounding box in the nearest intrinsic space, derived from every corner of its geometry (an affine-transformed box is not a box: min/max alone gives a strictly too-small answer under rotation or shear). Intrinsic, not world: world is scene-owned, and one collection can sit in two scenes under two registrations"
+    stroke_color: Optional[Tuple[int, ...]] = Field(default=None, alias='strokeColor')
+    'The stroke (outline) color of the geometry, as RGBA'
+    fill_color: Optional[Tuple[int, ...]] = Field(default=None, alias='fillColor')
+    'The fill color of the geometry, as RGBA, or null for no fill'
+    stroke_width: float = Field(alias='strokeWidth')
+    "The stroke width of the geometry, in the drawing space's units. One number for every direction, so it is a well-defined length only where that space's axes share a scale"
+    filled: bool
+    'Whether the geometry is filled with fill_color'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Annotation"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}'
+        name = 'Annotation'
+        type = 'Annotation'
+
+class LensDatasetDataarrays(DataArrayTrait, BaseModel):
+    """One level of a dataset's resolution pyramid: a zarr-backed array, with its own voxel-index coordinate system and a stored edge into the dataset's intrinsic space"""
+    typename: Literal['DataArray'] = Field(alias='__typename', default='DataArray', exclude=True)
+    id: ID
+    level: int
+    store: ZarrStore
+    model_config = ConfigDict(frozen=True)
+
+class LensDataset(DatasetTrait, BaseModel):
+    """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    typename: Literal['ADataset'] = Field(alias='__typename', default='ADataset', exclude=True)
+    id: ID
+    axis_names: Tuple[str, ...] = Field(alias='axisNames')
+    "The dataset's axis names, in array order. Derived from the axes of its intrinsic coordinate system"
+    data_arrays: Tuple[LensDatasetDataarrays, ...] = Field(alias='dataArrays')
+    'The multiscale data arrays belonging to this dataset'
+    model_config = ConfigDict(frozen=True)
+
+class LensRenderaxes(BaseModel):
+    """Which axis of a data source maps to screen x, y, z, time and intensity. Derived from the axis types, never stored"""
+    typename: Literal['RenderAxes'] = Field(alias='__typename', default='RenderAxes', exclude=True)
+    x: str
+    'The axis mapped to screen x: the last (fastest-varying) spatial axis'
+    y: str
+    'The axis mapped to screen y: the second-to-last spatial axis'
+    z: Optional[str] = Field(default=None)
+    'The axis mapped to screen z: the third-to-last spatial axis, if the data is volumetric'
+    t: Optional[str] = Field(default=None)
+    'The time axis, if the data has one'
+    intensity: Optional[str] = Field(default=None)
+    'The channel axis, if the data has one'
+    model_config = ConfigDict(frozen=True)
+
+class Lens(Lensable, MikroFetchable, BaseModel):
+    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
+    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
+    id: ID
+    dataset: LensDataset
+    shape: Tuple[int, ...]
+    "The shape this lens' slices cut out of its dataset"
+    axis_names: Tuple[str, ...] = Field(alias='axisNames')
+    "The lens' axis names, in array order. A selection never drops or reorders an axis"
+    coordinate_system: Optional[CoordinateSystem] = Field(default=None, alias='coordinateSystem')
+    "The coordinate system the lens' selection is expressed in. A sliced lens owns one (the space its slices cut out, with the derived edge recording the shift); an unsliced lens selects everything, so this resolves to the dataset's INTRINSIC system"
+    render_axes: LensRenderaxes = Field(alias='renderAxes')
+    'Which axis of the data source maps to screen x, y, z, time and intensity. Derived from the axis types: spatial axes are in array order, so the last is x'
+    slices: Tuple[Slice, ...]
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Lens"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Lens on Lens {\n  id\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  renderAxes {\n    x\n    y\n    z\n    t\n    intensity\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}'
+        name = 'Lens'
+        type = 'Lens'
+
+class Scene(SceneTrait, MikroFetchable, BaseModel):
+    """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
+    typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
+    name: str
+    id: ID
+    preferred_view: PreferredView = Field(alias='preferredView')
+    'How a viewer should open this scene: flat, volumetric, or its own choice. A preference, not a constraint -- nothing server-side reads it, and a viewer that cannot render volumes is not wrong to show the slice view'
+    background_color: Optional[Tuple[float, ...]] = Field(default=None, alias='backgroundColor')
+    'The viewer background, as RGBA. Null lets the viewer use its own'
+    world_coordinate_system: CoordinateSystem = Field(alias='worldCoordinateSystem')
+    'The shared space this scene composes its layers over. Never owned by the scene: many scenes can share it, it outlives each of them, and deleting a scene never deletes it'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Scene"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}'
+        name = 'Scene'
+        type = 'Scene'
+
+class TransformationSequencechildrenBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    model_config = ConfigDict(frozen=True)
+
+class TransformationSequencechildrenBaseAffineTransformation(TransformationChildAffineTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class TransformationSequencechildrenBaseBijectionTransformation(TransformationChildBijectionTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class TransformationSequencechildrenBaseByDimensionTransformation(TransformationChildByDimensionTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class TransformationSequencechildrenBaseFieldTransformation(TransformationChildFieldTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class TransformationSequencechildrenBaseIdentityTransformation(TransformationChildIdentityTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class TransformationSequencechildrenBaseMapAxisTransformation(TransformationChildMapAxisTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class TransformationSequencechildrenBaseRotationTransformation(TransformationChildRotationTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class TransformationSequencechildrenBaseScaleTransformation(TransformationChildScaleTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class TransformationSequencechildrenBaseSequenceTransformation(TransformationChildSequenceTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class TransformationSequencechildrenBaseTranslationTransformation(TransformationChildTranslationTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class TransformationSequencechildrenBaseUnmappableTransformation(TransformationChildUnmappableTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class TransformationSequencechildrenBaseCatchAll(TransformationSequencechildrenBase, BaseModel):
+    """Catch all class for TransformationSequencechildrenBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class TransformationBydimensionchildrenBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    model_config = ConfigDict(frozen=True)
+
+class TransformationBydimensionchildrenBaseAffineTransformation(TransformationChildAffineTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class TransformationBydimensionchildrenBaseBijectionTransformation(TransformationChildBijectionTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class TransformationBydimensionchildrenBaseByDimensionTransformation(TransformationChildByDimensionTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class TransformationBydimensionchildrenBaseFieldTransformation(TransformationChildFieldTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class TransformationBydimensionchildrenBaseIdentityTransformation(TransformationChildIdentityTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class TransformationBydimensionchildrenBaseMapAxisTransformation(TransformationChildMapAxisTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class TransformationBydimensionchildrenBaseRotationTransformation(TransformationChildRotationTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class TransformationBydimensionchildrenBaseScaleTransformation(TransformationChildScaleTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class TransformationBydimensionchildrenBaseSequenceTransformation(TransformationChildSequenceTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class TransformationBydimensionchildrenBaseTranslationTransformation(TransformationChildTranslationTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class TransformationBydimensionchildrenBaseUnmappableTransformation(TransformationChildUnmappableTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class TransformationBydimensionchildrenBaseCatchAll(TransformationBydimensionchildrenBase, BaseModel):
+    """Catch all class for TransformationBydimensionchildrenBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class TransformationBijectionchildrenBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    model_config = ConfigDict(frozen=True)
+
+class TransformationBijectionchildrenBaseAffineTransformation(TransformationChildAffineTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class TransformationBijectionchildrenBaseBijectionTransformation(TransformationChildBijectionTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class TransformationBijectionchildrenBaseByDimensionTransformation(TransformationChildByDimensionTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class TransformationBijectionchildrenBaseFieldTransformation(TransformationChildFieldTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class TransformationBijectionchildrenBaseIdentityTransformation(TransformationChildIdentityTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class TransformationBijectionchildrenBaseMapAxisTransformation(TransformationChildMapAxisTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class TransformationBijectionchildrenBaseRotationTransformation(TransformationChildRotationTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class TransformationBijectionchildrenBaseScaleTransformation(TransformationChildScaleTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class TransformationBijectionchildrenBaseSequenceTransformation(TransformationChildSequenceTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class TransformationBijectionchildrenBaseTranslationTransformation(TransformationChildTranslationTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class TransformationBijectionchildrenBaseUnmappableTransformation(TransformationChildUnmappableTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class TransformationBijectionchildrenBaseCatchAll(TransformationBijectionchildrenBase, BaseModel):
+    """Catch all class for TransformationBijectionchildrenBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class TransformationBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    id: ID
+    kind: TransformKind
+    name: Optional[str] = Field(default=None)
+    version: int
+    input: Optional[CoordinateSystem] = Field(default=None)
+    output: Optional[CoordinateSystem] = Field(default=None)
+
+class TransformationCatch(TransformationBase):
+    """Catch all class for TransformationBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+    'A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters'
+    id: ID
+    kind: TransformKind
+    name: Optional[str] = Field(default=None)
+    version: int
+    input: Optional[CoordinateSystem] = Field(default=None)
+    output: Optional[CoordinateSystem] = Field(default=None)
+
+class TransformationAffineTransformation(TransformationBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+    affine: Tuple[Tuple[float, ...], ...]
+    'The affine matrix, M x (N+1), rows outermost. The last column is the translation'
+
+class TransformationBijectionTransformation(TransformationBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+    bijection_children: Tuple[Union[Annotated[Union[TransformationBijectionchildrenBaseAffineTransformation, TransformationBijectionchildrenBaseBijectionTransformation, TransformationBijectionchildrenBaseByDimensionTransformation, TransformationBijectionchildrenBaseFieldTransformation, TransformationBijectionchildrenBaseIdentityTransformation, TransformationBijectionchildrenBaseMapAxisTransformation, TransformationBijectionchildrenBaseRotationTransformation, TransformationBijectionchildrenBaseScaleTransformation, TransformationBijectionchildrenBaseSequenceTransformation, TransformationBijectionchildrenBaseTranslationTransformation, TransformationBijectionchildrenBaseUnmappableTransformation], Field(discriminator='typename')], TransformationBijectionchildrenBaseCatchAll], ...] = Field(alias='bijectionChildren')
+    'The forward transformation (order 0) and its inverse (order 1)'
+
+class TransformationByDimensionTransformation(TransformationBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
+    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
+    by_dimension_children: Tuple[Union[Annotated[Union[TransformationBydimensionchildrenBaseAffineTransformation, TransformationBydimensionchildrenBaseBijectionTransformation, TransformationBydimensionchildrenBaseByDimensionTransformation, TransformationBydimensionchildrenBaseFieldTransformation, TransformationBydimensionchildrenBaseIdentityTransformation, TransformationBydimensionchildrenBaseMapAxisTransformation, TransformationBydimensionchildrenBaseRotationTransformation, TransformationBydimensionchildrenBaseScaleTransformation, TransformationBydimensionchildrenBaseSequenceTransformation, TransformationBydimensionchildrenBaseTranslationTransformation, TransformationBydimensionchildrenBaseUnmappableTransformation], Field(discriminator='typename')], TransformationBydimensionchildrenBaseCatchAll], ...] = Field(alias='byDimensionChildren')
+    'The child transformations. Each carries the `inputAxes` and `outputAxes` it acts on'
+
+class TransformationFieldTransformation(TransformationBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+    field: Optional[CoordinateSystem] = Field(default=None)
+    "The coordinate system of the array whose values are this map. Its value axis says what they mean: COORDINATE for absolute positions, DISPLACEMENT for offsets, none at all for a scalar array whose single value is a position. Equal to `input` when the array's own pixels are the map, as for a label mask keying a table of objects"
+
+class TransformationIdentityTransformation(TransformationBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class TransformationMapAxisTransformation(TransformationBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    'The names of the input axes, positionally matched to `outputAxes`'
+    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    'The names of the output axes, positionally matched to `inputAxes`'
+
+class TransformationRotationTransformation(TransformationBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+    affine: Tuple[Tuple[float, ...], ...]
+    'The rotation matrix'
+
+class TransformationScaleTransformation(TransformationBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+    scale: Tuple[float, ...]
+    "The per-axis scale factors, in the axis order of the input system, expressed in the units of the output system's axes (dimensionless between pixel systems, e.g. within a pyramid). Absolute, not relative to another level"
+
+class TransformationSequenceTransformation(TransformationBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+    sequence_children: Tuple[Union[Annotated[Union[TransformationSequencechildrenBaseAffineTransformation, TransformationSequencechildrenBaseBijectionTransformation, TransformationSequencechildrenBaseByDimensionTransformation, TransformationSequencechildrenBaseFieldTransformation, TransformationSequencechildrenBaseIdentityTransformation, TransformationSequencechildrenBaseMapAxisTransformation, TransformationSequencechildrenBaseRotationTransformation, TransformationSequencechildrenBaseScaleTransformation, TransformationSequencechildrenBaseSequenceTransformation, TransformationSequencechildrenBaseTranslationTransformation, TransformationSequencechildrenBaseUnmappableTransformation], Field(discriminator='typename')], TransformationSequencechildrenBaseCatchAll], ...] = Field(alias='sequenceChildren')
+    'The child transformations, applied first to last. They omit their own input and output: the sequence supplies them'
+
+class TransformationTranslationTransformation(TransformationBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+    translation: Tuple[float, ...]
+    'The per-axis offsets, in the axis order of the input system'
+
+class TransformationUnmappableTransformation(TransformationBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
 class RGBContextImage(HasZarrStoreTrait, BaseModel):
     """An image. Images are the central data type in mikro: a single 5D bioimage whose binary data is stored in a ZarrStore. Images can be annotated with views (coordinate-ordered subsets of the image) and are the primary container that rois, metrics, renders and generated tables are bound to."""
@@ -2600,10 +4290,234 @@ class Image(HasZarrStoreTrait, MikroFetchable, BaseModel):
         name = 'Image'
         type = 'Image'
 
+class AnnotationCollection(MikroFetchable, BaseModel):
+    """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
+    typename: Literal['AnnotationCollection'] = Field(alias='__typename', default='AnnotationCollection', exclude=True)
+    id: ID
+    name: str
+    description: Optional[str] = Field(default=None)
+    coordinate_system: CoordinateSystem = Field(alias='coordinateSystem')
+    "The coordinate system the annotations' vectors are expressed in. The collection owns it; `derivedFrom` relates it to whatever the shapes are drawn over"
+    annotations: Tuple[Annotation, ...]
+    'The annotations in this collection'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for AnnotationCollection"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}'
+        name = 'AnnotationCollection'
+        type = 'AnnotationCollection'
+
+class Animation(MikroFetchable, BaseModel):
+    """A named camera tour of a scene: the poses a viewer pans through, in order. A view artifact -- it cascades with the scene, no placement walk crosses it, and refining a registration moves the data but never the camera"""
+    typename: Literal['Animation'] = Field(alias='__typename', default='Animation', exclude=True)
+    id: ID
+    name: str
+    description: Optional[str] = Field(default=None)
+    scene: Scene
+    'The scene this tour flies through'
+    waypoints: Tuple[AnimationWaypoint, ...]
+    'The poses the viewer pans through, in tour order'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Animation"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}'
+        name = 'Animation'
+        type = 'Animation'
+
+class SceneSnapshot(MikroFetchable, BaseModel):
+    """A pre-rendered picture of a composition: every layer of the scene, blended. Clients use snapshots to preview without compositing the layers themselves. A picture of the scene, not of any one dataset in it -- though `ADataset.latestSnapshot` will offer one of these where the scene's only anchored dataset is that dataset, since then the picture shows it and nothing else"""
+    typename: Literal['SceneSnapshot'] = Field(alias='__typename', default='SceneSnapshot', exclude=True)
+    id: ID
+    name: str
+    major_color: Optional[Tuple[float, ...]] = Field(default=None, alias='majorColor')
+    'The dominant color of the image, for tinting a placeholder while it loads'
+    scene: Scene
+    'The composition this is a picture of'
+    store: MediaStore
+    'The media store holding the rendered image. Ask it for a presignedUrl or an accessGrant to actually fetch the bytes'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for SceneSnapshot"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  majorColor\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}'
+        name = 'SceneSnapshot'
+        type = 'SceneSnapshot'
+
+class MeshCollectionDerivedfromBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    model_config = ConfigDict(frozen=True)
+
+class MeshCollectionDerivedfromBaseAffineTransformation(TransformationAffineTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class MeshCollectionDerivedfromBaseBijectionTransformation(TransformationBijectionTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class MeshCollectionDerivedfromBaseByDimensionTransformation(TransformationByDimensionTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class MeshCollectionDerivedfromBaseFieldTransformation(TransformationFieldTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class MeshCollectionDerivedfromBaseIdentityTransformation(TransformationIdentityTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class MeshCollectionDerivedfromBaseMapAxisTransformation(TransformationMapAxisTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class MeshCollectionDerivedfromBaseRotationTransformation(TransformationRotationTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class MeshCollectionDerivedfromBaseScaleTransformation(TransformationScaleTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class MeshCollectionDerivedfromBaseSequenceTransformation(TransformationSequenceTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class MeshCollectionDerivedfromBaseTranslationTransformation(TransformationTranslationTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class MeshCollectionDerivedfromBaseUnmappableTransformation(TransformationUnmappableTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class MeshCollectionDerivedfromBaseCatchAll(MeshCollectionDerivedfromBase, BaseModel):
+    """Catch all class for MeshCollectionDerivedfromBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class MeshCollection(MikroFetchable, BaseModel):
+    """An immutable, versioned collection of meshes, backed by Parquet stores. Ask the catalog store for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
+    typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
+    id: ID
+    version: str
+    spec_version: str = Field(alias='specVersion')
+    grid: Any
+    'The octree grid. Its `cellSize` is in voxels of the coordinate system, so the octree aligns to the label grid the meshes were extracted from'
+    encoding: Any
+    'The geometry encoding: how positions, normals and indices are quantized and compressed'
+    coordinate_system: CoordinateSystem = Field(alias='coordinateSystem')
+    "The coordinate system the collection's vertices are expressed in. The collection owns it; `derivedFrom` relates it to the data the meshes were extracted from"
+    catalog: ParquetStore
+    'The Parquet store holding the catalog. Request an access grant from it and read the Parquet directly'
+    geometry: Tuple[ParquetStore, ...]
+    'The Parquet stores holding the geometry shards'
+    derived_from: Tuple[Union[Annotated[Union[MeshCollectionDerivedfromBaseAffineTransformation, MeshCollectionDerivedfromBaseBijectionTransformation, MeshCollectionDerivedfromBaseByDimensionTransformation, MeshCollectionDerivedfromBaseFieldTransformation, MeshCollectionDerivedfromBaseIdentityTransformation, MeshCollectionDerivedfromBaseMapAxisTransformation, MeshCollectionDerivedfromBaseRotationTransformation, MeshCollectionDerivedfromBaseScaleTransformation, MeshCollectionDerivedfromBaseSequenceTransformation, MeshCollectionDerivedfromBaseTranslationTransformation, MeshCollectionDerivedfromBaseUnmappableTransformation], Field(discriminator='typename')], MeshCollectionDerivedfromBaseCatchAll], ...] = Field(alias='derivedFrom')
+    "Every edge from this collection's space back into data the meshes were extracted from, in declared order -- the first is the primary parent, the one that places it. An identity when the meshes are in that grid as-is, a scale when they came off a downsampled one, UNMAPPABLE where the lineage is recorded but no geometry is claimed. Empty for a mesh derived from no data at all. The same relation a derived dataset's `derivedFrom` records"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for MeshCollection"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  catalog {\n    ...ParquetStore\n    __typename\n  }\n  geometry {\n    ...ParquetStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
+        name = 'MeshCollection'
+        type = 'MeshCollection'
+
+class TableDatasetColumns(BaseModel):
+    """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
+    typename: Literal['TableDatasetColumn'] = Field(alias='__typename', default='TableDatasetColumn', exclude=True)
+    id: ID
+    order: int
+    name: str
+    dtype: str
+    role: TableColumnRole
+    axis_type: Optional[AxisType] = Field(default=None, alias='axisType')
+    unit: Optional[str] = Field(default=None)
+    long_name: Optional[str] = Field(default=None, alias='longName')
+    model_config = ConfigDict(frozen=True)
+
+class TableDatasetDerivedfromBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    model_config = ConfigDict(frozen=True)
+
+class TableDatasetDerivedfromBaseAffineTransformation(TransformationAffineTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class TableDatasetDerivedfromBaseBijectionTransformation(TransformationBijectionTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class TableDatasetDerivedfromBaseByDimensionTransformation(TransformationByDimensionTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class TableDatasetDerivedfromBaseFieldTransformation(TransformationFieldTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class TableDatasetDerivedfromBaseIdentityTransformation(TransformationIdentityTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class TableDatasetDerivedfromBaseMapAxisTransformation(TransformationMapAxisTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class TableDatasetDerivedfromBaseRotationTransformation(TransformationRotationTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class TableDatasetDerivedfromBaseScaleTransformation(TransformationScaleTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class TableDatasetDerivedfromBaseSequenceTransformation(TransformationSequenceTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class TableDatasetDerivedfromBaseTranslationTransformation(TransformationTranslationTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class TableDatasetDerivedfromBaseUnmappableTransformation(TransformationUnmappableTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class TableDatasetDerivedfromBaseCatchAll(TableDatasetDerivedfromBase, BaseModel):
+    """Catch all class for TableDatasetDerivedfromBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class TableDataset(MikroFetchable, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    description: Optional[str] = Field(default=None)
+    store: ParquetStore
+    'The Parquet store holding the rows. Request an access grant from it and read the Parquet directly'
+    columns: Tuple[TableDatasetColumns, ...]
+    "The declared column schema, in order. The COORDINATE columns are the axes of this table's coordinate system"
+    coordinate_system: CoordinateSystem = Field(alias='coordinateSystem')
+    "The coordinate system this table owns. Its axes are the table's coordinate columns (or a single INDEX axis for a pure measurement table)"
+    derived_from: Tuple[Union[Annotated[Union[TableDatasetDerivedfromBaseAffineTransformation, TableDatasetDerivedfromBaseBijectionTransformation, TableDatasetDerivedfromBaseByDimensionTransformation, TableDatasetDerivedfromBaseFieldTransformation, TableDatasetDerivedfromBaseIdentityTransformation, TableDatasetDerivedfromBaseMapAxisTransformation, TableDatasetDerivedfromBaseRotationTransformation, TableDatasetDerivedfromBaseScaleTransformation, TableDatasetDerivedfromBaseSequenceTransformation, TableDatasetDerivedfromBaseTranslationTransformation, TableDatasetDerivedfromBaseUnmappableTransformation], Field(discriminator='typename')], TableDatasetDerivedfromBaseCatchAll], ...] = Field(alias='derivedFrom')
+    "Every edge from this table's space back into data it was computed from, in declared order -- the first is the primary parent, the one that places it. UNMAPPABLE where the lineage is recorded but no geometry is claimed; empty for a freestanding table. The same relation a derived dataset's `derivedFrom` records"
+    axis_names: Tuple[str, ...] = Field(alias='axisNames')
+    "The table's axis names, in order. Derived from the coordinate columns"
+    provenance_metadata: Any = Field(alias='provenanceMetadata')
+    'How this table was produced: the run, its parameters and its inputs'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for TableDataset"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}'
+        name = 'TableDataset'
+        type = 'TableDataset'
+
 class CreateADatasetMutation(BaseModel):
     """No documentation found for this operation."""
-    create_adataset: ADataset = Field(alias='createAdataset')
-    'Create a new dataset from array-like data with optional choordinate anchors and OME  metadata'
+    create_a_dataset: ADataset = Field(alias='createADataset')
+    'Create a new dataset from array-like data with optional coordinate anchors and OME metadata'
 
     class Arguments(BaseModel):
         """Arguments for CreateADataset """
@@ -2612,7 +4526,133 @@ class CreateADatasetMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateADataset """
-        document = 'fragment ADataset on ADataset {\n  id\n  name\n  dims\n  dataArrays {\n    level\n    shape\n    chunkShape\n    scaleFactors\n    __typename\n  }\n  __typename\n}\n\nmutation CreateADataset($input: CreateADatasetInput!) {\n  createAdataset(input: $input) {\n    ...ADataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ADataset on ADataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation CreateADataset($input: CreateADatasetInput!) {\n  createADataset(input: $input) {\n    ...ADataset\n    __typename\n  }\n}'
+
+class CreateAnimationMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_animation: Animation = Field(alias='createAnimation')
+    'Author a named camera tour of a scene'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateAnimation """
+        input: CreateAnimationInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateAnimation """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnimation($input: CreateAnimationInput!) {\n  createAnimation(input: $input) {\n    ...Animation\n    __typename\n  }\n}'
+
+class UpdateAnimationMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_animation: Animation = Field(alias='updateAnimation')
+    'Re-author a camera tour: rename it, or replace its stops'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateAnimation """
+        input: UpdateAnimationInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for UpdateAnimation """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateAnimation($input: UpdateAnimationInput!) {\n  updateAnimation(input: $input) {\n    ...Animation\n    __typename\n  }\n}'
+
+class DeleteAnimationMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_animation: ID = Field(alias='deleteAnimation')
+    'Delete an existing camera tour'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteAnimation """
+        input: DeleteAnimationInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for DeleteAnimation """
+        document = 'mutation DeleteAnimation($input: DeleteAnimationInput!) {\n  deleteAnimation(input: $input)\n}'
+
+class CreateAnnotationMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_annotation: Annotation = Field(alias='createAnnotation')
+    "Draw an annotation into a collection, or onto a scene (exactly one of the two). Drawing on a scene finds its annotation collection or mints it on first use: a coordinate system copying the world's axes, an identity registration into the world, and one annotation layer"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateAnnotation """
+        input: CreateAnnotationInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateAnnotation """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nmutation CreateAnnotation($input: CreateAnnotationInput!) {\n  createAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+
+class CreateAnnotationsMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_annotations: Tuple[Annotation, ...] = Field(alias='createAnnotations')
+    'Draw many annotations in one call, into a collection or onto a scene (exactly one of the two, same semantics as createAnnotation). The transform chain and version resolve once for the whole batch, and the rows insert in bulk'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateAnnotations """
+        input: CreateAnnotationsInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateAnnotations """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nmutation CreateAnnotations($input: CreateAnnotationsInput!) {\n  createAnnotations(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+
+class UpdateAnnotationMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_annotation: Annotation = Field(alias='updateAnnotation')
+    'Edit an annotation: name, kind, vectors, pins or styling. New vectors re-derive the bounding box against the current transform chain'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateAnnotation """
+        input: UpdateAnnotationInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for UpdateAnnotation """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nmutation UpdateAnnotation($input: UpdateAnnotationInput!) {\n  updateAnnotation(input: $input) {\n    ...Annotation\n    __typename\n  }\n}'
+
+class DeleteAnnotationMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_annotation: ID = Field(alias='deleteAnnotation')
+    'Delete an existing annotation'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteAnnotation """
+        input: DeleteAnnotationInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for DeleteAnnotation """
+        document = 'mutation DeleteAnnotation($input: DeleteAnnotationInput!) {\n  deleteAnnotation(input: $input)\n}'
+
+class CreateAnnotationCollectionMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_annotation_collection: AnnotationCollection = Field(alias='createAnnotationCollection')
+    "Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateAnnotationCollection """
+        input: CreateAnnotationCollectionInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateAnnotationCollection """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateAnnotationCollection($input: CreateAnnotationCollectionInput!) {\n  createAnnotationCollection(input: $input) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+
+class DeleteAnnotationCollectionMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_annotation_collection: ID = Field(alias='deleteAnnotationCollection')
+    'Delete an annotation collection. Its coordinate system, its annotations and its layers cascade with it'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteAnnotationCollection """
+        input: DeleteAnnotationCollectionInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for DeleteAnnotationCollection """
+        document = 'mutation DeleteAnnotationCollection($input: DeleteAnnotationCollectionInput!) {\n  deleteAnnotationCollection(input: $input)\n}'
 
 class CreateCameraMutationCreatecamera(BaseModel):
     """A camera (detector) on a microscope, described by its sensor dimensions, pixel sizes and bit depth. Clients use it through optics views to record which detector acquired an image."""
@@ -2656,19 +4696,75 @@ class EnsureCameraMutation(BaseModel):
         """Meta class for EnsureCamera """
         document = 'mutation EnsureCamera($input: CameraInput!) {\n  ensureCamera(input: $input) {\n    id\n    name\n    __typename\n  }\n}'
 
-class CreateDataRoiMutation(BaseModel):
+class CreateCoordinateSystemMutation(BaseModel):
     """No documentation found for this operation."""
-    create_data_roi: DataRoi = Field(alias='createDataRoi')
-    'Create a new data ROI from vector or slice definitions with optional choordinate anchors and OME metadata'
+    create_coordinate_system: CoordinateSystem = Field(alias='createCoordinateSystem')
+    'Create a SHARED coordinate system (an ownerless space) and, in one call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it'
 
     class Arguments(BaseModel):
-        """Arguments for CreateDataRoi """
-        input: CreateDataRoiInput
+        """Arguments for CreateCoordinateSystem """
+        input: CreateCoordinateSystemInput
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
-        """Meta class for CreateDataRoi """
-        document = 'fragment DimDescriptor on DimDescriptor {\n  key\n  kind\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment DataRoi on DataRoi {\n  id\n  dataset {\n    id\n    dimDescriptors {\n      ...DimDescriptor\n      __typename\n    }\n    dataArrays {\n      id\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nmutation CreateDataRoi($input: CreateDataRoiInput!) {\n  createDataRoi(input: $input) {\n    ...DataRoi\n    __typename\n  }\n}'
+        """Meta class for CreateCoordinateSystem """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nmutation CreateCoordinateSystem($input: CreateCoordinateSystemInput!) {\n  createCoordinateSystem(input: $input) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
+
+class UpdateCoordinateSystemMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_coordinate_system: CoordinateSystem = Field(alias='updateCoordinateSystem')
+    "Rename a shared coordinate system or anchor its clock. Shared spaces only -- an owned system's name is its container's business, and where data sits is an edge (updateTransformation), not a property of the space"
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateCoordinateSystem """
+        input: UpdateCoordinateSystemInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for UpdateCoordinateSystem """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateCoordinateSystem($input: UpdateCoordinateSystemInput!) {\n  updateCoordinateSystem(input: $input) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
+
+class DeleteCoordinateSystemMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_coordinate_system: ID = Field(alias='deleteCoordinateSystem')
+    'Delete an unused shared coordinate system. Refused while any scene is rooted in it or any transformation edge touches it. This is the only door a shared space leaves through -- deleting a scene never deletes one. Other system kinds cascade with their owner and cannot be deleted directly'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteCoordinateSystem """
+        input: DeleteCoordinateSystemInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for DeleteCoordinateSystem """
+        document = 'mutation DeleteCoordinateSystem($input: DeleteCoordinateSystemInput!) {\n  deleteCoordinateSystem(input: $input)\n}'
+
+class ClearCoordinateSystemMutation(BaseModel):
+    """No documentation found for this operation."""
+    clear_coordinate_system: Tuple[ID, ...] = Field(alias='clearCoordinateSystem')
+    "Delete every registration INTO a shared space in one call, returning the deleted edge ids. The space, the scenes over it (their layers drop to UNREGISTERED) and the space's own claims into wider spaces all survive. Guarded by the space's creator: clearing a space is the space-owner's act"
+
+    class Arguments(BaseModel):
+        """Arguments for ClearCoordinateSystem """
+        input: ClearCoordinateSystemInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for ClearCoordinateSystem """
+        document = 'mutation ClearCoordinateSystem($input: ClearCoordinateSystemInput!) {\n  clearCoordinateSystem(input: $input)\n}'
+
+class DeleteRegistrationMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_registration: Tuple[ID, ...] = Field(alias='deleteRegistration')
+    "Un-register a source from a space by naming the source and the space rather than the edge. Deletes every edge from the source's space into that one -- rivals are allowed, so there is no single edge to mean -- and returns their ids. An UNMAPPABLE declaration is not a placement and is never matched"
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteRegistration """
+        input: DeleteRegistrationInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for DeleteRegistration """
+        document = 'mutation DeleteRegistration($input: DeleteRegistrationInput!) {\n  deleteRegistration(input: $input)\n}'
 
 class RequestBigfileUploadMutation(BaseModel):
     """No documentation found for this operation."""
@@ -3011,7 +5107,7 @@ class CreateLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateLayer """
-        document = 'fragment Layer on Layer {\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  __typename\n}\n\nmutation CreateLayer($input: CreateLayerInput!) {\n  createLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  __typename\n}\n\nmutation CreateLayer($input: CreateLayerInput!) {\n  createLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateLensMutation(BaseModel):
     """No documentation found for this operation."""
@@ -3025,21 +5121,35 @@ class CreateLensMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateLens """
-        document = 'fragment DimDescriptor on DimDescriptor {\n  key\n  kind\n  __typename\n}\n\nfragment Slice on Slice {\n  dim\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Lens on Lens {\n  id\n  dataset {\n    id\n    dims\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  dims\n  dimDescriptors {\n    ...DimDescriptor\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nmutation CreateLens($input: CreateLensInput!) {\n  createLens(input: $input) {\n    ...Lens\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Lens on Lens {\n  id\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  renderAxes {\n    x\n    y\n    z\n    t\n    intensity\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nmutation CreateLens($input: CreateLensInput!) {\n  createLens(input: $input) {\n    ...Lens\n    __typename\n  }\n}'
 
-class CreateMeshMutation(BaseModel):
+class CreateMeshCollectionMutation(BaseModel):
     """No documentation found for this operation."""
-    create_mesh: Mesh = Field(alias='createMesh')
-    'Create a new mesh'
+    create_mesh_collection: MeshCollection = Field(alias='createMeshCollection')
+    'Register an immutable, versioned mesh collection against a coordinate system'
 
     class Arguments(BaseModel):
-        """Arguments for CreateMesh """
-        input: MeshInput
+        """Arguments for CreateMeshCollection """
+        input: CreateMeshCollectionInput
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
-        """Meta class for CreateMesh """
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment Mesh on Mesh {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMesh($input: MeshInput!) {\n  createMesh(input: $input) {\n    ...Mesh\n    __typename\n  }\n}'
+        """Meta class for CreateMeshCollection """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  catalog {\n    ...ParquetStore\n    __typename\n  }\n  geometry {\n    ...ParquetStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMeshCollection($input: CreateMeshCollectionInput!) {\n  createMeshCollection(input: $input) {\n    ...MeshCollection\n    __typename\n  }\n}'
+
+class DeleteMeshCollectionMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_mesh_collection: ID = Field(alias='deleteMeshCollection')
+    'Delete an existing mesh collection'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteMeshCollection """
+        input: DeleteMeshCollectionInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for DeleteMeshCollection """
+        document = 'mutation DeleteMeshCollection($input: DeleteMeshCollectionInput!) {\n  deleteMeshCollection(input: $input)\n}'
 
 class CreateObjectiveMutationCreateobjective(BaseModel):
     """A microscope objective, described by its magnification, numerical aperture and immersion medium. Clients use it through optics views to record which objective an image was acquired with."""
@@ -3082,6 +5192,48 @@ class EnsureObjectiveMutation(BaseModel):
     class Meta:
         """Meta class for EnsureObjective """
         document = 'mutation EnsureObjective($input: ObjectiveInput!) {\n  ensureObjective(input: $input) {\n    id\n    name\n    __typename\n  }\n}'
+
+class CreatePhasorLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_phasor_layer: LayerImageLayer = Field(alias='createPhasorLayer')
+    'Create a layer that reduces one axis of a lens to a phasor and colors each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube'
+
+    class Arguments(BaseModel):
+        """Arguments for CreatePhasorLayer """
+        input: CreatePhasorLayerInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreatePhasorLayer """
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  __typename\n}\n\nmutation CreatePhasorLayer($input: CreatePhasorLayerInput!) {\n  createPhasorLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class CreatePhasorHistogramMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_phasor_histogram: PhasorHistogram = Field(alias='createPhasorHistogram')
+    'Attach a phasor distribution (the 2D g/s density at one axis and harmonic) to a dataset, so a client can range a phasor overlay without reading the cube'
+
+    class Arguments(BaseModel):
+        """Arguments for CreatePhasorHistogram """
+        input: CreatePhasorHistogramInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreatePhasorHistogram """
+        document = 'fragment PhasorHistogram on PhasorHistogram {\n  id\n  axis\n  harmonic\n  bins\n  gMin\n  gMax\n  sMin\n  sMax\n  total\n  calibrated\n  counts\n  profile\n  __typename\n}\n\nmutation CreatePhasorHistogram($input: CreatePhasorHistogramInput!) {\n  createPhasorHistogram(input: $input) {\n    ...PhasorHistogram\n    __typename\n  }\n}'
+
+class CreatePhasorCalibrationMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_phasor_calibration: PhasorCalibration = Field(alias='createPhasorCalibration')
+    'Attach an instrument-response correction to a dataset, taking a raw phasor to a calibrated one'
+
+    class Arguments(BaseModel):
+        """Arguments for CreatePhasorCalibration """
+        input: CreatePhasorCalibrationInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreatePhasorCalibration """
+        document = 'fragment PhasorCalibration on PhasorCalibration {\n  id\n  axis\n  harmonic\n  phaseOffset\n  modulationFactor\n  reference\n  __typename\n}\n\nmutation CreatePhasorCalibration($input: CreatePhasorCalibrationInput!) {\n  createPhasorCalibration(input: $input) {\n    ...PhasorCalibration\n    __typename\n  }\n}'
 
 class CreateRenderTreeMutationCreaterendertree(BaseModel):
     """A render tree is a tree structure that describes the rendering of multiple images together, by linking several RGB contexts into one composite visualization."""
@@ -3176,7 +5328,7 @@ class UpdateRoiMutation(BaseModel):
 class CreateSceneMutation(BaseModel):
     """No documentation found for this operation."""
     create_scene: Scene = Field(alias='createScene')
-    'Create a new scene from an existing lens with optional blending mode'
+    'Create a new scene over a world coordinate system: an adopted existing system, or an ordinary SHARED one created for it (never owned by the scene -- it outlives it)'
 
     class Arguments(BaseModel):
         """Arguments for CreateScene """
@@ -3185,7 +5337,105 @@ class CreateSceneMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateScene """
-        document = 'fragment Scene on Scene {\n  name\n  id\n  __typename\n}\n\nmutation CreateScene($input: CreateSceneInput!) {\n  createScene(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateScene($input: CreateSceneInput!) {\n  createScene(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
+
+class CreateSceneFromCoordinateSystemMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_scene_from_coordinate_system: Scene = Field(alias='createSceneFromCoordinateSystem')
+    "Bootstrap a renderable scene over an existing coordinate system: a shared space (its registered sources become layers, up to the policy's nchildren) or an owned system such as a dataset's intrinsic grid or a physical space (the container's own data becomes the layer). The scene adopts the system as its world; no edges are authored. This is how a dataset is staged -- pass `intrinsicSystem` to render in pixels, or a physical space it is registered into to render at physical scale"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateSceneFromCoordinateSystem """
+        input: CreateSceneFromCoordinateSystemInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateSceneFromCoordinateSystem """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSceneFromCoordinateSystem($input: CreateSceneFromCoordinateSystemInput!) {\n  createSceneFromCoordinateSystem(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
+
+class UpdateSceneMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_scene: Scene = Field(alias='updateScene')
+    "Set a scene's viewer preferences: how a client should open it"
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateScene """
+        input: UpdateSceneInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for UpdateScene """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateScene($input: UpdateSceneInput!) {\n  updateScene(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
+
+class ClearSceneMutation(BaseModel):
+    """No documentation found for this operation."""
+    clear_scene: Scene = Field(alias='clearScene')
+    'Delete every layer of a scene, keeping the scene itself. A pure view-state reset: no coordinate system, registration or dataset is touched, and other scenes over the same space never notice'
+
+    class Arguments(BaseModel):
+        """Arguments for ClearScene """
+        input: ClearSceneInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for ClearScene """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation ClearScene($input: ClearSceneInput!) {\n  clearScene(input: $input) {\n    ...Scene\n    __typename\n  }\n}'
+
+class DeleteSceneMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_scene: ID = Field(alias='deleteScene')
+    'Delete an existing scene'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteScene """
+        input: DeleteSceneInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for DeleteScene """
+        document = 'mutation DeleteScene($input: DeleteSceneInput!) {\n  deleteScene(input: $input)\n}'
+
+class CreateSceneSnapshotMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_scene_snapshot: SceneSnapshot = Field(alias='createSceneSnapshot')
+    'Adopt an uploaded media file as a pre-rendered picture of a scene'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateSceneSnapshot """
+        input: SceneSnapshotInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateSceneSnapshot """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  majorColor\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSceneSnapshot($input: SceneSnapshotInput!) {\n  createSceneSnapshot(input: $input) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+
+class DeleteSceneSnapshotMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_scene_snapshot: ID = Field(alias='deleteSceneSnapshot')
+    'Delete an existing scene snapshot'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteSceneSnapshot """
+        input: DeleteSceneSnapshotInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for DeleteSceneSnapshot """
+        document = 'mutation DeleteSceneSnapshot($input: DeleteSceneSnapshotInput!) {\n  deleteSceneSnapshot(input: $input)\n}'
+
+class PinSceneSnapshotMutation(BaseModel):
+    """No documentation found for this operation."""
+    pin_scene_snapshot: SceneSnapshot = Field(alias='pinSceneSnapshot')
+    'Pin a scene snapshot for quick access'
+
+    class Arguments(BaseModel):
+        """Arguments for PinSceneSnapshot """
+        input: PinSceneSnapshotInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for PinSceneSnapshot """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  majorColor\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nmutation PinSceneSnapshot($input: PinSceneSnapshotInput!) {\n  pinSceneSnapshot(input: $input) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
 
 class CreateSnapshotMutation(BaseModel):
     """No documentation found for this operation."""
@@ -3228,6 +5478,194 @@ class From_parquet_likeMutation(BaseModel):
     class Meta:
         """Meta class for from_parquet_like """
         document = 'fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}\n\nmutation from_parquet_like($input: FromParquetLike!) {\n  fromParquetLike(input: $input) {\n    ...Table\n    __typename\n  }\n}'
+
+class CreateTableDatasetMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_table_dataset: TableDataset = Field(alias='createTableDataset')
+    'Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateTableDataset """
+        input: CreateTableDatasetInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateTableDataset """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation CreateTableDataset($input: CreateTableDatasetInput!) {\n  createTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
+
+class UpdateTableDatasetMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_table_dataset: TableDataset = Field(alias='updateTableDataset')
+    'Rename a table dataset or redescribe it -- the whole of what is editable. Its store, columns and coordinate system are fixed at creation; a recomputation is a new table'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateTableDataset """
+        input: UpdateTableDatasetInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for UpdateTableDataset """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation UpdateTableDataset($input: UpdateTableDatasetInput!) {\n  updateTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
+
+class DeleteTableDatasetMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_table_dataset: ID = Field(alias='deleteTableDataset')
+    'Delete an existing table dataset'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteTableDataset """
+        input: DeleteTableDatasetInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for DeleteTableDataset """
+        document = 'mutation DeleteTableDataset($input: DeleteTableDatasetInput!) {\n  deleteTableDataset(input: $input)\n}'
+
+class CreateTransformationMutationCreatetransformationBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    model_config = ConfigDict(frozen=True)
+
+class CreateTransformationMutationCreatetransformationBaseAffineTransformation(TransformationAffineTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class CreateTransformationMutationCreatetransformationBaseBijectionTransformation(TransformationBijectionTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class CreateTransformationMutationCreatetransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class CreateTransformationMutationCreatetransformationBaseFieldTransformation(TransformationFieldTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class CreateTransformationMutationCreatetransformationBaseIdentityTransformation(TransformationIdentityTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class CreateTransformationMutationCreatetransformationBaseMapAxisTransformation(TransformationMapAxisTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class CreateTransformationMutationCreatetransformationBaseRotationTransformation(TransformationRotationTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class CreateTransformationMutationCreatetransformationBaseScaleTransformation(TransformationScaleTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class CreateTransformationMutationCreatetransformationBaseSequenceTransformation(TransformationSequenceTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class CreateTransformationMutationCreatetransformationBaseTranslationTransformation(TransformationTranslationTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class CreateTransformationMutationCreatetransformationBaseUnmappableTransformation(TransformationUnmappableTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class CreateTransformationMutationCreatetransformationBaseCatchAll(CreateTransformationMutationCreatetransformationBase, BaseModel):
+    """Catch all class for CreateTransformationMutationCreatetransformationBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class CreateTransformationMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_transformation: Union[Annotated[Union[CreateTransformationMutationCreatetransformationBaseAffineTransformation, CreateTransformationMutationCreatetransformationBaseBijectionTransformation, CreateTransformationMutationCreatetransformationBaseByDimensionTransformation, CreateTransformationMutationCreatetransformationBaseFieldTransformation, CreateTransformationMutationCreatetransformationBaseIdentityTransformation, CreateTransformationMutationCreatetransformationBaseMapAxisTransformation, CreateTransformationMutationCreatetransformationBaseRotationTransformation, CreateTransformationMutationCreatetransformationBaseScaleTransformation, CreateTransformationMutationCreatetransformationBaseSequenceTransformation, CreateTransformationMutationCreatetransformationBaseTranslationTransformation, CreateTransformationMutationCreatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], CreateTransformationMutationCreatetransformationBaseCatchAll] = Field(alias='createTransformation')
+    'Create one edge of the coordinate graph, mapping an input coordinate system to an output one. This is where registration lives'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateTransformation """
+        input: CreateTransformationInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateTransformation """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nmutation CreateTransformation($input: CreateTransformationInput!) {\n  createTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
+
+class UpdateTransformationMutationUpdatetransformationBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    model_config = ConfigDict(frozen=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseAffineTransformation(TransformationAffineTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseBijectionTransformation(TransformationBijectionTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseFieldTransformation(TransformationFieldTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseIdentityTransformation(TransformationIdentityTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseMapAxisTransformation(TransformationMapAxisTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseRotationTransformation(TransformationRotationTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseScaleTransformation(TransformationScaleTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseSequenceTransformation(TransformationSequenceTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseTranslationTransformation(TransformationTranslationTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseUnmappableTransformation(TransformationUnmappableTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class UpdateTransformationMutationUpdatetransformationBaseCatchAll(UpdateTransformationMutationUpdatetransformationBase, BaseModel):
+    """Catch all class for UpdateTransformationMutationUpdatetransformationBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class UpdateTransformationMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_transformation: Union[Annotated[Union[UpdateTransformationMutationUpdatetransformationBaseAffineTransformation, UpdateTransformationMutationUpdatetransformationBaseBijectionTransformation, UpdateTransformationMutationUpdatetransformationBaseByDimensionTransformation, UpdateTransformationMutationUpdatetransformationBaseFieldTransformation, UpdateTransformationMutationUpdatetransformationBaseIdentityTransformation, UpdateTransformationMutationUpdatetransformationBaseMapAxisTransformation, UpdateTransformationMutationUpdatetransformationBaseRotationTransformation, UpdateTransformationMutationUpdatetransformationBaseScaleTransformation, UpdateTransformationMutationUpdatetransformationBaseSequenceTransformation, UpdateTransformationMutationUpdatetransformationBaseTranslationTransformation, UpdateTransformationMutationUpdatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], UpdateTransformationMutationUpdatetransformationBaseCatchAll] = Field(alias='updateTransformation')
+    "Refine a transformation's parameters, bumping its version"
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateTransformation """
+        input: UpdateTransformationInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for UpdateTransformation """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nmutation UpdateTransformation($input: UpdateTransformationInput!) {\n  updateTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
+
+class DeleteTransformationMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_transformation: ID = Field(alias='deleteTransformation')
+    'Delete an existing transformation'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteTransformation """
+        input: DeleteTransformationInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for DeleteTransformation """
+        document = 'mutation DeleteTransformation($input: DeleteTransformationInput!) {\n  deleteTransformation(input: $input)\n}'
 
 class CreateRgbViewMutationCreatergbview(BaseModel):
     """An RGB view describes how a subset of an image (typically a channel) is rendered in RGB within an RGB context, carrying color map, gamma and contrast limit settings."""
@@ -3346,6 +5784,194 @@ class CreateViewCollectionMutation(BaseModel):
         """Meta class for CreateViewCollection """
         document = 'mutation CreateViewCollection($input: ViewCollectionInput!) {\n  createViewCollection(input: $input) {\n    id\n    name\n    __typename\n  }\n}'
 
+class GetADatasetQuery(BaseModel):
+    """No documentation found for this operation."""
+    adataset: ADataset
+    'Get a single array dataset by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetADataset """
+        id: ID
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetADataset """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ADataset on ADataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetADataset($id: ID!) {\n  adataset(id: $id) {\n    ...ADataset\n    __typename\n  }\n}'
+
+class GetADatasetsQuery(BaseModel):
+    """No documentation found for this operation."""
+    adatasets: Tuple[ADataset, ...]
+    'List array datasets (N-dimensional arrays with named dimensions and anchored metadata)'
+
+    class Arguments(BaseModel):
+        """Arguments for GetADatasets """
+        filters: Optional[ADatasetFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetADatasets """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ADataset on ADataset {\n  id\n  name\n  axisNames\n  shape\n  multiscale\n  intrinsicSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  dataArrays {\n    id\n    level\n    shape\n    chunkShape\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetADatasets($filters: ADatasetFilter, $pagination: OffsetPaginationInput) {\n  adatasets(filters: $filters, pagination: $pagination) {\n    ...ADataset\n    __typename\n  }\n}'
+
+class SearchADatasetsQueryOptions(DatasetTrait, BaseModel):
+    """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
+    typename: Literal['ADataset'] = Field(alias='__typename', default='ADataset', exclude=True)
+    value: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+class SearchADatasetsQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: Tuple[SearchADatasetsQueryOptions, ...]
+    'List array datasets (N-dimensional arrays with named dimensions and anchored metadata)'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchADatasets """
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+        limit: Optional[int] = Field(default=None)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for SearchADatasets """
+        document = 'query SearchADatasets($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: adatasets(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
+class GetAnimationQuery(BaseModel):
+    """No documentation found for this operation."""
+    animation: Animation
+    'Get a single animation by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetAnimation """
+        id: ID
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetAnimation """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nquery GetAnimation($id: ID!) {\n  animation(id: $id) {\n    ...Animation\n    __typename\n  }\n}'
+
+class GetAnimationsQuery(BaseModel):
+    """No documentation found for this operation."""
+    animations: Tuple[Animation, ...]
+    'List animations (named camera tours through a scene)'
+
+    class Arguments(BaseModel):
+        """Arguments for GetAnimations """
+        filters: Optional[AnimationFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetAnimations """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CameraState on CameraState {\n  position\n  crossSectionOrientation\n  crossSectionScale\n  projectionOrientation\n  projectionScale\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnimationWaypoint on AnimationWaypoint {\n  id\n  order\n  name\n  durationMs\n  easing\n  camera {\n    ...CameraState\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment Animation on Animation {\n  id\n  name\n  description\n  scene {\n    ...Scene\n    __typename\n  }\n  waypoints {\n    ...AnimationWaypoint\n    __typename\n  }\n  __typename\n}\n\nquery GetAnimations($filters: AnimationFilter, $pagination: OffsetPaginationInput) {\n  animations(filters: $filters, pagination: $pagination) {\n    ...Animation\n    __typename\n  }\n}'
+
+class SearchAnimationsQueryOptions(BaseModel):
+    """A named camera tour of a scene: the poses a viewer pans through, in order. A view artifact -- it cascades with the scene, no placement walk crosses it, and refining a registration moves the data but never the camera"""
+    typename: Literal['Animation'] = Field(alias='__typename', default='Animation', exclude=True)
+    value: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+class SearchAnimationsQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: Tuple[SearchAnimationsQueryOptions, ...]
+    'List animations (named camera tours through a scene)'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchAnimations """
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+        limit: Optional[int] = Field(default=None)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for SearchAnimations """
+        document = 'query SearchAnimations($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: animations(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
+class GetAnnotationQuery(BaseModel):
+    """No documentation found for this operation."""
+    annotation: Annotation
+    'Get a single annotation by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetAnnotation """
+        id: ID
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetAnnotation """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nquery GetAnnotation($id: ID!) {\n  annotation(id: $id) {\n    ...Annotation\n    __typename\n  }\n}'
+
+class GetAnnotationsQuery(BaseModel):
+    """No documentation found for this operation."""
+    annotations: Tuple[Annotation, ...]
+    "List annotations (human-drawn shapes, each in its collection's coordinate system)"
+
+    class Arguments(BaseModel):
+        """Arguments for GetAnnotations """
+        filters: Optional[AnnotationFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetAnnotations """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nquery GetAnnotations($filters: AnnotationFilter, $pagination: OffsetPaginationInput) {\n  annotations(filters: $filters, pagination: $pagination) {\n    ...Annotation\n    __typename\n  }\n}'
+
+class GetAnnotationCollectionQuery(BaseModel):
+    """No documentation found for this operation."""
+    annotation_collection: AnnotationCollection = Field(alias='annotationCollection')
+    'Get a single annotation collection by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetAnnotationCollection """
+        id: ID
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetAnnotationCollection """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollection($id: ID!) {\n  annotationCollection(id: $id) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+
+class GetAnnotationCollectionsQuery(BaseModel):
+    """No documentation found for this operation."""
+    annotation_collections: Tuple[AnnotationCollection, ...] = Field(alias='annotationCollections')
+    'List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)'
+
+    class Arguments(BaseModel):
+        """Arguments for GetAnnotationCollections """
+        filters: Optional[AnnotationCollectionFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetAnnotationCollections """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment Annotation on Annotation {\n  id\n  name\n  kind\n  vectors\n  coordinates {\n    name\n    value\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  intrinsicBbox {\n    min\n    max\n    __typename\n  }\n  strokeColor\n  fillColor\n  strokeWidth\n  filled\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment AnnotationCollection on AnnotationCollection {\n  id\n  name\n  description\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  annotations {\n    ...Annotation\n    __typename\n  }\n  __typename\n}\n\nquery GetAnnotationCollections($filters: AnnotationCollectionFilter, $pagination: OffsetPaginationInput) {\n  annotationCollections(filters: $filters, pagination: $pagination) {\n    ...AnnotationCollection\n    __typename\n  }\n}'
+
+class SearchAnnotationCollectionsQueryOptions(BaseModel):
+    """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
+    typename: Literal['AnnotationCollection'] = Field(alias='__typename', default='AnnotationCollection', exclude=True)
+    value: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+class SearchAnnotationCollectionsQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: Tuple[SearchAnnotationCollectionsQueryOptions, ...]
+    'List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchAnnotationCollections """
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+        limit: Optional[int] = Field(default=None)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for SearchAnnotationCollections """
+        document = 'query SearchAnnotationCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: annotationCollections(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
 class GetCameraQuery(BaseModel):
     """No documentation found for this operation."""
     camera: Camera
@@ -3359,6 +5985,137 @@ class GetCameraQuery(BaseModel):
     class Meta:
         """Meta class for GetCamera """
         document = 'fragment Camera on Camera {\n  sensorSizeX\n  sensorSizeY\n  pixelSizeX\n  pixelSizeY\n  name\n  serialNumber\n  __typename\n}\n\nquery GetCamera($id: ID!) {\n  camera(id: $id) {\n    ...Camera\n    __typename\n  }\n}'
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    model_config = ConfigDict(frozen=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseAffineTransformation(TransformationAffineTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseBijectionTransformation(TransformationBijectionTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseByDimensionTransformation(TransformationByDimensionTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseFieldTransformation(TransformationFieldTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseIdentityTransformation(TransformationIdentityTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseMapAxisTransformation(TransformationMapAxisTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseRotationTransformation(TransformationRotationTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseScaleTransformation(TransformationScaleTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseSequenceTransformation(TransformationSequenceTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseTranslationTransformation(TransformationTranslationTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseUnmappableTransformation(TransformationUnmappableTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraphTransformationsBaseCatchAll(GetCoordinateGraphQueryCoordinategraphTransformationsBase, BaseModel):
+    """Catch all class for GetCoordinateGraphQueryCoordinategraphTransformationsBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class GetCoordinateGraphQueryCoordinategraph(BaseModel):
+    """The connected component of the coordinate graph around one system: every coordinate system it relates to, and every top-level edge between them. Reachability is undirected -- an edge pointing *into* the system you started from (the edge into a physical space, say) relates to it just as much as one pointing out -- but every edge is returned in its true stored direction, so composing a path is still the client's job and still needs the inversions flagged"""
+    typename: Literal['CoordinateGraph'] = Field(alias='__typename', default='CoordinateGraph', exclude=True)
+    root: CoordinateSystem
+    'The coordinate system the walk started from'
+    systems: Tuple[CoordinateSystem, ...]
+    'Every coordinate system reachable from the root, the root included, ordered by ID'
+    transformations: Tuple[Union[Annotated[Union[GetCoordinateGraphQueryCoordinategraphTransformationsBaseAffineTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseBijectionTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseByDimensionTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseFieldTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseIdentityTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseMapAxisTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseRotationTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseScaleTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseSequenceTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseTranslationTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseUnmappableTransformation], Field(discriminator='typename')], GetCoordinateGraphQueryCoordinategraphTransformationsBaseCatchAll], ...]
+    'Every top-level edge with both endpoints in `systems`, ordered by ID. The children of a SEQUENCE / BY_DIMENSION / BIJECTION wrapper are not listed here; they hang off their wrapper'
+    model_config = ConfigDict(frozen=True)
+
+class GetCoordinateGraphQuery(BaseModel):
+    """No documentation found for this operation."""
+    coordinate_graph: GetCoordinateGraphQueryCoordinategraph = Field(alias='coordinateGraph')
+    "Walk the coordinate graph out from one system: every coordinate system it reaches and every top-level edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not"
+
+    class Arguments(BaseModel):
+        """Arguments for GetCoordinateGraph """
+        coordinate_system: ID = Field(alias='coordinateSystem')
+        max_depth: Optional[int] = Field(alias='maxDepth', default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetCoordinateGraph """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetCoordinateGraph($coordinateSystem: ID!, $maxDepth: Int) {\n  coordinateGraph(coordinateSystem: $coordinateSystem, maxDepth: $maxDepth) {\n    root {\n      ...CoordinateSystem\n      __typename\n    }\n    systems {\n      ...CoordinateSystem\n      __typename\n    }\n    transformations {\n      ...Transformation\n      __typename\n    }\n    __typename\n  }\n}'
+
+class GetCoordinateSystemQuery(BaseModel):
+    """No documentation found for this operation."""
+    coordinate_system: CoordinateSystem = Field(alias='coordinateSystem')
+    'Get a single coordinate system by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetCoordinateSystem """
+        id: ID
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetCoordinateSystem """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nquery GetCoordinateSystem($id: ID!) {\n  coordinateSystem(id: $id) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
+
+class GetCoordinateSystemsQuery(BaseModel):
+    """No documentation found for this operation."""
+    coordinate_systems: Tuple[CoordinateSystem, ...] = Field(alias='coordinateSystems')
+    'List coordinate systems (the nodes of the RFC-5 coordinate graph)'
+
+    class Arguments(BaseModel):
+        """Arguments for GetCoordinateSystems """
+        filters: Optional[CoordinateSystemFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetCoordinateSystems """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nquery GetCoordinateSystems($filters: CoordinateSystemFilter, $pagination: OffsetPaginationInput) {\n  coordinateSystems(filters: $filters, pagination: $pagination) {\n    ...CoordinateSystem\n    __typename\n  }\n}'
+
+class SearchCoordinateSystemsQueryOptions(CoordinateSystemTrait, BaseModel):
+    """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
+    typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
+    value: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+class SearchCoordinateSystemsQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: Tuple[SearchCoordinateSystemsQueryOptions, ...]
+    'List coordinate systems (the nodes of the RFC-5 coordinate graph)'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchCoordinateSystems """
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+        limit: Optional[int] = Field(default=None)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for SearchCoordinateSystems """
+        document = 'query SearchCoordinateSystems($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: coordinateSystems(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetDatasetQuery(BaseModel):
     """No documentation found for this operation."""
@@ -3672,36 +6429,51 @@ class GetLensQuery(BaseModel):
 
     class Meta:
         """Meta class for GetLens """
-        document = 'fragment DimDescriptor on DimDescriptor {\n  key\n  kind\n  __typename\n}\n\nfragment Slice on Slice {\n  dim\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Lens on Lens {\n  id\n  dataset {\n    id\n    dims\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  dims\n  dimDescriptors {\n    ...DimDescriptor\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetLens($id: ID!) {\n  lens(id: $id) {\n    ...Lens\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Slice on Slice {\n  axis\n  start\n  stop\n  step\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Lens on Lens {\n  id\n  dataset {\n    id\n    axisNames\n    dataArrays {\n      id\n      level\n      store {\n        ...ZarrStore\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n  shape\n  axisNames\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  renderAxes {\n    x\n    y\n    z\n    t\n    intensity\n    __typename\n  }\n  slices {\n    ...Slice\n    __typename\n  }\n  __typename\n}\n\nquery GetLens($id: ID!) {\n  lens(id: $id) {\n    ...Lens\n    __typename\n  }\n}'
 
-class GetMeshQuery(BaseModel):
+class GetMeshCollectionQuery(BaseModel):
     """No documentation found for this operation."""
-    mesh: Mesh
-    'Get a single 3D mesh by ID'
+    mesh_collection: MeshCollection = Field(alias='meshCollection')
+    'Get a single mesh collection by ID'
 
     class Arguments(BaseModel):
-        """Arguments for GetMesh """
+        """Arguments for GetMeshCollection """
         id: ID
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
-        """Meta class for GetMesh """
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment Mesh on Mesh {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nquery GetMesh($id: ID!) {\n  mesh(id: $id) {\n    ...Mesh\n    __typename\n  }\n}'
+        """Meta class for GetMeshCollection """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  catalog {\n    ...ParquetStore\n    __typename\n  }\n  geometry {\n    ...ParquetStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollection($id: ID!) {\n  meshCollection(id: $id) {\n    ...MeshCollection\n    __typename\n  }\n}'
 
-class SearchMeshesQueryOptions(BaseModel):
-    """A 3D mesh belonging to a dataset, with its geometry kept in a big file store. Clients use it to download or visualize surface reconstructions derived from image data."""
-    typename: Literal['Mesh'] = Field(alias='__typename', default='Mesh', exclude=True)
+class GetMeshCollectionsQuery(BaseModel):
+    """No documentation found for this operation."""
+    mesh_collections: Tuple[MeshCollection, ...] = Field(alias='meshCollections')
+    'List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)'
+
+    class Arguments(BaseModel):
+        """Arguments for GetMeshCollections """
+        filters: Optional[MeshCollectionFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetMeshCollections """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  catalog {\n    ...ParquetStore\n    __typename\n  }\n  geometry {\n    ...ParquetStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollections($filters: MeshCollectionFilter, $pagination: OffsetPaginationInput) {\n  meshCollections(filters: $filters, pagination: $pagination) {\n    ...MeshCollection\n    __typename\n  }\n}'
+
+class SearchMeshCollectionsQueryOptions(BaseModel):
+    """An immutable, versioned collection of meshes, backed by Parquet stores. Ask the catalog store for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
+    typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
     value: ID
     label: str
     model_config = ConfigDict(frozen=True)
 
-class SearchMeshesQuery(BaseModel):
+class SearchMeshCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
-    options: Tuple[SearchMeshesQueryOptions, ...]
-    'List 3D meshes'
+    options: Tuple[SearchMeshCollectionsQueryOptions, ...]
+    'List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)'
 
     class Arguments(BaseModel):
-        """Arguments for SearchMeshes """
+        """Arguments for SearchMeshCollections """
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
         limit: Optional[int] = Field(default=None)
@@ -3709,8 +6481,8 @@ class SearchMeshesQuery(BaseModel):
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
-        """Meta class for SearchMeshes """
-        document = 'query SearchMeshes($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: meshes(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+        """Meta class for SearchMeshCollections """
+        document = 'query SearchMeshCollections($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: meshCollections(\n    filters: {version: {iContains: $search}, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: version\n    __typename\n  }\n}'
 
 class GetObjectiveQuery(BaseModel):
     """No documentation found for this operation."""
@@ -3804,10 +6576,10 @@ class GetSceneQuery(BaseModel):
 
     class Meta:
         """Meta class for GetScene """
-        document = 'fragment Scene on Scene {\n  name\n  id\n  __typename\n}\n\nquery GetScene($id: ID!) {\n  scene(id: $id) {\n    ...Scene\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nquery GetScene($id: ID!) {\n  scene(id: $id) {\n    ...Scene\n    __typename\n  }\n}'
 
-class SearchScenesQueryOptions(BaseModel):
-    """The absolute coordinate universe in which layers are placed, with defined spatial and temporal base units"""
+class SearchScenesQueryOptions(SceneTrait, BaseModel):
+    """A composition of layers over a shared world coordinate system. The scene carries no units of its own -- they are per-axis, on the axes of its world system"""
     typename: Literal['Scene'] = Field(alias='__typename', default='Scene', exclude=True)
     value: ID
     label: str
@@ -3829,6 +6601,59 @@ class SearchScenesQuery(BaseModel):
     class Meta:
         """Meta class for SearchScenes """
         document = 'query SearchScenes($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: scenes(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
+class GetSceneSnapshotQuery(BaseModel):
+    """No documentation found for this operation."""
+    scene_snapshot: SceneSnapshot = Field(alias='sceneSnapshot')
+    'Get a single scene snapshot by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetSceneSnapshot """
+        id: ID
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetSceneSnapshot """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  majorColor\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nquery GetSceneSnapshot($id: ID!) {\n  sceneSnapshot(id: $id) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+
+class GetSceneSnapshotsQuery(BaseModel):
+    """No documentation found for this operation."""
+    scene_snapshots: Tuple[SceneSnapshot, ...] = Field(alias='sceneSnapshots')
+    'List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)'
+
+    class Arguments(BaseModel):
+        """Arguments for GetSceneSnapshots """
+        filters: Optional[SceneSnapshotFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetSceneSnapshots """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  majorColor\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nquery GetSceneSnapshots($filters: SceneSnapshotFilter, $pagination: OffsetPaginationInput) {\n  sceneSnapshots(filters: $filters, pagination: $pagination) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+
+class SearchSceneSnapshotsQueryOptions(BaseModel):
+    """A pre-rendered picture of a composition: every layer of the scene, blended. Clients use snapshots to preview without compositing the layers themselves. A picture of the scene, not of any one dataset in it -- though `ADataset.latestSnapshot` will offer one of these where the scene's only anchored dataset is that dataset, since then the picture shows it and nothing else"""
+    typename: Literal['SceneSnapshot'] = Field(alias='__typename', default='SceneSnapshot', exclude=True)
+    value: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+class SearchSceneSnapshotsQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: Tuple[SearchSceneSnapshotsQueryOptions, ...]
+    'List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchSceneSnapshots """
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+        limit: Optional[int] = Field(default=None)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for SearchSceneSnapshots """
+        document = 'query SearchSceneSnapshots($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: sceneSnapshots(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetSnapshotQuery(BaseModel):
     """No documentation found for this operation."""
@@ -3984,6 +6809,35 @@ class SearchTableCellsQuery(BaseModel):
         """Meta class for SearchTableCells """
         document = 'query SearchTableCells($search: String, $values: [ID!], $table: ID!, $limit: Int, $offset: Int = 0) {\n  options: tableCells(\n    table: $table\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
+class GetTableDatasetQuery(BaseModel):
+    """No documentation found for this operation."""
+    table_dataset: TableDataset = Field(alias='tableDataset')
+    'Get a single table dataset by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetTableDataset """
+        id: ID
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetTableDataset """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDataset($id: ID!) {\n  tableDataset(id: $id) {\n    ...TableDataset\n    __typename\n  }\n}'
+
+class GetTableDatasetsQuery(BaseModel):
+    """No documentation found for this operation."""
+    table_datasets: Tuple[TableDataset, ...] = Field(alias='tableDatasets')
+    'List table datasets (Parquet-backed tables of scientific records: measurements, localizations, expression levels)'
+
+    class Arguments(BaseModel):
+        """Arguments for GetTableDatasets """
+        filters: Optional[TableDatasetFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetTableDatasets """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDatasets($filters: TableDatasetFilter, $pagination: OffsetPaginationInput) {\n  tableDatasets(filters: $filters, pagination: $pagination) {\n    ...TableDataset\n    __typename\n  }\n}'
+
 class GetTableRowQuery(BaseModel):
     """No documentation found for this operation."""
     table_row: TableRow = Field(alias='tableRow')
@@ -4023,6 +6877,139 @@ class SearchTableRowsQuery(BaseModel):
     class Meta:
         """Meta class for SearchTableRows """
         document = 'query SearchTableRows($search: String, $values: [ID!], $table: ID!, $limit: Int, $offset: Int = 0) {\n  options: tableRows(\n    table: $table\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
+class GetTransformationQueryTransformationBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    model_config = ConfigDict(frozen=True)
+
+class GetTransformationQueryTransformationBaseAffineTransformation(TransformationAffineTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class GetTransformationQueryTransformationBaseBijectionTransformation(TransformationBijectionTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class GetTransformationQueryTransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class GetTransformationQueryTransformationBaseFieldTransformation(TransformationFieldTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class GetTransformationQueryTransformationBaseIdentityTransformation(TransformationIdentityTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class GetTransformationQueryTransformationBaseMapAxisTransformation(TransformationMapAxisTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class GetTransformationQueryTransformationBaseRotationTransformation(TransformationRotationTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class GetTransformationQueryTransformationBaseScaleTransformation(TransformationScaleTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class GetTransformationQueryTransformationBaseSequenceTransformation(TransformationSequenceTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class GetTransformationQueryTransformationBaseTranslationTransformation(TransformationTranslationTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class GetTransformationQueryTransformationBaseUnmappableTransformation(TransformationUnmappableTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class GetTransformationQueryTransformationBaseCatchAll(GetTransformationQueryTransformationBase, BaseModel):
+    """Catch all class for GetTransformationQueryTransformationBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class GetTransformationQuery(BaseModel):
+    """No documentation found for this operation."""
+    transformation: Union[Annotated[Union[GetTransformationQueryTransformationBaseAffineTransformation, GetTransformationQueryTransformationBaseBijectionTransformation, GetTransformationQueryTransformationBaseByDimensionTransformation, GetTransformationQueryTransformationBaseFieldTransformation, GetTransformationQueryTransformationBaseIdentityTransformation, GetTransformationQueryTransformationBaseMapAxisTransformation, GetTransformationQueryTransformationBaseRotationTransformation, GetTransformationQueryTransformationBaseScaleTransformation, GetTransformationQueryTransformationBaseSequenceTransformation, GetTransformationQueryTransformationBaseTranslationTransformation, GetTransformationQueryTransformationBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationQueryTransformationBaseCatchAll]
+    'Get a single transformation by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetTransformation """
+        id: ID
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetTransformation """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetTransformation($id: ID!) {\n  transformation(id: $id) {\n    ...Transformation\n    __typename\n  }\n}'
+
+class GetTransformationsQueryTransformationsBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    model_config = ConfigDict(frozen=True)
+
+class GetTransformationsQueryTransformationsBaseAffineTransformation(TransformationAffineTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class GetTransformationsQueryTransformationsBaseBijectionTransformation(TransformationBijectionTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
+    """A pair of child transformations giving an explicit forward and inverse map"""
+    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
+
+class GetTransformationsQueryTransformationsBaseByDimensionTransformation(TransformationByDimensionTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class GetTransformationsQueryTransformationsBaseFieldTransformation(TransformationFieldTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class GetTransformationsQueryTransformationsBaseIdentityTransformation(TransformationIdentityTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class GetTransformationsQueryTransformationsBaseMapAxisTransformation(TransformationMapAxisTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class GetTransformationsQueryTransformationsBaseRotationTransformation(TransformationRotationTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class GetTransformationsQueryTransformationsBaseScaleTransformation(TransformationScaleTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class GetTransformationsQueryTransformationsBaseSequenceTransformation(TransformationSequenceTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class GetTransformationsQueryTransformationsBaseTranslationTransformation(TransformationTranslationTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class GetTransformationsQueryTransformationsBaseUnmappableTransformation(TransformationUnmappableTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class GetTransformationsQueryTransformationsBaseCatchAll(GetTransformationsQueryTransformationsBase, BaseModel):
+    """Catch all class for GetTransformationsQueryTransformationsBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class GetTransformationsQuery(BaseModel):
+    """No documentation found for this operation."""
+    transformations: Tuple[Union[Annotated[Union[GetTransformationsQueryTransformationsBaseAffineTransformation, GetTransformationsQueryTransformationsBaseBijectionTransformation, GetTransformationsQueryTransformationsBaseByDimensionTransformation, GetTransformationsQueryTransformationsBaseFieldTransformation, GetTransformationsQueryTransformationsBaseIdentityTransformation, GetTransformationsQueryTransformationsBaseMapAxisTransformation, GetTransformationsQueryTransformationsBaseRotationTransformation, GetTransformationsQueryTransformationsBaseScaleTransformation, GetTransformationsQueryTransformationsBaseSequenceTransformation, GetTransformationsQueryTransformationsBaseTranslationTransformation, GetTransformationsQueryTransformationsBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationsQueryTransformationsBaseCatchAll], ...]
+    'List transformations (the directed edges of the coordinate graph). Compose them client-side; the server never resolves a path to world, because the same dataset can sit in two scenes under two registrations'
+
+    class Arguments(BaseModel):
+        """Arguments for GetTransformations """
+        filters: Optional[TransformationFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetTransformations """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetTransformations($filters: TransformationFilter, $pagination: OffsetPaginationInput) {\n  transformations(filters: $filters, pagination: $pagination) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class GetRGBViewQuery(BaseModel):
     """No documentation found for this operation."""
@@ -4128,17 +7115,18 @@ class WatchRoisSubscription(BaseModel):
         """Meta class for WatchRois """
         document = 'fragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ROI on ROI {\n  id\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nsubscription WatchRois($image: ID!) {\n  rois(image: $image) {\n    create {\n      ...ROI\n      __typename\n    }\n    delete\n    update {\n      ...ROI\n      __typename\n    }\n    __typename\n  }\n}'
 
-async def acreate_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, dim_descriptors: Iterable[DimensionDescriptorInput], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
+async def acreate_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
     """CreateADataset 
 
-Create a new dataset from array-like data with optional choordinate anchors and OME  metadata
+Create a new dataset from array-like data with optional coordinate anchors and OME metadata
 
 Args:
     data: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
-    scales: Input type for a scale, which specifies an array-like object to create the image from and optional scale factors for each dimension of the image (required) (list) (required)
+    scales: Input type for one pyramid level: the array backing it. Its scale is derived from its actual shape, never supplied (required) (list) (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    dim_descriptors: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
+    axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     anchors: Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to (required) (list)
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -4149,23 +7137,26 @@ Returns:
     _input['data'] = data
     _input['scales'] = scales
     _input['name'] = name
-    _input['dimDescriptors'] = dim_descriptors
+    _input['axes'] = axes
     if anchors is not UNSET:
         _input['anchors'] = anchors
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
     variables['input'] = _input
-    return (await aexecute(CreateADatasetMutation, variables, rath=rath)).create_adataset
+    return (await aexecute(CreateADatasetMutation, variables, rath=rath)).create_a_dataset
 
-def create_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, dim_descriptors: Iterable[DimensionDescriptorInput], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
+def create_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
     """CreateADataset 
 
-Create a new dataset from array-like data with optional choordinate anchors and OME  metadata
+Create a new dataset from array-like data with optional coordinate anchors and OME metadata
 
 Args:
     data: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
-    scales: Input type for a scale, which specifies an array-like object to create the image from and optional scale factors for each dimension of the image (required) (list) (required)
+    scales: Input type for one pyramid level: the array backing it. Its scale is derived from its actual shape, never supplied (required) (list) (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    dim_descriptors: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
+    axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     anchors: Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to (required) (list)
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -4176,11 +7167,509 @@ Returns:
     _input['data'] = data
     _input['scales'] = scales
     _input['name'] = name
-    _input['dimDescriptors'] = dim_descriptors
+    _input['axes'] = axes
     if anchors is not UNSET:
         _input['anchors'] = anchors
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
     variables['input'] = _input
-    return execute(CreateADatasetMutation, variables, rath=rath).create_adataset
+    return execute(CreateADatasetMutation, variables, rath=rath).create_a_dataset
+
+async def acreate_animation(scene: IDCoercible, name: str, waypoints: Iterable[AnimationWaypointInput], description: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Animation:
+    """CreateAnimation 
+
+Author a named camera tour of a scene
+
+Args:
+    scene: The ID of the scene this tour flies through
+    name: The name of the tour
+    description: What the tour shows
+    waypoints: The poses the viewer pans through, in tour order
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Animation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['scene'] = scene
+    _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    _input['waypoints'] = waypoints
+    variables['input'] = _input
+    return (await aexecute(CreateAnimationMutation, variables, rath=rath)).create_animation
+
+def create_animation(scene: IDCoercible, name: str, waypoints: Iterable[AnimationWaypointInput], description: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Animation:
+    """CreateAnimation 
+
+Author a named camera tour of a scene
+
+Args:
+    scene: The ID of the scene this tour flies through
+    name: The name of the tour
+    description: What the tour shows
+    waypoints: The poses the viewer pans through, in tour order
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Animation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['scene'] = scene
+    _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    _input['waypoints'] = waypoints
+    variables['input'] = _input
+    return execute(CreateAnimationMutation, variables, rath=rath).create_animation
+
+async def aupdate_animation(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, waypoints: Union[Optional[Iterable[AnimationWaypointInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Animation:
+    """UpdateAnimation 
+
+Re-author a camera tour: rename it, or replace its stops
+
+Args:
+    id: The ID of the tour to update
+    name: The name of the tour
+    description: What the tour shows
+    waypoints: The poses, in tour order. Replaces the tour's stops entirely
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Animation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    if waypoints is not UNSET:
+        _input['waypoints'] = waypoints
+    variables['input'] = _input
+    return (await aexecute(UpdateAnimationMutation, variables, rath=rath)).update_animation
+
+def update_animation(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, waypoints: Union[Optional[Iterable[AnimationWaypointInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Animation:
+    """UpdateAnimation 
+
+Re-author a camera tour: rename it, or replace its stops
+
+Args:
+    id: The ID of the tour to update
+    name: The name of the tour
+    description: What the tour shows
+    waypoints: The poses, in tour order. Replaces the tour's stops entirely
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Animation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    if waypoints is not UNSET:
+        _input['waypoints'] = waypoints
+    variables['input'] = _input
+    return execute(UpdateAnimationMutation, variables, rath=rath).update_animation
+
+async def adelete_animation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteAnimation 
+
+Delete an existing camera tour
+
+Args:
+    id: The ID of the tour to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteAnimationMutation, variables, rath=rath)).delete_animation
+
+def delete_animation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteAnimation 
+
+Delete an existing camera tour
+
+Args:
+    id: The ID of the tour to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteAnimationMutation, variables, rath=rath).delete_animation
+
+async def acreate_annotation(kind: RoiKind, vectors: Iterable[ThreeDVector], stroke_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, fill_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, scene: Union[Optional[IDCoercible], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, coordinates: Union[Optional[Iterable[CoordinateInput]], UnsetType]=UNSET, stroke_width: Union[Optional[float], UnsetType]=UNSET, filled: Union[Optional[bool], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Annotation:
+    """CreateAnnotation 
+
+Draw an annotation into a collection, or onto a scene (exactly one of the two). Drawing on a scene finds its annotation collection or mints it on first use: a coordinate system copying the world's axes, an identity registration into the world, and one annotation layer
+
+Args:
+    kind: RoiKind (required)
+    vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list) (required)
+    stroke_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    fill_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    coordinates: A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel (required) (list)
+    stroke_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    filled: The `Boolean` scalar type represents `true` or `false`.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Annotation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['kind'] = kind
+    _input['vectors'] = vectors
+    if stroke_color is not UNSET:
+        _input['strokeColor'] = stroke_color
+    if fill_color is not UNSET:
+        _input['fillColor'] = fill_color
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if scene is not UNSET:
+        _input['scene'] = scene
+    if name is not UNSET:
+        _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    if coordinates is not UNSET:
+        _input['coordinates'] = coordinates
+    if stroke_width is not UNSET:
+        _input['strokeWidth'] = stroke_width
+    if filled is not UNSET:
+        _input['filled'] = filled
+    variables['input'] = _input
+    return (await aexecute(CreateAnnotationMutation, variables, rath=rath)).create_annotation
+
+def create_annotation(kind: RoiKind, vectors: Iterable[ThreeDVector], stroke_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, fill_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, scene: Union[Optional[IDCoercible], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, coordinates: Union[Optional[Iterable[CoordinateInput]], UnsetType]=UNSET, stroke_width: Union[Optional[float], UnsetType]=UNSET, filled: Union[Optional[bool], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Annotation:
+    """CreateAnnotation 
+
+Draw an annotation into a collection, or onto a scene (exactly one of the two). Drawing on a scene finds its annotation collection or mints it on first use: a coordinate system copying the world's axes, an identity registration into the world, and one annotation layer
+
+Args:
+    kind: RoiKind (required)
+    vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list) (required)
+    stroke_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    fill_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    coordinates: A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel (required) (list)
+    stroke_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    filled: The `Boolean` scalar type represents `true` or `false`.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Annotation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['kind'] = kind
+    _input['vectors'] = vectors
+    if stroke_color is not UNSET:
+        _input['strokeColor'] = stroke_color
+    if fill_color is not UNSET:
+        _input['fillColor'] = fill_color
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if scene is not UNSET:
+        _input['scene'] = scene
+    if name is not UNSET:
+        _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    if coordinates is not UNSET:
+        _input['coordinates'] = coordinates
+    if stroke_width is not UNSET:
+        _input['strokeWidth'] = stroke_width
+    if filled is not UNSET:
+        _input['filled'] = filled
+    variables['input'] = _input
+    return execute(CreateAnnotationMutation, variables, rath=rath).create_annotation
+
+async def acreate_annotations(annotations: Iterable[AnnotationSpecInput], collection: Union[Optional[IDCoercible], UnsetType]=UNSET, scene: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Annotation, ...]:
+    """CreateAnnotations 
+
+Draw many annotations in one call, into a collection or onto a scene (exactly one of the two, same semantics as createAnnotation). The transform chain and version resolve once for the whole batch, and the rows insert in bulk
+
+Args:
+    collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    annotations: One shape of a bulk draw: the per-annotation subset of CreateAnnotationInput, without the collection/scene target (required) (list) (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[Annotation]
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if scene is not UNSET:
+        _input['scene'] = scene
+    _input['annotations'] = annotations
+    variables['input'] = _input
+    return (await aexecute(CreateAnnotationsMutation, variables, rath=rath)).create_annotations
+
+def create_annotations(annotations: Iterable[AnnotationSpecInput], collection: Union[Optional[IDCoercible], UnsetType]=UNSET, scene: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Annotation, ...]:
+    """CreateAnnotations 
+
+Draw many annotations in one call, into a collection or onto a scene (exactly one of the two, same semantics as createAnnotation). The transform chain and version resolve once for the whole batch, and the rows insert in bulk
+
+Args:
+    collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    annotations: One shape of a bulk draw: the per-annotation subset of CreateAnnotationInput, without the collection/scene target (required) (list) (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[Annotation]
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if collection is not UNSET:
+        _input['collection'] = collection
+    if scene is not UNSET:
+        _input['scene'] = scene
+    _input['annotations'] = annotations
+    variables['input'] = _input
+    return execute(CreateAnnotationsMutation, variables, rath=rath).create_annotations
+
+async def aupdate_annotation(id: IDCoercible, kind: Union[Optional[RoiKind], UnsetType]=UNSET, vectors: Union[Optional[Iterable[ThreeDVector]], UnsetType]=UNSET, stroke_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, fill_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, coordinates: Union[Optional[Iterable[CoordinateInput]], UnsetType]=UNSET, stroke_width: Union[Optional[float], UnsetType]=UNSET, filled: Union[Optional[bool], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Annotation:
+    """UpdateAnnotation 
+
+Edit an annotation: name, kind, vectors, pins or styling. New vectors re-derive the bounding box against the current transform chain
+
+Args:
+    kind: RoiKind
+    vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list)
+    stroke_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    fill_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    coordinates: A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel (required) (list)
+    stroke_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    filled: The `Boolean` scalar type represents `true` or `false`.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Annotation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if kind is not UNSET:
+        _input['kind'] = kind
+    if vectors is not UNSET:
+        _input['vectors'] = vectors
+    if stroke_color is not UNSET:
+        _input['strokeColor'] = stroke_color
+    if fill_color is not UNSET:
+        _input['fillColor'] = fill_color
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    if coordinates is not UNSET:
+        _input['coordinates'] = coordinates
+    if stroke_width is not UNSET:
+        _input['strokeWidth'] = stroke_width
+    if filled is not UNSET:
+        _input['filled'] = filled
+    variables['input'] = _input
+    return (await aexecute(UpdateAnnotationMutation, variables, rath=rath)).update_annotation
+
+def update_annotation(id: IDCoercible, kind: Union[Optional[RoiKind], UnsetType]=UNSET, vectors: Union[Optional[Iterable[ThreeDVector]], UnsetType]=UNSET, stroke_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, fill_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, coordinates: Union[Optional[Iterable[CoordinateInput]], UnsetType]=UNSET, stroke_width: Union[Optional[float], UnsetType]=UNSET, filled: Union[Optional[bool], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Annotation:
+    """UpdateAnnotation 
+
+Edit an annotation: name, kind, vectors, pins or styling. New vectors re-derive the bounding box against the current transform chain
+
+Args:
+    kind: RoiKind
+    vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list)
+    stroke_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    fill_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    coordinates: A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel (required) (list)
+    stroke_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    filled: The `Boolean` scalar type represents `true` or `false`.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Annotation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if kind is not UNSET:
+        _input['kind'] = kind
+    if vectors is not UNSET:
+        _input['vectors'] = vectors
+    if stroke_color is not UNSET:
+        _input['strokeColor'] = stroke_color
+    if fill_color is not UNSET:
+        _input['fillColor'] = fill_color
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    if coordinates is not UNSET:
+        _input['coordinates'] = coordinates
+    if stroke_width is not UNSET:
+        _input['strokeWidth'] = stroke_width
+    if filled is not UNSET:
+        _input['filled'] = filled
+    variables['input'] = _input
+    return execute(UpdateAnnotationMutation, variables, rath=rath).update_annotation
+
+async def adelete_annotation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteAnnotation 
+
+Delete an existing annotation
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteAnnotationMutation, variables, rath=rath)).delete_annotation
+
+def delete_annotation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteAnnotation 
+
+Delete an existing annotation
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteAnnotationMutation, variables, rath=rath).delete_annotation
+
+async def acreate_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+    """CreateAnnotationCollection 
+
+Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    AnnotationCollection
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    _input['axes'] = axes
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
+    variables['input'] = _input
+    return (await aexecute(CreateAnnotationCollectionMutation, variables, rath=rath)).create_annotation_collection
+
+def create_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+    """CreateAnnotationCollection 
+
+Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    AnnotationCollection
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    _input['axes'] = axes
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
+    variables['input'] = _input
+    return execute(CreateAnnotationCollectionMutation, variables, rath=rath).create_annotation_collection
+
+async def adelete_annotation_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteAnnotationCollection 
+
+Delete an annotation collection. Its coordinate system, its annotations and its layers cascade with it
+
+Args:
+    id: The ID of the annotation collection to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteAnnotationCollectionMutation, variables, rath=rath)).delete_annotation_collection
+
+def delete_annotation_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteAnnotationCollection 
+
+Delete an annotation collection. Its coordinate system, its annotations and its layers cascade with it
+
+Args:
+    id: The ID of the annotation collection to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteAnnotationCollectionMutation, variables, rath=rath).delete_annotation_collection
 
 async def acreate_camera(serial_number: str, name: Union[Optional[str], UnsetType]=UNSET, model: Union[Optional[str], UnsetType]=UNSET, bit_depth: Union[Optional[int], UnsetType]=UNSET, sensor_size_x: Union[Optional[int], UnsetType]=UNSET, sensor_size_y: Union[Optional[int], UnsetType]=UNSET, pixel_size_x: Union[Optional[Length], UnsetType]=UNSET, pixel_size_y: Union[Optional[Length], UnsetType]=UNSET, manufacturer: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateCameraMutationCreatecamera:
     """CreateCamera 
@@ -4350,73 +7839,241 @@ Returns:
     variables['input'] = _input
     return execute(EnsureCameraMutation, variables, rath=rath).ensure_camera
 
-async def acreate_data_roi(dataset: IDCoercible, kind: RoiKind, x_dim: str, y_dim: str, vectors: Iterable[ThreeDVector], slices: Iterable[SliceInput], z_dim: Union[Optional[str], UnsetType]=UNSET, drawn_on_lens: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> DataRoi:
-    """CreateDataRoi 
+async def acreate_coordinate_system(name: str, axes: Iterable[PhysicalAxisInput], registrations: Iterable[RegistrationPathInput], epoch: Union[Optional[datetime], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+    """CreateCoordinateSystem 
 
-Create a new data ROI from vector or slice definitions with optional choordinate anchors and OME metadata
+Create a SHARED coordinate system (an ownerless space) and, in one call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it
 
 Args:
-    dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    kind: RoiKind (required)
-    x_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    y_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    z_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list) (required)
-    slices: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
-    drawn_on_lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    axes: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit (required) (list) (required)
+    epoch: Date with time (isoformat)
+    registrations: A source (dataset, table dataset, mesh collection, or coordinate system) to register into a shared space, plus the edge that places it. The edge points from the source's own coordinate system to the shared space; the transform is validated exactly as createTransformation validates one (required) (list) (required)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    DataRoi
+    CoordinateSystem
 """
     variables: Dict[str, Any] = {}
     _input: Dict[str, Any] = {}
-    _input['dataset'] = dataset
-    _input['kind'] = kind
-    _input['xDim'] = x_dim
-    _input['yDim'] = y_dim
-    if z_dim is not UNSET:
-        _input['zDim'] = z_dim
-    _input['vectors'] = vectors
-    _input['slices'] = slices
-    if drawn_on_lens is not UNSET:
-        _input['drawnOnLens'] = drawn_on_lens
+    _input['name'] = name
+    _input['axes'] = axes
+    if epoch is not UNSET:
+        _input['epoch'] = epoch
+    _input['registrations'] = registrations
     variables['input'] = _input
-    return (await aexecute(CreateDataRoiMutation, variables, rath=rath)).create_data_roi
+    return (await aexecute(CreateCoordinateSystemMutation, variables, rath=rath)).create_coordinate_system
 
-def create_data_roi(dataset: IDCoercible, kind: RoiKind, x_dim: str, y_dim: str, vectors: Iterable[ThreeDVector], slices: Iterable[SliceInput], z_dim: Union[Optional[str], UnsetType]=UNSET, drawn_on_lens: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> DataRoi:
-    """CreateDataRoi 
+def create_coordinate_system(name: str, axes: Iterable[PhysicalAxisInput], registrations: Iterable[RegistrationPathInput], epoch: Union[Optional[datetime], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+    """CreateCoordinateSystem 
 
-Create a new data ROI from vector or slice definitions with optional choordinate anchors and OME metadata
+Create a SHARED coordinate system (an ownerless space) and, in one call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it
 
 Args:
-    dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    kind: RoiKind (required)
-    x_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    y_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    z_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    vectors: The `Vector` scalar type represents a matrix values as specified by (required) (list) (required)
-    slices: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
-    drawn_on_lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    axes: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit (required) (list) (required)
+    epoch: Date with time (isoformat)
+    registrations: A source (dataset, table dataset, mesh collection, or coordinate system) to register into a shared space, plus the edge that places it. The edge points from the source's own coordinate system to the shared space; the transform is validated exactly as createTransformation validates one (required) (list) (required)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    DataRoi
+    CoordinateSystem
 """
     variables: Dict[str, Any] = {}
     _input: Dict[str, Any] = {}
-    _input['dataset'] = dataset
-    _input['kind'] = kind
-    _input['xDim'] = x_dim
-    _input['yDim'] = y_dim
-    if z_dim is not UNSET:
-        _input['zDim'] = z_dim
-    _input['vectors'] = vectors
-    _input['slices'] = slices
-    if drawn_on_lens is not UNSET:
-        _input['drawnOnLens'] = drawn_on_lens
+    _input['name'] = name
+    _input['axes'] = axes
+    if epoch is not UNSET:
+        _input['epoch'] = epoch
+    _input['registrations'] = registrations
     variables['input'] = _input
-    return execute(CreateDataRoiMutation, variables, rath=rath).create_data_roi
+    return execute(CreateCoordinateSystemMutation, variables, rath=rath).create_coordinate_system
+
+async def aupdate_coordinate_system(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+    """UpdateCoordinateSystem 
+
+Rename a shared coordinate system or anchor its clock. Shared spaces only -- an owned system's name is its container's business, and where data sits is an edge (updateTransformation), not a property of the space
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    epoch: Date with time (isoformat)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    CoordinateSystem
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if epoch is not UNSET:
+        _input['epoch'] = epoch
+    variables['input'] = _input
+    return (await aexecute(UpdateCoordinateSystemMutation, variables, rath=rath)).update_coordinate_system
+
+def update_coordinate_system(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+    """UpdateCoordinateSystem 
+
+Rename a shared coordinate system or anchor its clock. Shared spaces only -- an owned system's name is its container's business, and where data sits is an edge (updateTransformation), not a property of the space
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    epoch: Date with time (isoformat)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    CoordinateSystem
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if epoch is not UNSET:
+        _input['epoch'] = epoch
+    variables['input'] = _input
+    return execute(UpdateCoordinateSystemMutation, variables, rath=rath).update_coordinate_system
+
+async def adelete_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteCoordinateSystem 
+
+Delete an unused shared coordinate system. Refused while any scene is rooted in it or any transformation edge touches it. This is the only door a shared space leaves through -- deleting a scene never deletes one. Other system kinds cascade with their owner and cannot be deleted directly
+
+Args:
+    id: The ID of the shared coordinate system to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteCoordinateSystemMutation, variables, rath=rath)).delete_coordinate_system
+
+def delete_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteCoordinateSystem 
+
+Delete an unused shared coordinate system. Refused while any scene is rooted in it or any transformation edge touches it. This is the only door a shared space leaves through -- deleting a scene never deletes one. Other system kinds cascade with their owner and cannot be deleted directly
+
+Args:
+    id: The ID of the shared coordinate system to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteCoordinateSystemMutation, variables, rath=rath).delete_coordinate_system
+
+async def aclear_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Tuple[ID, ...]:
+    """ClearCoordinateSystem 
+
+Delete every registration INTO a shared space in one call, returning the deleted edge ids. The space, the scenes over it (their layers drop to UNREGISTERED) and the space's own claims into wider spaces all survive. Guarded by the space's creator: clearing a space is the space-owner's act
+
+Args:
+    id: The ID of the shared coordinate system to clear
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[ID]
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(ClearCoordinateSystemMutation, variables, rath=rath)).clear_coordinate_system
+
+def clear_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Tuple[ID, ...]:
+    """ClearCoordinateSystem 
+
+Delete every registration INTO a shared space in one call, returning the deleted edge ids. The space, the scenes over it (their layers drop to UNREGISTERED) and the space's own claims into wider spaces all survive. Guarded by the space's creator: clearing a space is the space-owner's act
+
+Args:
+    id: The ID of the shared coordinate system to clear
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[ID]
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(ClearCoordinateSystemMutation, variables, rath=rath).clear_coordinate_system
+
+async def adelete_registration(world: IDCoercible, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, table_dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, mesh_collection: Union[Optional[IDCoercible], UnsetType]=UNSET, annotation_collection: Union[Optional[IDCoercible], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[ID, ...]:
+    """DeleteRegistration 
+
+Un-register a source from a space by naming the source and the space rather than the edge. Deletes every edge from the source's space into that one -- rivals are allowed, so there is no single edge to mean -- and returns their ids. An UNMAPPABLE declaration is not a placement and is never matched
+
+Args:
+    dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    table_dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    mesh_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    annotation_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    world: The shared space the registration goes into
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[ID]
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if dataset is not UNSET:
+        _input['dataset'] = dataset
+    if table_dataset is not UNSET:
+        _input['tableDataset'] = table_dataset
+    if mesh_collection is not UNSET:
+        _input['meshCollection'] = mesh_collection
+    if annotation_collection is not UNSET:
+        _input['annotationCollection'] = annotation_collection
+    if coordinate_system is not UNSET:
+        _input['coordinateSystem'] = coordinate_system
+    _input['world'] = world
+    variables['input'] = _input
+    return (await aexecute(DeleteRegistrationMutation, variables, rath=rath)).delete_registration
+
+def delete_registration(world: IDCoercible, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, table_dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, mesh_collection: Union[Optional[IDCoercible], UnsetType]=UNSET, annotation_collection: Union[Optional[IDCoercible], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[ID, ...]:
+    """DeleteRegistration 
+
+Un-register a source from a space by naming the source and the space rather than the edge. Deletes every edge from the source's space into that one -- rivals are allowed, so there is no single edge to mean -- and returns their ids. An UNMAPPABLE declaration is not a placement and is never matched
+
+Args:
+    dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    table_dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    mesh_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    annotation_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    world: The shared space the registration goes into
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[ID]
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    if dataset is not UNSET:
+        _input['dataset'] = dataset
+    if table_dataset is not UNSET:
+        _input['tableDataset'] = table_dataset
+    if mesh_collection is not UNSET:
+        _input['meshCollection'] = mesh_collection
+    if annotation_collection is not UNSET:
+        _input['annotationCollection'] = annotation_collection
+    if coordinate_system is not UNSET:
+        _input['coordinateSystem'] = coordinate_system
+    _input['world'] = world
+    variables['input'] = _input
+    return execute(DeleteRegistrationMutation, variables, rath=rath).delete_registration
 
 async def arequest_bigfile_upload(original_file_name: str, file_size: Union[Optional[int], UnsetType]=UNSET, content_type: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> BigFileUploadGrant:
     """RequestBigfileUpload 
@@ -5498,7 +9155,7 @@ Returns:
     variables['input'] = _input
     return execute(EnsureInstrumentMutation, variables, rath=rath).ensure_instrument
 
-async def acreate_layer(lens: IDCoercible, scene: IDCoercible, render_graph: LayerRenderGraphInput, affine_matrix: Union[Optional[Iterable[Iterable[float]]], UnsetType]=UNSET, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, x_dim: Union[Optional[str], UnsetType]=UNSET, y_dim: Union[Optional[str], UnsetType]=UNSET, z_dim: Union[Optional[str], UnsetType]=UNSET, t_dim: Union[Optional[str], UnsetType]=UNSET, intensity_dim: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerImageLayer:
+async def acreate_layer(lens: IDCoercible, scene: IDCoercible, render_graph: LayerRenderGraphInput, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerImageLayer:
     """CreateLayer 
 
 Create a new layer from an existing lens with optional affine transformation and colormap settings
@@ -5506,17 +9163,11 @@ Create a new layer from an existing lens with optional affine transformation and
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    affine_matrix: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list) (required) (list)
     blending: Blending
     opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     visible: The `Boolean` scalar type represents `true` or `false`.
     order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     render_graph: The composable render recipe inside a single layer, rooted at a blend node (required)
-    x_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    y_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    z_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    t_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    intensity_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -5526,8 +9177,6 @@ Returns:
     _input: Dict[str, Any] = {}
     _input['lens'] = lens
     _input['scene'] = scene
-    if affine_matrix is not UNSET:
-        _input['affineMatrix'] = affine_matrix
     if blending is not UNSET:
         _input['blending'] = blending
     if opacity is not UNSET:
@@ -5537,20 +9186,10 @@ Returns:
     if order is not UNSET:
         _input['order'] = order
     _input['renderGraph'] = render_graph
-    if x_dim is not UNSET:
-        _input['xDim'] = x_dim
-    if y_dim is not UNSET:
-        _input['yDim'] = y_dim
-    if z_dim is not UNSET:
-        _input['zDim'] = z_dim
-    if t_dim is not UNSET:
-        _input['tDim'] = t_dim
-    if intensity_dim is not UNSET:
-        _input['intensityDim'] = intensity_dim
     variables['input'] = _input
     return (await aexecute(CreateLayerMutation, variables, rath=rath)).create_layer
 
-def create_layer(lens: IDCoercible, scene: IDCoercible, render_graph: LayerRenderGraphInput, affine_matrix: Union[Optional[Iterable[Iterable[float]]], UnsetType]=UNSET, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, x_dim: Union[Optional[str], UnsetType]=UNSET, y_dim: Union[Optional[str], UnsetType]=UNSET, z_dim: Union[Optional[str], UnsetType]=UNSET, t_dim: Union[Optional[str], UnsetType]=UNSET, intensity_dim: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerImageLayer:
+def create_layer(lens: IDCoercible, scene: IDCoercible, render_graph: LayerRenderGraphInput, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerImageLayer:
     """CreateLayer 
 
 Create a new layer from an existing lens with optional affine transformation and colormap settings
@@ -5558,17 +9197,11 @@ Create a new layer from an existing lens with optional affine transformation and
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    affine_matrix: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list) (required) (list)
     blending: Blending
     opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     visible: The `Boolean` scalar type represents `true` or `false`.
     order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
     render_graph: The composable render recipe inside a single layer, rooted at a blend node (required)
-    x_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    y_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    z_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    t_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    intensity_dim: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -5578,8 +9211,6 @@ Returns:
     _input: Dict[str, Any] = {}
     _input['lens'] = lens
     _input['scene'] = scene
-    if affine_matrix is not UNSET:
-        _input['affineMatrix'] = affine_matrix
     if blending is not UNSET:
         _input['blending'] = blending
     if opacity is not UNSET:
@@ -5589,16 +9220,6 @@ Returns:
     if order is not UNSET:
         _input['order'] = order
     _input['renderGraph'] = render_graph
-    if x_dim is not UNSET:
-        _input['xDim'] = x_dim
-    if y_dim is not UNSET:
-        _input['yDim'] = y_dim
-    if z_dim is not UNSET:
-        _input['zDim'] = z_dim
-    if t_dim is not UNSET:
-        _input['tDim'] = t_dim
-    if intensity_dim is not UNSET:
-        _input['intensityDim'] = intensity_dim
     variables['input'] = _input
     return execute(CreateLayerMutation, variables, rath=rath).create_layer
 
@@ -5609,7 +9230,7 @@ Create a new lens from an existing dataset and slicing constraints
 
 Args:
     dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    slices: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
+    slices: Input type for a slice along one axis of a dataset (required) (list) (required)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -5629,7 +9250,7 @@ Create a new lens from an existing dataset and slicing constraints
 
 Args:
     dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    slices: Input type for a dimension descriptor, which specifies a key and a kind for a dimension (required) (list) (required)
+    slices: Input type for a slice along one axis of a dataset (required) (list) (required)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -5642,45 +9263,119 @@ Returns:
     variables['input'] = _input
     return execute(CreateLensMutation, variables, rath=rath).create_lens
 
-async def acreate_mesh(mesh: MeshCoercible, name: str, rath: Optional[MikroNextRath]=None) -> Mesh:
-    """CreateMesh 
+async def acreate_mesh_collection(version: str, spec_version: str, catalog: ParquetCoercible, axes: Iterable[Union[AxisInput, str]], geometry: Union[Optional[Iterable[ParquetCoercible]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, grid: Union[Optional[Any], UnsetType]=UNSET, encoding: Union[Optional[Any], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+    """CreateMeshCollection 
 
-Create a new mesh
+Register an immutable, versioned mesh collection against a coordinate system
 
 Args:
-    mesh: The uploaded mesh file store to create the mesh from
-    name: The name of the mesh
+    version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    spec_version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    catalog: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
+    geometry: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required) (list)
+    axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    grid: The `Any` scalar any type
+    encoding: The `Any` scalar any type
+    provenance_metadata: The `Any` scalar any type
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    Mesh
+    MeshCollection
 """
     variables: Dict[str, Any] = {}
     _input: Dict[str, Any] = {}
-    _input['mesh'] = mesh
-    _input['name'] = name
+    _input['version'] = version
+    _input['specVersion'] = spec_version
+    _input['catalog'] = catalog
+    if geometry is not UNSET:
+        _input['geometry'] = geometry
+    _input['axes'] = axes
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
+    if grid is not UNSET:
+        _input['grid'] = grid
+    if encoding is not UNSET:
+        _input['encoding'] = encoding
+    if provenance_metadata is not UNSET:
+        _input['provenanceMetadata'] = provenance_metadata
     variables['input'] = _input
-    return (await aexecute(CreateMeshMutation, variables, rath=rath)).create_mesh
+    return (await aexecute(CreateMeshCollectionMutation, variables, rath=rath)).create_mesh_collection
 
-def create_mesh(mesh: MeshCoercible, name: str, rath: Optional[MikroNextRath]=None) -> Mesh:
-    """CreateMesh 
+def create_mesh_collection(version: str, spec_version: str, catalog: ParquetCoercible, axes: Iterable[Union[AxisInput, str]], geometry: Union[Optional[Iterable[ParquetCoercible]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, grid: Union[Optional[Any], UnsetType]=UNSET, encoding: Union[Optional[Any], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+    """CreateMeshCollection 
 
-Create a new mesh
+Register an immutable, versioned mesh collection against a coordinate system
 
 Args:
-    mesh: The uploaded mesh file store to create the mesh from
-    name: The name of the mesh
+    version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    spec_version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    catalog: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
+    geometry: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required) (list)
+    axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    grid: The `Any` scalar any type
+    encoding: The `Any` scalar any type
+    provenance_metadata: The `Any` scalar any type
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    Mesh
+    MeshCollection
 """
     variables: Dict[str, Any] = {}
     _input: Dict[str, Any] = {}
-    _input['mesh'] = mesh
-    _input['name'] = name
+    _input['version'] = version
+    _input['specVersion'] = spec_version
+    _input['catalog'] = catalog
+    if geometry is not UNSET:
+        _input['geometry'] = geometry
+    _input['axes'] = axes
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
+    if grid is not UNSET:
+        _input['grid'] = grid
+    if encoding is not UNSET:
+        _input['encoding'] = encoding
+    if provenance_metadata is not UNSET:
+        _input['provenanceMetadata'] = provenance_metadata
     variables['input'] = _input
-    return execute(CreateMeshMutation, variables, rath=rath).create_mesh
+    return execute(CreateMeshCollectionMutation, variables, rath=rath).create_mesh_collection
+
+async def adelete_mesh_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteMeshCollection 
+
+Delete an existing mesh collection
+
+Args:
+    id: The ID of the mesh collection to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteMeshCollectionMutation, variables, rath=rath)).delete_mesh_collection
+
+def delete_mesh_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteMeshCollection 
+
+Delete an existing mesh collection
+
+Args:
+    id: The ID of the mesh collection to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteMeshCollectionMutation, variables, rath=rath).delete_mesh_collection
 
 async def acreate_objective(serial_number: str, name: Union[Optional[str], UnsetType]=UNSET, na: Union[Optional[float], UnsetType]=UNSET, magnification: Union[Optional[float], UnsetType]=UNSET, immersion: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateObjectiveMutationCreateobjective:
     """CreateObjective 
@@ -5801,6 +9496,274 @@ Returns:
         _input['immersion'] = immersion
     variables['input'] = _input
     return execute(EnsureObjectiveMutation, variables, rath=rath).ensure_objective
+
+async def acreate_phasor_layer(lens: IDCoercible, scene: IDCoercible, phasor_axis: Union[Optional[str], UnsetType]=UNSET, intensity_axis: Union[Optional[str], UnsetType]=UNSET, intensity_index: Union[Optional[int], UnsetType]=UNSET, harmonic: Union[Optional[int], UnsetType]=UNSET, transfer: Union[Optional[PhasorTransferInput], UnsetType]=UNSET, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerImageLayer:
+    """CreatePhasorLayer 
+
+Create a layer that reduces one axis of a lens to a phasor and colors each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    phasor_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    harmonic: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    transfer: How a phasor becomes the pixel's color: the transfer function of a phasor source
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerImageLayer
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if phasor_axis is not UNSET:
+        _input['phasorAxis'] = phasor_axis
+    if intensity_axis is not UNSET:
+        _input['intensityAxis'] = intensity_axis
+    if intensity_index is not UNSET:
+        _input['intensityIndex'] = intensity_index
+    if harmonic is not UNSET:
+        _input['harmonic'] = harmonic
+    if transfer is not UNSET:
+        _input['transfer'] = transfer
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(CreatePhasorLayerMutation, variables, rath=rath)).create_phasor_layer
+
+def create_phasor_layer(lens: IDCoercible, scene: IDCoercible, phasor_axis: Union[Optional[str], UnsetType]=UNSET, intensity_axis: Union[Optional[str], UnsetType]=UNSET, intensity_index: Union[Optional[int], UnsetType]=UNSET, harmonic: Union[Optional[int], UnsetType]=UNSET, transfer: Union[Optional[PhasorTransferInput], UnsetType]=UNSET, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerImageLayer:
+    """CreatePhasorLayer 
+
+Create a layer that reduces one axis of a lens to a phasor and colors each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    phasor_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    harmonic: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    transfer: How a phasor becomes the pixel's color: the transfer function of a phasor source
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerImageLayer
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if phasor_axis is not UNSET:
+        _input['phasorAxis'] = phasor_axis
+    if intensity_axis is not UNSET:
+        _input['intensityAxis'] = intensity_axis
+    if intensity_index is not UNSET:
+        _input['intensityIndex'] = intensity_index
+    if harmonic is not UNSET:
+        _input['harmonic'] = harmonic
+    if transfer is not UNSET:
+        _input['transfer'] = transfer
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(CreatePhasorLayerMutation, variables, rath=rath).create_phasor_layer
+
+async def acreate_phasor_histogram(axis: str, counts: Iterable[float], dataset: IDCoercible, harmonic: Union[Optional[int], UnsetType]=UNSET, bins: Union[Optional[int], UnsetType]=UNSET, g_min: Union[Optional[float], UnsetType]=UNSET, g_max: Union[Optional[float], UnsetType]=UNSET, s_min: Union[Optional[float], UnsetType]=UNSET, s_max: Union[Optional[float], UnsetType]=UNSET, total: Union[Optional[int], UnsetType]=UNSET, calibrated: Union[Optional[bool], UnsetType]=UNSET, profile: Union[Optional[Iterable[float]], UnsetType]=UNSET, axis_anchors: Union[Optional[Iterable[AxisAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> PhasorHistogram:
+    """CreatePhasorHistogram 
+
+Attach a phasor distribution (the 2D g/s density at one axis and harmonic) to a dataset, so a client can range a phasor overlay without reading the cube
+
+Args:
+    axis: The axis the phasor was taken over
+    counts: The flattened bins x bins density
+    harmonic: The harmonic the phasor was taken at
+    bins: The resolution of the square (g, s) density grid
+    g_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    g_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    s_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    s_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    total: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    calibrated: The `Boolean` scalar type represents `true` or `false`.
+    profile: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    dataset: The ID of the dataset the phasor was computed from
+    axis_anchors: The coordinates the distribution is pinned to
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    PhasorHistogram
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['axis'] = axis
+    _input['counts'] = counts
+    if harmonic is not UNSET:
+        _input['harmonic'] = harmonic
+    if bins is not UNSET:
+        _input['bins'] = bins
+    if g_min is not UNSET:
+        _input['gMin'] = g_min
+    if g_max is not UNSET:
+        _input['gMax'] = g_max
+    if s_min is not UNSET:
+        _input['sMin'] = s_min
+    if s_max is not UNSET:
+        _input['sMax'] = s_max
+    if total is not UNSET:
+        _input['total'] = total
+    if calibrated is not UNSET:
+        _input['calibrated'] = calibrated
+    if profile is not UNSET:
+        _input['profile'] = profile
+    _input['dataset'] = dataset
+    if axis_anchors is not UNSET:
+        _input['axisAnchors'] = axis_anchors
+    variables['input'] = _input
+    return (await aexecute(CreatePhasorHistogramMutation, variables, rath=rath)).create_phasor_histogram
+
+def create_phasor_histogram(axis: str, counts: Iterable[float], dataset: IDCoercible, harmonic: Union[Optional[int], UnsetType]=UNSET, bins: Union[Optional[int], UnsetType]=UNSET, g_min: Union[Optional[float], UnsetType]=UNSET, g_max: Union[Optional[float], UnsetType]=UNSET, s_min: Union[Optional[float], UnsetType]=UNSET, s_max: Union[Optional[float], UnsetType]=UNSET, total: Union[Optional[int], UnsetType]=UNSET, calibrated: Union[Optional[bool], UnsetType]=UNSET, profile: Union[Optional[Iterable[float]], UnsetType]=UNSET, axis_anchors: Union[Optional[Iterable[AxisAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> PhasorHistogram:
+    """CreatePhasorHistogram 
+
+Attach a phasor distribution (the 2D g/s density at one axis and harmonic) to a dataset, so a client can range a phasor overlay without reading the cube
+
+Args:
+    axis: The axis the phasor was taken over
+    counts: The flattened bins x bins density
+    harmonic: The harmonic the phasor was taken at
+    bins: The resolution of the square (g, s) density grid
+    g_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    g_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    s_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    s_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    total: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    calibrated: The `Boolean` scalar type represents `true` or `false`.
+    profile: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    dataset: The ID of the dataset the phasor was computed from
+    axis_anchors: The coordinates the distribution is pinned to
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    PhasorHistogram
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['axis'] = axis
+    _input['counts'] = counts
+    if harmonic is not UNSET:
+        _input['harmonic'] = harmonic
+    if bins is not UNSET:
+        _input['bins'] = bins
+    if g_min is not UNSET:
+        _input['gMin'] = g_min
+    if g_max is not UNSET:
+        _input['gMax'] = g_max
+    if s_min is not UNSET:
+        _input['sMin'] = s_min
+    if s_max is not UNSET:
+        _input['sMax'] = s_max
+    if total is not UNSET:
+        _input['total'] = total
+    if calibrated is not UNSET:
+        _input['calibrated'] = calibrated
+    if profile is not UNSET:
+        _input['profile'] = profile
+    _input['dataset'] = dataset
+    if axis_anchors is not UNSET:
+        _input['axisAnchors'] = axis_anchors
+    variables['input'] = _input
+    return execute(CreatePhasorHistogramMutation, variables, rath=rath).create_phasor_histogram
+
+async def acreate_phasor_calibration(axis: str, dataset: IDCoercible, harmonic: Union[Optional[int], UnsetType]=UNSET, phase_offset: Union[Optional[float], UnsetType]=UNSET, modulation_factor: Union[Optional[float], UnsetType]=UNSET, reference: Union[Optional[str], UnsetType]=UNSET, axis_anchors: Union[Optional[Iterable[AxisAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> PhasorCalibration:
+    """CreatePhasorCalibration 
+
+Attach an instrument-response correction to a dataset, taking a raw phasor to a calibrated one
+
+Args:
+    axis: The axis the correction applies to
+    harmonic: The harmonic the correction applies at
+    phase_offset: The phase correction in radians
+    modulation_factor: The modulation correction
+    reference: What the correction was measured against
+    dataset: The ID of the dataset the correction applies to
+    axis_anchors: The coordinates the correction is pinned to
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    PhasorCalibration
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['axis'] = axis
+    if harmonic is not UNSET:
+        _input['harmonic'] = harmonic
+    if phase_offset is not UNSET:
+        _input['phaseOffset'] = phase_offset
+    if modulation_factor is not UNSET:
+        _input['modulationFactor'] = modulation_factor
+    if reference is not UNSET:
+        _input['reference'] = reference
+    _input['dataset'] = dataset
+    if axis_anchors is not UNSET:
+        _input['axisAnchors'] = axis_anchors
+    variables['input'] = _input
+    return (await aexecute(CreatePhasorCalibrationMutation, variables, rath=rath)).create_phasor_calibration
+
+def create_phasor_calibration(axis: str, dataset: IDCoercible, harmonic: Union[Optional[int], UnsetType]=UNSET, phase_offset: Union[Optional[float], UnsetType]=UNSET, modulation_factor: Union[Optional[float], UnsetType]=UNSET, reference: Union[Optional[str], UnsetType]=UNSET, axis_anchors: Union[Optional[Iterable[AxisAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> PhasorCalibration:
+    """CreatePhasorCalibration 
+
+Attach an instrument-response correction to a dataset, taking a raw phasor to a calibrated one
+
+Args:
+    axis: The axis the correction applies to
+    harmonic: The harmonic the correction applies at
+    phase_offset: The phase correction in radians
+    modulation_factor: The modulation correction
+    reference: What the correction was measured against
+    dataset: The ID of the dataset the correction applies to
+    axis_anchors: The coordinates the correction is pinned to
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    PhasorCalibration
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['axis'] = axis
+    if harmonic is not UNSET:
+        _input['harmonic'] = harmonic
+    if phase_offset is not UNSET:
+        _input['phaseOffset'] = phase_offset
+    if modulation_factor is not UNSET:
+        _input['modulationFactor'] = modulation_factor
+    if reference is not UNSET:
+        _input['reference'] = reference
+    _input['dataset'] = dataset
+    if axis_anchors is not UNSET:
+        _input['axisAnchors'] = axis_anchors
+    variables['input'] = _input
+    return execute(CreatePhasorCalibrationMutation, variables, rath=rath).create_phasor_calibration
 
 async def acreate_render_tree(tree: TreeInput, name: str, rath: Optional[MikroNextRath]=None) -> CreateRenderTreeMutationCreaterendertree:
     """CreateRenderTree 
@@ -6114,16 +10077,19 @@ Returns:
     variables['input'] = _input
     return execute(UpdateRoiMutation, variables, rath=rath).update_roi
 
-async def acreate_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, spatial_unit: Union[Optional[SpatialUnit], UnsetType]=UNSET, temporal_unit: Union[Optional[TemporalUnit], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+async def acreate_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, axes: Union[Optional[Iterable[PhysicalAxisInput]], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
     """CreateScene 
 
-Create a new scene from an existing lens with optional blending mode
+Create a new scene over a world coordinate system: an adopted existing system, or an ordinary SHARED one created for it (never owned by the scene -- it outlives it)
 
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     blending: Blending
-    spatial_unit: SpatialUnit
-    temporal_unit: TemporalUnit
+    preferred_view: PreferredView
+    background_color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    axes: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit (required) (list)
+    epoch: Date with time (isoformat)
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -6134,23 +10100,32 @@ Returns:
     _input['name'] = name
     if blending is not UNSET:
         _input['blending'] = blending
-    if spatial_unit is not UNSET:
-        _input['spatialUnit'] = spatial_unit
-    if temporal_unit is not UNSET:
-        _input['temporalUnit'] = temporal_unit
+    if preferred_view is not UNSET:
+        _input['preferredView'] = preferred_view
+    if background_color is not UNSET:
+        _input['backgroundColor'] = background_color
+    if axes is not UNSET:
+        _input['axes'] = axes
+    if epoch is not UNSET:
+        _input['epoch'] = epoch
+    if coordinate_system is not UNSET:
+        _input['coordinateSystem'] = coordinate_system
     variables['input'] = _input
     return (await aexecute(CreateSceneMutation, variables, rath=rath)).create_scene
 
-def create_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, spatial_unit: Union[Optional[SpatialUnit], UnsetType]=UNSET, temporal_unit: Union[Optional[TemporalUnit], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+def create_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, axes: Union[Optional[Iterable[PhysicalAxisInput]], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
     """CreateScene 
 
-Create a new scene from an existing lens with optional blending mode
+Create a new scene over a world coordinate system: an adopted existing system, or an ordinary SHARED one created for it (never owned by the scene -- it outlives it)
 
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     blending: Blending
-    spatial_unit: SpatialUnit
-    temporal_unit: TemporalUnit
+    preferred_view: PreferredView
+    background_color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    axes: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit (required) (list)
+    epoch: Date with time (isoformat)
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -6161,12 +10136,306 @@ Returns:
     _input['name'] = name
     if blending is not UNSET:
         _input['blending'] = blending
-    if spatial_unit is not UNSET:
-        _input['spatialUnit'] = spatial_unit
-    if temporal_unit is not UNSET:
-        _input['temporalUnit'] = temporal_unit
+    if preferred_view is not UNSET:
+        _input['preferredView'] = preferred_view
+    if background_color is not UNSET:
+        _input['backgroundColor'] = background_color
+    if axes is not UNSET:
+        _input['axes'] = axes
+    if epoch is not UNSET:
+        _input['epoch'] = epoch
+    if coordinate_system is not UNSET:
+        _input['coordinateSystem'] = coordinate_system
     variables['input'] = _input
     return execute(CreateSceneMutation, variables, rath=rath).create_scene
+
+async def acreate_scene_from_coordinate_system(coordinate_system: IDCoercible, policy: ScenePolicyInput, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+    """CreateSceneFromCoordinateSystem 
+
+Bootstrap a renderable scene over an existing coordinate system: a shared space (its registered sources become layers, up to the policy's nchildren) or an owned system such as a dataset's intrinsic grid or a physical space (the container's own data becomes the layer). The scene adopts the system as its world; no edges are authored. This is how a dataset is staged -- pass `intrinsicSystem` to render in pixels, or a physical space it is registered into to render at physical scale
+
+Args:
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    policy: The policy createSceneFromCoordinateSystem follows: at most `nchildren` layers, materialized from the sources living in or registered into the space, filtered by source kind and drawn by the recipe in `kind` (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Scene
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['coordinateSystem'] = coordinate_system
+    if name is not UNSET:
+        _input['name'] = name
+    _input['policy'] = policy
+    variables['input'] = _input
+    return (await aexecute(CreateSceneFromCoordinateSystemMutation, variables, rath=rath)).create_scene_from_coordinate_system
+
+def create_scene_from_coordinate_system(coordinate_system: IDCoercible, policy: ScenePolicyInput, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+    """CreateSceneFromCoordinateSystem 
+
+Bootstrap a renderable scene over an existing coordinate system: a shared space (its registered sources become layers, up to the policy's nchildren) or an owned system such as a dataset's intrinsic grid or a physical space (the container's own data becomes the layer). The scene adopts the system as its world; no edges are authored. This is how a dataset is staged -- pass `intrinsicSystem` to render in pixels, or a physical space it is registered into to render at physical scale
+
+Args:
+    coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    policy: The policy createSceneFromCoordinateSystem follows: at most `nchildren` layers, materialized from the sources living in or registered into the space, filtered by source kind and drawn by the recipe in `kind` (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Scene
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['coordinateSystem'] = coordinate_system
+    if name is not UNSET:
+        _input['name'] = name
+    _input['policy'] = policy
+    variables['input'] = _input
+    return execute(CreateSceneFromCoordinateSystemMutation, variables, rath=rath).create_scene_from_coordinate_system
+
+async def aupdate_scene(id: IDCoercible, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+    """UpdateScene 
+
+Set a scene's viewer preferences: how a client should open it
+
+Args:
+    id: The ID of the scene to update
+    preferred_view: PreferredView
+    background_color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Scene
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if preferred_view is not UNSET:
+        _input['preferredView'] = preferred_view
+    if background_color is not UNSET:
+        _input['backgroundColor'] = background_color
+    variables['input'] = _input
+    return (await aexecute(UpdateSceneMutation, variables, rath=rath)).update_scene
+
+def update_scene(id: IDCoercible, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+    """UpdateScene 
+
+Set a scene's viewer preferences: how a client should open it
+
+Args:
+    id: The ID of the scene to update
+    preferred_view: PreferredView
+    background_color: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Scene
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if preferred_view is not UNSET:
+        _input['preferredView'] = preferred_view
+    if background_color is not UNSET:
+        _input['backgroundColor'] = background_color
+    variables['input'] = _input
+    return execute(UpdateSceneMutation, variables, rath=rath).update_scene
+
+async def aclear_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Scene:
+    """ClearScene 
+
+Delete every layer of a scene, keeping the scene itself. A pure view-state reset: no coordinate system, registration or dataset is touched, and other scenes over the same space never notice
+
+Args:
+    id: The ID of the scene to clear
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Scene
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(ClearSceneMutation, variables, rath=rath)).clear_scene
+
+def clear_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Scene:
+    """ClearScene 
+
+Delete every layer of a scene, keeping the scene itself. A pure view-state reset: no coordinate system, registration or dataset is touched, and other scenes over the same space never notice
+
+Args:
+    id: The ID of the scene to clear
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Scene
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(ClearSceneMutation, variables, rath=rath).clear_scene
+
+async def adelete_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteScene 
+
+Delete an existing scene
+
+Args:
+    id: The ID of the scene to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteSceneMutation, variables, rath=rath)).delete_scene
+
+def delete_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteScene 
+
+Delete an existing scene
+
+Args:
+    id: The ID of the scene to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteSceneMutation, variables, rath=rath).delete_scene
+
+async def acreate_scene_snapshot(file: ImageFileCoercible, scene: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+    """CreateSceneSnapshot 
+
+Adopt an uploaded media file as a pre-rendered picture of a scene
+
+Args:
+    file: The uploaded media file store containing the rendered image
+    scene: The ID of the scene this is a picture of
+    name: The name of the snapshot
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SceneSnapshot
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['file'] = file
+    _input['scene'] = scene
+    if name is not UNSET:
+        _input['name'] = name
+    variables['input'] = _input
+    return (await aexecute(CreateSceneSnapshotMutation, variables, rath=rath)).create_scene_snapshot
+
+def create_scene_snapshot(file: ImageFileCoercible, scene: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+    """CreateSceneSnapshot 
+
+Adopt an uploaded media file as a pre-rendered picture of a scene
+
+Args:
+    file: The uploaded media file store containing the rendered image
+    scene: The ID of the scene this is a picture of
+    name: The name of the snapshot
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SceneSnapshot
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['file'] = file
+    _input['scene'] = scene
+    if name is not UNSET:
+        _input['name'] = name
+    variables['input'] = _input
+    return execute(CreateSceneSnapshotMutation, variables, rath=rath).create_scene_snapshot
+
+async def adelete_scene_snapshot(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteSceneSnapshot 
+
+Delete an existing scene snapshot
+
+Args:
+    id: The ID of the snapshot to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteSceneSnapshotMutation, variables, rath=rath)).delete_scene_snapshot
+
+def delete_scene_snapshot(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteSceneSnapshot 
+
+Delete an existing scene snapshot
+
+Args:
+    id: The ID of the snapshot to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteSceneSnapshotMutation, variables, rath=rath).delete_scene_snapshot
+
+async def apin_scene_snapshot(id: IDCoercible, pin: bool, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+    """PinSceneSnapshot 
+
+Pin a scene snapshot for quick access
+
+Args:
+    id: The ID of the snapshot to pin or unpin
+    pin: True to pin, false to unpin
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SceneSnapshot
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    _input['pin'] = pin
+    variables['input'] = _input
+    return (await aexecute(PinSceneSnapshotMutation, variables, rath=rath)).pin_scene_snapshot
+
+def pin_scene_snapshot(id: IDCoercible, pin: bool, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+    """PinSceneSnapshot 
+
+Pin a scene snapshot for quick access
+
+Args:
+    id: The ID of the snapshot to pin or unpin
+    pin: True to pin, false to unpin
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SceneSnapshot
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    _input['pin'] = pin
+    variables['input'] = _input
+    return execute(PinSceneSnapshotMutation, variables, rath=rath).pin_scene_snapshot
 
 async def acreate_snapshot(file: ImageFileCoercible, image: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Snapshot:
     """CreateSnapshot 
@@ -6319,6 +10588,314 @@ Returns:
         _input['imageAccessors'] = image_accessors
     variables['input'] = _input
     return execute(From_parquet_likeMutation, variables, rath=rath).from_parquet_like
+
+async def acreate_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+    """CreateTableDataset 
+
+Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    data: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
+    columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and optional unit and becomes an axis of the table's space (required) (list) (required)
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    validate_schema: The `Boolean` scalar type represents `true` or `false`. (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    TableDataset
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    _input['data'] = data
+    _input['columns'] = columns
+    if description is not UNSET:
+        _input['description'] = description
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
+    _input['validateSchema'] = validate_schema
+    variables['input'] = _input
+    return (await aexecute(CreateTableDatasetMutation, variables, rath=rath)).create_table_dataset
+
+def create_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+    """CreateTableDataset 
+
+Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    data: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
+    columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and optional unit and becomes an axis of the table's space (required) (list) (required)
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    validate_schema: The `Boolean` scalar type represents `true` or `false`. (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    TableDataset
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    _input['data'] = data
+    _input['columns'] = columns
+    if description is not UNSET:
+        _input['description'] = description
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
+    _input['validateSchema'] = validate_schema
+    variables['input'] = _input
+    return execute(CreateTableDatasetMutation, variables, rath=rath).create_table_dataset
+
+async def aupdate_table_dataset(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+    """UpdateTableDataset 
+
+Rename a table dataset or redescribe it -- the whole of what is editable. Its store, columns and coordinate system are fixed at creation; a recomputation is a new table
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    TableDataset
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    variables['input'] = _input
+    return (await aexecute(UpdateTableDatasetMutation, variables, rath=rath)).update_table_dataset
+
+def update_table_dataset(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+    """UpdateTableDataset 
+
+Rename a table dataset or redescribe it -- the whole of what is editable. Its store, columns and coordinate system are fixed at creation; a recomputation is a new table
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    TableDataset
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    variables['input'] = _input
+    return execute(UpdateTableDatasetMutation, variables, rath=rath).update_table_dataset
+
+async def adelete_table_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteTableDataset 
+
+Delete an existing table dataset
+
+Args:
+    id: The ID of the table dataset to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteTableDatasetMutation, variables, rath=rath)).delete_table_dataset
+
+def delete_table_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteTableDataset 
+
+Delete an existing table dataset
+
+Args:
+    id: The ID of the table dataset to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteTableDatasetMutation, variables, rath=rath).delete_table_dataset
+
+async def acreate_transformation(input: IDCoercible, output: IDCoercible, transform: TransformInput, name: Union[Optional[str], UnsetType]=UNSET, validity: Union[Optional[PlacementValidity], UnsetType]=UNSET, value_relation: Union[Optional[ValueRelation], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[CreateTransformationMutationCreatetransformationBaseAffineTransformation, CreateTransformationMutationCreatetransformationBaseBijectionTransformation, CreateTransformationMutationCreatetransformationBaseByDimensionTransformation, CreateTransformationMutationCreatetransformationBaseFieldTransformation, CreateTransformationMutationCreatetransformationBaseIdentityTransformation, CreateTransformationMutationCreatetransformationBaseMapAxisTransformation, CreateTransformationMutationCreatetransformationBaseRotationTransformation, CreateTransformationMutationCreatetransformationBaseScaleTransformation, CreateTransformationMutationCreatetransformationBaseSequenceTransformation, CreateTransformationMutationCreatetransformationBaseTranslationTransformation, CreateTransformationMutationCreatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], CreateTransformationMutationCreatetransformationBaseCatchAll]:
+    """CreateTransformation 
+
+Create one edge of the coordinate graph, mapping an input coordinate system to an output one. This is where registration lives
+
+Args:
+    input: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    output: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    transform: One edge of the coordinate graph, as a discriminated union: `kind` selects a member, and only that member's fields are read -- any other supplied field is rejected, never dropped. The member inputs annotated `@unionElementOf(union: "TransformInput")` say which fields each kind reads. Direction is always forward, input -> output (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    validity: PlacementValidity
+    value_relation: ValueRelation
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Transformation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['input'] = input
+    _input['output'] = output
+    _input['transform'] = transform
+    if name is not UNSET:
+        _input['name'] = name
+    if validity is not UNSET:
+        _input['validity'] = validity
+    if value_relation is not UNSET:
+        _input['valueRelation'] = value_relation
+    variables['input'] = _input
+    return (await aexecute(CreateTransformationMutation, variables, rath=rath)).create_transformation
+
+def create_transformation(input: IDCoercible, output: IDCoercible, transform: TransformInput, name: Union[Optional[str], UnsetType]=UNSET, validity: Union[Optional[PlacementValidity], UnsetType]=UNSET, value_relation: Union[Optional[ValueRelation], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[CreateTransformationMutationCreatetransformationBaseAffineTransformation, CreateTransformationMutationCreatetransformationBaseBijectionTransformation, CreateTransformationMutationCreatetransformationBaseByDimensionTransformation, CreateTransformationMutationCreatetransformationBaseFieldTransformation, CreateTransformationMutationCreatetransformationBaseIdentityTransformation, CreateTransformationMutationCreatetransformationBaseMapAxisTransformation, CreateTransformationMutationCreatetransformationBaseRotationTransformation, CreateTransformationMutationCreatetransformationBaseScaleTransformation, CreateTransformationMutationCreatetransformationBaseSequenceTransformation, CreateTransformationMutationCreatetransformationBaseTranslationTransformation, CreateTransformationMutationCreatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], CreateTransformationMutationCreatetransformationBaseCatchAll]:
+    """CreateTransformation 
+
+Create one edge of the coordinate graph, mapping an input coordinate system to an output one. This is where registration lives
+
+Args:
+    input: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    output: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    transform: One edge of the coordinate graph, as a discriminated union: `kind` selects a member, and only that member's fields are read -- any other supplied field is rejected, never dropped. The member inputs annotated `@unionElementOf(union: "TransformInput")` say which fields each kind reads. Direction is always forward, input -> output (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    validity: PlacementValidity
+    value_relation: ValueRelation
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Transformation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['input'] = input
+    _input['output'] = output
+    _input['transform'] = transform
+    if name is not UNSET:
+        _input['name'] = name
+    if validity is not UNSET:
+        _input['validity'] = validity
+    if value_relation is not UNSET:
+        _input['valueRelation'] = value_relation
+    variables['input'] = _input
+    return execute(CreateTransformationMutation, variables, rath=rath).create_transformation
+
+async def aupdate_transformation(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, scale: Union[Optional[Iterable[float]], UnsetType]=UNSET, translation: Union[Optional[Iterable[float]], UnsetType]=UNSET, affine: Union[Optional[Iterable[Iterable[float]]], UnsetType]=UNSET, validity: Union[Optional[PlacementValidity], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[UpdateTransformationMutationUpdatetransformationBaseAffineTransformation, UpdateTransformationMutationUpdatetransformationBaseBijectionTransformation, UpdateTransformationMutationUpdatetransformationBaseByDimensionTransformation, UpdateTransformationMutationUpdatetransformationBaseFieldTransformation, UpdateTransformationMutationUpdatetransformationBaseIdentityTransformation, UpdateTransformationMutationUpdatetransformationBaseMapAxisTransformation, UpdateTransformationMutationUpdatetransformationBaseRotationTransformation, UpdateTransformationMutationUpdatetransformationBaseScaleTransformation, UpdateTransformationMutationUpdatetransformationBaseSequenceTransformation, UpdateTransformationMutationUpdatetransformationBaseTranslationTransformation, UpdateTransformationMutationUpdatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], UpdateTransformationMutationUpdatetransformationBaseCatchAll]:
+    """UpdateTransformation 
+
+Refine a transformation's parameters, bumping its version
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    scale: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    translation: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    affine: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list) (required) (list)
+    validity: PlacementValidity
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Transformation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if scale is not UNSET:
+        _input['scale'] = scale
+    if translation is not UNSET:
+        _input['translation'] = translation
+    if affine is not UNSET:
+        _input['affine'] = affine
+    if validity is not UNSET:
+        _input['validity'] = validity
+    variables['input'] = _input
+    return (await aexecute(UpdateTransformationMutation, variables, rath=rath)).update_transformation
+
+def update_transformation(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, scale: Union[Optional[Iterable[float]], UnsetType]=UNSET, translation: Union[Optional[Iterable[float]], UnsetType]=UNSET, affine: Union[Optional[Iterable[Iterable[float]]], UnsetType]=UNSET, validity: Union[Optional[PlacementValidity], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[UpdateTransformationMutationUpdatetransformationBaseAffineTransformation, UpdateTransformationMutationUpdatetransformationBaseBijectionTransformation, UpdateTransformationMutationUpdatetransformationBaseByDimensionTransformation, UpdateTransformationMutationUpdatetransformationBaseFieldTransformation, UpdateTransformationMutationUpdatetransformationBaseIdentityTransformation, UpdateTransformationMutationUpdatetransformationBaseMapAxisTransformation, UpdateTransformationMutationUpdatetransformationBaseRotationTransformation, UpdateTransformationMutationUpdatetransformationBaseScaleTransformation, UpdateTransformationMutationUpdatetransformationBaseSequenceTransformation, UpdateTransformationMutationUpdatetransformationBaseTranslationTransformation, UpdateTransformationMutationUpdatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], UpdateTransformationMutationUpdatetransformationBaseCatchAll]:
+    """UpdateTransformation 
+
+Refine a transformation's parameters, bumping its version
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    scale: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    translation: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list)
+    affine: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point). (required) (list) (required) (list)
+    validity: PlacementValidity
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Transformation
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if scale is not UNSET:
+        _input['scale'] = scale
+    if translation is not UNSET:
+        _input['translation'] = translation
+    if affine is not UNSET:
+        _input['affine'] = affine
+    if validity is not UNSET:
+        _input['validity'] = validity
+    variables['input'] = _input
+    return execute(UpdateTransformationMutation, variables, rath=rath).update_transformation
+
+async def adelete_transformation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteTransformation 
+
+Delete an existing transformation
+
+Args:
+    id: The ID of the transformation to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteTransformationMutation, variables, rath=rath)).delete_transformation
+
+def delete_transformation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+    """DeleteTransformation 
+
+Delete an existing transformation
+
+Args:
+    id: The ID of the transformation to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteTransformationMutation, variables, rath=rath).delete_transformation
 
 async def acreate_rgb_view(context: IDCoercible, image: IDCoercible, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, z_min: Union[Optional[int], UnsetType]=UNSET, z_max: Union[Optional[int], UnsetType]=UNSET, x_min: Union[Optional[int], UnsetType]=UNSET, x_max: Union[Optional[int], UnsetType]=UNSET, y_min: Union[Optional[int], UnsetType]=UNSET, y_max: Union[Optional[int], UnsetType]=UNSET, t_min: Union[Optional[int], UnsetType]=UNSET, t_max: Union[Optional[int], UnsetType]=UNSET, c_min: Union[Optional[int], UnsetType]=UNSET, c_max: Union[Optional[int], UnsetType]=UNSET, gamma: Union[Optional[float], UnsetType]=UNSET, contrast_limit_min: Union[Optional[float], UnsetType]=UNSET, contrast_limit_max: Union[Optional[float], UnsetType]=UNSET, rescale: Union[Optional[bool], UnsetType]=UNSET, scale: Union[Optional[float], UnsetType]=UNSET, active: Union[Optional[bool], UnsetType]=UNSET, color_map: Union[Optional[ColorMap], UnsetType]=UNSET, base_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateRgbViewMutationCreatergbview:
     """CreateRgbView 
@@ -7114,7 +11691,451 @@ Returns:
     variables['input'] = _input
     return execute(CreateViewCollectionMutation, variables, rath=rath).create_view_collection
 
-async def aget_camera(id: ID, rath: Optional[MikroNextRath]=None) -> Camera:
+async def aget_a_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ADataset:
+    """GetADataset 
+
+Get a single array dataset by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ADataset
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetADatasetQuery, variables, rath=rath)).adataset
+
+def get_a_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ADataset:
+    """GetADataset 
+
+Get a single array dataset by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ADataset
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetADatasetQuery, variables, rath=rath).adataset
+
+async def aget_a_datasets(filters: Union[Optional[ADatasetFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[ADataset, ...]:
+    """GetADatasets 
+
+List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
+
+Args:
+    filters (Optional[ADatasetFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[ADataset]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return (await aexecute(GetADatasetsQuery, variables, rath=rath)).adatasets
+
+def get_a_datasets(filters: Union[Optional[ADatasetFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[ADataset, ...]:
+    """GetADatasets 
+
+List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
+
+Args:
+    filters (Optional[ADatasetFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[ADataset]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return execute(GetADatasetsQuery, variables, rath=rath).adatasets
+
+async def asearch_a_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchADatasetsQueryOptions, ...]:
+    """SearchADatasets 
+
+List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchADatasetsQueryAdatasets]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchADatasetsQuery, variables, rath=rath)).options
+
+def search_a_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchADatasetsQueryOptions, ...]:
+    """SearchADatasets 
+
+List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchADatasetsQueryAdatasets]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchADatasetsQuery, variables, rath=rath).options
+
+async def aget_animation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Animation:
+    """GetAnimation 
+
+Get a single animation by ID
+
+Args:
+    id (ID): The unique identifier of an object
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Animation
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetAnimationQuery, variables, rath=rath)).animation
+
+def get_animation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Animation:
+    """GetAnimation 
+
+Get a single animation by ID
+
+Args:
+    id (ID): The unique identifier of an object
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Animation
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetAnimationQuery, variables, rath=rath).animation
+
+async def aget_animations(filters: Union[Optional[AnimationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Animation, ...]:
+    """GetAnimations 
+
+List animations (named camera tours through a scene)
+
+Args:
+    filters (Optional[AnimationFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[Animation]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return (await aexecute(GetAnimationsQuery, variables, rath=rath)).animations
+
+def get_animations(filters: Union[Optional[AnimationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Animation, ...]:
+    """GetAnimations 
+
+List animations (named camera tours through a scene)
+
+Args:
+    filters (Optional[AnimationFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[Animation]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return execute(GetAnimationsQuery, variables, rath=rath).animations
+
+async def asearch_animations(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchAnimationsQueryOptions, ...]:
+    """SearchAnimations 
+
+List animations (named camera tours through a scene)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchAnimationsQueryAnimations]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchAnimationsQuery, variables, rath=rath)).options
+
+def search_animations(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchAnimationsQueryOptions, ...]:
+    """SearchAnimations 
+
+List animations (named camera tours through a scene)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchAnimationsQueryAnimations]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchAnimationsQuery, variables, rath=rath).options
+
+async def aget_annotation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Annotation:
+    """GetAnnotation 
+
+Get a single annotation by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Annotation
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetAnnotationQuery, variables, rath=rath)).annotation
+
+def get_annotation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Annotation:
+    """GetAnnotation 
+
+Get a single annotation by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Annotation
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetAnnotationQuery, variables, rath=rath).annotation
+
+async def aget_annotations(filters: Union[Optional[AnnotationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Annotation, ...]:
+    """GetAnnotations 
+
+List annotations (human-drawn shapes, each in its collection's coordinate system)
+
+Args:
+    filters (Optional[AnnotationFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[Annotation]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return (await aexecute(GetAnnotationsQuery, variables, rath=rath)).annotations
+
+def get_annotations(filters: Union[Optional[AnnotationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Annotation, ...]:
+    """GetAnnotations 
+
+List annotations (human-drawn shapes, each in its collection's coordinate system)
+
+Args:
+    filters (Optional[AnnotationFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[Annotation]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return execute(GetAnnotationsQuery, variables, rath=rath).annotations
+
+async def aget_annotation_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+    """GetAnnotationCollection 
+
+Get a single annotation collection by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    AnnotationCollection
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetAnnotationCollectionQuery, variables, rath=rath)).annotation_collection
+
+def get_annotation_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+    """GetAnnotationCollection 
+
+Get a single annotation collection by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    AnnotationCollection
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetAnnotationCollectionQuery, variables, rath=rath).annotation_collection
+
+async def aget_annotation_collections(filters: Union[Optional[AnnotationCollectionFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[AnnotationCollection, ...]:
+    """GetAnnotationCollections 
+
+List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)
+
+Args:
+    filters (Optional[AnnotationCollectionFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[AnnotationCollection]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return (await aexecute(GetAnnotationCollectionsQuery, variables, rath=rath)).annotation_collections
+
+def get_annotation_collections(filters: Union[Optional[AnnotationCollectionFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[AnnotationCollection, ...]:
+    """GetAnnotationCollections 
+
+List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)
+
+Args:
+    filters (Optional[AnnotationCollectionFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[AnnotationCollection]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return execute(GetAnnotationCollectionsQuery, variables, rath=rath).annotation_collections
+
+async def asearch_annotation_collections(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchAnnotationCollectionsQueryOptions, ...]:
+    """SearchAnnotationCollections 
+
+List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchAnnotationCollectionsQueryAnnotationcollections]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchAnnotationCollectionsQuery, variables, rath=rath)).options
+
+def search_annotation_collections(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchAnnotationCollectionsQueryOptions, ...]:
+    """SearchAnnotationCollections 
+
+List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchAnnotationCollectionsQueryAnnotationcollections]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchAnnotationCollectionsQuery, variables, rath=rath).options
+
+async def aget_camera(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Camera:
     """GetCamera 
 
 Get a single camera by ID
@@ -7130,7 +12151,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetCameraQuery, variables, rath=rath)).camera
 
-def get_camera(id: ID, rath: Optional[MikroNextRath]=None) -> Camera:
+def get_camera(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Camera:
     """GetCamera 
 
 Get a single camera by ID
@@ -7146,7 +12167,169 @@ Returns:
     variables['id'] = id
     return execute(GetCameraQuery, variables, rath=rath).camera
 
-async def aget_dataset(id: ID, rath: Optional[MikroNextRath]=None) -> Dataset:
+async def aget_coordinate_graph(coordinate_system: IDCoercible, max_depth: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> GetCoordinateGraphQueryCoordinategraph:
+    """GetCoordinateGraph 
+
+Walk the coordinate graph out from one system: every coordinate system it reaches and every top-level edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not
+
+Args:
+    coordinate_system (ID): No description
+    max_depth (Optional[int], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    GetCoordinateGraphQueryCoordinategraph
+"""
+    variables: Dict[str, Any] = {}
+    variables['coordinateSystem'] = coordinate_system
+    if max_depth is not UNSET:
+        variables['maxDepth'] = max_depth
+    return (await aexecute(GetCoordinateGraphQuery, variables, rath=rath)).coordinate_graph
+
+def get_coordinate_graph(coordinate_system: IDCoercible, max_depth: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> GetCoordinateGraphQueryCoordinategraph:
+    """GetCoordinateGraph 
+
+Walk the coordinate graph out from one system: every coordinate system it reaches and every top-level edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not
+
+Args:
+    coordinate_system (ID): No description
+    max_depth (Optional[int], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    GetCoordinateGraphQueryCoordinategraph
+"""
+    variables: Dict[str, Any] = {}
+    variables['coordinateSystem'] = coordinate_system
+    if max_depth is not UNSET:
+        variables['maxDepth'] = max_depth
+    return execute(GetCoordinateGraphQuery, variables, rath=rath).coordinate_graph
+
+async def aget_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+    """GetCoordinateSystem 
+
+Get a single coordinate system by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    CoordinateSystem
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetCoordinateSystemQuery, variables, rath=rath)).coordinate_system
+
+def get_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+    """GetCoordinateSystem 
+
+Get a single coordinate system by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    CoordinateSystem
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetCoordinateSystemQuery, variables, rath=rath).coordinate_system
+
+async def aget_coordinate_systems(filters: Union[Optional[CoordinateSystemFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[CoordinateSystem, ...]:
+    """GetCoordinateSystems 
+
+List coordinate systems (the nodes of the RFC-5 coordinate graph)
+
+Args:
+    filters (Optional[CoordinateSystemFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[CoordinateSystem]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return (await aexecute(GetCoordinateSystemsQuery, variables, rath=rath)).coordinate_systems
+
+def get_coordinate_systems(filters: Union[Optional[CoordinateSystemFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[CoordinateSystem, ...]:
+    """GetCoordinateSystems 
+
+List coordinate systems (the nodes of the RFC-5 coordinate graph)
+
+Args:
+    filters (Optional[CoordinateSystemFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[CoordinateSystem]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return execute(GetCoordinateSystemsQuery, variables, rath=rath).coordinate_systems
+
+async def asearch_coordinate_systems(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchCoordinateSystemsQueryOptions, ...]:
+    """SearchCoordinateSystems 
+
+List coordinate systems (the nodes of the RFC-5 coordinate graph)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchCoordinateSystemsQueryCoordinatesystems]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchCoordinateSystemsQuery, variables, rath=rath)).options
+
+def search_coordinate_systems(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchCoordinateSystemsQueryOptions, ...]:
+    """SearchCoordinateSystems 
+
+List coordinate systems (the nodes of the RFC-5 coordinate graph)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchCoordinateSystemsQueryCoordinatesystems]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchCoordinateSystemsQuery, variables, rath=rath).options
+
+async def aget_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Dataset:
     """GetDataset 
 
 Get a single dataset by ID
@@ -7162,7 +12345,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetDatasetQuery, variables, rath=rath)).dataset
 
-def get_dataset(id: ID, rath: Optional[MikroNextRath]=None) -> Dataset:
+def get_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Dataset:
     """GetDataset 
 
 Get a single dataset by ID
@@ -7178,7 +12361,7 @@ Returns:
     variables['id'] = id
     return execute(GetDatasetQuery, variables, rath=rath).dataset
 
-async def asearch_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchDatasetsQueryOptions, ...]:
+async def asearch_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchDatasetsQueryOptions, ...]:
     """SearchDatasets 
 
 List datasets (folder-like collections of images, files and tables)
@@ -7204,7 +12387,7 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchDatasetsQuery, variables, rath=rath)).options
 
-def search_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchDatasetsQueryOptions, ...]:
+def search_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchDatasetsQueryOptions, ...]:
     """SearchDatasets 
 
 List datasets (folder-like collections of images, files and tables)
@@ -7230,7 +12413,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchDatasetsQuery, variables, rath=rath).options
 
-async def aget_file(id: ID, rath: Optional[MikroNextRath]=None) -> File:
+async def aget_file(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> File:
     """GetFile 
 
 Get a single file by ID
@@ -7246,7 +12429,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetFileQuery, variables, rath=rath)).file
 
-def get_file(id: ID, rath: Optional[MikroNextRath]=None) -> File:
+def get_file(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> File:
     """GetFile 
 
 Get a single file by ID
@@ -7262,7 +12445,7 @@ Returns:
     variables['id'] = id
     return execute(GetFileQuery, variables, rath=rath).file
 
-async def asearch_files(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFilesQueryOptions, ...]:
+async def asearch_files(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFilesQueryOptions, ...]:
     """SearchFiles 
 
 List files (raw microscopy files such as .czi or .ome.tiff)
@@ -7288,7 +12471,7 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchFilesQuery, variables, rath=rath)).options
 
-def search_files(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFilesQueryOptions, ...]:
+def search_files(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFilesQueryOptions, ...]:
     """SearchFiles 
 
 List files (raw microscopy files such as .czi or .ome.tiff)
@@ -7314,7 +12497,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchFilesQuery, variables, rath=rath).options
 
-async def aget_image(id: ID, rath: Optional[MikroNextRath]=None) -> Image:
+async def aget_image(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Image:
     """GetImage 
 
 Returns a single image by ID
@@ -7330,7 +12513,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetImageQuery, variables, rath=rath)).image
 
-def get_image(id: ID, rath: Optional[MikroNextRath]=None) -> Image:
+def get_image(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Image:
     """GetImage 
 
 Returns a single image by ID
@@ -7374,7 +12557,7 @@ Returns:
     variables: Dict[str, Any] = {}
     return execute(GetRandomImageQuery, variables, rath=rath).random_image
 
-async def asearch_images(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchImagesQueryOptions, ...]:
+async def asearch_images(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchImagesQueryOptions, ...]:
     """SearchImages 
 
 List images in the current organization, filterable and orderable
@@ -7400,7 +12583,7 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchImagesQuery, variables, rath=rath)).options
 
-def search_images(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchImagesQueryOptions, ...]:
+def search_images(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchImagesQueryOptions, ...]:
     """SearchImages 
 
 List images in the current organization, filterable and orderable
@@ -7466,7 +12649,7 @@ Returns:
         variables['pagination'] = pagination
     return execute(ImagesQuery, variables, rath=rath).images
 
-async def aview_image(id: ID, filtersggg: Union[Optional[ViewFilter], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ViewImageQueryImage:
+async def aview_image(id: IDCoercible, filtersggg: Union[Optional[ViewFilter], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ViewImageQueryImage:
     """ViewImage 
 
 Returns a single image by ID
@@ -7485,7 +12668,7 @@ Returns:
         variables['filtersggg'] = filtersggg
     return (await aexecute(ViewImageQuery, variables, rath=rath)).image
 
-def view_image(id: ID, filtersggg: Union[Optional[ViewFilter], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ViewImageQueryImage:
+def view_image(id: IDCoercible, filtersggg: Union[Optional[ViewFilter], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ViewImageQueryImage:
     """ViewImage 
 
 Returns a single image by ID
@@ -7532,7 +12715,7 @@ Returns:
     variables: Dict[str, Any] = {}
     return execute(ArtemiyImagesQuery, variables, rath=rath).images
 
-async def aget_instrument(id: ID, rath: Optional[MikroNextRath]=None) -> Instrument:
+async def aget_instrument(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Instrument:
     """GetInstrument 
 
 Get a single instrument by ID
@@ -7548,7 +12731,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetInstrumentQuery, variables, rath=rath)).instrument
 
-def get_instrument(id: ID, rath: Optional[MikroNextRath]=None) -> Instrument:
+def get_instrument(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Instrument:
     """GetInstrument 
 
 Get a single instrument by ID
@@ -7564,7 +12747,7 @@ Returns:
     variables['id'] = id
     return execute(GetInstrumentQuery, variables, rath=rath).instrument
 
-async def aget_lens(id: ID, rath: Optional[MikroNextRath]=None) -> Lens:
+async def aget_lens(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Lens:
     """GetLens 
 
 Get a single lens by ID
@@ -7580,7 +12763,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetLensQuery, variables, rath=rath)).lens
 
-def get_lens(id: ID, rath: Optional[MikroNextRath]=None) -> Lens:
+def get_lens(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Lens:
     """GetLens 
 
 Get a single lens by ID
@@ -7596,42 +12779,82 @@ Returns:
     variables['id'] = id
     return execute(GetLensQuery, variables, rath=rath).lens
 
-async def aget_mesh(id: ID, rath: Optional[MikroNextRath]=None) -> Mesh:
-    """GetMesh 
+async def aget_mesh_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+    """GetMeshCollection 
 
-Get a single 3D mesh by ID
+Get a single mesh collection by ID
 
 Args:
-    id (ID): The unique identifier of an object
+    id (ID): No description
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    Mesh
+    MeshCollection
 """
     variables: Dict[str, Any] = {}
     variables['id'] = id
-    return (await aexecute(GetMeshQuery, variables, rath=rath)).mesh
+    return (await aexecute(GetMeshCollectionQuery, variables, rath=rath)).mesh_collection
 
-def get_mesh(id: ID, rath: Optional[MikroNextRath]=None) -> Mesh:
-    """GetMesh 
+def get_mesh_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+    """GetMeshCollection 
 
-Get a single 3D mesh by ID
+Get a single mesh collection by ID
 
 Args:
-    id (ID): The unique identifier of an object
+    id (ID): No description
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    Mesh
+    MeshCollection
 """
     variables: Dict[str, Any] = {}
     variables['id'] = id
-    return execute(GetMeshQuery, variables, rath=rath).mesh
+    return execute(GetMeshCollectionQuery, variables, rath=rath).mesh_collection
 
-async def asearch_meshes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchMeshesQueryOptions, ...]:
-    """SearchMeshes 
+async def aget_mesh_collections(filters: Union[Optional[MeshCollectionFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[MeshCollection, ...]:
+    """GetMeshCollections 
 
-List 3D meshes
+List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
+
+Args:
+    filters (Optional[MeshCollectionFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[MeshCollection]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return (await aexecute(GetMeshCollectionsQuery, variables, rath=rath)).mesh_collections
+
+def get_mesh_collections(filters: Union[Optional[MeshCollectionFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[MeshCollection, ...]:
+    """GetMeshCollections 
+
+List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
+
+Args:
+    filters (Optional[MeshCollectionFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[MeshCollection]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return execute(GetMeshCollectionsQuery, variables, rath=rath).mesh_collections
+
+async def asearch_mesh_collections(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchMeshCollectionsQueryOptions, ...]:
+    """SearchMeshCollections 
+
+List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
 
 Args:
     search (Optional[str], optional): No description. 
@@ -7641,7 +12864,7 @@ Args:
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchMeshesQueryMeshes]
+    List[SearchMeshCollectionsQueryMeshcollections]
 """
     variables: Dict[str, Any] = {}
     if search is not UNSET:
@@ -7652,12 +12875,12 @@ Returns:
         variables['limit'] = limit
     if offset is not UNSET:
         variables['offset'] = offset
-    return (await aexecute(SearchMeshesQuery, variables, rath=rath)).options
+    return (await aexecute(SearchMeshCollectionsQuery, variables, rath=rath)).options
 
-def search_meshes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchMeshesQueryOptions, ...]:
-    """SearchMeshes 
+def search_mesh_collections(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchMeshCollectionsQueryOptions, ...]:
+    """SearchMeshCollections 
 
-List 3D meshes
+List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
 
 Args:
     search (Optional[str], optional): No description. 
@@ -7667,7 +12890,7 @@ Args:
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchMeshesQueryMeshes]
+    List[SearchMeshCollectionsQueryMeshcollections]
 """
     variables: Dict[str, Any] = {}
     if search is not UNSET:
@@ -7678,9 +12901,9 @@ Returns:
         variables['limit'] = limit
     if offset is not UNSET:
         variables['offset'] = offset
-    return execute(SearchMeshesQuery, variables, rath=rath).options
+    return execute(SearchMeshCollectionsQuery, variables, rath=rath).options
 
-async def aget_objective(id: ID, rath: Optional[MikroNextRath]=None) -> Objective:
+async def aget_objective(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Objective:
     """GetObjective 
 
 Get a single objective by ID
@@ -7696,7 +12919,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetObjectiveQuery, variables, rath=rath)).objective
 
-def get_objective(id: ID, rath: Optional[MikroNextRath]=None) -> Objective:
+def get_objective(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Objective:
     """GetObjective 
 
 Get a single objective by ID
@@ -7712,7 +12935,7 @@ Returns:
     variables['id'] = id
     return execute(GetObjectiveQuery, variables, rath=rath).objective
 
-async def aget_rgb_context(id: ID, rath: Optional[MikroNextRath]=None) -> RGBContext:
+async def aget_rgb_context(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> RGBContext:
     """GetRGBContext 
 
 Get a single RGB render context by ID
@@ -7728,7 +12951,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetRGBContextQuery, variables, rath=rath)).rgbcontext
 
-def get_rgb_context(id: ID, rath: Optional[MikroNextRath]=None) -> RGBContext:
+def get_rgb_context(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> RGBContext:
     """GetRGBContext 
 
 Get a single RGB render context by ID
@@ -7744,7 +12967,7 @@ Returns:
     variables['id'] = id
     return execute(GetRGBContextQuery, variables, rath=rath).rgbcontext
 
-async def aget_rois(image: ID, rath: Optional[MikroNextRath]=None) -> Tuple[ROI, ...]:
+async def aget_rois(image: IDCoercible, rath: Optional[MikroNextRath]=None) -> Tuple[ROI, ...]:
     """GetRois 
 
 List regions of interest drawn on images
@@ -7760,7 +12983,7 @@ Returns:
     variables['image'] = image
     return (await aexecute(GetRoisQuery, variables, rath=rath)).rois
 
-def get_rois(image: ID, rath: Optional[MikroNextRath]=None) -> Tuple[ROI, ...]:
+def get_rois(image: IDCoercible, rath: Optional[MikroNextRath]=None) -> Tuple[ROI, ...]:
     """GetRois 
 
 List regions of interest drawn on images
@@ -7776,7 +12999,7 @@ Returns:
     variables['image'] = image
     return execute(GetRoisQuery, variables, rath=rath).rois
 
-async def aget_roi(id: ID, rath: Optional[MikroNextRath]=None) -> ROI:
+async def aget_roi(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ROI:
     """GetRoi 
 
 Get a single region of interest by ID
@@ -7792,7 +13015,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetRoiQuery, variables, rath=rath)).roi
 
-def get_roi(id: ID, rath: Optional[MikroNextRath]=None) -> ROI:
+def get_roi(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ROI:
     """GetRoi 
 
 Get a single region of interest by ID
@@ -7808,7 +13031,7 @@ Returns:
     variables['id'] = id
     return execute(GetRoiQuery, variables, rath=rath).roi
 
-async def asearch_rois(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRoisQueryOptions, ...]:
+async def asearch_rois(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRoisQueryOptions, ...]:
     """SearchRois 
 
 List regions of interest drawn on images
@@ -7834,7 +13057,7 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchRoisQuery, variables, rath=rath)).options
 
-def search_rois(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRoisQueryOptions, ...]:
+def search_rois(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRoisQueryOptions, ...]:
     """SearchRois 
 
 List regions of interest drawn on images
@@ -7860,7 +13083,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchRoisQuery, variables, rath=rath).options
 
-async def aget_scene(id: ID, rath: Optional[MikroNextRath]=None) -> Scene:
+async def aget_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Scene:
     """GetScene 
 
 Get a single scene by ID
@@ -7876,7 +13099,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetSceneQuery, variables, rath=rath)).scene
 
-def get_scene(id: ID, rath: Optional[MikroNextRath]=None) -> Scene:
+def get_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Scene:
     """GetScene 
 
 Get a single scene by ID
@@ -7892,7 +13115,7 @@ Returns:
     variables['id'] = id
     return execute(GetSceneQuery, variables, rath=rath).scene
 
-async def asearch_scenes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchScenesQueryOptions, ...]:
+async def asearch_scenes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchScenesQueryOptions, ...]:
     """SearchScenes 
 
 List scenes (compositions of layers over array datasets)
@@ -7918,7 +13141,7 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchScenesQuery, variables, rath=rath)).options
 
-def search_scenes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchScenesQueryOptions, ...]:
+def search_scenes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchScenesQueryOptions, ...]:
     """SearchScenes 
 
 List scenes (compositions of layers over array datasets)
@@ -7944,7 +13167,131 @@ Returns:
         variables['offset'] = offset
     return execute(SearchScenesQuery, variables, rath=rath).options
 
-async def aget_snapshot(id: ID, rath: Optional[MikroNextRath]=None) -> Snapshot:
+async def aget_scene_snapshot(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+    """GetSceneSnapshot 
+
+Get a single scene snapshot by ID
+
+Args:
+    id (ID): The unique identifier of an object
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SceneSnapshot
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetSceneSnapshotQuery, variables, rath=rath)).scene_snapshot
+
+def get_scene_snapshot(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+    """GetSceneSnapshot 
+
+Get a single scene snapshot by ID
+
+Args:
+    id (ID): The unique identifier of an object
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SceneSnapshot
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetSceneSnapshotQuery, variables, rath=rath).scene_snapshot
+
+async def aget_scene_snapshots(filters: Union[Optional[SceneSnapshotFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SceneSnapshot, ...]:
+    """GetSceneSnapshots 
+
+List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)
+
+Args:
+    filters (Optional[SceneSnapshotFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SceneSnapshot]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return (await aexecute(GetSceneSnapshotsQuery, variables, rath=rath)).scene_snapshots
+
+def get_scene_snapshots(filters: Union[Optional[SceneSnapshotFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SceneSnapshot, ...]:
+    """GetSceneSnapshots 
+
+List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)
+
+Args:
+    filters (Optional[SceneSnapshotFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SceneSnapshot]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return execute(GetSceneSnapshotsQuery, variables, rath=rath).scene_snapshots
+
+async def asearch_scene_snapshots(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSceneSnapshotsQueryOptions, ...]:
+    """SearchSceneSnapshots 
+
+List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchSceneSnapshotsQueryScenesnapshots]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchSceneSnapshotsQuery, variables, rath=rath)).options
+
+def search_scene_snapshots(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSceneSnapshotsQueryOptions, ...]:
+    """SearchSceneSnapshots 
+
+List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchSceneSnapshotsQueryScenesnapshots]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchSceneSnapshotsQuery, variables, rath=rath).options
+
+async def aget_snapshot(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Snapshot:
     """GetSnapshot 
 
 Get a single snapshot by ID
@@ -7960,7 +13307,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetSnapshotQuery, variables, rath=rath)).snapshot
 
-def get_snapshot(id: ID, rath: Optional[MikroNextRath]=None) -> Snapshot:
+def get_snapshot(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Snapshot:
     """GetSnapshot 
 
 Get a single snapshot by ID
@@ -7976,7 +13323,7 @@ Returns:
     variables['id'] = id
     return execute(GetSnapshotQuery, variables, rath=rath).snapshot
 
-async def asearch_snapshots(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSnapshotsQueryOptions, ...]:
+async def asearch_snapshots(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSnapshotsQueryOptions, ...]:
     """SearchSnapshots 
 
 List snapshots (pre-rendered thumbnail images of images)
@@ -8002,7 +13349,7 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchSnapshotsQuery, variables, rath=rath)).options
 
-def search_snapshots(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSnapshotsQueryOptions, ...]:
+def search_snapshots(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSnapshotsQueryOptions, ...]:
     """SearchSnapshots 
 
 List snapshots (pre-rendered thumbnail images of images)
@@ -8028,7 +13375,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchSnapshotsQuery, variables, rath=rath).options
 
-async def aget_stage(id: ID, rath: Optional[MikroNextRath]=None) -> Stage:
+async def aget_stage(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Stage:
     """GetStage 
 
 Get a single stage by ID
@@ -8044,7 +13391,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetStageQuery, variables, rath=rath)).stage
 
-def get_stage(id: ID, rath: Optional[MikroNextRath]=None) -> Stage:
+def get_stage(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Stage:
     """GetStage 
 
 Get a single stage by ID
@@ -8060,7 +13407,7 @@ Returns:
     variables['id'] = id
     return execute(GetStageQuery, variables, rath=rath).stage
 
-async def asearch_stages(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchStagesQueryOptions, ...]:
+async def asearch_stages(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchStagesQueryOptions, ...]:
     """SearchStages 
 
 List stages (the 3D physical spaces images are positioned in)
@@ -8086,7 +13433,7 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchStagesQuery, variables, rath=rath)).options
 
-def search_stages(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchStagesQueryOptions, ...]:
+def search_stages(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchStagesQueryOptions, ...]:
     """SearchStages 
 
 List stages (the 3D physical spaces images are positioned in)
@@ -8112,7 +13459,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchStagesQuery, variables, rath=rath).options
 
-async def aget_table(id: ID, rath: Optional[MikroNextRath]=None) -> Table:
+async def aget_table(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Table:
     """GetTable 
 
 Get a single table by ID
@@ -8128,7 +13475,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetTableQuery, variables, rath=rath)).table
 
-def get_table(id: ID, rath: Optional[MikroNextRath]=None) -> Table:
+def get_table(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Table:
     """GetTable 
 
 Get a single table by ID
@@ -8144,7 +13491,7 @@ Returns:
     variables['id'] = id
     return execute(GetTableQuery, variables, rath=rath).table
 
-async def asearch_tables(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTablesQueryOptions, ...]:
+async def asearch_tables(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTablesQueryOptions, ...]:
     """SearchTables 
 
 List tables (tabular data backed by parquet stores)
@@ -8170,7 +13517,7 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchTablesQuery, variables, rath=rath)).options
 
-def search_tables(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTablesQueryOptions, ...]:
+def search_tables(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTablesQueryOptions, ...]:
     """SearchTables 
 
 List tables (tabular data backed by parquet stores)
@@ -8196,7 +13543,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchTablesQuery, variables, rath=rath).options
 
-async def aget_table_cell(id: ID, rath: Optional[MikroNextRath]=None) -> TableCell:
+async def aget_table_cell(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> TableCell:
     """GetTableCell 
 
 Get a single table cell by its compound ID (tableId-rowId-columnId)
@@ -8212,7 +13559,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetTableCellQuery, variables, rath=rath)).table_cell
 
-def get_table_cell(id: ID, rath: Optional[MikroNextRath]=None) -> TableCell:
+def get_table_cell(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> TableCell:
     """GetTableCell 
 
 Get a single table cell by its compound ID (tableId-rowId-columnId)
@@ -8228,7 +13575,7 @@ Returns:
     variables['id'] = id
     return execute(GetTableCellQuery, variables, rath=rath).table_cell
 
-async def asearch_table_cells(table: ID, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableCellsQueryOptions, ...]:
+async def asearch_table_cells(table: IDCoercible, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableCellsQueryOptions, ...]:
     """SearchTableCells 
 
 List the cells of a table, row-major over the table's parquet data
@@ -8256,7 +13603,7 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchTableCellsQuery, variables, rath=rath)).options
 
-def search_table_cells(table: ID, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableCellsQueryOptions, ...]:
+def search_table_cells(table: IDCoercible, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableCellsQueryOptions, ...]:
     """SearchTableCells 
 
 List the cells of a table, row-major over the table's parquet data
@@ -8284,7 +13631,79 @@ Returns:
         variables['offset'] = offset
     return execute(SearchTableCellsQuery, variables, rath=rath).options
 
-async def aget_table_row(id: ID, rath: Optional[MikroNextRath]=None) -> TableRow:
+async def aget_table_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> TableDataset:
+    """GetTableDataset 
+
+Get a single table dataset by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    TableDataset
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetTableDatasetQuery, variables, rath=rath)).table_dataset
+
+def get_table_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> TableDataset:
+    """GetTableDataset 
+
+Get a single table dataset by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    TableDataset
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetTableDatasetQuery, variables, rath=rath).table_dataset
+
+async def aget_table_datasets(filters: Union[Optional[TableDatasetFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[TableDataset, ...]:
+    """GetTableDatasets 
+
+List table datasets (Parquet-backed tables of scientific records: measurements, localizations, expression levels)
+
+Args:
+    filters (Optional[TableDatasetFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[TableDataset]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return (await aexecute(GetTableDatasetsQuery, variables, rath=rath)).table_datasets
+
+def get_table_datasets(filters: Union[Optional[TableDatasetFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[TableDataset, ...]:
+    """GetTableDatasets 
+
+List table datasets (Parquet-backed tables of scientific records: measurements, localizations, expression levels)
+
+Args:
+    filters (Optional[TableDatasetFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[TableDataset]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return execute(GetTableDatasetsQuery, variables, rath=rath).table_datasets
+
+async def aget_table_row(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> TableRow:
     """GetTableRow 
 
 Get a single table row by its compound ID (tableId-rowId)
@@ -8300,7 +13719,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetTableRowQuery, variables, rath=rath)).table_row
 
-def get_table_row(id: ID, rath: Optional[MikroNextRath]=None) -> TableRow:
+def get_table_row(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> TableRow:
     """GetTableRow 
 
 Get a single table row by its compound ID (tableId-rowId)
@@ -8316,7 +13735,7 @@ Returns:
     variables['id'] = id
     return execute(GetTableRowQuery, variables, rath=rath).table_row
 
-async def asearch_table_rows(table: ID, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableRowsQueryOptions, ...]:
+async def asearch_table_rows(table: IDCoercible, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableRowsQueryOptions, ...]:
     """SearchTableRows 
 
 List the rows of a table, paginated over the table's parquet data
@@ -8344,7 +13763,7 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchTableRowsQuery, variables, rath=rath)).options
 
-def search_table_rows(table: ID, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableRowsQueryOptions, ...]:
+def search_table_rows(table: IDCoercible, search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchTableRowsQueryOptions, ...]:
     """SearchTableRows 
 
 List the rows of a table, paginated over the table's parquet data
@@ -8372,7 +13791,79 @@ Returns:
         variables['offset'] = offset
     return execute(SearchTableRowsQuery, variables, rath=rath).options
 
-async def aget_rgb_view(id: ID, rath: Optional[MikroNextRath]=None) -> RGBView:
+async def aget_transformation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[GetTransformationQueryTransformationBaseAffineTransformation, GetTransformationQueryTransformationBaseBijectionTransformation, GetTransformationQueryTransformationBaseByDimensionTransformation, GetTransformationQueryTransformationBaseFieldTransformation, GetTransformationQueryTransformationBaseIdentityTransformation, GetTransformationQueryTransformationBaseMapAxisTransformation, GetTransformationQueryTransformationBaseRotationTransformation, GetTransformationQueryTransformationBaseScaleTransformation, GetTransformationQueryTransformationBaseSequenceTransformation, GetTransformationQueryTransformationBaseTranslationTransformation, GetTransformationQueryTransformationBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationQueryTransformationBaseCatchAll]:
+    """GetTransformation 
+
+Get a single transformation by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Transformation
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetTransformationQuery, variables, rath=rath)).transformation
+
+def get_transformation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[GetTransformationQueryTransformationBaseAffineTransformation, GetTransformationQueryTransformationBaseBijectionTransformation, GetTransformationQueryTransformationBaseByDimensionTransformation, GetTransformationQueryTransformationBaseFieldTransformation, GetTransformationQueryTransformationBaseIdentityTransformation, GetTransformationQueryTransformationBaseMapAxisTransformation, GetTransformationQueryTransformationBaseRotationTransformation, GetTransformationQueryTransformationBaseScaleTransformation, GetTransformationQueryTransformationBaseSequenceTransformation, GetTransformationQueryTransformationBaseTranslationTransformation, GetTransformationQueryTransformationBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationQueryTransformationBaseCatchAll]:
+    """GetTransformation 
+
+Get a single transformation by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Transformation
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetTransformationQuery, variables, rath=rath).transformation
+
+async def aget_transformations(filters: Union[Optional[TransformationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Union[Annotated[Union[GetTransformationsQueryTransformationsBaseAffineTransformation, GetTransformationsQueryTransformationsBaseBijectionTransformation, GetTransformationsQueryTransformationsBaseByDimensionTransformation, GetTransformationsQueryTransformationsBaseFieldTransformation, GetTransformationsQueryTransformationsBaseIdentityTransformation, GetTransformationsQueryTransformationsBaseMapAxisTransformation, GetTransformationsQueryTransformationsBaseRotationTransformation, GetTransformationsQueryTransformationsBaseScaleTransformation, GetTransformationsQueryTransformationsBaseSequenceTransformation, GetTransformationsQueryTransformationsBaseTranslationTransformation, GetTransformationsQueryTransformationsBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationsQueryTransformationsBaseCatchAll], ...]:
+    """GetTransformations 
+
+List transformations (the directed edges of the coordinate graph). Compose them client-side; the server never resolves a path to world, because the same dataset can sit in two scenes under two registrations
+
+Args:
+    filters (Optional[TransformationFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[Transformation]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return (await aexecute(GetTransformationsQuery, variables, rath=rath)).transformations
+
+def get_transformations(filters: Union[Optional[TransformationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Union[Annotated[Union[GetTransformationsQueryTransformationsBaseAffineTransformation, GetTransformationsQueryTransformationsBaseBijectionTransformation, GetTransformationsQueryTransformationsBaseByDimensionTransformation, GetTransformationsQueryTransformationsBaseFieldTransformation, GetTransformationsQueryTransformationsBaseIdentityTransformation, GetTransformationsQueryTransformationsBaseMapAxisTransformation, GetTransformationsQueryTransformationsBaseRotationTransformation, GetTransformationsQueryTransformationsBaseScaleTransformation, GetTransformationsQueryTransformationsBaseSequenceTransformation, GetTransformationsQueryTransformationsBaseTranslationTransformation, GetTransformationsQueryTransformationsBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationsQueryTransformationsBaseCatchAll], ...]:
+    """GetTransformations 
+
+List transformations (the directed edges of the coordinate graph). Compose them client-side; the server never resolves a path to world, because the same dataset can sit in two scenes under two registrations
+
+Args:
+    filters (Optional[TransformationFilter], optional): No description. 
+    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[Transformation]
+"""
+    variables: Dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return execute(GetTransformationsQuery, variables, rath=rath).transformations
+
+async def aget_rgb_view(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> RGBView:
     """GetRGBView 
 
 Get a single RGB render view by ID
@@ -8388,7 +13879,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetRGBViewQuery, variables, rath=rath)).rgb_view
 
-def get_rgb_view(id: ID, rath: Optional[MikroNextRath]=None) -> RGBView:
+def get_rgb_view(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> RGBView:
     """GetRGBView 
 
 Get a single RGB render view by ID
@@ -8404,7 +13895,7 @@ Returns:
     variables['id'] = id
     return execute(GetRGBViewQuery, variables, rath=rath).rgb_view
 
-async def asearch_rgb_views(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRGBViewsQueryOptions, ...]:
+async def asearch_rgb_views(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRGBViewsQueryOptions, ...]:
     """SearchRGBViews 
 
 List RGB render views (per-channel display settings)
@@ -8430,7 +13921,7 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchRGBViewsQuery, variables, rath=rath)).options
 
-def search_rgb_views(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[ID]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRGBViewsQueryOptions, ...]:
+def search_rgb_views(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchRGBViewsQueryOptions, ...]:
     """SearchRGBViews 
 
 List RGB render views (per-channel display settings)
@@ -8456,7 +13947,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchRGBViewsQuery, variables, rath=rath).options
 
-async def awatch_files(dataset: Union[Optional[ID], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchFilesSubscriptionFiles]:
+async def awatch_files(dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchFilesSubscriptionFiles]:
     """WatchFiles 
 
 Subscribe to real-time file updates
@@ -8474,7 +13965,7 @@ Returns:
     async for event in asubscribe(WatchFilesSubscription, variables, rath=rath):
         yield event.files
 
-def watch_files(dataset: Union[Optional[ID], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Iterator[WatchFilesSubscriptionFiles]:
+def watch_files(dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Iterator[WatchFilesSubscriptionFiles]:
     """WatchFiles 
 
 Subscribe to real-time file updates
@@ -8492,7 +13983,7 @@ Returns:
     for event in subscribe(WatchFilesSubscription, variables, rath=rath):
         yield event.files
 
-async def awatch_images(dataset: Union[Optional[ID], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchImagesSubscriptionImages]:
+async def awatch_images(dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchImagesSubscriptionImages]:
     """WatchImages 
 
 Subscribe to real-time image updates
@@ -8510,7 +14001,7 @@ Returns:
     async for event in asubscribe(WatchImagesSubscription, variables, rath=rath):
         yield event.images
 
-def watch_images(dataset: Union[Optional[ID], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Iterator[WatchImagesSubscriptionImages]:
+def watch_images(dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Iterator[WatchImagesSubscriptionImages]:
     """WatchImages 
 
 Subscribe to real-time image updates
@@ -8528,7 +14019,7 @@ Returns:
     for event in subscribe(WatchImagesSubscription, variables, rath=rath):
         yield event.images
 
-async def awatch_rois(image: ID, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchRoisSubscriptionRois]:
+async def awatch_rois(image: IDCoercible, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchRoisSubscriptionRois]:
     """WatchRois 
 
 Subscribe to real-time ROI updates
@@ -8545,7 +14036,7 @@ Returns:
     async for event in asubscribe(WatchRoisSubscription, variables, rath=rath):
         yield event.rois
 
-def watch_rois(image: ID, rath: Optional[MikroNextRath]=None) -> Iterator[WatchRoisSubscriptionRois]:
+def watch_rois(image: IDCoercible, rath: Optional[MikroNextRath]=None) -> Iterator[WatchRoisSubscriptionRois]:
     """WatchRois 
 
 Subscribe to real-time ROI updates
@@ -8561,27 +14052,71 @@ Returns:
     variables['image'] = image
     for event in subscribe(WatchRoisSubscription, variables, rath=rath):
         yield event.rois
+ADatasetFilter.model_rebuild()
 AffineTransformationViewFilter.model_rebuild()
+AnimationFilter.model_rebuild()
+AnimationWaypointInput.model_rebuild()
+AnnotationCollectionDerivedFromInput.model_rebuild()
+AnnotationCollectionFilter.model_rebuild()
+AnnotationFilter.model_rebuild()
+AnnotationSpecInput.model_rebuild()
+ApertureElementInput.model_rebuild()
+BeamSplitterElementInput.model_rebuild()
+CCDElementInput.model_rebuild()
 CoordinateAnchorInput.model_rebuild()
+CoordinateSystemDerivedFromInput.model_rebuild()
+CoordinateSystemFilter.model_rebuild()
 CreateADatasetInput.model_rebuild()
-CreateDataRoiInput.model_rebuild()
+CreateAnnotationCollectionInput.model_rebuild()
+CreateCoordinateSystemInput.model_rebuild()
 CreateLayerInput.model_rebuild()
 CreateLensInput.model_rebuild()
+CreateMeshCollectionInput.model_rebuild()
+CreatePhasorLayerInput.model_rebuild()
 CreateRGBContextInput.model_rebuild()
+CreateSceneFromCoordinateSystemInput.model_rebuild()
+CreateSceneInput.model_rebuild()
+CreateTableDatasetInput.model_rebuild()
+CreateTransformationInput.model_rebuild()
+DatasetDerivedFromInput.model_rebuild()
 DatasetFilter.model_rebuild()
+DetectorElementInput.model_rebuild()
+DeviceStateInput.model_rebuild()
 EraFilter.model_rebuild()
+FilterElementInput.model_rebuild()
 FromArrayLikeInput.model_rebuild()
 FromParquetLike.model_rebuild()
 ImageFilter.model_rebuild()
+LampElementInput.model_rebuild()
+LaserElementInput.model_rebuild()
 LayerNodeInput.model_rebuild()
+LensDerivedFromInput.model_rebuild()
+LensElementInput.model_rebuild()
 LightPortInput.model_rebuild()
 LightpathGraphInput.model_rebuild()
-OpticalElementInput.model_rebuild()
+MeshCollectionDerivedFromInput.model_rebuild()
+MeshCollectionFilter.model_rebuild()
+MirrorElementInput.model_rebuild()
+ObjectiveElementInput.model_rebuild()
+OptikitStateInput.model_rebuild()
+OtherElementInput.model_rebuild()
+OtherSourceElementInput.model_rebuild()
+PhasorTransferInput.model_rebuild()
+PinholeElementInput.model_rebuild()
+PolarizerElementInput.model_rebuild()
 Pose3DInput.model_rebuild()
+RegistrationPathInput.model_rebuild()
 RenderTreeInput.model_rebuild()
+SampleElementInput.model_rebuild()
+SceneSnapshotFilter.model_rebuild()
+ShutterElementInput.model_rebuild()
 StageFilter.model_rebuild()
+TableDatasetDerivedFromInput.model_rebuild()
+TableDatasetFilter.model_rebuild()
 TimepointViewFilter.model_rebuild()
+TransformationFilter.model_rebuild()
 TreeInput.model_rebuild()
 TreeNodeInput.model_rebuild()
 ViewFilter.model_rebuild()
+WaveplateElementInput.model_rebuild()
 ZarrStoreFilter.model_rebuild()

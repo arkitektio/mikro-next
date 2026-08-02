@@ -1,0 +1,11 @@
+fragment SceneSnapshot on SceneSnapshot {
+  id
+  name
+  majorColor
+  scene {
+    ...Scene
+  }
+  store {
+    ...MediaStore
+  }
+}

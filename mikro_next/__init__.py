@@ -1,6 +1,8 @@
 import logging
 
 from .mikro_next import MikroNext
+from .pyramid import build_pyramid, canonical, dataset_arrays, scales_from
+from .spaces import create_space, space_2d, space_3d, timelapse_3d
 from .utils import rechunk
 
 
@@ -36,6 +38,14 @@ except ImportError as e:
 
 __all__ = [
     "MikroNext",
+    "build_pyramid",
+    "canonical",
+    "dataset_arrays",
+    "scales_from",
+    "create_space",
+    "space_2d",
+    "space_3d",
+    "timelapse_3d",
     "rechunk",
     "structure_reg",
     "MikroService",

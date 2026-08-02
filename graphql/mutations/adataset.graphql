@@ -1,5 +1,5 @@
 mutation CreateADataset($input: CreateADatasetInput!) {
-  createAdataset(input: $input) {
+  createADataset(input: $input) {
     ...ADataset
   }
 }

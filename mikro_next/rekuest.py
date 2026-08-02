@@ -16,7 +16,7 @@ from mikro_next.api.schema import (
     aget_lens,
     File,
     RGBContext,
-    Mesh,
+    MeshCollection,
     Table,
     TableCell,
     TableRow,
@@ -30,7 +30,7 @@ from mikro_next.api.schema import (
     aget_scene,
     aget_file,
     aget_rgb_context,
-    aget_mesh,
+    aget_mesh_collection,
     aget_table,
     aget_table_cell,
     aget_table_row,
@@ -42,7 +42,7 @@ from mikro_next.api.schema import (
     SearchStagesQuery,
     SearchDatasetsQuery,
     SearchFilesQuery,
-    SearchMeshesQuery,
+    SearchMeshCollectionsQuery,
     SearchTablesQuery,
     SearchTableCellsQuery,
     SearchTableRowsQuery,
@@ -118,11 +118,13 @@ structure_reg.register_as_structure(
 
 
 structure_reg.register_as_structure(
-    Mesh,
-    identifier="@mikro/mesh",
-    aexpand=aget_mesh,
+    MeshCollection,
+    identifier="@mikro/meshcollection",
+    aexpand=aget_mesh_collection,
     ashrink=id_shrink,
-    default_widget=SearchWidget(query=SearchMeshesQuery.Meta.document, ward="mikro"),
+    default_widget=SearchWidget(
+        query=SearchMeshCollectionsQuery.Meta.document, ward="mikro"
+    ),
 )
 
 structure_reg.register_as_structure(

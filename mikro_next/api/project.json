@@ -39,17 +39,22 @@
                 "FourDVector": "mikro_next.scalars.FourDVector",
                 "FiveDVector": "mikro_next.scalars.FiveDVector",
                 "Matrix": "mikro_next.scalars.Matrix",
+                "GenericQuantity": "kanne.scalars.GenericQuantity",
                 "Metric": "typing.Any",
+                "MetricMap": "typing.Any",
                 "Duration": "kanne.scalars.Duration",
                 "Length": "kanne.scalars.Length",
+                "Unit": "kanne.scalars.Unit",
                 "Power": "kanne.scalars.Power",
                 "Frequency": "kanne.scalars.Frequency",
+                "Temperature": "kanne.scalars.Temperature",
                 "MikroStore": "mikro_next.scalars.MikroStore",
                 "FourByFourMatrix": "mikro_next.scalars.FourByFourMatrix",
                 "ID": "rath.scalars.ID",
                 "RGBAColor": "mikro_next.scalars.RGBAColor"
             },
             "coercible_scalars": {},
+            "coercible_inputs": {},
             "graphql_default_class": null,
             "deprecated_class": null,
             "document_field_metadata": true,
@@ -85,6 +90,15 @@
             },
             "skip_forwards": false,
             "additional_bases": {
+                "AxisInput": [
+                    "mikro_next.traits.AxisInputTrait"
+                ],
+                "ValueHistogramInput": [
+                    "mikro_next.traits.ValueHistogramInputTrait"
+                ],
+                "CoordinateAnchorInput": [
+                    "mikro_next.traits.CoordinateAnchorInputTrait"
+                ],
                 "Image": [
                     "mikro_next.traits.HasZarrStoreTrait"
                 ],
@@ -107,7 +121,7 @@
                     "mikro_next.traits.IsVectorizableTrait"
                 ],
                 "TransformationView": [
-                    "mikro_next.traits.PixelTranslatable"
+                    "mikro_next.traits.HasPixelSizeTrait"
                 ],
                 "Lens": [
                     "mikro_next.traits.Lensable"
@@ -115,32 +129,53 @@
                 "ADataset": [
                     "mikro_next.traits.DatasetTrait"
                 ],
+                "Scene": [
+                    "mikro_next.traits.SceneTrait"
+                ],
+                "CoordinateSystem": [
+                    "mikro_next.traits.CoordinateSystemTrait"
+                ],
+                "ScaleTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "TranslationTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "AffineTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "RotationTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "IdentityTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "MapAxisTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "FieldTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "SequenceTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "ByDimensionTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "BijectionTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
+                "UnmappableTransformation": [
+                    "mikro_next.traits.TransformationTrait"
+                ],
                 "DataArray": [
                     "mikro_next.traits.DataArrayTrait"
                 ],
                 "CreateADatasetInput": [
                     "mikro_next.traits.CreateADatasetTrait"
                 ],
-                "Expression": [
-                    "mikro_next.traits.ExpressionTrait"
-                ],
-                "Graph": [
-                    "mikro_next.traits.GraphTrait"
-                ],
-                "LinkedExpression": [
-                    "mikro_next.traits.LinkedExpressionTrait"
-                ],
-                "Entity": [
-                    "mikro_next.traits.EntityTrait"
-                ],
                 "File": [
                     "mikro_next.traits.FileTrait"
-                ],
-                "EntityRelation": [
-                    "mikro_next.traits.EntityRelationTrait"
-                ],
-                "Ontology": [
-                    "mikro_next.traits.OntologyTrait"
                 ]
             },
             "additional_config": {},
@@ -175,6 +210,9 @@
                         "MeshLike": "mikro_next.scalars.MeshCoercible",
                         "ParquetLike": "mikro_next.scalars.ParquetCoercible",
                         "ID": "rath.scalars.IDCoercible"
+                    },
+                    "coercible_inputs": {
+                        "AxisInput": "str"
                     },
                     "expand_input_types": [
                         "input"
