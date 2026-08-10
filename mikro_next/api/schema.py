@@ -1,13 +1,22 @@
-from mikro_next.funcs import aexecute, asubscribe, subscribe, execute
-from typing import Iterator, Annotated, Any, Dict, List, Tuple, Literal, Iterable, AsyncIterator, Union, Optional
-from mikro_next.traits import SceneTrait, TransformationTrait, DataArrayTrait, CoordinateAnchorInputTrait, HasZarrStoreTrait, DatasetTrait, AxisInputTrait, FileTrait, MikroFetchable, CreateADatasetTrait, HasDownloadAccessor, IsVectorizableTrait, HasParquetStoreAccesor, RGBAColorInputTrait, ValueHistogramInputTrait, CoordinateSystemTrait, HasZarrStoreAccessor, Lensable, HasPresignedDownloadAccessor, HasParquestStoreTrait
-from kanne.scalars import Temperature, Unit, Power, Frequency, Duration, Length, GenericQuantity
-from mikro_next.scalars import ImageLike, ImageFileLike, FiveDVector, ArrayCoercible, FourByFourMatrix, ImageCoercible, ParquetLike, ParquetCoercible, ArrayLike, LabelsLike, ImageFileCoercible, ThreeDVector, FileLike
+from kanne.scalars import Temperature, Length, Unit, Duration, GenericQuantity, Power, Frequency
+from mikro_next.traits import HasDownloadAccessor, HasZarrStoreAccessor, DataArrayTrait, Lensable, CoordinateAnchorInputTrait, MikroFetchable, RGBAColorInputTrait, AxisInputTrait, ValueHistogramInputTrait, DatasetTrait, FileTrait, HasPresignedDownloadAccessor, HasParquetStoreAccesor, CreateADatasetTrait, CoordinateSystemTrait, SceneTrait, HasParquestStoreTrait, IsVectorizableTrait, HasZarrStoreTrait, TransformationTrait
+from typing import Literal, Optional, Tuple, Iterable, Iterator, Annotated, Union, AsyncIterator, Any, Dict, List
+from mikro_next.scalars import FileLike, ParquetCoercible, ImageLike, ArrayLike, ImageCoercible, ImageFileCoercible, FourByFourMatrix, FiveDVector, LabelsLike, ThreeDVector, ImageFileLike, ArrayCoercible, ParquetLike
+from pydantic import Field, ConfigDict, BaseModel
 from datetime import datetime
+from rath.scalars import IDCoercible, ID
+from mikro_next.funcs import asubscribe, subscribe, execute, aexecute
 from enum import Enum
-from pydantic import BaseModel, ConfigDict, Field
-from rath.scalars import ID, IDCoercible
 from mikro_next.rath import MikroNextRath
+
+class GraphQLDefault:
+    """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return 'GraphQLDefault(' + repr(self.value) + ')'
 
 class UnsetType:
     """Sentinel for arguments the caller did not provide. Such fields are omitted on serialization so the GraphQL server applies its own default."""
@@ -24,15 +33,6 @@ class UnsetType:
     def __bool__(self):
         return False
 UNSET = UnsetType()
-
-class GraphQLDefault:
-    """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
-
-    def __init__(self, value):
-        self.value = value
-
-    def __repr__(self):
-        return 'GraphQLDefault(' + repr(self.value) + ')'
 
 class ADatasetSpec(str, Enum):
     """What a dataset structurally is, materialized from the axes of its intrinsic coordinate system at creation. Specs stack: a 3D timelapse is VOLUME, TIMESERIES and MULTICHANNEL at once. Exactly one spatial member (SCALAR/PROFILE/IMAGE/VOLUME/HYPERVOLUME) ever holds."""
@@ -214,6 +214,17 @@ class ElementKind(str, Enum):
     SHUTTER = 'SHUTTER'
     SAMPLE = 'SAMPLE'
     OTHER = 'OTHER'
+
+class FileLinkContainerKind(str, Enum):
+    """Which sort of container a file link names: the discriminator of `ExportOfInput`. Only the four containers that hold data a file can be written from or read into -- a lens is a selection over a dataset rather than a thing with its own bytes, and a coordinate system is a space, which no file encodes"""
+    DATASET = 'DATASET'
+    'An array dataset -- the container an image file is converted into, and the one an OME-TIFF is written from.'
+    TABLE_DATASET = 'TABLE_DATASET'
+    'A table dataset, the container a CSV or parquet file is loaded into.'
+    MESH_COLLECTION = 'MESH_COLLECTION'
+    'A mesh collection, the container an STL or OBJ file is loaded into.'
+    ANNOTATION_COLLECTION = 'ANNOTATION_COLLECTION'
+    'An annotation collection, the container a GeoJSON or ROI file is loaded into.'
 
 class FilterKind(str, Enum):
     """No documentation"""
@@ -473,6 +484,17 @@ class AnnotationCollectionDerivedFromInput(BaseModel):
         self.__pydantic_fields_set__.update({'kind'})
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class AnnotationCollectionExportOfInput(BaseModel):
+    """The fields an ANNOTATION_COLLECTION export link reads. Published for codegen; the wire type is the flat ExportOfInput"""
+    kind: Literal['ANNOTATION_COLLECTION'] = Field(default='ANNOTATION_COLLECTION')
+    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None)
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    annotation_collection: ID = Field(alias='annotationCollection')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class ApertureElementInput(BaseModel):
     """The fields an APERTURE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['APERTURE'] = Field(default='APERTURE')
@@ -556,6 +578,17 @@ class DatasetDerivedFromInput(BaseModel):
     """The fields a DATASET derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
     kind: Literal['DATASET'] = Field(default='DATASET')
     transform: Optional['TransformInput'] = None
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    dataset: ID
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class DatasetExportOfInput(BaseModel):
+    """The fields a DATASET export link reads. Published for codegen; the wire type is the flat ExportOfInput"""
+    kind: Literal['DATASET'] = Field(default='DATASET')
+    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None)
     value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
     dataset: ID
 
@@ -696,6 +729,17 @@ class MeshCollectionDerivedFromInput(BaseModel):
     """The fields a MESH_COLLECTION derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
     kind: Literal['MESH_COLLECTION'] = Field(default='MESH_COLLECTION')
     transform: Optional['TransformInput'] = None
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    mesh_collection: ID = Field(alias='meshCollection')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class MeshCollectionExportOfInput(BaseModel):
+    """The fields a MESH_COLLECTION export link reads. Published for codegen; the wire type is the flat ExportOfInput"""
+    kind: Literal['MESH_COLLECTION'] = Field(default='MESH_COLLECTION')
+    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None)
     value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
     mesh_collection: ID = Field(alias='meshCollection')
 
@@ -879,6 +923,17 @@ class TableDatasetDerivedFromInput(BaseModel):
         self.__pydantic_fields_set__.update({'kind'})
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class TableDatasetExportOfInput(BaseModel):
+    """The fields a TABLE_DATASET export link reads. Published for codegen; the wire type is the flat ExportOfInput"""
+    kind: Literal['TABLE_DATASET'] = Field(default='TABLE_DATASET')
+    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None)
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    table_dataset: ID = Field(alias='tableDataset')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class TranslationTransformInput(BaseModel):
     """The fields a TRANSLATION member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
     kind: Literal['TRANSLATION'] = Field(default='TRANSLATION')
@@ -942,6 +997,9 @@ class ADatasetFilter(BaseModel):
     placeable_in: Optional[ID] = Field(alias='placeableIn', default=None, description='Filter to datasets placeable into this coordinate system: those with a lens whose space has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene, because that is all the answer depends on -- every scene over one world offers the same candidates. Pass `scene.worldCoordinateSystem.id` to ask it of a scene. What could be staged there -- for what already is, use `scene`')
     derived_from: Optional[ID] = Field(alias='derivedFrom', default=None, description='Filter to the datasets computed from this one -- the deconvolutions, segmentations and projections that named a space of it as their parent. Every child, not just the ones it places: a fusion that named it second is listed, and so is a child whose derivation is UNMAPPABLE, since it still came from here')
     not_derived: Optional[bool] = Field(alias='notDerived', default=None, description="Filter for datasets that were acquired rather than computed: true for the roots, those with no derivation edge into another dataset's space")
+    source_file: Optional[ID] = Field(alias='sourceFile', default=None, description='Filter to the datasets converted from this file -- every series of it, unless `sourceSeriesIdentifier` narrows that. A file link, not a derivation: this asks which bytes the arrays were read out of, where `derivedFrom` asks which data they were computed from. A dataset can honestly answer both')
+    source_series_identifier: Optional[str] = Field(alias='sourceSeriesIdentifier', default=None, description='Filter to the datasets converted from one series of a file. Pair it with `sourceFile`; alone it matches that series identifier in any file')
+    has_default_scene: Optional[bool] = Field(alias='hasDefaultScene', default=None, description='Filter by whether the dataset nominates a scene to open. False finds the ones with no thumbnail -- what `backfill_default_scenes` could not seed, and the work remaining before that command can be deleted')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class AffineTransformationViewFilter(BaseModel):
@@ -1149,6 +1207,7 @@ class CreateADatasetInput(CreateADatasetTrait, BaseModel):
     axes: Tuple[AxisInput, ...]
     anchors: Optional[Tuple[CoordinateAnchorInput, ...]] = None
     derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
+    source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CreateAnimationInput(BaseModel):
@@ -1165,6 +1224,7 @@ class CreateAnnotationCollectionInput(BaseModel):
     description: Optional[str] = None
     axes: Tuple[AxisInput, ...]
     derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
+    source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CreateAnnotationInput(BaseModel):
@@ -1229,6 +1289,7 @@ class CreateMeshCollectionInput(BaseModel):
     geometry: Optional[Tuple[ParquetLike, ...]] = None
     axes: Tuple[AxisInput, ...]
     derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
+    source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
     grid: Optional[Any] = None
     encoding: Optional[Any] = None
     provenance_metadata: Optional[Any] = Field(alias='provenanceMetadata', default=None)
@@ -1295,6 +1356,7 @@ class CreateSceneFromCoordinateSystemInput(BaseModel):
     name: Optional[str] = None
     policy: Annotated[Optional['ScenePolicyInput'], GraphQLDefault("{'nchildren': 8, 'transformTables': False, 'includeMeshes': True, 'kind': None}")] = None
     "Default: {'nchildren': 8, 'transformTables': False, 'includeMeshes': True, 'kind': None}"
+    default_for: Optional[Tuple[ID, ...]] = Field(alias='defaultFor', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CreateSceneInput(BaseModel):
@@ -1306,6 +1368,7 @@ class CreateSceneInput(BaseModel):
     axes: Optional[Tuple['PhysicalAxisInput', ...]] = None
     epoch: Optional[datetime] = None
     coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None)
+    default_for: Optional[Tuple[ID, ...]] = Field(alias='defaultFor', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CreateTableDatasetInput(BaseModel):
@@ -1316,6 +1379,7 @@ class CreateTableDatasetInput(BaseModel):
     'Default: []'
     description: Optional[str] = None
     derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
+    source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
     keyed_by: Optional[Tuple['KeyedByInput', ...]] = Field(alias='keyedBy', default=None)
     validate_schema: Annotated[Optional[bool], GraphQLDefault('False')] = Field(alias='validateSchema', default=None)
     'Default: False'
@@ -1460,6 +1524,7 @@ class EulerInput(BaseModel):
     ry: Optional[float] = None
     rz: Optional[float] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+ExportOfInput = Annotated[Union[AnnotationCollectionExportOfInput, DatasetExportOfInput, MeshCollectionExportOfInput, TableDatasetExportOfInput], Field(discriminator='kind')]
 
 class FinishBigFileUploadInput(BaseModel):
     """No documentation"""
@@ -1516,14 +1581,13 @@ class FromFileLike(BaseModel):
     file: FileLike = Field(description='The uploaded big-file store to create the file from')
     file_name: str = Field(alias='fileName', description='The name of the file')
     dataset: Optional[ID] = Field(default=None, description='The ID of the dataset to put the file in (defaults to the current default dataset)')
-    origins: Optional[Tuple[ID, ...]] = Field(default=None, description='The IDs of entities this file was derived from')
+    export_of: Optional[Tuple[ExportOfInput, ...]] = Field(alias='exportOf', default=None, description='The containers this file was written from')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class FromParquetLike(BaseModel):
     """Input for creating a table from an uploaded parquet store"""
     dataframe: ParquetLike = Field(description='The parquet dataframe to create the table from')
     name: str = Field(description='The name of the table')
-    origins: Optional[Tuple[ID, ...]] = Field(default=None, description='The IDs of tables this table was derived from')
     dataset: Optional[ID] = Field(default=None, description='The dataset ID this table belongs to')
     label_accessors: Optional[Tuple['PartialLabelAccessorInput', ...]] = Field(alias='labelAccessors', default=None, description='Label accessors to create for this table')
     image_accessors: Optional[Tuple['PartialImageAccessorInput', ...]] = Field(alias='imageAccessors', default=None, description='Image accessors to create for this table')
@@ -2281,6 +2345,13 @@ class SnapshotInput(BaseModel):
     file: ImageFileLike = Field(description='The uploaded media file store containing the rendered snapshot')
     image: ID = Field(description='The ID of the image this snapshot belongs to')
     name: Optional[str] = Field(default=None, description='The name of the snapshot')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class SourceFileInput(BaseModel):
+    """One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism"""
+    file: ID
+    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None)
+    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class SpectrumInput(BaseModel):
@@ -3692,16 +3763,9 @@ class ROI(IsVectorizableTrait, MikroFetchable, BaseModel):
         name = 'ROI'
         type = 'ROI'
 
-class TableOrigins(HasZarrStoreTrait, BaseModel):
-    """An image. Images are the central data type in mikro: a single 5D bioimage whose binary data is stored in a ZarrStore. Images can be annotated with views (coordinate-ordered subsets of the image) and are the primary container that rois, metrics, renders and generated tables are bound to."""
-    typename: Literal['Image'] = Field(alias='__typename', default='Image', exclude=True)
-    id: ID
-    model_config = ConfigDict(frozen=True)
-
 class Table(HasParquestStoreTrait, MikroFetchable, BaseModel):
     """A table of tabular data, stored as a Parquet file. Tables are typically derived from images (e.g. measurements or localisations) and can be queried column- and row-wise through the API."""
     typename: Literal['Table'] = Field(alias='__typename', default='Table', exclude=True)
-    origins: Tuple[TableOrigins, ...]
     id: ID
     name: str
     store: ParquetStore
@@ -3709,20 +3773,13 @@ class Table(HasParquestStoreTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for Table"""
-        document = 'fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}'
         name = 'Table'
         type = 'Table'
-
-class FileOrigins(HasZarrStoreTrait, BaseModel):
-    """An image. Images are the central data type in mikro: a single 5D bioimage whose binary data is stored in a ZarrStore. Images can be annotated with views (coordinate-ordered subsets of the image) and are the primary container that rois, metrics, renders and generated tables are bound to."""
-    typename: Literal['Image'] = Field(alias='__typename', default='Image', exclude=True)
-    id: ID
-    model_config = ConfigDict(frozen=True)
 
 class File(FileTrait, MikroFetchable, BaseModel):
     """A file in its original format (e.g. a microscopy vendor file), stored in a BigFileStore. Files are the raw sources that images are converted from, and file views link back to the images that originated from them."""
     typename: Literal['File'] = Field(alias='__typename', default='File', exclude=True)
-    origins: Tuple[FileOrigins, ...]
     id: ID
     name: str
     store: BigFileStore
@@ -3730,7 +3787,7 @@ class File(FileTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for File"""
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}'
         name = 'File'
         type = 'File'
 
@@ -3823,7 +3880,7 @@ class Annotation(MikroFetchable, BaseModel):
     coordinate_system: Optional[CoordinateSystem] = Field(default=None, alias='coordinateSystem')
     "The coordinate system this annotation's vectors are expressed in: its collection's own system"
     intrinsic_bbox: Optional[AnnotationIntrinsicbbox] = Field(default=None, alias='intrinsicBbox')
-    "The annotation's bounding box in the nearest intrinsic space, derived from every corner of its geometry (an affine-transformed box is not a box: min/max alone gives a strictly too-small answer under rotation or shear). Intrinsic, not world: world is scene-owned, and one collection can sit in two scenes under two registrations"
+    "The annotation's bounding box in the nearest intrinsic space its collection's chain reaches, derived from every corner of its geometry (an affine-transformed box is not a box: min/max alone gives a strictly too-small answer under rotation or shear). Intrinsic, not world: world is scene-owned, and one collection can sit in two scenes under two registrations. **Not always a dataset's pixel grid**: a registration, or a derivation that changes rank, is not something a box can be pushed across -- it says nothing about the axes it does not name, so there is no extent to give them -- and the box then stays in the collection's own drawing space. Boxes compare only within one frame, which is why the spatial filters require a collection or coordinate system alongside"
     stroke_color: Optional[Tuple[int, ...]] = Field(default=None, alias='strokeColor')
     'The stroke (outline) color of the geometry, as RGBA'
     fill_color: Optional[Tuple[int, ...]] = Field(default=None, alias='fillColor')
@@ -5031,7 +5088,7 @@ class FromFileLikeMutation(BaseModel):
 
     class Meta:
         """Meta class for FromFileLike """
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation FromFileLike($input: FromFileLike!) {\n  fromFileLike(input: $input) {\n    ...File\n    __typename\n  }\n}'
+        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation FromFileLike($input: FromFileLike!) {\n  fromFileLike(input: $input) {\n    ...File\n    __typename\n  }\n}'
 
 class From_array_likeMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5485,7 +5542,7 @@ class From_parquet_likeMutation(BaseModel):
 
     class Meta:
         """Meta class for from_parquet_like """
-        document = 'fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}\n\nmutation from_parquet_like($input: FromParquetLike!) {\n  fromParquetLike(input: $input) {\n    ...Table\n    __typename\n  }\n}'
+        document = 'fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}\n\nmutation from_parquet_like($input: FromParquetLike!) {\n  fromParquetLike(input: $input) {\n    ...Table\n    __typename\n  }\n}'
 
 class CreateTableDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6379,7 +6436,7 @@ class GetFileQuery(BaseModel):
 
     class Meta:
         """Meta class for GetFile """
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nquery GetFile($id: ID!) {\n  file(id: $id) {\n    ...File\n    __typename\n  }\n}'
+        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nquery GetFile($id: ID!) {\n  file(id: $id) {\n    ...File\n    __typename\n  }\n}'
 
 class SearchFilesQueryOptions(FileTrait, BaseModel):
     """A file in its original format (e.g. a microscopy vendor file), stored in a BigFileStore. Files are the raw sources that images are converted from, and file views link back to the images that originated from them."""
@@ -6955,7 +7012,7 @@ class GetTableQuery(BaseModel):
 
     class Meta:
         """Meta class for GetTable """
-        document = 'fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}\n\nquery GetTable($id: ID!) {\n  table(id: $id) {\n    ...Table\n    __typename\n  }\n}'
+        document = 'fragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Table on Table {\n  id\n  name\n  store {\n    ...ParquetStore\n    __typename\n  }\n  __typename\n}\n\nquery GetTable($id: ID!) {\n  table(id: $id) {\n    ...Table\n    __typename\n  }\n}'
 
 class SearchTablesQueryOptions(HasParquestStoreTrait, BaseModel):
     """A table of tabular data, stored as a Parquet file. Tables are typically derived from images (e.g. measurements or localisations) and can be queried column- and row-wise through the API."""
@@ -7281,7 +7338,7 @@ class WatchFilesSubscription(BaseModel):
 
     class Meta:
         """Meta class for WatchFiles """
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  origins {\n    id\n    __typename\n  }\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchFiles($dataset: ID) {\n  files(dataset: $dataset) {\n    create {\n      ...File\n      __typename\n    }\n    delete\n    update {\n      ...File\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchFiles($dataset: ID) {\n  files(dataset: $dataset) {\n    create {\n      ...File\n      __typename\n    }\n    delete\n    update {\n      ...File\n      __typename\n    }\n    __typename\n  }\n}'
 
 class WatchImagesSubscriptionImages(BaseModel):
     """No documentation"""
@@ -7327,7 +7384,7 @@ class WatchRoisSubscription(BaseModel):
         """Meta class for WatchRois """
         document = 'fragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ROI on ROI {\n  id\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nsubscription WatchRois($image: ID!) {\n  rois(image: $image) {\n    create {\n      ...ROI\n      __typename\n    }\n    delete\n    update {\n      ...ROI\n      __typename\n    }\n    __typename\n  }\n}'
 
-async def acreate_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
+async def acreate_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
     """CreateADataset 
 
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
@@ -7339,6 +7396,7 @@ Args:
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     anchors: Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to (required) (list)
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -7354,10 +7412,12 @@ Returns:
         _input['anchors'] = anchors
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
     variables['input'] = _input
     return (await aexecute(CreateADatasetMutation, variables, rath=rath)).create_a_dataset
 
-def create_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
+def create_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
     """CreateADataset 
 
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
@@ -7369,6 +7429,7 @@ Args:
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     anchors: Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to (required) (list)
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -7384,6 +7445,8 @@ Returns:
         _input['anchors'] = anchors
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
     variables['input'] = _input
     return execute(CreateADatasetMutation, variables, rath=rath).create_a_dataset
 
@@ -7795,7 +7858,7 @@ Returns:
     variables['input'] = _input
     return execute(DeleteAnnotationMutation, variables, rath=rath).delete_annotation
 
-async def acreate_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+async def acreate_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
     """CreateAnnotationCollection 
 
 Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
@@ -7805,6 +7868,7 @@ Args:
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -7818,10 +7882,12 @@ Returns:
     _input['axes'] = axes
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
     variables['input'] = _input
     return (await aexecute(CreateAnnotationCollectionMutation, variables, rath=rath)).create_annotation_collection
 
-def create_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+def create_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
     """CreateAnnotationCollection 
 
 Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
@@ -7831,6 +7897,7 @@ Args:
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -7844,6 +7911,8 @@ Returns:
     _input['axes'] = axes
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
     variables['input'] = _input
     return execute(CreateAnnotationCollectionMutation, variables, rath=rath).create_annotation_collection
 
@@ -9023,7 +9092,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateEraMutation, variables, rath=rath).create_era
 
-async def afrom_file_like(file: ImageFileCoercible, file_name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, origins: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
+async def afrom_file_like(file: ImageFileCoercible, file_name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, export_of: Union[Optional[Iterable[ExportOfInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
     """FromFileLike 
 
 Create a file from file-like data
@@ -9032,7 +9101,7 @@ Args:
     file: The uploaded big-file store to create the file from
     file_name: The name of the file
     dataset: The ID of the dataset to put the file in (defaults to the current default dataset)
-    origins: The IDs of entities this file was derived from
+    export_of: The containers this file was written from
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -9044,12 +9113,12 @@ Returns:
     _input['fileName'] = file_name
     if dataset is not UNSET:
         _input['dataset'] = dataset
-    if origins is not UNSET:
-        _input['origins'] = origins
+    if export_of is not UNSET:
+        _input['exportOf'] = export_of
     variables['input'] = _input
     return (await aexecute(FromFileLikeMutation, variables, rath=rath)).from_file_like
 
-def from_file_like(file: ImageFileCoercible, file_name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, origins: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
+def from_file_like(file: ImageFileCoercible, file_name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, export_of: Union[Optional[Iterable[ExportOfInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
     """FromFileLike 
 
 Create a file from file-like data
@@ -9058,7 +9127,7 @@ Args:
     file: The uploaded big-file store to create the file from
     file_name: The name of the file
     dataset: The ID of the dataset to put the file in (defaults to the current default dataset)
-    origins: The IDs of entities this file was derived from
+    export_of: The containers this file was written from
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -9070,8 +9139,8 @@ Returns:
     _input['fileName'] = file_name
     if dataset is not UNSET:
         _input['dataset'] = dataset
-    if origins is not UNSET:
-        _input['origins'] = origins
+    if export_of is not UNSET:
+        _input['exportOf'] = export_of
     variables['input'] = _input
     return execute(FromFileLikeMutation, variables, rath=rath).from_file_like
 
@@ -9475,7 +9544,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateLensMutation, variables, rath=rath).create_lens
 
-async def acreate_mesh_collection(version: str, spec_version: str, catalog: ParquetCoercible, axes: Iterable[Union[AxisInput, str]], geometry: Union[Optional[Iterable[ParquetCoercible]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, grid: Union[Optional[Any], UnsetType]=UNSET, encoding: Union[Optional[Any], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+async def acreate_mesh_collection(version: str, spec_version: str, catalog: ParquetCoercible, axes: Iterable[Union[AxisInput, str]], geometry: Union[Optional[Iterable[ParquetCoercible]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, grid: Union[Optional[Any], UnsetType]=UNSET, encoding: Union[Optional[Any], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
     """CreateMeshCollection 
 
 Register an immutable, versioned mesh collection against a coordinate system
@@ -9487,6 +9556,7 @@ Args:
     geometry: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required) (list)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     grid: The `Any` scalar any type
     encoding: The `Any` scalar any type
     provenance_metadata: The `Any` scalar any type
@@ -9505,6 +9575,8 @@ Returns:
     _input['axes'] = axes
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
     if grid is not UNSET:
         _input['grid'] = grid
     if encoding is not UNSET:
@@ -9514,7 +9586,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateMeshCollectionMutation, variables, rath=rath)).create_mesh_collection
 
-def create_mesh_collection(version: str, spec_version: str, catalog: ParquetCoercible, axes: Iterable[Union[AxisInput, str]], geometry: Union[Optional[Iterable[ParquetCoercible]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, grid: Union[Optional[Any], UnsetType]=UNSET, encoding: Union[Optional[Any], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+def create_mesh_collection(version: str, spec_version: str, catalog: ParquetCoercible, axes: Iterable[Union[AxisInput, str]], geometry: Union[Optional[Iterable[ParquetCoercible]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, grid: Union[Optional[Any], UnsetType]=UNSET, encoding: Union[Optional[Any], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
     """CreateMeshCollection 
 
 Register an immutable, versioned mesh collection against a coordinate system
@@ -9526,6 +9598,7 @@ Args:
     geometry: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required) (list)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     grid: The `Any` scalar any type
     encoding: The `Any` scalar any type
     provenance_metadata: The `Any` scalar any type
@@ -9544,6 +9617,8 @@ Returns:
     _input['axes'] = axes
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
     if grid is not UNSET:
         _input['grid'] = grid
     if encoding is not UNSET:
@@ -10289,7 +10364,7 @@ Returns:
     variables['input'] = _input
     return execute(UpdateRoiMutation, variables, rath=rath).update_roi
 
-async def acreate_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, axes: Union[Optional[Iterable[PhysicalAxisInput]], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+async def acreate_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, axes: Union[Optional[Iterable[PhysicalAxisInput]], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, default_for: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
     """CreateScene 
 
 Create a new scene over a world coordinate system: an adopted existing system, or an ordinary SHARED one created for it (never owned by the scene -- it outlives it)
@@ -10302,6 +10377,7 @@ Args:
     axes: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit (required) (list)
     epoch: Date with time (isoformat)
     coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    default_for: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -10322,10 +10398,12 @@ Returns:
         _input['epoch'] = epoch
     if coordinate_system is not UNSET:
         _input['coordinateSystem'] = coordinate_system
+    if default_for is not UNSET:
+        _input['defaultFor'] = default_for
     variables['input'] = _input
     return (await aexecute(CreateSceneMutation, variables, rath=rath)).create_scene
 
-def create_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, axes: Union[Optional[Iterable[PhysicalAxisInput]], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+def create_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, axes: Union[Optional[Iterable[PhysicalAxisInput]], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, default_for: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
     """CreateScene 
 
 Create a new scene over a world coordinate system: an adopted existing system, or an ordinary SHARED one created for it (never owned by the scene -- it outlives it)
@@ -10338,6 +10416,7 @@ Args:
     axes: Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit (required) (list)
     epoch: Date with time (isoformat)
     coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    default_for: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -10358,10 +10437,12 @@ Returns:
         _input['epoch'] = epoch
     if coordinate_system is not UNSET:
         _input['coordinateSystem'] = coordinate_system
+    if default_for is not UNSET:
+        _input['defaultFor'] = default_for
     variables['input'] = _input
     return execute(CreateSceneMutation, variables, rath=rath).create_scene
 
-async def acreate_scene_from_coordinate_system(coordinate_system: IDCoercible, policy: ScenePolicyInput, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+async def acreate_scene_from_coordinate_system(coordinate_system: IDCoercible, policy: ScenePolicyInput, name: Union[Optional[str], UnsetType]=UNSET, default_for: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
     """CreateSceneFromCoordinateSystem 
 
 Bootstrap a renderable scene over an existing coordinate system: a shared space (its registered sources become layers, up to the policy's nchildren) or an owned system such as a dataset's intrinsic grid or a physical space (the container's own data becomes the layer). The scene adopts the system as its world; no edges are authored. This is how a dataset is staged -- pass `intrinsicSystem` to render in pixels, or a physical space it is registered into to render at physical scale
@@ -10370,6 +10451,7 @@ Args:
     coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     policy: The policy createSceneFromCoordinateSystem follows: at most `nchildren` layers, materialized from the sources living in or registered into the space, filtered by source kind and drawn by the recipe in `kind` (required)
+    default_for: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -10381,10 +10463,12 @@ Returns:
     if name is not UNSET:
         _input['name'] = name
     _input['policy'] = policy
+    if default_for is not UNSET:
+        _input['defaultFor'] = default_for
     variables['input'] = _input
     return (await aexecute(CreateSceneFromCoordinateSystemMutation, variables, rath=rath)).create_scene_from_coordinate_system
 
-def create_scene_from_coordinate_system(coordinate_system: IDCoercible, policy: ScenePolicyInput, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+def create_scene_from_coordinate_system(coordinate_system: IDCoercible, policy: ScenePolicyInput, name: Union[Optional[str], UnsetType]=UNSET, default_for: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
     """CreateSceneFromCoordinateSystem 
 
 Bootstrap a renderable scene over an existing coordinate system: a shared space (its registered sources become layers, up to the policy's nchildren) or an owned system such as a dataset's intrinsic grid or a physical space (the container's own data becomes the layer). The scene adopts the system as its world; no edges are authored. This is how a dataset is staged -- pass `intrinsicSystem` to render in pixels, or a physical space it is registered into to render at physical scale
@@ -10393,6 +10477,7 @@ Args:
     coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     policy: The policy createSceneFromCoordinateSystem follows: at most `nchildren` layers, materialized from the sources living in or registered into the space, filtered by source kind and drawn by the recipe in `kind` (required)
+    default_for: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
@@ -10404,6 +10489,8 @@ Returns:
     if name is not UNSET:
         _input['name'] = name
     _input['policy'] = policy
+    if default_for is not UNSET:
+        _input['defaultFor'] = default_for
     variables['input'] = _input
     return execute(CreateSceneFromCoordinateSystemMutation, variables, rath=rath).create_scene_from_coordinate_system
 
@@ -10737,7 +10824,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateStageMutation, variables, rath=rath).create_stage
 
-async def afrom_parquet_like(dataframe: ParquetCoercible, name: str, origins: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, label_accessors: Union[Optional[Iterable[PartialLabelAccessorInput]], UnsetType]=UNSET, image_accessors: Union[Optional[Iterable[PartialImageAccessorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Table:
+async def afrom_parquet_like(dataframe: ParquetCoercible, name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, label_accessors: Union[Optional[Iterable[PartialLabelAccessorInput]], UnsetType]=UNSET, image_accessors: Union[Optional[Iterable[PartialImageAccessorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Table:
     """from_parquet_like 
 
 Create a table from parquet-like data
@@ -10745,7 +10832,6 @@ Create a table from parquet-like data
 Args:
     dataframe: The parquet dataframe to create the table from
     name: The name of the table
-    origins: The IDs of tables this table was derived from
     dataset: The dataset ID this table belongs to
     label_accessors: Label accessors to create for this table
     image_accessors: Image accessors to create for this table
@@ -10758,8 +10844,6 @@ Returns:
     _input: Dict[str, Any] = {}
     _input['dataframe'] = dataframe
     _input['name'] = name
-    if origins is not UNSET:
-        _input['origins'] = origins
     if dataset is not UNSET:
         _input['dataset'] = dataset
     if label_accessors is not UNSET:
@@ -10769,7 +10853,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(From_parquet_likeMutation, variables, rath=rath)).from_parquet_like
 
-def from_parquet_like(dataframe: ParquetCoercible, name: str, origins: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, label_accessors: Union[Optional[Iterable[PartialLabelAccessorInput]], UnsetType]=UNSET, image_accessors: Union[Optional[Iterable[PartialImageAccessorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Table:
+def from_parquet_like(dataframe: ParquetCoercible, name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, label_accessors: Union[Optional[Iterable[PartialLabelAccessorInput]], UnsetType]=UNSET, image_accessors: Union[Optional[Iterable[PartialImageAccessorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Table:
     """from_parquet_like 
 
 Create a table from parquet-like data
@@ -10777,7 +10861,6 @@ Create a table from parquet-like data
 Args:
     dataframe: The parquet dataframe to create the table from
     name: The name of the table
-    origins: The IDs of tables this table was derived from
     dataset: The dataset ID this table belongs to
     label_accessors: Label accessors to create for this table
     image_accessors: Image accessors to create for this table
@@ -10790,8 +10873,6 @@ Returns:
     _input: Dict[str, Any] = {}
     _input['dataframe'] = dataframe
     _input['name'] = name
-    if origins is not UNSET:
-        _input['origins'] = origins
     if dataset is not UNSET:
         _input['dataset'] = dataset
     if label_accessors is not UNSET:
@@ -10801,7 +10882,7 @@ Returns:
     variables['input'] = _input
     return execute(From_parquet_likeMutation, variables, rath=rath).from_parquet_like
 
-async def acreate_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+async def acreate_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
     """CreateTableDataset 
 
 Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
@@ -10812,6 +10893,7 @@ Args:
     columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and optional unit and becomes an axis of the table's space (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     keyed_by: A label mask whose pixel values are the ids this table is indexed by. It authors the FIELD edge in the direction the map actually runs -- mask pixels -> table rows -- which is the direction attributePlans discovers, and the opposite of the lineage `derivedFrom` records (required) (list)
     validate_schema: The `Boolean` scalar type represents `true` or `false`. (required)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -10828,13 +10910,15 @@ Returns:
         _input['description'] = description
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
     if keyed_by is not UNSET:
         _input['keyedBy'] = keyed_by
     _input['validateSchema'] = validate_schema
     variables['input'] = _input
     return (await aexecute(CreateTableDatasetMutation, variables, rath=rath)).create_table_dataset
 
-def create_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+def create_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
     """CreateTableDataset 
 
 Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
@@ -10845,6 +10929,7 @@ Args:
     columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and optional unit and becomes an axis of the table's space (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     keyed_by: A label mask whose pixel values are the ids this table is indexed by. It authors the FIELD edge in the direction the map actually runs -- mask pixels -> table rows -- which is the direction attributePlans discovers, and the opposite of the lineage `derivedFrom` records (required) (list)
     validate_schema: The `Boolean` scalar type represents `true` or `false`. (required)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -10861,6 +10946,8 @@ Returns:
         _input['description'] = description
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
     if keyed_by is not UNSET:
         _input['keyedBy'] = keyed_by
     _input['validateSchema'] = validate_schema

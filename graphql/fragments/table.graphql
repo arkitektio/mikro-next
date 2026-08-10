@@ -1,7 +1,4 @@
 fragment Table on Table {
-  origins {
-    id
-  }
   id
   name
   store {
