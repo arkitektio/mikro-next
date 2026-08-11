@@ -52,8 +52,9 @@ LabelsLikeCoercible: TypeAlias = xr.DataArray | OneDArray | List[List[str]] | Di
 ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for image file-like structures that can be coerced into an xarray DataArray."""
 
-ParquetCoercible: TypeAlias = "pd.DataFrame"
-""" A type alias for parquet-like structures that can be coerced into an xarray DataArray."""
+ParquetCoercible: TypeAlias = "pd.DataFrame | str | Path | Any"
+""" A type alias for parquet-like structures: an in-memory DataFrame, a path to a
+parquet file already on disk, or a pyarrow ``Table``/``RecordBatchReader``."""
 
 MeshCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for mesh-like structures that can be coerced into an xarray DataArray."""
@@ -677,10 +678,26 @@ class BigFile:
 class ParquetLike:
     """A custom scalar for ensuring a common format to support write to the
     parquet api supported by mikro_next It converts the passed value into
-    a compliant format.."""
+    a compliant format..
 
-    def __init__(self, value: pd.DataFrame) -> None:
-        """Initialize the ParquetLike scalar with a pandas DataFrame."""
+    Four things count as parquet-like, and the difference matters at upload time
+    rather than here (see :func:`mikro_next.io.upload._store_parquet_input`):
+
+    - a ``pandas.DataFrame`` — converted and serialized in memory, the original path;
+    - a ``str``/``Path`` naming a parquet file already on disk — streamed straight
+      to the object store, never read into this process;
+    - a ``pyarrow.Table`` — serialized in memory, but without the pandas round trip;
+    - a ``pyarrow.RecordBatchReader`` — written batch by batch to a temporary file,
+      then streamed.
+
+    The last three exist because a table big enough to be interesting is a table too
+    big to hold three copies of. A 128M-row expression matrix is ~1.5 GB as a frame,
+    again as an arrow table, and again as a serialized buffer; written incrementally
+    and streamed, peak memory is one batch.
+    """
+
+    def __init__(self, value: "ParquetCoercible") -> None:
+        """Initialize the ParquetLike scalar with a DataFrame, path or arrow object."""
         self.value = value
         self.key = str(uuid.uuid4())
 
@@ -700,9 +717,33 @@ class ParquetLike:
     @classmethod
     def validate(cls, v: ParquetCoercible) -> "ParquetLike":
         """Validate the validator function"""
+        if isinstance(v, ParquetLike):
+            return v
+
+        if isinstance(v, (str, Path)):
+            path = Path(v)
+            # Checked here rather than at upload: a typo'd path should fail while the
+            # caller still knows which table it meant, not inside an upload link three
+            # mutations later.
+            if not path.is_file():
+                raise ValueError(f"No parquet file at {path}")
+            return cls(path)
+
+        # pyarrow is optional in the same way pandas is, so it is only imported when
+        # the value might actually be one of its types.
+        try:
+            import pyarrow as pa  # type: ignore
+        except ImportError:
+            pa = None
+        if pa is not None and isinstance(v, (pa.Table, pa.RecordBatchReader)):
+            return cls(v)
+
         pd = _require_pandas()
         if not isinstance(v, pd.DataFrame):
-            raise ValueError("This needs to be a instance of pandas DataFrame")
+            raise ValueError(
+                "This needs to be a pandas DataFrame, a path to a parquet file, "
+                "or a pyarrow Table/RecordBatchReader"
+            )
 
         return cls(v)
 

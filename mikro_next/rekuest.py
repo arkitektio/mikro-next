@@ -12,7 +12,7 @@ from mikro_next.api.schema import (
     Snapshot,
     ROI,
     Stage,
-    Dataset,
+    Folder,
     aget_lens,
     File,
     RGBContext,
@@ -26,7 +26,7 @@ from mikro_next.api.schema import (
     aget_snapshot,
     aget_roi,
     aget_stage,
-    aget_dataset,
+    aget_folder,
     aget_scene,
     aget_file,
     aget_rgb_context,
@@ -40,7 +40,9 @@ from mikro_next.api.schema import (
     SearchSnapshotsQuery,
     SearchRoisQuery,
     SearchStagesQuery,
-    SearchDatasetsQuery,
+    SearchFoldersQuery,
+    SearchADatasetsQuery,
+    aget_a_dataset,
     SearchFilesQuery,
     SearchMeshCollectionsQuery,
     SearchTablesQuery,
@@ -96,11 +98,11 @@ structure_reg.register_as_structure(
     default_widget=SearchWidget(query=SearchStagesQuery.Meta.document, ward="mikro"),
 )
 structure_reg.register_as_structure(
-    Dataset,
+    Folder,
     identifier="@mikro/dataset",
-    aexpand=aget_dataset,
+    aexpand=aget_folder,
     ashrink=id_shrink,
-    default_widget=SearchWidget(query=SearchDatasetsQuery.Meta.document, ward="mikro"),
+    default_widget=SearchWidget(query=SearchFoldersQuery.Meta.document, ward="mikro"),
 )
 structure_reg.register_as_structure(
     File,
@@ -168,9 +170,9 @@ structure_reg.register_as_structure(
 structure_reg.register_as_structure(
     ADataset,
     identifier="@mikro/adataset",
-    aexpand=aget_dataset,
+    aexpand=aget_a_dataset,
     ashrink=id_shrink,
-    default_widget=SearchWidget(query=SearchDatasetsQuery.Meta.document, ward="mikro"),
+    default_widget=SearchWidget(query=SearchADatasetsQuery.Meta.document, ward="mikro"),
 )
 
 

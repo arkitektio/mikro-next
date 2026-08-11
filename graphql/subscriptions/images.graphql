@@ -1,5 +1,5 @@
-subscription WatchImages($dataset: ID) {
-  images(dataset: $dataset) {
+subscription WatchImages($folder: ID) {
+  images(folder: $folder) {
     create {
       ...Image
     }

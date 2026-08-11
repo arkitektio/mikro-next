@@ -7,6 +7,9 @@ Provides both async and sync upload paths via obstore:
 
 from io import BytesIO
 import logging
+import os
+import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -68,35 +71,83 @@ async def astore_xarray_input(
         ) from e
 
 
+def _parquet_payload(value: object) -> "tuple[object, Path | None]":
+    """What to hand ``obstore.put``, and the scratch file to delete afterwards.
+
+    Four inputs, three shapes of answer (see :class:`mikro_next.scalars.ParquetLike`):
+
+    - a ``Path`` is already a parquet file, so it goes to obstore as-is — obstore reads
+      it in chunks and multipart-uploads it, so a 4 GB table never enters this process;
+    - a ``RecordBatchReader`` is written batch by batch to a scratch file and then
+      streamed, which is the whole point of accepting one: peak memory is a batch;
+    - a ``Table`` is serialized to that same scratch file rather than to a ``BytesIO``,
+      because it is already the largest object in the process and a second full copy of
+      it is the thing worth avoiding;
+    - a ``DataFrame`` keeps the original in-memory path exactly. It is the small case,
+      and routing it through a temp file would make every existing caller depend on
+      writable scratch space for no gain.
+
+    Returns:
+        ``(payload, scratch)`` — ``scratch`` is None when nothing needs cleaning up.
+    """
+    import pyarrow.parquet as pq  # type: ignore
+    from pyarrow import RecordBatchReader, Table  # type: ignore
+
+    if isinstance(value, Path):
+        return value, None
+
+    if isinstance(value, (Table, RecordBatchReader)):
+        handle, name = tempfile.mkstemp(suffix=".parquet", prefix="mikro-parquet-")
+        os.close(handle)
+        scratch = Path(name)
+        try:
+            if isinstance(value, Table):
+                pq.write_table(value, scratch)
+            else:
+                with pq.ParquetWriter(scratch, value.schema) as writer:
+                    for batch in value:
+                        writer.write_batch(batch)
+        except BaseException:
+            # A half-written scratch file is not a parquet file, and leaving it behind
+            # would be a silent disk leak on every failed upload.
+            scratch.unlink(missing_ok=True)
+            raise
+        return scratch, scratch
+
+    table = Table.from_pandas(value)  # type: ignore
+    buffer = BytesIO()
+    pq.write_table(table, buffer)
+    buffer.seek(0)
+    return buffer, None
+
+
 def _store_parquet_input(
     parquet_input: ParquetLike | LabelsLike,
     credentials: "ParquetUploadGrant",
     endpoint_url: str,
 ) -> str:
     """Store a parquet table in the DataLayer via obstore."""
-    import pyarrow.parquet as pq  # type: ignore
-    from pyarrow import Table  # type: ignore
     from mikro_next.io.obstore import create_s3_store
 
     store = create_s3_store(endpoint_url, credentials)
 
-    table: Table = Table.from_pandas(parquet_input.value)  # type: ignore
-    buffer = BytesIO()
-    pq.write_table(table, buffer)
-    buffer.seek(0)
+    payload, scratch = _parquet_payload(parquet_input.value)
 
     s3_path = f"s3://{credentials.bucket}/{credentials.key}"
     try:
         logger.debug(
             f"Uploading parquet to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
-        obstore.put(store, credentials.key, buffer)
+        obstore.put(store, credentials.key, payload)
         logger.info(
             f"Successfully uploaded parquet to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
         )
         return credentials.store
     except Exception as e:
         raise UploadError(f"Error while uploading to {s3_path}") from e
+    finally:
+        if scratch is not None:
+            scratch.unlink(missing_ok=True)
 
 
 async def astore_mesh_file(

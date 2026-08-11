@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from mikro_next.api.schema import create_dataset, from_array_like, get_random_image
+from mikro_next.api.schema import create_folder, from_array_like, get_random_image
 from mikro_next.api.schema import (
     create_reference_view,
     PartialMaskViewInput,
@@ -38,18 +38,18 @@ def test_get_random(deployed_app: DeployedMikro) -> None:
 
 
 @pytest.mark.integration
-def test_create_dataset(deployed_app: DeployedMikro) -> None:
-    """Test creating a dataset."""
-    x = create_dataset(name="johannes")
-    assert x.id, "Was not able to create a dataset"
+def test_create_folder(deployed_app: DeployedMikro) -> None:
+    """Test creating a folder."""
+    x = create_folder(name="johannes")
+    assert x.id, "Was not able to create a folder"
 
 
 @pytest.mark.integration
-def test_create_dataset_in_parent(deployed_app: DeployedMikro) -> None:
-    """Test creating a dataset with a parent."""
-    x = create_dataset(name="johannes")
+def test_create_folder_in_parent(deployed_app: DeployedMikro) -> None:
+    """Test creating a folder with a parent."""
+    x = create_folder(name="johannes")
 
-    create_dataset(name="johannes", parent=x.id)
+    create_folder(name="johannes", parent=x.id)
 
     pass
 
@@ -116,13 +116,13 @@ def test_from_array_like_input_validation() -> None:
     assert valid_input.name == "test_image", "Name should be preserved"
     assert valid_input.array.value.dims == ("c", "t", "z", "y", "x"), "Array should be processed"
 
-    # Test with dataset
+    # Test with folder
     from rath.scalars import ID
 
-    with_dataset = FromArrayLikeInput(
-        array=test_array, name="test_image_with_dataset", dataset=ID("test_dataset_id")
+    with_folder = FromArrayLikeInput(
+        array=test_array, name="test_image_with_folder", folder=ID("test_folder_id")
     )
-    assert with_dataset.dataset == ID("test_dataset_id"), "Dataset ID should be preserved"
+    assert with_folder.folder == ID("test_folder_id"), "Folder ID should be preserved"
 
 
 def test_partial_mask_view_input_validation() -> None:

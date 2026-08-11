@@ -1,13 +1,13 @@
-from kanne.scalars import Temperature, Length, Unit, Duration, GenericQuantity, Power, Frequency
-from mikro_next.traits import HasDownloadAccessor, HasZarrStoreAccessor, DataArrayTrait, Lensable, CoordinateAnchorInputTrait, MikroFetchable, RGBAColorInputTrait, AxisInputTrait, ValueHistogramInputTrait, DatasetTrait, FileTrait, HasPresignedDownloadAccessor, HasParquetStoreAccesor, CreateADatasetTrait, CoordinateSystemTrait, SceneTrait, HasParquestStoreTrait, IsVectorizableTrait, HasZarrStoreTrait, TransformationTrait
-from typing import Literal, Optional, Tuple, Iterable, Iterator, Annotated, Union, AsyncIterator, Any, Dict, List
-from mikro_next.scalars import FileLike, ParquetCoercible, ImageLike, ArrayLike, ImageCoercible, ImageFileCoercible, FourByFourMatrix, FiveDVector, LabelsLike, ThreeDVector, ImageFileLike, ArrayCoercible, ParquetLike
-from pydantic import Field, ConfigDict, BaseModel
-from datetime import datetime
-from rath.scalars import IDCoercible, ID
-from mikro_next.funcs import asubscribe, subscribe, execute, aexecute
+from mikro_next.traits import HasDownloadAccessor, Lensable, CoordinateSystemTrait, DataArrayTrait, TransformationTrait, SceneTrait, DatasetTrait, CoordinateAnchorInputTrait, HasParquestStoreTrait, FileTrait, HasParquetStoreAccesor, CreateADatasetTrait, MikroFetchable, AxisInputTrait, ValueHistogramInputTrait, IsVectorizableTrait, HasPresignedDownloadAccessor, RGBAColorInputTrait, HasZarrStoreAccessor, HasZarrStoreTrait
 from enum import Enum
+from mikro_next.scalars import FileLike, FiveDVector, ImageFileLike, ArrayCoercible, ImageLike, ImageCoercible, ThreeDVector, ParquetLike, ArrayLike, FourByFourMatrix, LabelsLike, ParquetCoercible, ImageFileCoercible
+from typing import Any, Iterable, Tuple, AsyncIterator, Annotated, Literal, Optional, Dict, Union, List, Iterator
 from mikro_next.rath import MikroNextRath
+from mikro_next.funcs import subscribe, aexecute, asubscribe, execute
+from datetime import datetime
+from kanne.scalars import Frequency, Temperature, Power, Unit, Duration, Length, GenericQuantity
+from pydantic import ConfigDict, Field, BaseModel
+from rath.scalars import IDCoercible, ID
 
 class GraphQLDefault:
     """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
@@ -989,6 +989,8 @@ class ADatasetFilter(BaseModel):
     or_: Optional['ADatasetFilter'] = Field(alias='OR', default=None)
     not_: Optional['ADatasetFilter'] = Field(alias='NOT', default=None)
     distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    folder: Optional[ID] = Field(default=None, description='Filter by the folder this dataset is filed in')
+    folders: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of folder IDs')
     spec: Optional[Tuple[ADatasetSpec, ...]] = Field(default=None, description='Filter to datasets satisfying every one of these specs, e.g. [VOLUME, TIMESERIES] for 3D timelapses. Materialized from the axes of the intrinsic coordinate system at creation. A dataset carries one spatial spec (by how many SPACE axes it has) plus a modifier per acquisition axis present, so two spatial specs together match nothing')
     has_axis_types: Optional[Tuple[AxisType, ...]] = Field(alias='hasAxisTypes', default=None, description='Filter to datasets whose intrinsic coordinate system carries every one of these axis types, e.g. [TIME, CHANNEL]. The raw form of `spec`, for the types no spec names: COORDINATE, DISPLACEMENT, INDEX')
     multiscale: Optional[bool] = Field(default=None, description='Filter by whether the dataset carries a resolution pyramid: true for the multiscale ones, false for those with a single level')
@@ -1057,6 +1059,8 @@ class AnnotationCollectionFilter(BaseModel):
     or_: Optional['AnnotationCollectionFilter'] = Field(alias='OR', default=None)
     not_: Optional['AnnotationCollectionFilter'] = Field(alias='NOT', default=None)
     distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    folder: Optional[ID] = Field(default=None, description='Filter by the folder this annotation collection is filed in')
+    folders: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of folder IDs')
     scene: Optional[ID] = Field(default=None, description='Filter by the scene this collection was minted for as its default drawing surface')
     coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None, description="Filter by the coordinate system the annotations are drawn in (the collection's own)")
     dataset: Optional[ID] = Field(default=None, description='Filter by the dataset the shapes are drawn over, following the derivation edge')
@@ -1146,11 +1150,11 @@ class CameraStateInput(BaseModel):
     projection_scale: Optional[float] = Field(alias='projectionScale', default=None, description="The volumetric view's zoom, in world units per screen pixel. Null to leave it to the viewer.")
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
-class ChangeDatasetInput(BaseModel):
-    """Input for changing an existing dataset's name or parent"""
-    name: str = Field(description='The name of the dataset')
-    parent: Optional[ID] = Field(default=None, description='The ID of the parent dataset to nest this dataset under')
-    id: ID = Field(description='The ID of the dataset to change')
+class ChangeFolderInput(BaseModel):
+    """Input for changing an existing folder's name or parent"""
+    name: str = Field(description='The name of the folder')
+    parent: Optional[ID] = Field(default=None, description='The ID of the parent folder to nest this folder under')
+    id: ID = Field(description='The ID of the folder to change')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ClearCoordinateSystemInput(BaseModel):
@@ -1205,6 +1209,7 @@ class CreateADatasetInput(CreateADatasetTrait, BaseModel):
     scales: Tuple['ScaleInput', ...]
     name: str
     axes: Tuple[AxisInput, ...]
+    folder: Optional[ID] = None
     anchors: Optional[Tuple[CoordinateAnchorInput, ...]] = None
     derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
     source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
@@ -1223,6 +1228,7 @@ class CreateAnnotationCollectionInput(BaseModel):
     name: str
     description: Optional[str] = None
     axes: Tuple[AxisInput, ...]
+    folder: Optional[ID] = None
     derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
     source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
@@ -1258,10 +1264,10 @@ class CreateCoordinateSystemInput(BaseModel):
     'Default: []'
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
-class CreateDatasetInput(BaseModel):
-    """Input for creating a new dataset to organize images and files"""
-    name: str = Field(description='The name of the dataset')
-    parent: Optional[ID] = Field(default=None, description='The ID of the parent dataset to nest this dataset under')
+class CreateFolderInput(BaseModel):
+    """Input for creating a new folder to organize images and files"""
+    name: str = Field(description='The name of the folder')
+    parent: Optional[ID] = Field(default=None, description='The ID of the parent folder to nest this folder under')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class CreateLayerInput(BaseModel):
@@ -1288,6 +1294,7 @@ class CreateMeshCollectionInput(BaseModel):
     catalog: ParquetLike
     geometry: Optional[Tuple[ParquetLike, ...]] = None
     axes: Tuple[AxisInput, ...]
+    folder: Optional[ID] = None
     derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
     source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
     grid: Optional[Any] = None
@@ -1378,6 +1385,7 @@ class CreateTableDatasetInput(BaseModel):
     columns: Annotated[Optional[Tuple['TableColumnInput', ...]], GraphQLDefault('[]')] = None
     'Default: []'
     description: Optional[str] = None
+    folder: Optional[ID] = None
     derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
     source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
     keyed_by: Optional[Tuple['KeyedByInput', ...]] = Field(alias='keyedBy', default=None)
@@ -1393,31 +1401,6 @@ class CreateTransformationInput(BaseModel):
     name: Optional[str] = None
     validity: Optional[PlacementValidity] = None
     value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
-
-class DatasetFilter(BaseModel):
-    """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
-    search: Optional[str] = Field(default=None, description='Search by name (full-text search)')
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
-    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
-    pinned: Optional[bool] = Field(default=None, description='Filter by whether the current user has pinned the item')
-    tags: Optional[Tuple[str, ...]] = Field(default=None, description='Filter by tag names')
-    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
-    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
-    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
-    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
-    id: Optional[ID] = None
-    name: Optional['StrFilterLookup'] = None
-    description: Optional['StrFilterLookup'] = None
-    is_default: Optional[bool] = Field(alias='isDefault', default=None)
-    and_: Optional['DatasetFilter'] = Field(alias='AND', default=None)
-    or_: Optional['DatasetFilter'] = Field(alias='OR', default=None)
-    not_: Optional['DatasetFilter'] = Field(alias='NOT', default=None)
-    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    parentless: Optional[bool] = Field(default=None, description='Filter for datasets with (true) or without (false) a parent')
-    parent: Optional[ID] = Field(default=None, description='Filter by the parent dataset (list the children of a dataset)')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class DeleteAnimationInput(BaseModel):
@@ -1554,11 +1537,36 @@ class FinishZarrUploadInput(BaseModel):
     'Default: True'
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class FolderFilter(BaseModel):
+    """No documentation"""
+    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
+    search: Optional[str] = Field(default=None, description='Search by name (full-text search)')
+    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
+    pinned: Optional[bool] = Field(default=None, description='Filter by whether the current user has pinned the item')
+    tags: Optional[Tuple[str, ...]] = Field(default=None, description='Filter by tag names')
+    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    id: Optional[ID] = None
+    name: Optional['StrFilterLookup'] = None
+    description: Optional['StrFilterLookup'] = None
+    is_default: Optional[bool] = Field(alias='isDefault', default=None)
+    and_: Optional['FolderFilter'] = Field(alias='AND', default=None)
+    or_: Optional['FolderFilter'] = Field(alias='OR', default=None)
+    not_: Optional['FolderFilter'] = Field(alias='NOT', default=None)
+    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    parentless: Optional[bool] = Field(default=None, description='Filter for folders with (true) or without (false) a parent')
+    parent: Optional[ID] = Field(default=None, description='Filter by the parent folder (list the children of a folder)')
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class FromArrayLikeInput(BaseModel):
     """Input type for creating an image from an array-like object"""
     array: ImageLike = Field(description='The array-like object to create the image from')
     name: str = Field(description='The name of the image')
-    dataset: Optional[ID] = Field(default=None, description='Optional dataset ID to associate the image with')
+    folder: Optional[ID] = Field(default=None, description='Optional folder ID to associate the image with')
     channel_views: Optional[Tuple['PartialChannelViewInput', ...]] = Field(alias='channelViews', default=None, description='Optional list of channel views')
     transformation_views: Optional[Tuple['PartialAffineTransformationViewInput', ...]] = Field(alias='transformationViews', default=None, description='Optional list of affine transformation views')
     acquisition_views: Optional[Tuple['PartialAcquisitionViewInput', ...]] = Field(alias='acquisitionViews', default=None, description='Optional list of acquisition views')
@@ -1580,7 +1588,7 @@ class FromFileLike(BaseModel):
     """Input for creating a file record from an uploaded big-file store"""
     file: FileLike = Field(description='The uploaded big-file store to create the file from')
     file_name: str = Field(alias='fileName', description='The name of the file')
-    dataset: Optional[ID] = Field(default=None, description='The ID of the dataset to put the file in (defaults to the current default dataset)')
+    folder: Optional[ID] = Field(default=None, description='The ID of the folder to put the file in (defaults to the current default folder)')
     export_of: Optional[Tuple[ExportOfInput, ...]] = Field(alias='exportOf', default=None, description='The containers this file was written from')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
@@ -1631,14 +1639,14 @@ class ImageFilter(BaseModel):
     description: Optional['StrFilterLookup'] = None
     kind: Optional[ImageKind] = None
     store: Optional['ZarrStoreFilter'] = None
-    dataset: Optional[DatasetFilter] = None
+    folder: Optional[FolderFilter] = None
     transformation_views: Optional[AffineTransformationViewFilter] = Field(alias='transformationViews', default=None)
     timepoint_views: Optional['TimepointViewFilter'] = Field(alias='timepointViews', default=None)
     and_: Optional['ImageFilter'] = Field(alias='AND', default=None)
     or_: Optional['ImageFilter'] = Field(alias='OR', default=None)
     not_: Optional['ImageFilter'] = Field(alias='NOT', default=None)
     distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    datasets: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of dataset IDs')
+    folders: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of folder IDs')
     not_derived: Optional[bool] = Field(alias='notDerived', default=None, description='Filter for images that are not derived from another image')
     has_rois: Optional[bool] = Field(alias='hasRois', default=None, description='Filter for images that have (or have no) ROIs')
     file: Optional[ID] = Field(default=None, description='Filter for images converted from this file (through their file views)')
@@ -1785,6 +1793,8 @@ class MeshCollectionFilter(BaseModel):
     or_: Optional['MeshCollectionFilter'] = Field(alias='OR', default=None)
     not_: Optional['MeshCollectionFilter'] = Field(alias='NOT', default=None)
     distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    folder: Optional[ID] = Field(default=None, description='Filter by the folder this mesh collection is filed in')
+    folders: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of folder IDs')
     coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None, description="Filter by the coordinate system the mesh geometry is expressed in (the collection's own)")
     dataset: Optional[ID] = Field(default=None, description='Filter by the dataset the meshes were extracted from, following the derivation edge')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
@@ -2264,9 +2274,9 @@ class RequestZarrUploadInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class RevertInput(BaseModel):
-    """Input for reverting a dataset to a previous history revision"""
-    id: ID = Field(description='The ID of the dataset to revert')
-    history_id: ID = Field(alias='historyId', description='The ID of the provenance history entry to revert the dataset to')
+    """Input for reverting a folder to a previous history revision"""
+    id: ID = Field(description='The ID of the folder to revert')
+    history_id: ID = Field(alias='historyId', description='The ID of the provenance history entry to revert the folder to')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class RoiInput(BaseModel):
@@ -2417,13 +2427,13 @@ class StrFilterLookup(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class TableColumnInput(BaseModel):
-    """One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and optional unit and becomes an axis of the table's space"""
+    """One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and becomes an axis of the table's space; a COORDINATE or ATTRIBUTE column may state the unit its values are in"""
     name: str
     dtype: str
     role: Annotated[Optional[TableColumnRole], GraphQLDefault('ATTRIBUTE')] = None
     'Default: ATTRIBUTE'
     axis_type: Optional[AxisType] = Field(alias='axisType', default=None)
-    unit: Optional[str] = None
+    unit: Optional[Unit] = None
     long_name: Optional[str] = Field(alias='longName', default=None)
     description: Optional[str] = None
     references: Optional[ID] = None
@@ -2447,6 +2457,8 @@ class TableDatasetFilter(BaseModel):
     or_: Optional['TableDatasetFilter'] = Field(alias='OR', default=None)
     not_: Optional['TableDatasetFilter'] = Field(alias='NOT', default=None)
     distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
+    folder: Optional[ID] = Field(default=None, description='Filter by the folder this table dataset is filed in')
+    folders: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of folder IDs')
     dataset: Optional[ID] = Field(default=None, description='Filter by the dataset the table was computed from, following its derivation edge')
     has_column_role: Optional[TableColumnRole] = Field(alias='hasColumnRole', default=None, description='Filter to tables that declare a column of this role, e.g. TRACK_ID')
     placeable_in: Optional[ID] = Field(alias='placeableIn', default=None, description='Filter to table datasets placeable into this coordinate system: those whose own coordinate system has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene')
@@ -2966,28 +2978,6 @@ class ParquetAccessGrant(MikroFetchable, BaseModel):
         name = 'ParquetAccessGrant'
         type = 'ParquetAccessGrant'
 
-class DatasetParent(BaseModel):
-    """A dataset is a collection of images and files. It mimics the concept of a folder in a file system and is the top-level container for organising data in mikro."""
-    typename: Literal['Dataset'] = Field(alias='__typename', default='Dataset', exclude=True)
-    id: ID
-    name: str
-    model_config = ConfigDict(frozen=True)
-
-class Dataset(MikroFetchable, BaseModel):
-    """A dataset is a collection of images and files. It mimics the concept of a folder in a file system and is the top-level container for organising data in mikro."""
-    typename: Literal['Dataset'] = Field(alias='__typename', default='Dataset', exclude=True)
-    id: ID
-    name: str
-    description: Optional[str] = Field(default=None)
-    parent: Optional[DatasetParent] = Field(default=None)
-    model_config = ConfigDict(frozen=True)
-
-    class Meta:
-        """Meta class for Dataset"""
-        document = 'fragment Dataset on Dataset {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}'
-        name = 'Dataset'
-        type = 'Dataset'
-
 class Era(MikroFetchable, BaseModel):
     """An era is a time space corresponding to an epoch on a microscope during an experiment. Clients use eras to contextualize images in real-world time via timepoint views."""
     typename: Literal['Era'] = Field(alias='__typename', default='Era', exclude=True)
@@ -3002,30 +2992,52 @@ class Era(MikroFetchable, BaseModel):
         name = 'Era'
         type = 'Era'
 
-class ImageWithDataDatasetParent(BaseModel):
-    """A dataset is a collection of images and files. It mimics the concept of a folder in a file system and is the top-level container for organising data in mikro."""
-    typename: Literal['Dataset'] = Field(alias='__typename', default='Dataset', exclude=True)
+class FolderParent(BaseModel):
+    """A folder is a collection of images and files. It mimics the concept of a folder in a file system and is the top-level container for organising data in mikro."""
+    typename: Literal['Folder'] = Field(alias='__typename', default='Folder', exclude=True)
+    id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
-class ImageWithDataDataset(BaseModel):
-    """A dataset is a collection of images and files. It mimics the concept of a folder in a file system and is the top-level container for organising data in mikro."""
-    typename: Literal['Dataset'] = Field(alias='__typename', default='Dataset', exclude=True)
+class Folder(MikroFetchable, BaseModel):
+    """A folder is a collection of images and files. It mimics the concept of a folder in a file system and is the top-level container for organising data in mikro."""
+    typename: Literal['Folder'] = Field(alias='__typename', default='Folder', exclude=True)
+    id: ID
     name: str
-    parent: Optional[ImageWithDataDatasetParent] = Field(default=None)
+    description: Optional[str] = Field(default=None)
+    parent: Optional[FolderParent] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for Folder"""
+        document = 'fragment Folder on Folder {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}'
+        name = 'Folder'
+        type = 'Folder'
+
+class ImageWithDataFolderParent(BaseModel):
+    """A folder is a collection of images and files. It mimics the concept of a folder in a file system and is the top-level container for organising data in mikro."""
+    typename: Literal['Folder'] = Field(alias='__typename', default='Folder', exclude=True)
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class ImageWithDataFolder(BaseModel):
+    """A folder is a collection of images and files. It mimics the concept of a folder in a file system and is the top-level container for organising data in mikro."""
+    typename: Literal['Folder'] = Field(alias='__typename', default='Folder', exclude=True)
+    name: str
+    parent: Optional[ImageWithDataFolderParent] = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
 class ImageWithData(HasZarrStoreTrait, MikroFetchable, BaseModel):
     """An image. Images are the central data type in mikro: a single 5D bioimage whose binary data is stored in a ZarrStore. Images can be annotated with views (coordinate-ordered subsets of the image) and are the primary container that rois, metrics, renders and generated tables are bound to."""
     typename: Literal['Image'] = Field(alias='__typename', default='Image', exclude=True)
     id: ID
-    dataset: Optional[ImageWithDataDataset] = Field(default=None)
-    'The dataset this image belongs to'
+    folder: Optional[ImageWithDataFolder] = Field(default=None)
+    'The folder this image belongs to'
     model_config = ConfigDict(frozen=True)
 
     class Meta:
         """Meta class for ImageWithData"""
-        document = 'fragment ImageWithData on Image {\n  id\n  dataset {\n    name\n    parent {\n      name\n      __typename\n    }\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment ImageWithData on Image {\n  id\n  folder {\n    name\n    parent {\n      name\n      __typename\n    }\n    __typename\n  }\n  __typename\n}'
         name = 'ImageWithData'
         type = 'Image'
 
@@ -4497,7 +4509,7 @@ class TableDatasetColumns(BaseModel):
     dtype: str
     role: TableColumnRole
     axis_type: Optional[AxisType] = Field(default=None, alias='axisType')
-    unit: Optional[str] = Field(default=None)
+    unit: Optional[Unit] = Field(default=None)
     long_name: Optional[str] = Field(default=None, alias='longName')
     model_config = ConfigDict(frozen=True)
 
@@ -4999,62 +5011,6 @@ class RequestZarrAccessMutation(BaseModel):
         """Meta class for RequestZarrAccess """
         document = 'fragment ZarrAccessGrant on ZarrAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestZarrAccess($input: RequestZarrAccessInput!) {\n  requestZarrAccess(input: $input) {\n    ...ZarrAccessGrant\n    __typename\n  }\n}'
 
-class CreateDatasetMutation(BaseModel):
-    """No documentation found for this operation."""
-    create_dataset: Dataset = Field(alias='createDataset')
-    'Create a new dataset to organize data'
-
-    class Arguments(BaseModel):
-        """Arguments for CreateDataset """
-        input: CreateDatasetInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for CreateDataset """
-        document = 'fragment Dataset on Dataset {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nmutation CreateDataset($input: CreateDatasetInput!) {\n  createDataset(input: $input) {\n    ...Dataset\n    __typename\n  }\n}'
-
-class EnsureDatasetMutation(BaseModel):
-    """No documentation found for this operation."""
-    ensure_dataset: Dataset = Field(alias='ensureDataset')
-    'Create a new dataset to organize data'
-
-    class Arguments(BaseModel):
-        """Arguments for EnsureDataset """
-        input: CreateDatasetInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for EnsureDataset """
-        document = 'fragment Dataset on Dataset {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nmutation EnsureDataset($input: CreateDatasetInput!) {\n  ensureDataset(input: $input) {\n    ...Dataset\n    __typename\n  }\n}'
-
-class UpdateDatasetMutation(BaseModel):
-    """No documentation found for this operation."""
-    update_dataset: Dataset = Field(alias='updateDataset')
-    'Update dataset metadata'
-
-    class Arguments(BaseModel):
-        """Arguments for UpdateDataset """
-        input: ChangeDatasetInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for UpdateDataset """
-        document = 'fragment Dataset on Dataset {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateDataset($input: ChangeDatasetInput!) {\n  updateDataset(input: $input) {\n    ...Dataset\n    __typename\n  }\n}'
-
-class RevertDatasetMutation(BaseModel):
-    """No documentation found for this operation."""
-    revert_dataset: Dataset = Field(alias='revertDataset')
-    'Revert dataset to a previous version'
-
-    class Arguments(BaseModel):
-        """Arguments for RevertDataset """
-        input: RevertInput
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for RevertDataset """
-        document = 'fragment Dataset on Dataset {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nmutation RevertDataset($input: RevertInput!) {\n  revertDataset(input: $input) {\n    ...Dataset\n    __typename\n  }\n}'
-
 class CreateEraMutationCreateera(BaseModel):
     """An era is a time space corresponding to an epoch on a microscope during an experiment. Clients use eras to contextualize images in real-world time via timepoint views."""
     typename: Literal['Era'] = Field(alias='__typename', default='Era', exclude=True)
@@ -5089,6 +5045,62 @@ class FromFileLikeMutation(BaseModel):
     class Meta:
         """Meta class for FromFileLike """
         document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nmutation FromFileLike($input: FromFileLike!) {\n  fromFileLike(input: $input) {\n    ...File\n    __typename\n  }\n}'
+
+class CreateFolderMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_folder: Folder = Field(alias='createFolder')
+    'Create a new folder to organize data'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateFolder """
+        input: CreateFolderInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateFolder """
+        document = 'fragment Folder on Folder {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nmutation CreateFolder($input: CreateFolderInput!) {\n  createFolder(input: $input) {\n    ...Folder\n    __typename\n  }\n}'
+
+class EnsureFolderMutation(BaseModel):
+    """No documentation found for this operation."""
+    ensure_folder: Folder = Field(alias='ensureFolder')
+    'Create a new folder to organize data'
+
+    class Arguments(BaseModel):
+        """Arguments for EnsureFolder """
+        input: CreateFolderInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for EnsureFolder """
+        document = 'fragment Folder on Folder {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nmutation EnsureFolder($input: CreateFolderInput!) {\n  ensureFolder(input: $input) {\n    ...Folder\n    __typename\n  }\n}'
+
+class UpdateFolderMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_folder: Folder = Field(alias='updateFolder')
+    'Update folder metadata'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateFolder """
+        input: ChangeFolderInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for UpdateFolder """
+        document = 'fragment Folder on Folder {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateFolder($input: ChangeFolderInput!) {\n  updateFolder(input: $input) {\n    ...Folder\n    __typename\n  }\n}'
+
+class RevertFolderMutation(BaseModel):
+    """No documentation found for this operation."""
+    revert_folder: Folder = Field(alias='revertFolder')
+    'Revert folder to a previous version'
+
+    class Arguments(BaseModel):
+        """Arguments for RevertFolder """
+        input: RevertInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for RevertFolder """
+        document = 'fragment Folder on Folder {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nmutation RevertFolder($input: RevertInput!) {\n  revertFolder(input: $input) {\n    ...Folder\n    __typename\n  }\n}'
 
 class From_array_likeMutation(BaseModel):
     """No documentation found for this operation."""
@@ -6386,44 +6398,6 @@ class SearchCoordinateSystemsQuery(BaseModel):
         """Meta class for SearchCoordinateSystems """
         document = 'query SearchCoordinateSystems($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: coordinateSystems(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
-class GetDatasetQuery(BaseModel):
-    """No documentation found for this operation."""
-    dataset: Dataset
-    'Get a single dataset by ID'
-
-    class Arguments(BaseModel):
-        """Arguments for GetDataset """
-        id: ID
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for GetDataset """
-        document = 'fragment Dataset on Dataset {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nquery GetDataset($id: ID!) {\n  dataset(id: $id) {\n    ...Dataset\n    __typename\n  }\n}'
-
-class SearchDatasetsQueryOptions(BaseModel):
-    """A dataset is a collection of images and files. It mimics the concept of a folder in a file system and is the top-level container for organising data in mikro."""
-    typename: Literal['Dataset'] = Field(alias='__typename', default='Dataset', exclude=True)
-    value: ID
-    label: str
-    model_config = ConfigDict(frozen=True)
-
-class SearchDatasetsQuery(BaseModel):
-    """No documentation found for this operation."""
-    options: Tuple[SearchDatasetsQueryOptions, ...]
-    'List datasets (folder-like collections of images, files and tables)'
-
-    class Arguments(BaseModel):
-        """Arguments for SearchDatasets """
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-        limit: Optional[int] = Field(default=None)
-        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
-
-    class Meta:
-        """Meta class for SearchDatasets """
-        document = 'query SearchDatasets($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: datasets(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
-
 class GetFileQuery(BaseModel):
     """No documentation found for this operation."""
     file: File
@@ -6461,6 +6435,44 @@ class SearchFilesQuery(BaseModel):
     class Meta:
         """Meta class for SearchFiles """
         document = 'query SearchFiles($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: files(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
+class GetFolderQuery(BaseModel):
+    """No documentation found for this operation."""
+    folder: Folder
+    'Get a single folder by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetFolder """
+        id: ID
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for GetFolder """
+        document = 'fragment Folder on Folder {\n  id\n  name\n  description\n  parent {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nquery GetFolder($id: ID!) {\n  folder(id: $id) {\n    ...Folder\n    __typename\n  }\n}'
+
+class SearchFoldersQueryOptions(BaseModel):
+    """A folder is a collection of images and files. It mimics the concept of a folder in a file system and is the top-level container for organising data in mikro."""
+    typename: Literal['Folder'] = Field(alias='__typename', default='Folder', exclude=True)
+    value: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+class SearchFoldersQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: Tuple[SearchFoldersQueryOptions, ...]
+    'List folders (collections of images, files and tables)'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchFolders """
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+        limit: Optional[int] = Field(default=None)
+        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for SearchFolders """
+        document = 'query SearchFolders($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: folders(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetImageQuery(BaseModel):
     """No documentation found for this operation."""
@@ -7333,12 +7345,12 @@ class WatchFilesSubscription(BaseModel):
 
     class Arguments(BaseModel):
         """Arguments for WatchFiles """
-        dataset: Optional[ID] = Field(default=None)
+        folder: Optional[ID] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for WatchFiles """
-        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchFiles($dataset: ID) {\n  files(dataset: $dataset) {\n    create {\n      ...File\n      __typename\n    }\n    delete\n    update {\n      ...File\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchFiles($folder: ID) {\n  files(folder: $folder) {\n    create {\n      ...File\n      __typename\n    }\n    delete\n    update {\n      ...File\n      __typename\n    }\n    __typename\n  }\n}'
 
 class WatchImagesSubscriptionImages(BaseModel):
     """No documentation"""
@@ -7355,12 +7367,12 @@ class WatchImagesSubscription(BaseModel):
 
     class Arguments(BaseModel):
         """Arguments for WatchImages """
-        dataset: Optional[ID] = Field(default=None)
+        folder: Optional[ID] = Field(default=None)
         model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for WatchImages """
-        document = 'fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  timeSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($dataset: ID) {\n  images(dataset: $dataset) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment Era on Era {\n  id\n  begin\n  name\n  __typename\n}\n\nfragment ReferenceView on ReferenceView {\n  ...View\n  id\n  __typename\n}\n\nfragment View on View {\n  xMin\n  xMax\n  yMin\n  yMax\n  tMin\n  tMax\n  cMin\n  cMax\n  zMin\n  zMax\n  __typename\n}\n\nfragment AcquisitionView on AcquisitionView {\n  ...View\n  id\n  description\n  acquiredAt\n  operator {\n    sub\n    __typename\n  }\n  __typename\n}\n\nfragment AffineTransformationView on AffineTransformationView {\n  ...View\n  id\n  affineMatrix\n  stage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ChannelView on ChannelView {\n  ...View\n  id\n  emissionWavelength\n  excitationWavelength\n  __typename\n}\n\nfragment ContinousScanView on ContinousScanView {\n  ...View\n  id\n  direction\n  __typename\n}\n\nfragment DerivedView on DerivedView {\n  ...View\n  id\n  originImage {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FileView on FileView {\n  ...View\n  id\n  seriesIdentifier\n  file {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment InstanceMaskView on InstanceMaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment MaskView on MaskView {\n  ...View\n  id\n  referenceView {\n    ...ReferenceView\n    __typename\n  }\n  __typename\n}\n\nfragment OpticsView on OpticsView {\n  ...View\n  id\n  objective {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  camera {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  instrument {\n    id\n    name\n    serialNumber\n    __typename\n  }\n  __typename\n}\n\nfragment RGBView on RGBView {\n  ...View\n  id\n  contexts {\n    id\n    name\n    __typename\n  }\n  name\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    derivedScaleViews {\n      id\n      image {\n        id\n        store {\n          ...ZarrStore\n          __typename\n        }\n        __typename\n      }\n      scaleX\n      scaleY\n      scaleZ\n      scaleT\n      scaleC\n      __typename\n    }\n    __typename\n  }\n  colorMap\n  contrastLimitMin\n  contrastLimitMax\n  gamma\n  active\n  fullColour\n  baseColor\n  __typename\n}\n\nfragment ROIView on ROIView {\n  ...View\n  id\n  roi {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment TimepointView on TimepointView {\n  ...View\n  id\n  timeSinceStart\n  indexSinceStart\n  era {\n    ...Era\n    __typename\n  }\n  __typename\n}\n\nfragment WellPositionView on WellPositionView {\n  ...View\n  id\n  column\n  row\n  well {\n    id\n    rows\n    columns\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Image on Image {\n  id\n  name\n  store {\n    ...ZarrStore\n    __typename\n  }\n  views {\n    ...ChannelView\n    ...AffineTransformationView\n    ...TimepointView\n    ...OpticsView\n    ...AcquisitionView\n    ...RGBView\n    ...WellPositionView\n    ...DerivedView\n    ...ROIView\n    ...FileView\n    ...ContinousScanView\n    __typename\n  }\n  maskViews {\n    ...MaskView\n    __typename\n  }\n  instanceMaskViews {\n    ...InstanceMaskView\n    __typename\n  }\n  rgbContexts {\n    id\n    name\n    views {\n      ...RGBView\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchImages($folder: ID) {\n  images(folder: $folder) {\n    create {\n      ...Image\n      __typename\n    }\n    delete\n    update {\n      ...Image\n      __typename\n    }\n    __typename\n  }\n}'
 
 class WatchRoisSubscriptionRois(BaseModel):
     """No documentation"""
@@ -7384,7 +7396,7 @@ class WatchRoisSubscription(BaseModel):
         """Meta class for WatchRois """
         document = 'fragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment ROI on ROI {\n  id\n  image {\n    id\n    store {\n      ...ZarrStore\n      __typename\n    }\n    __typename\n  }\n  vectors\n  kind\n  __typename\n}\n\nsubscription WatchRois($image: ID!) {\n  rois(image: $image) {\n    create {\n      ...ROI\n      __typename\n    }\n    delete\n    update {\n      ...ROI\n      __typename\n    }\n    __typename\n  }\n}'
 
-async def acreate_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
+async def acreate_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], folder: Union[Optional[IDCoercible], UnsetType]=UNSET, anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
     """CreateADataset 
 
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
@@ -7394,6 +7406,7 @@ Args:
     scales: Input type for one pyramid level: the array backing it. Its scale is derived from its actual shape, never supplied (required) (list) (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     anchors: Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to (required) (list)
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
@@ -7408,6 +7421,8 @@ Returns:
     _input['scales'] = scales
     _input['name'] = name
     _input['axes'] = axes
+    if folder is not UNSET:
+        _input['folder'] = folder
     if anchors is not UNSET:
         _input['anchors'] = anchors
     if derived_from is not UNSET:
@@ -7417,7 +7432,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateADatasetMutation, variables, rath=rath)).create_a_dataset
 
-def create_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
+def create_a_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], folder: Union[Optional[IDCoercible], UnsetType]=UNSET, anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ADataset:
     """CreateADataset 
 
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
@@ -7427,6 +7442,7 @@ Args:
     scales: Input type for one pyramid level: the array backing it. Its scale is derived from its actual shape, never supplied (required) (list) (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     anchors: Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to (required) (list)
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
@@ -7441,6 +7457,8 @@ Returns:
     _input['scales'] = scales
     _input['name'] = name
     _input['axes'] = axes
+    if folder is not UNSET:
+        _input['folder'] = folder
     if anchors is not UNSET:
         _input['anchors'] = anchors
     if derived_from is not UNSET:
@@ -7858,7 +7876,7 @@ Returns:
     variables['input'] = _input
     return execute(DeleteAnnotationMutation, variables, rath=rath).delete_annotation
 
-async def acreate_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+async def acreate_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
     """CreateAnnotationCollection 
 
 Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
@@ -7867,6 +7885,7 @@ Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7880,6 +7899,8 @@ Returns:
     if description is not UNSET:
         _input['description'] = description
     _input['axes'] = axes
+    if folder is not UNSET:
+        _input['folder'] = folder
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
     if source_files is not UNSET:
@@ -7887,7 +7908,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateAnnotationCollectionMutation, variables, rath=rath)).create_annotation_collection
 
-def create_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+def create_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
     """CreateAnnotationCollection 
 
 Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
@@ -7896,6 +7917,7 @@ Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
@@ -7909,6 +7931,8 @@ Returns:
     if description is not UNSET:
         _input['description'] = description
     _input['axes'] = axes
+    if folder is not UNSET:
+        _input['folder'] = folder
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
     if source_files is not UNSET:
@@ -8880,176 +8904,6 @@ Returns:
     variables['input'] = _input
     return execute(RequestZarrAccessMutation, variables, rath=rath).request_zarr_access
 
-async def acreate_dataset(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
-    """CreateDataset 
-
-Create a new dataset to organize data
-
-Args:
-    name: The name of the dataset
-    parent: The ID of the parent dataset to nest this dataset under
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    Dataset
-"""
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
-    _input['name'] = name
-    if parent is not UNSET:
-        _input['parent'] = parent
-    variables['input'] = _input
-    return (await aexecute(CreateDatasetMutation, variables, rath=rath)).create_dataset
-
-def create_dataset(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
-    """CreateDataset 
-
-Create a new dataset to organize data
-
-Args:
-    name: The name of the dataset
-    parent: The ID of the parent dataset to nest this dataset under
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    Dataset
-"""
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
-    _input['name'] = name
-    if parent is not UNSET:
-        _input['parent'] = parent
-    variables['input'] = _input
-    return execute(CreateDatasetMutation, variables, rath=rath).create_dataset
-
-async def aensure_dataset(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
-    """EnsureDataset 
-
-Create a new dataset to organize data
-
-Args:
-    name: The name of the dataset
-    parent: The ID of the parent dataset to nest this dataset under
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    Dataset
-"""
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
-    _input['name'] = name
-    if parent is not UNSET:
-        _input['parent'] = parent
-    variables['input'] = _input
-    return (await aexecute(EnsureDatasetMutation, variables, rath=rath)).ensure_dataset
-
-def ensure_dataset(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
-    """EnsureDataset 
-
-Create a new dataset to organize data
-
-Args:
-    name: The name of the dataset
-    parent: The ID of the parent dataset to nest this dataset under
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    Dataset
-"""
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
-    _input['name'] = name
-    if parent is not UNSET:
-        _input['parent'] = parent
-    variables['input'] = _input
-    return execute(EnsureDatasetMutation, variables, rath=rath).ensure_dataset
-
-async def aupdate_dataset(name: str, id: IDCoercible, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
-    """UpdateDataset 
-
-Update dataset metadata
-
-Args:
-    name: The name of the dataset
-    parent: The ID of the parent dataset to nest this dataset under
-    id: The ID of the dataset to change
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    Dataset
-"""
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
-    _input['name'] = name
-    if parent is not UNSET:
-        _input['parent'] = parent
-    _input['id'] = id
-    variables['input'] = _input
-    return (await aexecute(UpdateDatasetMutation, variables, rath=rath)).update_dataset
-
-def update_dataset(name: str, id: IDCoercible, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Dataset:
-    """UpdateDataset 
-
-Update dataset metadata
-
-Args:
-    name: The name of the dataset
-    parent: The ID of the parent dataset to nest this dataset under
-    id: The ID of the dataset to change
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    Dataset
-"""
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
-    _input['name'] = name
-    if parent is not UNSET:
-        _input['parent'] = parent
-    _input['id'] = id
-    variables['input'] = _input
-    return execute(UpdateDatasetMutation, variables, rath=rath).update_dataset
-
-async def arevert_dataset(id: IDCoercible, history_id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Dataset:
-    """RevertDataset 
-
-Revert dataset to a previous version
-
-Args:
-    id: The ID of the dataset to revert
-    history_id: The ID of the provenance history entry to revert the dataset to
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    Dataset
-"""
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
-    _input['id'] = id
-    _input['historyId'] = history_id
-    variables['input'] = _input
-    return (await aexecute(RevertDatasetMutation, variables, rath=rath)).revert_dataset
-
-def revert_dataset(id: IDCoercible, history_id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Dataset:
-    """RevertDataset 
-
-Revert dataset to a previous version
-
-Args:
-    id: The ID of the dataset to revert
-    history_id: The ID of the provenance history entry to revert the dataset to
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    Dataset
-"""
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
-    _input['id'] = id
-    _input['historyId'] = history_id
-    variables['input'] = _input
-    return execute(RevertDatasetMutation, variables, rath=rath).revert_dataset
-
 async def acreate_era(name: str, begin: Union[Optional[datetime], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CreateEraMutationCreateera:
     """CreateEra 
 
@@ -9092,7 +8946,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateEraMutation, variables, rath=rath).create_era
 
-async def afrom_file_like(file: ImageFileCoercible, file_name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, export_of: Union[Optional[Iterable[ExportOfInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
+async def afrom_file_like(file: ImageFileCoercible, file_name: str, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, export_of: Union[Optional[Iterable[ExportOfInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
     """FromFileLike 
 
 Create a file from file-like data
@@ -9100,7 +8954,7 @@ Create a file from file-like data
 Args:
     file: The uploaded big-file store to create the file from
     file_name: The name of the file
-    dataset: The ID of the dataset to put the file in (defaults to the current default dataset)
+    folder: The ID of the folder to put the file in (defaults to the current default folder)
     export_of: The containers this file was written from
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -9111,14 +8965,14 @@ Returns:
     _input: Dict[str, Any] = {}
     _input['file'] = file
     _input['fileName'] = file_name
-    if dataset is not UNSET:
-        _input['dataset'] = dataset
+    if folder is not UNSET:
+        _input['folder'] = folder
     if export_of is not UNSET:
         _input['exportOf'] = export_of
     variables['input'] = _input
     return (await aexecute(FromFileLikeMutation, variables, rath=rath)).from_file_like
 
-def from_file_like(file: ImageFileCoercible, file_name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, export_of: Union[Optional[Iterable[ExportOfInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
+def from_file_like(file: ImageFileCoercible, file_name: str, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, export_of: Union[Optional[Iterable[ExportOfInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
     """FromFileLike 
 
 Create a file from file-like data
@@ -9126,7 +8980,7 @@ Create a file from file-like data
 Args:
     file: The uploaded big-file store to create the file from
     file_name: The name of the file
-    dataset: The ID of the dataset to put the file in (defaults to the current default dataset)
+    folder: The ID of the folder to put the file in (defaults to the current default folder)
     export_of: The containers this file was written from
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -9137,14 +8991,184 @@ Returns:
     _input: Dict[str, Any] = {}
     _input['file'] = file
     _input['fileName'] = file_name
-    if dataset is not UNSET:
-        _input['dataset'] = dataset
+    if folder is not UNSET:
+        _input['folder'] = folder
     if export_of is not UNSET:
         _input['exportOf'] = export_of
     variables['input'] = _input
     return execute(FromFileLikeMutation, variables, rath=rath).from_file_like
 
-async def afrom_array_like(array: ImageCoercible, name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, channel_views: Union[Optional[Iterable[PartialChannelViewInput]], UnsetType]=UNSET, transformation_views: Union[Optional[Iterable[PartialAffineTransformationViewInput]], UnsetType]=UNSET, acquisition_views: Union[Optional[Iterable[PartialAcquisitionViewInput]], UnsetType]=UNSET, mask_views: Union[Optional[Iterable[PartialMaskViewInput]], UnsetType]=UNSET, reference_views: Union[Optional[Iterable[PartialReferenceViewInput]], UnsetType]=UNSET, instance_mask_views: Union[Optional[Iterable[PartialInstanceMaskViewInput]], UnsetType]=UNSET, rgb_views: Union[Optional[Iterable[PartialRGBViewInput]], UnsetType]=UNSET, timepoint_views: Union[Optional[Iterable[PartialTimepointViewInput]], UnsetType]=UNSET, optics_views: Union[Optional[Iterable[PartialOpticsViewInput]], UnsetType]=UNSET, scale_views: Union[Optional[Iterable[PartialScaleViewInput]], UnsetType]=UNSET, tags: Union[Optional[Iterable[str]], UnsetType]=UNSET, roi_views: Union[Optional[Iterable[PartialROIViewInput]], UnsetType]=UNSET, file_views: Union[Optional[Iterable[PartialFileViewInput]], UnsetType]=UNSET, derived_views: Union[Optional[Iterable[PartialDerivedViewInput]], UnsetType]=UNSET, lightpath_views: Union[Optional[Iterable[PartialLightpathViewInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Image:
+async def acreate_folder(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+    """CreateFolder 
+
+Create a new folder to organize data
+
+Args:
+    name: The name of the folder
+    parent: The ID of the parent folder to nest this folder under
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Folder
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    variables['input'] = _input
+    return (await aexecute(CreateFolderMutation, variables, rath=rath)).create_folder
+
+def create_folder(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+    """CreateFolder 
+
+Create a new folder to organize data
+
+Args:
+    name: The name of the folder
+    parent: The ID of the parent folder to nest this folder under
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Folder
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    variables['input'] = _input
+    return execute(CreateFolderMutation, variables, rath=rath).create_folder
+
+async def aensure_folder(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+    """EnsureFolder 
+
+Create a new folder to organize data
+
+Args:
+    name: The name of the folder
+    parent: The ID of the parent folder to nest this folder under
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Folder
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    variables['input'] = _input
+    return (await aexecute(EnsureFolderMutation, variables, rath=rath)).ensure_folder
+
+def ensure_folder(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+    """EnsureFolder 
+
+Create a new folder to organize data
+
+Args:
+    name: The name of the folder
+    parent: The ID of the parent folder to nest this folder under
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Folder
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    variables['input'] = _input
+    return execute(EnsureFolderMutation, variables, rath=rath).ensure_folder
+
+async def aupdate_folder(name: str, id: IDCoercible, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+    """UpdateFolder 
+
+Update folder metadata
+
+Args:
+    name: The name of the folder
+    parent: The ID of the parent folder to nest this folder under
+    id: The ID of the folder to change
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Folder
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(UpdateFolderMutation, variables, rath=rath)).update_folder
+
+def update_folder(name: str, id: IDCoercible, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+    """UpdateFolder 
+
+Update folder metadata
+
+Args:
+    name: The name of the folder
+    parent: The ID of the parent folder to nest this folder under
+    id: The ID of the folder to change
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Folder
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['name'] = name
+    if parent is not UNSET:
+        _input['parent'] = parent
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(UpdateFolderMutation, variables, rath=rath).update_folder
+
+async def arevert_folder(id: IDCoercible, history_id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Folder:
+    """RevertFolder 
+
+Revert folder to a previous version
+
+Args:
+    id: The ID of the folder to revert
+    history_id: The ID of the provenance history entry to revert the folder to
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Folder
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    _input['historyId'] = history_id
+    variables['input'] = _input
+    return (await aexecute(RevertFolderMutation, variables, rath=rath)).revert_folder
+
+def revert_folder(id: IDCoercible, history_id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Folder:
+    """RevertFolder 
+
+Revert folder to a previous version
+
+Args:
+    id: The ID of the folder to revert
+    history_id: The ID of the provenance history entry to revert the folder to
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Folder
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['id'] = id
+    _input['historyId'] = history_id
+    variables['input'] = _input
+    return execute(RevertFolderMutation, variables, rath=rath).revert_folder
+
+async def afrom_array_like(array: ImageCoercible, name: str, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, channel_views: Union[Optional[Iterable[PartialChannelViewInput]], UnsetType]=UNSET, transformation_views: Union[Optional[Iterable[PartialAffineTransformationViewInput]], UnsetType]=UNSET, acquisition_views: Union[Optional[Iterable[PartialAcquisitionViewInput]], UnsetType]=UNSET, mask_views: Union[Optional[Iterable[PartialMaskViewInput]], UnsetType]=UNSET, reference_views: Union[Optional[Iterable[PartialReferenceViewInput]], UnsetType]=UNSET, instance_mask_views: Union[Optional[Iterable[PartialInstanceMaskViewInput]], UnsetType]=UNSET, rgb_views: Union[Optional[Iterable[PartialRGBViewInput]], UnsetType]=UNSET, timepoint_views: Union[Optional[Iterable[PartialTimepointViewInput]], UnsetType]=UNSET, optics_views: Union[Optional[Iterable[PartialOpticsViewInput]], UnsetType]=UNSET, scale_views: Union[Optional[Iterable[PartialScaleViewInput]], UnsetType]=UNSET, tags: Union[Optional[Iterable[str]], UnsetType]=UNSET, roi_views: Union[Optional[Iterable[PartialROIViewInput]], UnsetType]=UNSET, file_views: Union[Optional[Iterable[PartialFileViewInput]], UnsetType]=UNSET, derived_views: Union[Optional[Iterable[PartialDerivedViewInput]], UnsetType]=UNSET, lightpath_views: Union[Optional[Iterable[PartialLightpathViewInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Image:
     """from_array_like 
 
 Create an image from array-like data
@@ -9152,7 +9176,7 @@ Create an image from array-like data
 Args:
     array: The array-like object to create the image from
     name: The name of the image
-    dataset: Optional dataset ID to associate the image with
+    folder: Optional folder ID to associate the image with
     channel_views: Optional list of channel views
     transformation_views: Optional list of affine transformation views
     acquisition_views: Optional list of acquisition views
@@ -9177,8 +9201,8 @@ Returns:
     _input: Dict[str, Any] = {}
     _input['array'] = array
     _input['name'] = name
-    if dataset is not UNSET:
-        _input['dataset'] = dataset
+    if folder is not UNSET:
+        _input['folder'] = folder
     if channel_views is not UNSET:
         _input['channelViews'] = channel_views
     if transformation_views is not UNSET:
@@ -9212,7 +9236,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(From_array_likeMutation, variables, rath=rath)).from_array_like
 
-def from_array_like(array: ImageCoercible, name: str, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, channel_views: Union[Optional[Iterable[PartialChannelViewInput]], UnsetType]=UNSET, transformation_views: Union[Optional[Iterable[PartialAffineTransformationViewInput]], UnsetType]=UNSET, acquisition_views: Union[Optional[Iterable[PartialAcquisitionViewInput]], UnsetType]=UNSET, mask_views: Union[Optional[Iterable[PartialMaskViewInput]], UnsetType]=UNSET, reference_views: Union[Optional[Iterable[PartialReferenceViewInput]], UnsetType]=UNSET, instance_mask_views: Union[Optional[Iterable[PartialInstanceMaskViewInput]], UnsetType]=UNSET, rgb_views: Union[Optional[Iterable[PartialRGBViewInput]], UnsetType]=UNSET, timepoint_views: Union[Optional[Iterable[PartialTimepointViewInput]], UnsetType]=UNSET, optics_views: Union[Optional[Iterable[PartialOpticsViewInput]], UnsetType]=UNSET, scale_views: Union[Optional[Iterable[PartialScaleViewInput]], UnsetType]=UNSET, tags: Union[Optional[Iterable[str]], UnsetType]=UNSET, roi_views: Union[Optional[Iterable[PartialROIViewInput]], UnsetType]=UNSET, file_views: Union[Optional[Iterable[PartialFileViewInput]], UnsetType]=UNSET, derived_views: Union[Optional[Iterable[PartialDerivedViewInput]], UnsetType]=UNSET, lightpath_views: Union[Optional[Iterable[PartialLightpathViewInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Image:
+def from_array_like(array: ImageCoercible, name: str, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, channel_views: Union[Optional[Iterable[PartialChannelViewInput]], UnsetType]=UNSET, transformation_views: Union[Optional[Iterable[PartialAffineTransformationViewInput]], UnsetType]=UNSET, acquisition_views: Union[Optional[Iterable[PartialAcquisitionViewInput]], UnsetType]=UNSET, mask_views: Union[Optional[Iterable[PartialMaskViewInput]], UnsetType]=UNSET, reference_views: Union[Optional[Iterable[PartialReferenceViewInput]], UnsetType]=UNSET, instance_mask_views: Union[Optional[Iterable[PartialInstanceMaskViewInput]], UnsetType]=UNSET, rgb_views: Union[Optional[Iterable[PartialRGBViewInput]], UnsetType]=UNSET, timepoint_views: Union[Optional[Iterable[PartialTimepointViewInput]], UnsetType]=UNSET, optics_views: Union[Optional[Iterable[PartialOpticsViewInput]], UnsetType]=UNSET, scale_views: Union[Optional[Iterable[PartialScaleViewInput]], UnsetType]=UNSET, tags: Union[Optional[Iterable[str]], UnsetType]=UNSET, roi_views: Union[Optional[Iterable[PartialROIViewInput]], UnsetType]=UNSET, file_views: Union[Optional[Iterable[PartialFileViewInput]], UnsetType]=UNSET, derived_views: Union[Optional[Iterable[PartialDerivedViewInput]], UnsetType]=UNSET, lightpath_views: Union[Optional[Iterable[PartialLightpathViewInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Image:
     """from_array_like 
 
 Create an image from array-like data
@@ -9220,7 +9244,7 @@ Create an image from array-like data
 Args:
     array: The array-like object to create the image from
     name: The name of the image
-    dataset: Optional dataset ID to associate the image with
+    folder: Optional folder ID to associate the image with
     channel_views: Optional list of channel views
     transformation_views: Optional list of affine transformation views
     acquisition_views: Optional list of acquisition views
@@ -9245,8 +9269,8 @@ Returns:
     _input: Dict[str, Any] = {}
     _input['array'] = array
     _input['name'] = name
-    if dataset is not UNSET:
-        _input['dataset'] = dataset
+    if folder is not UNSET:
+        _input['folder'] = folder
     if channel_views is not UNSET:
         _input['channelViews'] = channel_views
     if transformation_views is not UNSET:
@@ -9544,7 +9568,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateLensMutation, variables, rath=rath).create_lens
 
-async def acreate_mesh_collection(version: str, spec_version: str, catalog: ParquetCoercible, axes: Iterable[Union[AxisInput, str]], geometry: Union[Optional[Iterable[ParquetCoercible]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, grid: Union[Optional[Any], UnsetType]=UNSET, encoding: Union[Optional[Any], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+async def acreate_mesh_collection(version: str, spec_version: str, catalog: ParquetCoercible, axes: Iterable[Union[AxisInput, str]], geometry: Union[Optional[Iterable[ParquetCoercible]], UnsetType]=UNSET, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, grid: Union[Optional[Any], UnsetType]=UNSET, encoding: Union[Optional[Any], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
     """CreateMeshCollection 
 
 Register an immutable, versioned mesh collection against a coordinate system
@@ -9555,6 +9579,7 @@ Args:
     catalog: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
     geometry: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required) (list)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     grid: The `Any` scalar any type
@@ -9573,6 +9598,8 @@ Returns:
     if geometry is not UNSET:
         _input['geometry'] = geometry
     _input['axes'] = axes
+    if folder is not UNSET:
+        _input['folder'] = folder
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
     if source_files is not UNSET:
@@ -9586,7 +9613,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateMeshCollectionMutation, variables, rath=rath)).create_mesh_collection
 
-def create_mesh_collection(version: str, spec_version: str, catalog: ParquetCoercible, axes: Iterable[Union[AxisInput, str]], geometry: Union[Optional[Iterable[ParquetCoercible]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, grid: Union[Optional[Any], UnsetType]=UNSET, encoding: Union[Optional[Any], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+def create_mesh_collection(version: str, spec_version: str, catalog: ParquetCoercible, axes: Iterable[Union[AxisInput, str]], geometry: Union[Optional[Iterable[ParquetCoercible]], UnsetType]=UNSET, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, grid: Union[Optional[Any], UnsetType]=UNSET, encoding: Union[Optional[Any], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
     """CreateMeshCollection 
 
 Register an immutable, versioned mesh collection against a coordinate system
@@ -9597,6 +9624,7 @@ Args:
     catalog: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
     geometry: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required) (list)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     grid: The `Any` scalar any type
@@ -9615,6 +9643,8 @@ Returns:
     if geometry is not UNSET:
         _input['geometry'] = geometry
     _input['axes'] = axes
+    if folder is not UNSET:
+        _input['folder'] = folder
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
     if source_files is not UNSET:
@@ -10882,7 +10912,7 @@ Returns:
     variables['input'] = _input
     return execute(From_parquet_likeMutation, variables, rath=rath).from_parquet_like
 
-async def acreate_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+async def acreate_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
     """CreateTableDataset 
 
 Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
@@ -10890,8 +10920,9 @@ Create a table dataset from a Parquet store. Its declared coordinate columns bec
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     data: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
-    columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and optional unit and becomes an axis of the table's space (required) (list) (required)
+    columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and becomes an axis of the table's space; a COORDINATE or ATTRIBUTE column may state the unit its values are in (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     keyed_by: A label mask whose pixel values are the ids this table is indexed by. It authors the FIELD edge in the direction the map actually runs -- mask pixels -> table rows -- which is the direction attributePlans discovers, and the opposite of the lineage `derivedFrom` records (required) (list)
@@ -10908,6 +10939,8 @@ Returns:
     _input['columns'] = columns
     if description is not UNSET:
         _input['description'] = description
+    if folder is not UNSET:
+        _input['folder'] = folder
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
     if source_files is not UNSET:
@@ -10918,7 +10951,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateTableDatasetMutation, variables, rath=rath)).create_table_dataset
 
-def create_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+def create_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
     """CreateTableDataset 
 
 Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
@@ -10926,8 +10959,9 @@ Create a table dataset from a Parquet store. Its declared coordinate columns bec
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     data: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
-    columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and optional unit and becomes an axis of the table's space (required) (list) (required)
+    columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and becomes an axis of the table's space; a COORDINATE or ATTRIBUTE column may state the unit its values are in (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
     keyed_by: A label mask whose pixel values are the ids this table is indexed by. It authors the FIELD edge in the direction the map actually runs -- mask pixels -> table rows -- which is the direction attributePlans discovers, and the opposite of the lineage `derivedFrom` records (required) (list)
@@ -10944,6 +10978,8 @@ Returns:
     _input['columns'] = columns
     if description is not UNSET:
         _input['description'] = description
+    if folder is not UNSET:
+        _input['folder'] = folder
     if derived_from is not UNSET:
         _input['derivedFrom'] = derived_from
     if source_files is not UNSET:
@@ -12670,90 +12706,6 @@ Returns:
         variables['offset'] = offset
     return execute(SearchCoordinateSystemsQuery, variables, rath=rath).options
 
-async def aget_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Dataset:
-    """GetDataset 
-
-Get a single dataset by ID
-
-Args:
-    id (ID): The unique identifier of an object
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    Dataset
-"""
-    variables: Dict[str, Any] = {}
-    variables['id'] = id
-    return (await aexecute(GetDatasetQuery, variables, rath=rath)).dataset
-
-def get_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Dataset:
-    """GetDataset 
-
-Get a single dataset by ID
-
-Args:
-    id (ID): The unique identifier of an object
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    Dataset
-"""
-    variables: Dict[str, Any] = {}
-    variables['id'] = id
-    return execute(GetDatasetQuery, variables, rath=rath).dataset
-
-async def asearch_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchDatasetsQueryOptions, ...]:
-    """SearchDatasets 
-
-List datasets (folder-like collections of images, files and tables)
-
-Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    List[SearchDatasetsQueryDatasets]
-"""
-    variables: Dict[str, Any] = {}
-    if search is not UNSET:
-        variables['search'] = search
-    if values is not UNSET:
-        variables['values'] = values
-    if limit is not UNSET:
-        variables['limit'] = limit
-    if offset is not UNSET:
-        variables['offset'] = offset
-    return (await aexecute(SearchDatasetsQuery, variables, rath=rath)).options
-
-def search_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchDatasetsQueryOptions, ...]:
-    """SearchDatasets 
-
-List datasets (folder-like collections of images, files and tables)
-
-Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
-    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
-
-Returns:
-    List[SearchDatasetsQueryDatasets]
-"""
-    variables: Dict[str, Any] = {}
-    if search is not UNSET:
-        variables['search'] = search
-    if values is not UNSET:
-        variables['values'] = values
-    if limit is not UNSET:
-        variables['limit'] = limit
-    if offset is not UNSET:
-        variables['offset'] = offset
-    return execute(SearchDatasetsQuery, variables, rath=rath).options
-
 async def aget_file(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> File:
     """GetFile 
 
@@ -12837,6 +12789,90 @@ Returns:
     if offset is not UNSET:
         variables['offset'] = offset
     return execute(SearchFilesQuery, variables, rath=rath).options
+
+async def aget_folder(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Folder:
+    """GetFolder 
+
+Get a single folder by ID
+
+Args:
+    id (ID): The unique identifier of an object
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Folder
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetFolderQuery, variables, rath=rath)).folder
+
+def get_folder(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Folder:
+    """GetFolder 
+
+Get a single folder by ID
+
+Args:
+    id (ID): The unique identifier of an object
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Folder
+"""
+    variables: Dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetFolderQuery, variables, rath=rath).folder
+
+async def asearch_folders(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFoldersQueryOptions, ...]:
+    """SearchFolders 
+
+List folders (collections of images, files and tables)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchFoldersQueryFolders]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return (await aexecute(SearchFoldersQuery, variables, rath=rath)).options
+
+def search_folders(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFoldersQueryOptions, ...]:
+    """SearchFolders 
+
+List folders (collections of images, files and tables)
+
+Args:
+    search (Optional[str], optional): No description. 
+    values (Optional[List[ID]], optional): No description. 
+    limit (Optional[int], optional): No description. 
+    offset (Optional[int], optional): No description. Defaults to 0
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    List[SearchFoldersQueryFolders]
+"""
+    variables: Dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    if limit is not UNSET:
+        variables['limit'] = limit
+    if offset is not UNSET:
+        variables['offset'] = offset
+    return execute(SearchFoldersQuery, variables, rath=rath).options
 
 async def aget_image(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Image:
     """GetImage 
@@ -14288,75 +14324,75 @@ Returns:
         variables['offset'] = offset
     return execute(SearchRGBViewsQuery, variables, rath=rath).options
 
-async def awatch_files(dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchFilesSubscriptionFiles]:
+async def awatch_files(folder: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchFilesSubscriptionFiles]:
     """WatchFiles 
 
 Subscribe to real-time file updates
 
 Args:
-    dataset (Optional[ID], optional): No description. 
+    folder (Optional[ID], optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
     WatchFilesSubscriptionFiles
 """
     variables: Dict[str, Any] = {}
-    if dataset is not UNSET:
-        variables['dataset'] = dataset
+    if folder is not UNSET:
+        variables['folder'] = folder
     async for event in asubscribe(WatchFilesSubscription, variables, rath=rath):
         yield event.files
 
-def watch_files(dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Iterator[WatchFilesSubscriptionFiles]:
+def watch_files(folder: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Iterator[WatchFilesSubscriptionFiles]:
     """WatchFiles 
 
 Subscribe to real-time file updates
 
 Args:
-    dataset (Optional[ID], optional): No description. 
+    folder (Optional[ID], optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
     WatchFilesSubscriptionFiles
 """
     variables: Dict[str, Any] = {}
-    if dataset is not UNSET:
-        variables['dataset'] = dataset
+    if folder is not UNSET:
+        variables['folder'] = folder
     for event in subscribe(WatchFilesSubscription, variables, rath=rath):
         yield event.files
 
-async def awatch_images(dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchImagesSubscriptionImages]:
+async def awatch_images(folder: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchImagesSubscriptionImages]:
     """WatchImages 
 
 Subscribe to real-time image updates
 
 Args:
-    dataset (Optional[ID], optional): No description. 
+    folder (Optional[ID], optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
     WatchImagesSubscriptionImages
 """
     variables: Dict[str, Any] = {}
-    if dataset is not UNSET:
-        variables['dataset'] = dataset
+    if folder is not UNSET:
+        variables['folder'] = folder
     async for event in asubscribe(WatchImagesSubscription, variables, rath=rath):
         yield event.images
 
-def watch_images(dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Iterator[WatchImagesSubscriptionImages]:
+def watch_images(folder: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Iterator[WatchImagesSubscriptionImages]:
     """WatchImages 
 
 Subscribe to real-time image updates
 
 Args:
-    dataset (Optional[ID], optional): No description. 
+    folder (Optional[ID], optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
     WatchImagesSubscriptionImages
 """
     variables: Dict[str, Any] = {}
-    if dataset is not UNSET:
-        variables['dataset'] = dataset
+    if folder is not UNSET:
+        variables['folder'] = folder
     for event in subscribe(WatchImagesSubscription, variables, rath=rath):
         yield event.images
 
@@ -14420,11 +14456,11 @@ CreateSceneInput.model_rebuild()
 CreateTableDatasetInput.model_rebuild()
 CreateTransformationInput.model_rebuild()
 DatasetDerivedFromInput.model_rebuild()
-DatasetFilter.model_rebuild()
 DetectorElementInput.model_rebuild()
 DeviceStateInput.model_rebuild()
 EraFilter.model_rebuild()
 FilterElementInput.model_rebuild()
+FolderFilter.model_rebuild()
 FromArrayLikeInput.model_rebuild()
 FromParquetLike.model_rebuild()
 ImageFilter.model_rebuild()

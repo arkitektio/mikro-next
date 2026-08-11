@@ -1,6 +1,6 @@
 fragment ImageWithData on Image {
   id
-  dataset {
+  folder {
     name
     parent {
       name
