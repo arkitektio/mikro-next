@@ -3,3 +3,9 @@ mutation CreateLayer($input: CreateLayerInput!) {
     ...Layer
   }
 }
+
+mutation CreateLabelLayer($input: CreateLabelLayerInput!) {
+  createLabelLayer(input: $input) {
+    ...Layer
+  }
+}

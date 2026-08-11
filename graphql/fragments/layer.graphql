@@ -9,4 +9,11 @@ fragment Layer on Layer {
       id
     }
   }
+  ... on LabelLayer {
+    lens {
+      id
+    }
+    placement
+    placementValidity
+  }
 }

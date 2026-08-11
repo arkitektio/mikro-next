@@ -23,6 +23,7 @@
             "exclude_typenames": true,
             "scalar_definitions": {
                 "Any": "typing.Any",
+                "JSON": "typing.Any",
                 "UUID": "str",
                 "StructureString": "str",
                 "ArrayLike": "mikro_next.scalars.ArrayLike",

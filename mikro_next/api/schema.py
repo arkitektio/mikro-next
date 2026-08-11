@@ -1,22 +1,13 @@
-from mikro_next.traits import HasDownloadAccessor, Lensable, CoordinateSystemTrait, DataArrayTrait, TransformationTrait, SceneTrait, DatasetTrait, CoordinateAnchorInputTrait, HasParquestStoreTrait, FileTrait, HasParquetStoreAccesor, CreateADatasetTrait, MikroFetchable, AxisInputTrait, ValueHistogramInputTrait, IsVectorizableTrait, HasPresignedDownloadAccessor, RGBAColorInputTrait, HasZarrStoreAccessor, HasZarrStoreTrait
 from enum import Enum
-from mikro_next.scalars import FileLike, FiveDVector, ImageFileLike, ArrayCoercible, ImageLike, ImageCoercible, ThreeDVector, ParquetLike, ArrayLike, FourByFourMatrix, LabelsLike, ParquetCoercible, ImageFileCoercible
-from typing import Any, Iterable, Tuple, AsyncIterator, Annotated, Literal, Optional, Dict, Union, List, Iterator
-from mikro_next.rath import MikroNextRath
-from mikro_next.funcs import subscribe, aexecute, asubscribe, execute
-from datetime import datetime
-from kanne.scalars import Frequency, Temperature, Power, Unit, Duration, Length, GenericQuantity
-from pydantic import ConfigDict, Field, BaseModel
+from typing import Tuple, AsyncIterator, List, Iterable, Iterator, Optional, Annotated, Dict, Literal, Any, Union
 from rath.scalars import IDCoercible, ID
-
-class GraphQLDefault:
-    """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
-
-    def __init__(self, value):
-        self.value = value
-
-    def __repr__(self):
-        return 'GraphQLDefault(' + repr(self.value) + ')'
+from mikro_next.funcs import execute, subscribe, aexecute, asubscribe
+from mikro_next.scalars import ThreeDVector, ParquetCoercible, ArrayCoercible, ImageFileCoercible, ImageFileLike, ParquetLike, ImageLike, FiveDVector, LabelsLike, FileLike, ArrayLike, FourByFourMatrix, ImageCoercible
+from mikro_next.traits import AxisInputTrait, DataArrayTrait, CreateADatasetTrait, SceneTrait, HasZarrStoreAccessor, MikroFetchable, HasDownloadAccessor, HasParquestStoreTrait, CoordinateSystemTrait, DatasetTrait, CoordinateAnchorInputTrait, IsVectorizableTrait, ValueHistogramInputTrait, FileTrait, RGBAColorInputTrait, Lensable, HasZarrStoreTrait, TransformationTrait, HasParquetStoreAccesor, HasPresignedDownloadAccessor
+from kanne.scalars import Frequency, Power, Duration, Temperature, Unit, Length, GenericQuantity
+from pydantic import Field, ConfigDict, BaseModel
+from mikro_next.rath import MikroNextRath
+from datetime import datetime
 
 class UnsetType:
     """Sentinel for arguments the caller did not provide. Such fields are omitted on serialization so the GraphQL server applies its own default."""
@@ -33,6 +24,15 @@ class UnsetType:
     def __bool__(self):
         return False
 UNSET = UnsetType()
+
+class GraphQLDefault:
+    """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return 'GraphQLDefault(' + repr(self.value) + ')'
 
 class ADatasetSpec(str, Enum):
     """What a dataset structurally is, materialized from the axes of its intrinsic coordinate system at creation. Specs stack: a 3D timelapse is VOLUME, TIMESERIES and MULTICHANNEL at once. Exactly one spatial member (SCALAR/PROFILE/IMAGE/VOLUME/HYPERVOLUME) ever holds."""
@@ -270,6 +270,15 @@ class PhasorCursorKind(str, Enum):
     POLYGON = 'POLYGON'
     'An arbitrary closed region, given by at least three (g, s) vertices.'
 
+class PlacementState(str, Enum):
+    """Whether a layer has a place in its scene's world, and if not, why not. Derived, never stored."""
+    PLACED = 'PLACED'
+    "The layer's data reaches the scene's world: `pathToWorld` is the route."
+    UNREGISTERED = 'UNREGISTERED'
+    "Nothing yet relates this layer's data to the scene's world. `pathToWorld` is null because the registration is *missing* — this is a gap in the data, and authoring the edge closes it."
+    UNMAPPABLE = 'UNMAPPABLE'
+    "This layer's data can never be placed: it reaches the world only across an UNMAPPABLE edge, which declares that no point correspondence exists. `pathToWorld` is null because there is nothing to find — badge it, and do not go looking for the missing registration."
+
 class PlacementValidity(str, Enum):
     """How much a transformation edge's map is actually known: guessed, inferred from metadata, authored by someone, or validated against the data. A layer's validity is derived from it, never stored: the weakest edge on its path to world."""
     MANUAL = 'MANUAL'
@@ -385,6 +394,25 @@ class RoiKindChoices(str, Enum):
     SLICE = 'SLICE'
     POINT = 'POINT'
     MULTI_POINT = 'MULTI_POINT'
+
+class ScaleMethod(str, Enum):
+    """How a pyramid level's voxels were computed from the level above it. Stated, never derived -- nothing about two arrays says whether one was averaged or picked out of the other -- and it matters because over an array of object ids only NEAREST and MODE are allowed: every other method returns numbers that were not in the input, and an invented id is an object that does not exist."""
+    NEAREST = 'NEAREST'
+    'One source voxel, carried through unchanged. Label-safe: the value was already there.'
+    MODE = 'MODE'
+    'The most frequent value in the source window. Label-safe, and the better of the two for a mask -- it keeps the object that actually dominates the window rather than whichever one the sampling grid happens to land on.'
+    LINEAR = 'LINEAR'
+    'Linear interpolation over the source window. Invents intermediate values, so never over ids.'
+    CUBIC = 'CUBIC'
+    'Cubic interpolation. Invents intermediate values, and overshoots past the input range at edges.'
+    AREA = 'AREA'
+    'The mean over the source window -- the usual image-pyramid default, and the usual way a mask pyramid gets silently ruined.'
+    GAUSSIAN = 'GAUSSIAN'
+    'A Gaussian-weighted average over the source window.'
+    MAX = 'MAX'
+    'The maximum of the source window. Returns a real value, but over ids it biases every boundary toward whichever object sorts higher, so it is not label-safe either.'
+    MIN = 'MIN'
+    "The minimum of the source window. Not label-safe, for the mirror of MAX's reason."
 
 class ScanDirection(str, Enum):
     """The axis traversal order of a continuous scan, i.e. the order in which rows, columns and slices are acquired."""
@@ -640,6 +668,14 @@ class FilterElementInput(BaseModel):
     description: Optional[str] = None
     filter_kind: Optional[FilterKind] = Field(alias='filterKind', default=None)
     transmittance: Optional[float] = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class IdentityTransformInput(BaseModel):
+    """The fields an IDENTITY member of TransformInput reads -- only the discriminator, the map having no parameters. Published for codegen; the wire type is the flat TransformInput"""
+    kind: Literal['IDENTITY'] = Field(default='IDENTITY')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
@@ -1270,6 +1306,16 @@ class CreateFolderInput(BaseModel):
     parent: Optional[ID] = Field(default=None, description='The ID of the parent folder to nest this folder under')
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class CreateLabelLayerInput(BaseModel):
+    """Create a label layer that renders an instance / segmentation map: an array whose values are discrete object ids"""
+    lens: ID
+    scene: ID
+    render: Optional['LabelRenderInput'] = None
+    opacity: Optional[float] = None
+    visible: Optional[bool] = None
+    order: Optional[int] = None
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class CreateLayerInput(BaseModel):
     """Input type for creating an image from an array-like object"""
     lens: ID
@@ -1706,9 +1752,32 @@ class KeyedByInput(BaseModel):
     validity: Optional[PlacementValidity] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
+class LabelColorByInput(BaseModel):
+    """Color objects by a column of the table this mask's FIELD edge keys into, instead of by hashing their id"""
+    table: ID
+    column: str
+    colormap: Optional[ColorMap] = None
+    class_colors: Optional[Any] = Field(alias='classColors', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
 class LabelInput(BaseModel):
     """Input type for a label, which specifies a label to associate with a coordinate anchor or an image"""
     label: str
+    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+
+class LabelRenderInput(BaseModel):
+    """How a label layer's discrete object ids become color. Every field is optional; omitted ones keep their current value on an update, and take their default on a create"""
+    intensity_axis: Optional[str] = Field(alias='intensityAxis', default=None)
+    intensity_index: Optional[int] = Field(alias='intensityIndex', default=None)
+    seed: Optional[int] = None
+    background: Optional[int] = None
+    opacity: Optional[float] = None
+    contour: Optional[bool] = None
+    contour_width: Optional[float] = Field(alias='contourWidth', default=None)
+    selected: Optional[Tuple[int, ...]] = None
+    selection_color: Optional[Tuple[int, ...]] = Field(alias='selectionColor', default=None)
+    show_unselected: Optional[bool] = Field(alias='showUnselected', default=None)
+    color_by: Optional[LabelColorByInput] = Field(alias='colorBy', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class LayerNodeInput(BaseModel):
@@ -2287,10 +2356,10 @@ class RoiInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ScaleInput(BaseModel):
-    """Input type for one pyramid level: the array backing it. Its scale is derived from its actual shape, never supplied"""
-    scale_method: Optional[str] = Field(alias='scaleMethod', default=None, description="The method used to create the scale, e.g. 'nearest', 'bilinear', 'bicubic'. Recorded as provenance on the level's transformation")
+    """Input type for one pyramid level: the array backing it, and how it was downsampled. Its scale factor is derived from its actual shape, never supplied"""
     level: int
     array: ArrayLike = Field(description='The array-like object to create the image from')
+    scale_method: Optional[ScaleMethod] = Field(alias='scaleMethod', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
 
 class ScenePolicyInput(BaseModel):
@@ -2490,9 +2559,8 @@ class TransferFunctionInput(RGBAColorInputTrait, BaseModel):
     gamma: Optional[float] = None
     opacity: Optional[float] = None
     invert: Optional[bool] = None
-    categorical: Optional[bool] = None
     model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
-TransformInput = Annotated[Union[AffineTransformInput, ByDimensionTransformInput, FieldTransformInput, MapAxisTransformInput, RotationTransformInput, ScaleTransformInput, TranslationTransformInput, UnmappableTransformInput], Field(discriminator='kind')]
+TransformInput = Annotated[Union[AffineTransformInput, ByDimensionTransformInput, FieldTransformInput, IdentityTransformInput, MapAxisTransformInput, RotationTransformInput, ScaleTransformInput, TranslationTransformInput, UnmappableTransformInput], Field(discriminator='kind')]
 
 class TransformationFilter(BaseModel):
     """No documentation"""
@@ -3069,6 +3137,12 @@ class LayerLens(Lensable, BaseModel):
     id: ID
     model_config = ConfigDict(frozen=True)
 
+class LayerLens(Lensable, BaseModel):
+    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
+    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
 class LayerBase(BaseModel):
     """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind (ImageLayer, AnnotationLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings."""
     id: ID
@@ -3089,6 +3163,15 @@ class LayerImageLayer(LayerBase, BaseModel):
     """A layer that renders array (lens) data as an alpha-blended image. Its rendering is described entirely by the composable render graph; its placement, entirely by the coordinate graph."""
     typename: Literal['ImageLayer'] = Field(alias='__typename', default='ImageLayer', exclude=True)
     lens: LayerLens
+
+class LayerLabelLayer(LayerBase, BaseModel):
+    """A layer that renders array (lens) data whose values are discrete object ids -- a segmentation or an instance map. It shares the image layer's source and the same coordinate-graph placement, and none of its render settings: contrast limits, gamma, colormaps and intensity projections are all meaningless over ids."""
+    typename: Literal['LabelLayer'] = Field(alias='__typename', default='LabelLayer', exclude=True)
+    lens: LayerLens
+    placement: PlacementState
+    "Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means two different things -- nobody has registered this data yet, or its geometry did not survive the operation that produced it and it can never be placed -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge. Derived, never stored"
+    placement_validity: PlacementValidity = Field(alias='placementValidity')
+    "How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path"
 
 class LayerMeshLayer(LayerBase, BaseModel):
     """A layer that renders a 3D mesh (surface reconstruction / isosurface) placed and styled in a scene."""
@@ -5184,7 +5267,21 @@ class CreateLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  __typename\n}\n\nmutation CreateLayer($input: CreateLayerInput!) {\n  createLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    placement\n    placementValidity\n  }\n  __typename\n}\n\nmutation CreateLayer($input: CreateLayerInput!) {\n  createLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class CreateLabelLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_label_layer: LayerLabelLayer = Field(alias='createLabelLayer')
+    "Create a label layer that renders an instance / segmentation map -- an array whose values are discrete object ids. Its own layer kind, not an image layer: ids take a hashed colour, a transparent background value and an optional `colorBy` over the table they key into, and none of an image's contrast limits, gamma or colormaps"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateLabelLayer """
+        input: CreateLabelLayerInput
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for CreateLabelLayer """
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    placement\n    placementValidity\n  }\n  __typename\n}\n\nmutation CreateLabelLayer($input: CreateLabelLayerInput!) {\n  createLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateLensMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5282,7 +5379,7 @@ class CreatePhasorLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreatePhasorLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  __typename\n}\n\nmutation CreatePhasorLayer($input: CreatePhasorLayerInput!) {\n  createPhasorLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    placement\n    placementValidity\n  }\n  __typename\n}\n\nmutation CreatePhasorLayer($input: CreatePhasorLayerInput!) {\n  createPhasorLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreatePhasorHistogramMutation(BaseModel):
     """No documentation found for this operation."""
@@ -7403,7 +7500,7 @@ Create a new dataset from array-like data with optional coordinate anchors and O
 
 Args:
     data: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
-    scales: Input type for one pyramid level: the array backing it. Its scale is derived from its actual shape, never supplied (required) (list) (required)
+    scales: Input type for one pyramid level: the array backing it, and how it was downsampled. Its scale factor is derived from its actual shape, never supplied (required) (list) (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -7439,7 +7536,7 @@ Create a new dataset from array-like data with optional coordinate anchors and O
 
 Args:
     data: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
-    scales: Input type for one pyramid level: the array backing it. Its scale is derived from its actual shape, never supplied (required) (list) (required)
+    scales: Input type for one pyramid level: the array backing it, and how it was downsampled. Its scale factor is derived from its actual shape, never supplied (required) (list) (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -9527,6 +9624,70 @@ Returns:
     _input['renderGraph'] = render_graph
     variables['input'] = _input
     return execute(CreateLayerMutation, variables, rath=rath).create_layer
+
+async def acreate_label_layer(lens: IDCoercible, scene: IDCoercible, render: Union[Optional[LabelRenderInput], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerLabelLayer:
+    """CreateLabelLayer 
+
+Create a label layer that renders an instance / segmentation map -- an array whose values are discrete object ids. Its own layer kind, not an image layer: ids take a hashed colour, a transparent background value and an optional `colorBy` over the table they key into, and none of an image's contrast limits, gamma or colormaps
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    render: How a label layer's discrete object ids become color. Every field is optional; omitted ones keep their current value on an update, and take their default on a create
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerLabelLayer
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if render is not UNSET:
+        _input['render'] = render
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(CreateLabelLayerMutation, variables, rath=rath)).create_label_layer
+
+def create_label_layer(lens: IDCoercible, scene: IDCoercible, render: Union[Optional[LabelRenderInput], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerLabelLayer:
+    """CreateLabelLayer 
+
+Create a label layer that renders an instance / segmentation map -- an array whose values are discrete object ids. Its own layer kind, not an image layer: ids take a hashed colour, a transparent background value and an optional `colorBy` over the table they key into, and none of an image's contrast limits, gamma or colormaps
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    render: How a label layer's discrete object ids become color. Every field is optional; omitted ones keep their current value on an update, and take their default on a create
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerLabelLayer
+"""
+    variables: Dict[str, Any] = {}
+    _input: Dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if render is not UNSET:
+        _input['render'] = render
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(CreateLabelLayerMutation, variables, rath=rath).create_label_layer
 
 async def acreate_lens(dataset: IDCoercible, slices: Iterable[SliceInput], rath: Optional[MikroNextRath]=None) -> Lens:
     """CreateLens 
@@ -14446,6 +14607,7 @@ CoordinateSystemFilter.model_rebuild()
 CreateADatasetInput.model_rebuild()
 CreateAnnotationCollectionInput.model_rebuild()
 CreateCoordinateSystemInput.model_rebuild()
+CreateLabelLayerInput.model_rebuild()
 CreateLayerInput.model_rebuild()
 CreateLensInput.model_rebuild()
 CreateMeshCollectionInput.model_rebuild()

@@ -826,12 +826,10 @@ class DatasetTrait:
         registration: Dict[str, Any] = {
             "dataset": get_attributes_or_error(self, "id"),
             "name": f"{getattr(self, 'name', 'dataset')} -> {name}",
+            "transform": _transform_member(
+                kind, scale=scale, translation=translation, affine=affine
+            ),
         }
-        transform = _transform_member(
-            kind, scale=scale, translation=translation, affine=affine
-        )
-        if transform is not None:
-            registration["transform"] = transform
 
         kwargs: Dict[str, Any] = {}
         if epoch is not None:
@@ -956,15 +954,12 @@ class DatasetTrait:
         if validity is not None:
             kwargs["validity"] = validity
 
-        # Only IDENTITY has no member input, so a FIELD edge always builds one —
-        # the return type just cannot say which kind it was asked for.
         transform = _transform_member(
             "FIELD",
             field=get_attributes_or_error(intrinsic, "id"),
             input_axes=_axis_names_in_order(intrinsic),
             output_axes=_axis_names_in_order(target),
         )
-        assert transform is not None
 
         return create_transformation(
             input=get_attributes_or_error(intrinsic, "id"),
@@ -1346,9 +1341,12 @@ class Lensable:
         `kind` is omitted it is inferred from which parameters are given:
         `affine` -> AFFINE, `scale` -> SCALE, `translation` -> TRANSLATION
         (scale and translation together fold into one AFFINE), `input_axes` ->
-        MAP_AXIS, nothing -> IDENTITY. An IDENTITY derivation carries no
-        transform at all — the data is in the lens' space as-is, and omitting
-        the edge's map is how the schema says so.
+        MAP_AXIS, nothing -> IDENTITY. An IDENTITY derivation states its
+        transform like any other — the data is in the lens' space as-is, and
+        *saying* so is what places it. Omitting the transform is the opposite
+        claim: it makes the edge UNMAPPABLE, lineage without geometry, which is
+        what a table of per-object measurements wants and what a same-grid
+        computation never does.
 
         `value_relation` states what the derivation did to the *values* —
         orthogonal to the spatial kind: IDENTICAL for a cut, TRANSFORMED for a
@@ -1377,13 +1375,11 @@ class Lensable:
         )
 
         kwargs: Dict[str, Any] = {}
-        if transform is not None:
-            kwargs["transform"] = transform
         if value_relation is not None:
             kwargs["value_relation"] = value_relation
 
         return LensDerivedFromInput(
-            lens=get_attributes_or_error(self, "id"), **kwargs
+            lens=get_attributes_or_error(self, "id"), transform=transform, **kwargs
         )
 
     def derive_identity(
@@ -1556,7 +1552,7 @@ def _transform_member(
     output_axes: Optional[Sequence[str]] = None,
     field: Optional[IDCoercible] = None,
     reason: Optional[str] = None,
-) -> Optional["TransformInput"]:
+) -> "TransformInput":
     """Build the tagged member input for a transformation ``kind``.
 
     The schema publishes ``TransformInput`` as a tagged union of per-kind
@@ -1564,9 +1560,11 @@ def _transform_member(
     anything else is rejected, never dropped. This is where the flat parameter
     surface of the sugar methods narrows to the kind's own fields.
 
-    Returns ``None`` for IDENTITY: it has no member (GraphQL forbids an empty
-    input object), so the schema expresses an identity by omitting the
-    transform wherever that is possible.
+    Every kind builds a member, IDENTITY included — it carries nothing but its
+    own discriminator, which is the whole point: omitting the transform is not
+    a way to say "same grid", it is how the schema says UNMAPPABLE. The two are
+    opposites, so an identity that returned ``None`` here did not lose
+    precision, it inverted the claim.
     """
     from mikro_next.api import schema
 
@@ -1588,7 +1586,7 @@ def _transform_member(
         given = (scale, translation, affine, input_axes, output_axes, field)
         if any(value is not None for value in given):
             raise ValueError("An IDENTITY transformation takes no parameters")
-        return None
+        return schema.IdentityTransformInput()
     if kind == "SCALE":
         return schema.ScaleTransformInput(
             scale=tuple(float(s) for s in require("scale", scale))
@@ -2323,10 +2321,11 @@ class CoordinateSystemTrait:
         The kind is inferred from which parameters are given: `affine` ->
         AFFINE, `scale` -> SCALE, `translation` -> TRANSLATION (scale and
         translation together fold into one AFFINE), `input_axes` -> MAP_AXIS.
-        Pass `kind` explicitly to override. An IDENTITY edge cannot be authored
-        here — it has no member in the TransformInput union; registration and
-        derivation express an identity by omitting the transform instead.
-        `reason` is recorded only on an UNMAPPABLE edge.
+        Pass `kind` explicitly to override. IDENTITY is authorable, but only
+        when *asked for* by name: inference reaches it whenever no parameter is
+        given at all, and "I passed nothing" is not the same statement as
+        "these two spaces are the same grid". `reason` is recorded only on an
+        UNMAPPABLE edge.
         """
         from mikro_next.api.schema import create_transformation
 
@@ -2338,6 +2337,18 @@ class CoordinateSystemTrait:
             kind, scale, translation, affine = _infer_transform_kind(
                 scale, translation, affine, input_axes
             )
+            # Inference lands on IDENTITY for an empty parameter set, which here
+            # would turn a call that simply forgot its arguments into the claim
+            # that the two systems are the same grid. A derivation may be handed
+            # nothing and mean it — the data is in its source's space as-is —
+            # but an edge between two named systems has no such default.
+            if kind == "IDENTITY":
+                raise ValueError(
+                    "transform_to() was given no transformation parameters, which "
+                    "would make this edge an IDENTITY: a claim that the two systems "
+                    "are the same grid. Say kind='IDENTITY' if that is the claim; "
+                    "otherwise pass scale=, translation=, affine= or input_axes=."
+                )
 
         # Parameters are positional against the axes the edge acts on. Naming
         # `input_axes` is what narrows that to a subset — the whole point of
@@ -2364,13 +2375,6 @@ class CoordinateSystemTrait:
             output_axes=output_axes,
             reason=reason,
         )
-        if transform is None:
-            raise ValueError(
-                "An IDENTITY transformation edge cannot be authored through "
-                "createTransformation: IDENTITY has no member in the TransformInput "
-                "union (it has no fields). Registration and derivation express an "
-                "identity by omitting the transform instead."
-            )
 
         kwargs: Dict[str, Any] = {}
         if name is not None:
