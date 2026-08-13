@@ -1,7 +1,5 @@
 directive @auth(required_scopes: [String!] = null, required_roles: [String!] = null) on FIELD_DEFINITION
 
-directive @oneOf on INPUT_OBJECT
-
 directive @unionElementOf(union: String!, discriminator: String!, key: String!) repeatable on INPUT_OBJECT
 
 """
@@ -200,7 +198,7 @@ input ADatasetFilter {
   hasDefaultScene: Boolean
 }
 
-input ADatasetOrder {
+input ADatasetOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -535,7 +533,7 @@ input AnimationFilter {
   scene: ID
 }
 
-input AnimationOrder {
+input AnimationOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -746,7 +744,7 @@ input AnnotationCollectionFilter {
   search: String
 }
 
-input AnnotationCollectionOrder {
+input AnnotationCollectionOrder @oneOf {
   name: Ordering
   createdAt: Ordering
   id: Ordering
@@ -834,7 +832,7 @@ type AnnotationLayer implements Layer {
   annotationCollection: AnnotationCollection!
 }
 
-input AnnotationOrder {
+input AnnotationOrder @oneOf {
   name: Ordering
   id: Ordering
 }
@@ -2114,7 +2112,7 @@ input CoordinateSystemFilter {
   scene: ID
 }
 
-input CoordinateSystemOrder {
+input CoordinateSystemOrder @oneOf {
   name: Ordering
   createdAt: Ordering
   id: Ordering
@@ -2599,7 +2597,7 @@ input DataArrayFilter {
   dataset: ID
 }
 
-input DataArrayOrder {
+input DataArrayOrder @oneOf {
   level: Ordering
   id: Ordering
 }
@@ -3232,7 +3230,7 @@ input EraInput {
   begin: DateTime = null
 }
 
-input EraOrder {
+input EraOrder @oneOf {
   createdAt: Ordering
   begin: Ordering
   name: Ordering
@@ -3288,7 +3286,7 @@ input ExperimentFilter {
   DISTINCT: Boolean
 }
 
-input ExperimentOrder {
+input ExperimentOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -3736,7 +3734,7 @@ enum FileMimeGroup {
   OTHER
 }
 
-input FileOrder {
+input FileOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   size: Ordering
@@ -3844,7 +3842,7 @@ input FileViewInput {
   image: ID!
 }
 
-input FileViewOrder {
+input FileViewOrder @oneOf {
   id: Ordering
 }
 
@@ -4041,7 +4039,7 @@ input FolderFilter {
   parent: ID
 }
 
-input FolderOrder {
+input FolderOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -4619,7 +4617,7 @@ The `ImageLike` scalar type represents a reference to an image previously create
 """
 scalar ImageLike
 
-input ImageOrder {
+input ImageOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -4814,7 +4812,7 @@ input InstrumentInput {
   model: String = null
 }
 
-input InstrumentOrder {
+input InstrumentOrder @oneOf {
   name: Ordering
   id: Ordering
 }
@@ -5246,7 +5244,7 @@ input LayerNodeInput {
   children: [LayerNodeInput!] = null
 }
 
-input LayerOrder {
+input LayerOrder @oneOf {
   id: Ordering
 }
 
@@ -5385,13 +5383,48 @@ input LensFilter {
   dataset: ID
 
   """
-  Filter to lenses placeable into this coordinate system: those whose space has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene
+  Filter to lenses placeable into a coordinate system: those whose space has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene. `derivedOnly` and `asLayer` narrow the answer for a particular picker; with neither, this is the whole set layer creation would accept
   """
-  placeableIn: ID
+  placeableIn: LensPlaceableFilter
 }
 
-input LensOrder {
+"""
+The kind of layer a lens could source, for narrowing a picker: the two members of `LayerKind` that draw array data. Input-only, and deliberately not `LayerKind` itself -- an annotation, point, track or mesh layer sources from a collection or a table, never from a lens, so four of that enum's members could only ever answer 'no'.
+"""
+enum LensLayerKind {
+  """
+  Drawable as an image layer -- which is every lens with an x and a y axis of more than one pixel. It is the renderability gate alone, and deliberately *not* the complement of LABEL: a mask drawn through a render graph is a legitimate thing to want, and `createLayer` does not refuse one.
+  """
+  IMAGE
+
+  """
+  Drawable as a label layer: renderable, and derived by an edge declaring CATEGORIZED -- the values became object ids. The same signal `createSceneFromCoordinateSystem` infers a label layer from, asked of a candidate instead of a source, so a picker and a bootstrapped scene cannot disagree about what a label is.
+  """
+  LABEL
+}
+
+input LensOrder @oneOf {
   id: Ordering
+}
+
+"""
+What a lens picker is asking for: a destination space, and optionally which sort of candidate. Structured rather than a bare space id because `derivedOnly` and `asLayer` are qualifications *of* the placeability question -- a lens is not derived or label-shaped in the abstract, it is those things on the way into a particular space
+"""
+input LensPlaceableFilter {
+  """
+  The space to be placed into. A *space*, not a scene: every scene over one world offers the same candidates, so a scene-shaped argument would ask for more than the answer depends on. Pass `scene.worldCoordinateSystem.id` to ask it of a scene
+  """
+  space: ID!
+
+  """
+  Keep only the lenses that *needed* a lineage tree to get here: the segmentations, deconvolutions and projections placed by an ancestor's registration. What the space registers directly is dropped, even when it is itself a derived dataset -- it does not need its lineage to be placeable. A narrowing of the candidate list and nothing more: every lens it keeps is one `createLayer` accepts, and every lens it drops is too
+  """
+  derivedOnly: Boolean = null
+
+  """
+  Keep only the lenses that could source a layer of this kind. Both members require the lens to be drawable at all -- an x and a y axis of more than one pixel, the same gate layer creation applies -- and `LABEL` additionally requires a primary derivation declaring CATEGORIZED. Note that *omitting* this applies no renderability gate, so `IMAGE` is a real narrowing rather than a no-op: the unqualified filter answers what is placeable, which is a spatial question, not what is drawable
+  """
+  asLayer: LensLayerKind = null
 }
 
 """
@@ -6052,7 +6085,7 @@ input MultiWellPlateInput {
   rows: Int = null
 }
 
-input MultiWellPlateOrder {
+input MultiWellPlateOrder @oneOf {
   name: Ordering
   id: Ordering
 }
@@ -6750,7 +6783,7 @@ input ObjectiveInput {
   immersion: String = null
 }
 
-input ObjectiveOrder {
+input ObjectiveOrder @oneOf {
   name: Ordering
   magnification: Ordering
   id: Ordering
@@ -9018,7 +9051,7 @@ input RGBContextFilter {
   image: ID
 }
 
-input RGBContextOrder {
+input RGBContextOrder @oneOf {
   name: Ordering
   id: Ordering
 }
@@ -9239,7 +9272,7 @@ input ROIFilter {
   search: String
 }
 
-input ROIOrder {
+input ROIOrder @oneOf {
   createdAt: Ordering
   id: Ordering
 }
@@ -9498,7 +9531,7 @@ input RenderTreeInput {
   name: String!
 }
 
-input RenderTreeOrder {
+input RenderTreeOrder @oneOf {
   name: Ordering
   id: Ordering
 }
@@ -10044,7 +10077,7 @@ input SceneFilter {
   defaultForDataset: ID
 }
 
-input SceneOrder {
+input SceneOrder @oneOf {
   name: Ordering
   id: Ordering
 }
@@ -10152,7 +10185,7 @@ input SceneSnapshotInput {
   name: String = null
 }
 
-input SceneSnapshotOrder {
+input SceneSnapshotOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -10391,7 +10424,7 @@ input SnapshotInput {
   name: String = null
 }
 
-input SnapshotOrder {
+input SnapshotOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -10540,7 +10573,7 @@ input StageInput {
   instrument: ID = null
 }
 
-input StageOrder {
+input StageOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -10851,7 +10884,7 @@ input TableDatasetFilter {
   placeableIn: ID
 }
 
-input TableDatasetOrder {
+input TableDatasetOrder @oneOf {
   name: Ordering
   createdAt: Ordering
   id: Ordering
@@ -10902,7 +10935,7 @@ input TableFilter {
   folders: [ID!]
 }
 
-input TableOrder {
+input TableOrder @oneOf {
   createdAt: Ordering
   name: Ordering
   id: Ordering
@@ -11010,7 +11043,7 @@ input TaskFilter {
   search: String
 }
 
-input TaskOrder {
+input TaskOrder @oneOf {
   createdAt: Ordering
   id: Ordering
 }
@@ -11431,7 +11464,7 @@ input TransformationFilter {
   rootsOnly: Boolean
 }
 
-input TransformationOrder {
+input TransformationOrder @oneOf {
   order: Ordering
   createdAt: Ordering
   id: Ordering

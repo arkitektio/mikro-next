@@ -35,9 +35,19 @@ if TYPE_CHECKING:
 
 
 # The reductions xarray's ``coarsen`` can apply, plus ``nearest`` which is a
-# stride rather than a reduction. ``scale_method`` is recorded verbatim on the
-# level's transformation, so these names are also what shows up as provenance.
-_REDUCTIONS = ("max", "mean", "sum", "min", "nearest")
+# stride rather than a reduction, mapped to the ``ScaleMethod`` each one is
+# recorded as on the level's transformation. The two vocabularies are not the
+# same list: ``mean`` is what xarray calls it and ``AREA`` is what the server
+# calls the same operation, and ``sum`` has no member at all — pooling that
+# conserves counts is not a resampling filter, so it travels with no method
+# rather than being misreported as one of the others.
+_REDUCTIONS: Mapping[str, Optional[str]] = {
+    "max": "MAX",
+    "mean": "AREA",
+    "sum": None,
+    "min": "MIN",
+    "nearest": "NEAREST",
+}
 
 # Rank by axis type, matching the server's ordering rule: time first, then
 # channel and custom types, then space.
@@ -225,8 +235,13 @@ def scales_from(pyramid: Sequence[xr.DataArray], method: str = "max") -> List["S
     """
     from mikro_next.api.schema import ScaleInput
 
+    if method not in _REDUCTIONS:
+        raise ValueError(
+            f"Unknown reduction {method!r}. Pick one of {', '.join(_REDUCTIONS)}."
+        )
+
     return [
-        ScaleInput(level=level, array=array, scale_method=method)
+        ScaleInput(level=level, array=array, scale_method=_REDUCTIONS[method])
         for level, array in enumerate(pyramid)
         if level > 0
     ]

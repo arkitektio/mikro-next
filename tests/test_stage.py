@@ -1,11 +1,15 @@
-import numpy as np
+"""Integration tests for stages.
+
+A stage is the instrument-side record of a physical stage. Placing *data* on
+one is not what this covers -- registering a dataset into a physical space is a
+coordinate-system operation, and lives in ``test_coordinate_systems.py``.
+"""
+
 import pytest
-import xarray as xr
 from mikro_next.api.schema import (
     create_stage,
     get_stage,
     search_stages,
-    from_array_like,
 )
 from .conftest import DeployedMikro
 
@@ -38,27 +42,8 @@ def test_search_stages(deployed_app: DeployedMikro) -> None:
 
 
 @pytest.mark.integration
-def test_stage_affine_views(deployed_app: DeployedMikro) -> None:
-    """Images with affine transformation views reference their stage."""
-    from mikro_next.api.schema import PartialAffineTransformationViewInput
-
-    stage = create_stage(name="affine_stage")
-    image = from_array_like(
-        xr.DataArray(np.random.random((50, 50, 3)), dims=["x", "y", "z"]),
-        name="affine_image",
-        transformation_views=[
-            PartialAffineTransformationViewInput(
-                stage=stage.id,
-                affine_matrix=[
-                    [1, 0, 0, 0],
-                    [0, 1, 0, 0],
-                    [0, 0, 1, 0],
-                    [0, 0, 0, 1],
-                ],
-            )
-        ],
-    )
-    assert image.id
-
-    fetched_stage = get_stage(id=stage.id)
-    assert fetched_stage.id == stage.id
+def test_stages_are_distinct(deployed_app: DeployedMikro) -> None:
+    """Two stages of the same name are two stages, not one reused."""
+    first = create_stage(name="repeated_stage")
+    second = create_stage(name="repeated_stage")
+    assert first.id != second.id

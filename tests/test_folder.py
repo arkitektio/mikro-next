@@ -9,6 +9,22 @@ from .conftest import DeployedMikro
 
 
 @pytest.mark.integration
+def test_create_folder(deployed_app: DeployedMikro) -> None:
+    """Create a folder and verify it gets an ID."""
+    folder = create_folder(name="creatable_folder")
+    assert folder.id, "Was not able to create a folder"
+    assert folder.name == "creatable_folder"
+
+
+@pytest.mark.integration
+def test_create_folder_in_parent(deployed_app: DeployedMikro) -> None:
+    """Nest a folder under another one."""
+    parent = create_folder(name="parent_folder")
+    child = create_folder(name="child_folder", parent=parent.id)
+    assert child.id, "Was not able to create a nested folder"
+
+
+@pytest.mark.integration
 def test_get_folder(deployed_app: DeployedMikro) -> None:
     """Create a folder and retrieve it by ID."""
     created = create_folder(name="fetchable_folder")

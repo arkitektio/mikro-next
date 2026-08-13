@@ -1280,10 +1280,13 @@ class Lensable:
             Annotation: The drawn annotation
         """
         from mikro_next.api.schema import (
+            AxisInput,
             AxisType,
+            CoordinateSystemDerivedFromInput,
             create_annotation,
             create_annotation_collection,
             CoordinateInput,
+            IdentityTransformInput,
             Slice,
         )
 
@@ -1306,9 +1309,24 @@ class Lensable:
         ]
 
         if collection is None and scene is None:
+            # A collection owns a coordinate system rather than sharing the
+            # lens', so it is created with the lens' axes and an identity edge
+            # back to it: the shapes are drawn on that very grid, without the
+            # two systems being made one.
             collection = create_annotation_collection(
                 name=name or f"Drawings on {coordinate_system.name}",
-                coordinate_system=coordinate_system.id,
+                axes=[
+                    AxisInput(
+                        name=axis.name, type=axis.type, longName=axis.long_name
+                    )
+                    for axis in coordinate_system.axes
+                ],
+                derived_from=[
+                    CoordinateSystemDerivedFromInput(
+                        coordinateSystem=coordinate_system.id,
+                        transform=IdentityTransformInput(),
+                    )
+                ],
             ).id
 
         return create_annotation(

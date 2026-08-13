@@ -1,42 +1,30 @@
-from mikro_next.api.schema import from_array_like, create_snapshot
-from mikro_next import MikroNext
-import xarray as xr
+"""A smoke test that the client, the datalayer and the array upload all work."""
+
 import numpy as np
 import pytest
-from PIL import Image
+import xarray as xr
+
+from mikro_next.api.schema import create_a_dataset
+
+from .conftest import DeployedMikro
 
 
 @pytest.mark.integration
-def test_create_array(deployed_app: MikroNext) -> None:
-    """Test the creation of an array-like object."""
-    image = from_array_like(
-        xr.DataArray(np.zeros((1000, 1000, 10)), dims=["x", "y", "z"]),
-        name="Farter 1",
+def test_create_array(deployed_app: DeployedMikro) -> None:
+    """Upload an array and read the same shape back out of its Zarr store.
+
+    Round-tripping the pixels is what makes this a real check of the wiring:
+    the mutation, the upload middleware and the object store all have to be
+    working for ``level_data`` to return anything at all.
+    """
+    dataset = create_a_dataset(
+        data=xr.DataArray(np.zeros((10, 256, 256)), dims=["z", "y", "x"]),
+        scales=[],
+        name="initialization_volume",
+        axes=["z", "y", "x"],
     )
-    assert image.data.shape == (
-        1,
-        1,
-        10,
-        1000,
-        1000,
-    ), "Shape should be (10, 1000, 1000)"
-    pass
 
-
-@pytest.mark.integration
-def upload_file(deployed_app: MikroNext) -> None:
-    """Test the upload of a file to the MikroNext instance."""
-    # Create an image file
-    image_data = np.random.rand(100, 100, 3) * 255
-    image_data = image_data.astype(np.uint8)
-    image = xr.DataArray(image_data, dims=["x", "y", "color"])
-
-    # Save the image to a temporary file
-    image_file_path = "test_image.png"
-    image_pil = Image.fromarray(image_data)
-
-    image_pil.save(image_file_path)
-
-    image = from_array_like(image_data, name="The image name")
-
-    create_snapshot(image_file_path, image)
+    assert dataset.id, "Dataset should have an ID"
+    assert dataset.level_data().shape == (10, 256, 256), (
+        "The stored array should have the shape it was uploaded with"
+    )

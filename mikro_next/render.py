@@ -32,6 +32,11 @@ from mikro_next.api.schema import (
 
 # The transfer-function keys `composite_graph` accepts in a channel spec;
 # everything else in a spec belongs to the channel node itself.
+#
+# There is deliberately no `categorical` here. A transfer function maps a
+# continuous intensity to a colour; mapping discrete object ids to distinct
+# colours is a different thing entirely, and it lives on a label layer
+# (`create_label_layer`, `LabelRenderInput`) rather than on a channel node.
 _TRANSFER_KEYS = (
     "colormap",
     "color",
@@ -40,7 +45,6 @@ _TRANSFER_KEYS = (
     "gamma",
     "opacity",
     "invert",
-    "categorical",
 )
 
 _CHANNEL_KEYS = ("intensity_axis", "intensity_index", "mode", "label", "visible")
@@ -75,8 +79,8 @@ def composite_graph(
 
     Each spec is a flat mapping mixing channel settings (``intensity_axis``,
     ``intensity_index``, ``mode``) with transfer settings (``colormap``,
-    ``color``, ``clim_min``/``clim_max``, ``gamma``, ``opacity``, ``invert``,
-    ``categorical``); they are sorted into the right nodes for you.
+    ``color``, ``clim_min``/``clim_max``, ``gamma``, ``opacity``, ``invert``);
+    they are sorted into the right nodes for you.
 
         composite_graph([
             {"intensity_index": 0, "colormap": ColorMap.CYAN},
@@ -101,7 +105,6 @@ def channel_graph(
     gamma: Optional[float] = None,
     opacity: Optional[float] = None,
     invert: Optional[bool] = None,
-    categorical: Optional[bool] = None,
     mode: Optional[ProjectionMode] = None,
     blending: Blending = Blending.ADDITIVE,
 ) -> LayerRenderGraphInput:
@@ -130,7 +133,6 @@ def channel_graph(
                 "gamma": gamma,
                 "opacity": opacity,
                 "invert": invert,
-                "categorical": categorical,
             }
         ],
         blending=blending,
