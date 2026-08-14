@@ -4,19 +4,23 @@ A layer's recipe is a small tree -- a blend node over one or more channel nodes,
 each with its own transfer function -- and :mod:`mikro_next.render` is what keeps
 callers from hand-nesting it. What is worth pinning down offline is the split: a
 flat spec mixes channel settings with transfer settings, and the builder has to
-sort each key into the right node. Colour completion itself is covered by
+sort each field into the right node. Colour completion itself is covered by
 ``test_rgba_color_validation``.
 """
 
 import pytest
+from pydantic import ValidationError
 
 from mikro_next.api.schema import Blending, ColorMap, ProjectionMode
-from mikro_next.render import channel_graph, composite_graph, rgb_graph
+from mikro_next.render import ChannelSpec, channel_graph, composite_graph, rgb_graph
 
 
 def test_composite_graph_nests_channels_under_a_blend_node() -> None:
     graph = composite_graph(
-        [{"intensity_index": 0, "colormap": ColorMap.CYAN}, {"intensity_index": 1}]
+        [
+            ChannelSpec(intensity_index=0, colormap=ColorMap.CYAN),
+            ChannelSpec(intensity_index=1),
+        ]
     )
 
     assert graph.root.kind == "blend"
@@ -26,23 +30,23 @@ def test_composite_graph_nests_channels_under_a_blend_node() -> None:
 
 
 def test_composite_graph_sorts_a_flat_spec_into_the_right_nodes() -> None:
-    """Channel keys stay on the node; transfer keys move onto its transfer
+    """Channel fields stay on the node; transfer fields move onto its transfer
     function. A flat spec is the whole point, so the split has to be exact."""
     (node,) = composite_graph(
         [
-            {
-                "intensity_axis": "c",
-                "intensity_index": 2,
-                "mode": ProjectionMode.MIP,
-                "label": "nuclei",
-                "visible": False,
-                "colormap": ColorMap.MAGMA,
-                "gamma": 0.8,
-                "opacity": 0.5,
-                "clim_min": 10.0,
-                "clim_max": 400.0,
-                "invert": True,
-            }
+            ChannelSpec(
+                intensity_axis="c",
+                intensity_index=2,
+                mode=ProjectionMode.MIP,
+                label="nuclei",
+                visible=False,
+                colormap=ColorMap.MAGMA,
+                gamma=0.8,
+                opacity=0.5,
+                clim_min=10.0,
+                clim_max=400.0,
+                invert=True,
+            )
         ]
     ).root.children
 
@@ -57,16 +61,16 @@ def test_composite_graph_sorts_a_flat_spec_into_the_right_nodes() -> None:
 
 
 def test_composite_graph_defaults_to_the_first_position_of_the_channel_axis() -> None:
-    (node,) = composite_graph([{}]).root.children
+    (node,) = composite_graph([ChannelSpec()]).root.children
     assert (node.intensity_axis, node.intensity_index) == ("c", 0)
 
 
 def test_composite_graph_defaults_to_additive_blending() -> None:
-    assert composite_graph([{}]).root.blending == Blending.ADDITIVE.value
+    assert composite_graph([ChannelSpec()]).root.blending == Blending.ADDITIVE.value
 
 
 def test_composite_graph_takes_an_explicit_blending() -> None:
-    graph = composite_graph([{}], blending=Blending.NORMAL)
+    graph = composite_graph([ChannelSpec()], blending=Blending.NORMAL)
     assert graph.root.blending == Blending.NORMAL.value
 
 
@@ -75,18 +79,19 @@ def test_composite_graph_rejects_an_empty_spec_list() -> None:
         composite_graph([])
 
 
-def test_composite_graph_rejects_an_unknown_spec_key() -> None:
-    """A misspelled key would otherwise be silently dropped, and the layer would
-    render without the setting the caller thought they had asked for."""
-    with pytest.raises(ValueError, match="Unknown channel spec keys"):
-        composite_graph([{"colourmap": ColorMap.VIRIDIS}])
+def test_channel_spec_rejects_an_unknown_field() -> None:
+    """A misspelled field would otherwise be silently dropped, and the layer
+    would render without the setting the caller thought they had asked for.
+    A type checker now catches this too; the model still refuses it at runtime."""
+    with pytest.raises(ValidationError, match="colourmap"):
+        ChannelSpec(colourmap=ColorMap.VIRIDIS)
 
 
-def test_composite_graph_rejects_a_categorical_channel() -> None:
+def test_channel_spec_rejects_a_categorical_channel() -> None:
     """Mapping discrete object ids to distinct colours is a label layer's job,
-    not a transfer function's -- there is no such key on a channel node."""
-    with pytest.raises(ValueError, match="Unknown channel spec keys"):
-        composite_graph([{"categorical": True}])
+    not a transfer function's -- there is no such field on a channel node."""
+    with pytest.raises(ValidationError, match="categorical"):
+        ChannelSpec(categorical=True)
 
 
 def test_channel_graph_is_a_single_channel_composite() -> None:

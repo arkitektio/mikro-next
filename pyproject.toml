@@ -49,6 +49,10 @@ dev-dependencies =  [
     "arkitekt-next==0.17",
     "duckdb>=1.5.3",
     "basedpyright>=1.21",
+    # rekuest-next imports `janus` without declaring it, so it never arrives
+    # transitively — and without it `mikro_next.specs` cannot be imported and
+    # `tests/test_specs.py` skips itself. Drop this once rekuest declares it.
+    "janus>=1.0",
 ]
 
 
@@ -64,10 +68,10 @@ include = ["mikro_next"]
 exclude = ["**/__pycache__", "tests"]
 typeCheckingMode = "standard"
 
-[tool.ruff]
+[tool.ruff.lint]
 extend-select = ["ANN", "D1"]
-ignore = ["ANN101"]
 
+[tool.ruff]
 # Exclude a variety of commonly ignored directories.
 exclude = [
     ".bzr",

@@ -6,8 +6,8 @@ nesting for the simplest possible "show this in green", so these builders cover
 the shapes that actually recur::
 
     channel_graph(colormap=ColorMap.INFERNO, gamma=0.8)
-    composite_graph([{"intensity_index": 0, "colormap": ColorMap.CYAN},
-                     {"intensity_index": 1, "colormap": ColorMap.MAGENTA}])
+    composite_graph([ChannelSpec(intensity_index=0, colormap=ColorMap.CYAN),
+                     ChannelSpec(intensity_index=1, colormap=ColorMap.MAGENTA)])
     rgb_graph()
 
 For the common cases you may not need a graph at all: passing
@@ -19,7 +19,9 @@ a contrast window, a projection mode.
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Mapping, Optional, Sequence, Tuple
+from typing import Iterable, Optional, Sequence, Tuple, Union
+
+from pydantic import BaseModel, ConfigDict
 
 from mikro_next.api.schema import (
     Blending,
@@ -29,75 +31,98 @@ from mikro_next.api.schema import (
     ProjectionMode,
     TransferFunctionInput,
 )
+from mikro_next.vocabulary import LayerNodeKind
 
-# The transfer-function keys `composite_graph` accepts in a channel spec;
-# everything else in a spec belongs to the channel node itself.
-#
-# There is deliberately no `categorical` here. A transfer function maps a
-# continuous intensity to a colour; mapping discrete object ids to distinct
-# colours is a different thing entirely, and it lives on a label layer
-# (`create_label_layer`, `LabelRenderInput`) rather than on a channel node.
-_TRANSFER_KEYS = (
-    "colormap",
-    "color",
-    "clim_min",
-    "clim_max",
-    "gamma",
-    "opacity",
-    "invert",
-)
-
-_CHANNEL_KEYS = ("intensity_axis", "intensity_index", "mode", "label", "visible")
+#: A colour as the wire wants it. Three components are completed to RGBA with a
+#: full alpha by `RGBAColorInputTrait`; four are passed through.
+RGBAColor = Union[Tuple[int, int, int], Tuple[int, int, int, int]]
 
 
-def _channel_node(spec: Mapping[str, Any]) -> LayerNodeInput:
-    """One channel node from a flat spec of channel + transfer settings."""
-    unknown = set(spec) - set(_TRANSFER_KEYS) - set(_CHANNEL_KEYS)
-    if unknown:
-        raise ValueError(
-            f"Unknown channel spec keys {sorted(unknown)}. Channel keys are "
-            f"{list(_CHANNEL_KEYS)}; transfer keys are {list(_TRANSFER_KEYS)}."
-        )
+class ChannelSpec(BaseModel):
+    """One channel of a composite: which positions to read, and how to colour them.
+
+    Flat on purpose — the split between the channel node and its transfer
+    function is a detail of the wire format, not something worth making a caller
+    nest for. `_channel_node` sorts these fields into the two nodes.
+
+    There is deliberately no ``categorical`` here. A transfer function maps a
+    continuous intensity to a colour; mapping discrete object ids to distinct
+    colours is a different thing entirely, and it lives on a label layer
+    (`create_label_layer`, `LabelRenderInput`) rather than on a channel node.
+    """
+
+    # -- channel-node settings
+    intensity_axis: Optional[str] = "c"
+    intensity_index: int = 0
+    mode: Optional[ProjectionMode] = None
+    label: Optional[str] = None
+    visible: Optional[bool] = None
+
+    # -- transfer-function settings
+    colormap: Optional[ColorMap] = None
+    color: Optional[RGBAColor] = None
+    clim_min: Optional[float] = None
+    clim_max: Optional[float] = None
+    gamma: Optional[float] = None
+    opacity: Optional[float] = None
+    invert: Optional[bool] = None
+
+    # No `alias` on any field: a ChannelSpec is written in Python, never parsed
+    # off the wire, and an alias would make type checkers reject the snake_case
+    # spelling the caller actually writes.
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+def _channel_node(spec: ChannelSpec) -> LayerNodeInput:
+    """One channel node, with its transfer function, from a spec."""
+    kind: LayerNodeKind = "channel"
     return LayerNodeInput(
-        kind="channel",
-        intensity_axis=spec.get("intensity_axis", "c"),
-        intensity_index=spec.get("intensity_index", 0),
-        mode=spec.get("mode"),
-        label=spec.get("label"),
-        visible=spec.get("visible"),
+        kind=kind,
+        intensity_axis=spec.intensity_axis,
+        intensity_index=spec.intensity_index,
+        mode=spec.mode,
+        label=spec.label,
+        visible=spec.visible,
         transfer=TransferFunctionInput(
-            **{key: spec[key] for key in _TRANSFER_KEYS if key in spec}
+            colormap=spec.colormap,
+            color=spec.color,
+            clim_min=spec.clim_min,
+            clim_max=spec.clim_max,
+            gamma=spec.gamma,
+            opacity=spec.opacity,
+            invert=spec.invert,
         ),
     )
 
 
 def composite_graph(
-    specs: Iterable[Mapping[str, Any]],
+    specs: Iterable[ChannelSpec],
     blending: Blending = Blending.ADDITIVE,
 ) -> LayerRenderGraphInput:
     """Composite several channels into one layer.
 
-    Each spec is a flat mapping mixing channel settings (``intensity_axis``,
+    Each `ChannelSpec` mixes channel settings (``intensity_axis``,
     ``intensity_index``, ``mode``) with transfer settings (``colormap``,
     ``color``, ``clim_min``/``clim_max``, ``gamma``, ``opacity``, ``invert``);
     they are sorted into the right nodes for you.
 
         composite_graph([
-            {"intensity_index": 0, "colormap": ColorMap.CYAN},
-            {"intensity_index": 1, "colormap": ColorMap.MAGENTA, "opacity": 0.7},
+            ChannelSpec(intensity_index=0, colormap=ColorMap.CYAN),
+            ChannelSpec(intensity_index=1, colormap=ColorMap.MAGENTA, opacity=0.7),
         ])
     """
+    kind: LayerNodeKind = "blend"
     children = tuple(_channel_node(spec) for spec in specs)
     if not children:
         raise ValueError("A render graph needs at least one channel source")
     return LayerRenderGraphInput(
-        root=LayerNodeInput(kind="blend", blending=blending, children=children)
+        root=LayerNodeInput(kind=kind, blending=blending, children=children)
     )
 
 
 def channel_graph(
     colormap: Optional[ColorMap] = None,
-    color: Optional[Tuple[int, int, int]] = None,
+    color: Optional[RGBAColor] = None,
     intensity_axis: Optional[str] = "c",
     intensity_index: int = 0,
     clim_min: Optional[float] = None,
@@ -122,18 +147,18 @@ def channel_graph(
     """
     return composite_graph(
         [
-            {
-                "intensity_axis": intensity_axis,
-                "intensity_index": intensity_index,
-                "mode": mode,
-                "colormap": colormap,
-                "color": color,
-                "clim_min": clim_min,
-                "clim_max": clim_max,
-                "gamma": gamma,
-                "opacity": opacity,
-                "invert": invert,
-            }
+            ChannelSpec(
+                intensity_axis=intensity_axis,
+                intensity_index=intensity_index,
+                mode=mode,
+                colormap=colormap,
+                color=color,
+                clim_min=clim_min,
+                clim_max=clim_max,
+                gamma=gamma,
+                opacity=opacity,
+                invert=invert,
+            )
         ],
         blending=blending,
     )
@@ -154,17 +179,30 @@ def rgb_graph(
     """
     if len(channels) != 3:
         raise ValueError(f"An RGB graph needs exactly three channels, got {len(channels)}")
-    colors = ((255, 0, 0), (0, 255, 0), (0, 0, 255))
+    colors: Tuple[RGBAColor, RGBAColor, RGBAColor] = (
+        (255, 0, 0),
+        (0, 255, 0),
+        (0, 0, 255),
+    )
     return composite_graph(
         [
-            {
-                "intensity_axis": intensity_axis,
-                "intensity_index": index,
-                "color": color,
-                "colormap": ColorMap.INTENSITY,
-                "clim_min": clim_min,
-                "clim_max": clim_max,
-            }
+            ChannelSpec(
+                intensity_axis=intensity_axis,
+                intensity_index=index,
+                color=color,
+                colormap=ColorMap.INTENSITY,
+                clim_min=clim_min,
+                clim_max=clim_max,
+            )
             for index, color in zip(channels, colors)
         ]
     )
+
+
+__all__ = [
+    "ChannelSpec",
+    "RGBAColor",
+    "composite_graph",
+    "channel_graph",
+    "rgb_graph",
+]

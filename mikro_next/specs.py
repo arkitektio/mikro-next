@@ -70,28 +70,83 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections import abc
 from dataclasses import dataclass
-from typing import Annotated, Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, get_args
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    Final,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+    get_args,
+)
 
 from rekuest_next.annotations import Provides, Requires
-from rekuest_next.api.schema import RequiresInput
+from rekuest_next.api.schema import ProvidesOperator, RequiresInput, RequiresOperator
 
-from mikro_next.api.schema import AxisInput, Lens
-from mikro_next.traits import _default_axis_type
+from mikro_next.api.schema import AxisInput, AxisType, Lens
+from mikro_next.vocabulary import (
+    AxisSelection,
+    AxisTypeName,
+    default_axis_type,
+    normalize_selection,
+)
 
 # Descriptor keys, namespaced like the other @mikro structure identifiers.
 # One vocabulary drives both sides: the aliases below constrain on these keys,
 # and `lens_descriptors` computes them for a candidate lens.
-N_SPACE_AXES = "@mikro/n_space_axes"
-N_TIME_AXES = "@mikro/n_time_axes"
-N_CHANNEL_AXES = "@mikro/n_channel_axes"
-N_SPECTRUM_AXES = "@mikro/n_spectrum_axes"
-N_MICROTIME_AXES = "@mikro/n_microtime_axes"
-N_CHANNELS = "@mikro/n_channels"
-N_TIMEPOINTS = "@mikro/n_timepoints"
-VALUE_KIND = "@mikro/value_kind"
+N_SPACE_AXES: Final = "@mikro/n_space_axes"
+N_TIME_AXES: Final = "@mikro/n_time_axes"
+N_CHANNEL_AXES: Final = "@mikro/n_channel_axes"
+N_SPECTRUM_AXES: Final = "@mikro/n_spectrum_axes"
+N_MICROTIME_AXES: Final = "@mikro/n_microtime_axes"
+N_CHANNELS: Final = "@mikro/n_channels"
+N_TIMEPOINTS: Final = "@mikro/n_timepoints"
+VALUE_KIND: Final = "@mikro/value_kind"
 
-_KEY_BY_AXIS_TYPE = {
+#: The closed set of descriptor keys this vocabulary defines. A key outside it
+#: is not a typo the server will catch — nothing on either side computes it, so
+#: the constraint would simply never be satisfiable.
+DescriptorKey = Literal[
+    "@mikro/n_space_axes",
+    "@mikro/n_time_axes",
+    "@mikro/n_channel_axes",
+    "@mikro/n_spectrum_axes",
+    "@mikro/n_microtime_axes",
+    "@mikro/n_channels",
+    "@mikro/n_timepoints",
+    "@mikro/value_kind",
+]
+
+#: What a descriptor key can be constrained to. The counts are ints; VALUE_KIND
+#: is a string; the set operators (IN, NOT_IN) take a sequence of either.
+DescriptorValue = Union[int, str, bool, Sequence[Union[int, str]]]
+
+#: The matching operators, as they read back off a `RequiresInput`. A Literal
+#: rather than `RequiresOperator` because `use_enum_values=True` means the model
+#: stores the plain value — annotating a read as the enum would be a lie. The
+#: enums are still what `constrain` builds with.
+ConstraintOperator = Literal[
+    "EQUALS",
+    "NOT_EQUALS",
+    "GTE",
+    "LTE",
+    "IN",
+    "NOT_IN",
+    "CONTAINS",
+    "MATCHES",
+    "EXISTS",
+]
+
+_KEY_BY_AXIS_TYPE: Final[Mapping[AxisTypeName, DescriptorKey]] = {
     "SPACE": N_SPACE_AXES,
     "TIME": N_TIME_AXES,
     "CHANNEL": N_CHANNEL_AXES,
@@ -102,42 +157,44 @@ _KEY_BY_AXIS_TYPE = {
 # The adjustability contract, mirrored by frontend composers: each key measures
 # the total extent along one axis type, so a lens can shrink it (pin, crop) but
 # never grow it. Every key not listed here is lens-invariant.
-ADJUSTABLE_KEYS: Dict[str, str] = {
+ADJUSTABLE_KEYS: Final[Mapping[DescriptorKey, AxisTypeName]] = {
     N_CHANNELS: "CHANNEL",
     N_TIMEPOINTS: "TIME",
 }
 
 
-def constrain(key: str, operator: str, value: Any) -> Tuple[Requires, Provides]:
+def constrain(
+    key: DescriptorKey, operator: ConstraintOperator, value: DescriptorValue
+) -> Tuple[Requires, Provides]:
     """A mirrored Requires/Provides pair for one constraint.
 
     Both directions carry the same statement so one alias serves argument and
     return positions; the port converter keeps the applicable side and drops
-    the other. Operators are the `RequiresOperator` members ("EQUALS", "GTE",
-    "LTE", "MATCHES", ...).
+    the other. The two sides take separate (identically populated) enums, so the
+    operator is named once and widened into each.
     """
     return (
-        Requires(key=key, operator=operator, value=value),
-        Provides(key=key, operator=operator, value=value),
+        Requires(key=key, operator=RequiresOperator(operator), value=value),
+        Provides(key=key, operator=ProvidesOperator(operator), value=value),
     )
 
 
-def exactly(key: str, value: Any) -> Tuple[Requires, Provides]:
+def exactly(key: DescriptorKey, value: DescriptorValue) -> Tuple[Requires, Provides]:
     """Constrain a descriptor key to exactly a value."""
     return constrain(key, "EQUALS", value)
 
 
-def at_least(key: str, value: Any) -> Tuple[Requires, Provides]:
+def at_least(key: DescriptorKey, value: DescriptorValue) -> Tuple[Requires, Provides]:
     """Constrain a descriptor key to at least a value."""
     return constrain(key, "GTE", value)
 
 
-def at_most(key: str, value: Any) -> Tuple[Requires, Provides]:
+def at_most(key: DescriptorKey, value: DescriptorValue) -> Tuple[Requires, Provides]:
     """Constrain a descriptor key to at most a value."""
     return constrain(key, "LTE", value)
 
 
-def refine(base: Any, *markers: Any) -> Any:
+def refine(base: Any, *markers: Any) -> Any:  # noqa: ANN401 — see `Spec` below
     """Stack more markers onto a spec type, building it dynamically.
 
     ``Annotated`` flattens on nesting and Requires/Provides accumulate, so a
@@ -231,12 +288,55 @@ that requires it will be offered them."""
 # --- The candidate side: the same vocabulary, computed from a lens. ---------
 
 
-Candidate = Union[Lens, Any]
+class _TypedAxis(Protocol):
+    """One axis of a coordinate system, as `_axis_table` reads it."""
+
+    @property
+    def order(self) -> int: ...
+
+    @property
+    def type(self) -> AxisType: ...
+
+
+class _HasCoordinateSystem(Protocol):
+    """A lens: it names the space it frames its data in its *coordinate* system."""
+
+    @property
+    def axis_names(self) -> Sequence[str]: ...
+
+    @property
+    def shape(self) -> Sequence[int]: ...
+
+    @property
+    def coordinate_system(self) -> Optional["_HasAxes"]: ...
+
+
+class _HasIntrinsicSystem(Protocol):
+    """A dataset: it calls the space of its own pixel grid *intrinsic*."""
+
+    @property
+    def axis_names(self) -> Sequence[str]: ...
+
+    @property
+    def shape(self) -> Sequence[int]: ...
+
+    @property
+    def intrinsic_system(self) -> Optional["_HasAxes"]: ...
+
+
+class _HasAxes(Protocol):
+    """Whichever system a candidate carries, all this side needs is its axes."""
+
+    @property
+    def axes(self) -> Sequence[_TypedAxis]: ...
+
+
+Candidate = Union[_HasCoordinateSystem, _HasIntrinsicSystem]
 """Anything with ``axis_names``, ``shape`` and a typed system — a Lens
 (``coordinate_system``) or an ADataset (``intrinsic_system``)."""
 
 
-def _axis_table(candidate: Candidate) -> Tuple[Tuple[str, str, int], ...]:
+def _axis_table(candidate: Candidate) -> Tuple[Tuple[str, AxisTypeName, int], ...]:
     """``(name, axis_type, extent)`` per axis, in array order.
 
     Types come from the candidate's coordinate system when it was fetched with
@@ -248,20 +348,22 @@ def _axis_table(candidate: Candidate) -> Tuple[Tuple[str, str, int], ...]:
     system = getattr(candidate, "coordinate_system", None) or getattr(
         candidate, "intrinsic_system", None
     )
+    types: Tuple[AxisTypeName, ...]
     if system is not None:
         axes = sorted(system.axes, key=lambda axis: axis.order)
-        types = tuple(str(getattr(axis.type, "value", axis.type)) for axis in axes)
+        # `use_enum_values` means the field may hold either the enum or its value.
+        types = tuple(str(getattr(axis.type, "value", axis.type)) for axis in axes)  # type: ignore[assignment]
     else:
-        types = tuple(_default_axis_type(name) for name in names)
+        types = tuple(default_axis_type(name) for name in names)
     return tuple(zip(names, types, shape))
 
 
-def axis_types(candidate: Candidate) -> Tuple[str, ...]:
+def axis_types(candidate: Candidate) -> Tuple[AxisTypeName, ...]:
     """Per-axis semantic types in array order, as AxisType value strings."""
     return tuple(axis_type for _, axis_type, _ in _axis_table(candidate))
 
 
-def lens_descriptors(candidate: Candidate) -> Dict[str, Any]:
+def lens_descriptors(candidate: Candidate) -> Dict[DescriptorKey, DescriptorValue]:
     """The descriptor key/value pairs a lens (or dataset) carries as a match
     candidate.
 
@@ -273,7 +375,7 @@ def lens_descriptors(candidate: Candidate) -> Dict[str, Any]:
     """
     table = _axis_table(candidate)
     counts = Counter(axis_type for _, axis_type, _ in table)
-    descriptors: Dict[str, Any] = {
+    descriptors: Dict[DescriptorKey, DescriptorValue] = {
         key: counts.get(axis_type, 0) for axis_type, key in _KEY_BY_AXIS_TYPE.items()
     }
     for key, wanted in ADJUSTABLE_KEYS.items():
@@ -283,7 +385,7 @@ def lens_descriptors(candidate: Candidate) -> Dict[str, Any]:
     return descriptors
 
 
-def axes_of_type(lens: Lens, axis_type: Any) -> Tuple[str, ...]:
+def axes_of_type(lens: Lens, axis_type: Union[AxisType, AxisTypeName]) -> Tuple[str, ...]:
     """The names of the lens' axes of one AxisType, in array order.
 
     The runtime counterpart of the spec vocabulary: a function typed over
@@ -309,7 +411,7 @@ def carried_axes(lens: Lens, dims: Sequence[str]) -> List[AxisInput]:
     """
     types = dict(zip(lens.axis_names, axis_types(lens)))
     return [
-        AxisInput(name=dim, type=types.get(dim, _default_axis_type(dim)))
+        AxisInput(name=dim, type=AxisType(types.get(dim, default_axis_type(dim))))
         for dim in dims
     ]
 
@@ -321,7 +423,18 @@ class SpecMismatch(Exception):
     """A lens does not fulfil the spec it was about to be returned as."""
 
 
-def spec_constraints(spec: Any) -> Tuple[RequiresInput, ...]:
+#: A spec type: one of the `Annotated` aliases above, or a refinement of one.
+#:
+#: This is `Any` and cannot be anything else. Python has no type for "an
+#: ``Annotated`` alias carrying these markers" — `type[Lens]` would reject the
+#: aliases, and a `TypeAlias` of the union would not carry the markers. The
+#: alias exists so every spec-taking signature says *which* kind of `Any` it
+#: means; see also the note on `refine` about static checkers rejecting a call
+#: result in type position.
+Spec = Any
+
+
+def spec_constraints(spec: Spec) -> Tuple[RequiresInput, ...]:
     """The constraints a spec type carries.
 
     Reads the Requires side of the mirrored pairs; since every pair states the
@@ -332,8 +445,41 @@ def spec_constraints(spec: Any) -> Tuple[RequiresInput, ...]:
     return tuple(marker for marker in args[1:] if isinstance(marker, RequiresInput))
 
 
-def _holds(operator: str, actual: Any, expected: Any, present: bool) -> bool:
-    """Evaluate one constraint operator against a descriptor value."""
+def _constrained_key(constraint: RequiresInput) -> DescriptorKey:
+    """The key a constraint names.
+
+    `RequiresInput.key` is a bare `str` — rekuest's marker vocabulary is open,
+    and other libraries namespace their own keys into it. Only the `@mikro/`
+    keys are ever computed on the candidate side, so a foreign key simply reads
+    as absent and fails its constraint, which is the same outcome the untyped
+    lookup produced.
+    """
+    return cast(DescriptorKey, constraint.key)
+
+
+def _constraint_operator(constraint: RequiresInput) -> ConstraintOperator:
+    """A constraint's operator as a plain value.
+
+    `use_enum_values=True` means the field may hold either the enum or its
+    value, so both spellings have to be unwrapped the same way.
+    """
+    operator = constraint.operator
+    return str(getattr(operator, "value", operator))  # type: ignore[return-value]
+
+
+def _holds(
+    operator: ConstraintOperator,
+    actual: Optional[DescriptorValue],
+    expected: DescriptorValue,
+    present: bool,
+) -> bool:
+    """Evaluate one constraint operator against a descriptor value.
+
+    Most operators only make sense against some shapes of value — you cannot
+    order a string against a count, and you cannot ask what a count contains.
+    Those refusals used to surface as whatever `TypeError` Python happened to
+    raise from the bare comparison; naming them says which side is wrong.
+    """
     if operator == "EXISTS":
         return present
     if not present:
@@ -342,23 +488,41 @@ def _holds(operator: str, actual: Any, expected: Any, present: bool) -> bool:
         return bool(actual == expected)
     if operator == "NOT_EQUALS":
         return bool(actual != expected)
-    if operator == "GTE":
-        return bool(actual >= expected)
-    if operator == "LTE":
-        return bool(actual <= expected)
-    if operator == "IN":
-        return actual in expected
-    if operator == "NOT_IN":
-        return actual not in expected
+    if operator in ("GTE", "LTE"):
+        if not isinstance(actual, int) or not isinstance(expected, int):
+            raise TypeError(
+                f"{operator} orders counts; {actual!r} and {expected!r} are not both counts"
+            )
+        return actual >= expected if operator == "GTE" else actual <= expected
+    if operator in ("IN", "NOT_IN"):
+        if isinstance(expected, str) or not isinstance(expected, abc.Sequence):
+            raise TypeError(
+                f"{operator} needs a sequence of allowed values, got {expected!r}"
+            )
+        found = actual in expected
+        return found if operator == "IN" else not found
     if operator == "CONTAINS":
-        return expected in actual
+        if isinstance(actual, str):
+            if not isinstance(expected, str):
+                raise TypeError(
+                    f"CONTAINS against the string {actual!r} needs a substring, "
+                    f"got {expected!r}"
+                )
+            return expected in actual
+        if not isinstance(actual, abc.Sequence):
+            raise TypeError(f"CONTAINS needs a sequence descriptor, got {actual!r}")
+        return any(item == expected for item in actual)
     if operator == "MATCHES":
         return re.fullmatch(str(expected), str(actual)) is not None
     raise ValueError(f"Unknown constraint operator {operator!r}")
 
 
+#: Provenance keys a producer vouches for, which structure cannot show.
+Declarations = Mapping[DescriptorKey, DescriptorValue]
+
+
 def unfulfilled(
-    lens: Lens, spec: Any, declares: Optional[Mapping[str, Any]] = None
+    lens: Lens, spec: Spec, declares: Optional[Declarations] = None
 ) -> Tuple[str, ...]:
     """Every constraint of `spec` this lens does not satisfy, human-readable.
 
@@ -371,28 +535,34 @@ def unfulfilled(
         descriptors.update(declares)
     failures: List[str] = []
     for constraint in spec_constraints(spec):
-        operator = str(getattr(constraint.operator, "value", constraint.operator))
-        present = constraint.key in descriptors
-        actual = descriptors.get(constraint.key)
+        key = _constrained_key(constraint)
+        operator = _constraint_operator(constraint)
+        present = key in descriptors
+        actual = descriptors.get(key)
         if not _holds(operator, actual, constraint.value, present):
             failures.append(_describe(constraint, operator, actual, present))
     return tuple(failures)
 
 
-def _describe(constraint: RequiresInput, operator: str, actual: Any, present: bool) -> str:
+def _describe(
+    constraint: RequiresInput,
+    operator: ConstraintOperator,
+    actual: Optional[DescriptorValue],
+    present: bool,
+) -> str:
     """One unsatisfied constraint, human-readable."""
     detail = f"actual {actual!r}" if present else "key absent — declare it if it is provenance"
     return f"{constraint.key} {operator} {constraint.value!r} ({detail})"
 
 
 def fulfills(
-    lens: Lens, spec: Any, declares: Optional[Mapping[str, Any]] = None
+    lens: Lens, spec: Spec, declares: Optional[Declarations] = None
 ) -> bool:
     """Whether a lens satisfies every constraint of a spec."""
     return not unfulfilled(lens, spec, declares)
 
 
-def ensure(lens: Lens, spec: Any, declares: Optional[Mapping[str, Any]] = None) -> Lens:
+def ensure(lens: Lens, spec: Spec, declares: Optional[Declarations] = None) -> Lens:
     """Assert a lens fulfils a spec, then return it — the produce-side guard.
 
     A Provides is a promise the definition makes statically; nothing checks the
@@ -426,10 +596,10 @@ class Pin:
     ``target`` under ``operator``.
     """
 
-    key: str
-    axis_type: str
+    key: DescriptorKey
+    axis_type: AxisTypeName
     axes: Tuple[Tuple[str, int], ...]
-    operator: str
+    operator: ConstraintOperator
     target: int
 
 
@@ -457,7 +627,7 @@ class CompositionPlan:
 
 
 def compose(
-    candidate: Candidate, spec: Any, declares: Optional[Mapping[str, Any]] = None
+    candidate: Candidate, spec: Spec, declares: Optional[Declarations] = None
 ) -> CompositionPlan:
     """Plan how a dataset (or lens) could fit a spec — the reference composer.
 
@@ -476,12 +646,13 @@ def compose(
     failures: List[str] = []
     pins: List[Pin] = []
     for constraint in spec_constraints(spec):
-        operator = str(getattr(constraint.operator, "value", constraint.operator))
-        present = constraint.key in descriptors
-        actual = descriptors.get(constraint.key)
+        key = _constrained_key(constraint)
+        operator = _constraint_operator(constraint)
+        present = key in descriptors
+        actual = descriptors.get(key)
         if _holds(operator, actual, constraint.value, present):
             continue
-        axis_type = ADJUSTABLE_KEYS.get(constraint.key)
+        axis_type = ADJUSTABLE_KEYS.get(key)
         axes = tuple(
             (name, extent) for name, found, extent in table if found == axis_type
         )
@@ -492,10 +663,10 @@ def compose(
             and isinstance(constraint.value, int)
             and actual > constraint.value >= len(axes)
         )
-        if adjustable:
+        if adjustable and axis_type is not None:
             pins.append(
                 Pin(
-                    key=constraint.key,
+                    key=key,
                     axis_type=axis_type,
                     axes=axes,
                     operator=operator,
@@ -507,27 +678,24 @@ def compose(
     return CompositionPlan(failures=tuple(failures), pins=tuple(pins))
 
 
-def _selected_extent(choice: Any, extent: int, axis: str) -> int:
-    """The extent an axis keeps under a selection, mirroring DatasetTrait.lens."""
-    if isinstance(choice, bool):
-        raise TypeError(f"Invalid selection for axis {axis!r}: {choice!r}")
-    if isinstance(choice, int):
+def _selected_extent(choice: AxisSelection, extent: int, axis: str) -> int:
+    """The extent an axis keeps under a selection, mirroring DatasetTrait.lens.
+
+    Shares `normalize_selection` with the lens itself, so the two cannot drift
+    on what a selection may look like. The bounds check is here rather than
+    there because it is the one part that needs the extent, which the lens does
+    not have.
+    """
+    if isinstance(choice, int) and not isinstance(choice, bool):
         if not 0 <= choice < extent:
             raise ValueError(f"Index {choice} out of range for axis {axis!r} (extent {extent})")
-        return 1
-    if isinstance(choice, slice):
-        return len(range(*choice.indices(extent)))
-    if isinstance(choice, (tuple, list)) and 2 <= len(choice) <= 3:
-        start, stop = choice[0], choice[1]
-        step = choice[2] if len(choice) == 3 else 1
-        return len(range(start, stop, step or 1))
-    raise TypeError(
-        f"Invalid selection for axis {axis!r}: {choice!r}. Pass an int, a "
-        f"slice(), or a (start, stop[, step]) tuple"
-    )
+    start, stop, step = normalize_selection(axis, choice)
+    return len(range(*slice(start, stop, step).indices(extent)))
 
 
-def selections_for(plan: CompositionPlan, **choices: Any) -> Dict[str, Any]:
+def selections_for(
+    plan: CompositionPlan, **choices: AxisSelection
+) -> Dict[str, AxisSelection]:
     """Resolve a plan's pins into per-axis selections for ``dataset.lens(...)``.
 
     Each choice keyword names an axis of a pin (``c=1`` pins channel 1). Every
@@ -537,7 +705,7 @@ def selections_for(plan: CompositionPlan, **choices: Any) -> Dict[str, Any]:
     if plan.failures:
         raise SpecMismatch("Plan is unsatisfiable: " + "; ".join(plan.failures))
     remaining = dict(choices)
-    selections: Dict[str, Any] = {}
+    selections: Dict[str, AxisSelection] = {}
     for pin in plan.pins:
         names = [name for name, _ in pin.axes]
         picked = {name: remaining.pop(name) for name in names if name in remaining}
@@ -564,11 +732,19 @@ def selections_for(plan: CompositionPlan, **choices: Any) -> Dict[str, Any]:
     return selections
 
 
+class LensableDataset(_HasIntrinsicSystem, Protocol):
+    """A dataset `fit_lens` can both measure and lens: `DatasetTrait` satisfies it."""
+
+    def lens(self, **selections: AxisSelection) -> Lens:
+        """Frame a view of this dataset — see `DatasetTrait.lens`."""
+        ...
+
+
 def fit_lens(
-    dataset: Any,
-    spec: Any,
-    declares: Optional[Mapping[str, Any]] = None,
-    **choices: Any,
+    dataset: LensableDataset,
+    spec: Spec,
+    declares: Optional[Declarations] = None,
+    **choices: AxisSelection,
 ) -> Lens:
     """Compose a lens over a dataset that fits a spec — the conversion itself.
 
@@ -597,6 +773,13 @@ __all__ = [
     "N_TIMEPOINTS",
     "VALUE_KIND",
     "ADJUSTABLE_KEYS",
+    "DescriptorKey",
+    "DescriptorValue",
+    "ConstraintOperator",
+    "Declarations",
+    "Spec",
+    "Candidate",
+    "LensableDataset",
     "constrain",
     "exactly",
     "at_least",

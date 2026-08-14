@@ -5,9 +5,10 @@ system — a node of the transformation graph, belonging to nobody — plus an e
 claiming that some data sits in it. Those are two facts, and they read best
 written as two steps::
 
+    from kanne.scalars import Unit
     from mikro_next import space_3d
 
-    world = space_3d("stage", unit="micrometer")
+    world = space_3d("stage", unit=Unit("micrometer"))
     world.register(dataset, scale={"z": 1.0, "y": 0.2, "x": 0.2})
 
 The space outlives every dataset registered into it and every scene composed
@@ -23,9 +24,11 @@ Reach for `create_space` when the shape is not one of them.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence, Union
 
-from .traits import _default_axis_type
+from kanne.scalars import Unit
+
+from .vocabulary import AxisTypeName, axis_type_rank, default_axis_type
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -37,22 +40,8 @@ if TYPE_CHECKING:
     )
     from mikro_next.rath import MikroNextRath
 
-# RFC-5 orders a system's axes by type: time first, then the categorical and
-# custom types, then space. The array's dimension order IS this order, so a
-# space whose axes disagree describes a different array than the one meant.
-_AXIS_TYPE_ORDER: Dict[str, int] = {
-    "TIME": 0,
-    "CHANNEL": 1,
-    "MICROTIME": 1,
-    "SPECTRUM": 1,
-    "COORDINATE": 1,
-    "DISPLACEMENT": 1,
-    "INDEX": 1,
-    "SPACE": 2,
-}
-
 #: How `create_space` will take its axes: name-to-unit, or the inputs themselves.
-AxisSpec = Union[Mapping[str, str], Sequence["PhysicalAxisInput"]]
+AxisSpec = Union[Mapping[str, Unit], Sequence["PhysicalAxisInput"]]
 
 
 def _axis_type_rank(axis: "PhysicalAxisInput") -> int:
@@ -60,7 +49,8 @@ def _axis_type_rank(axis: "PhysicalAxisInput") -> int:
     categorical ones, which is where every non-space, non-time type belongs."""
     # `use_enum_values` means the field may hold either the enum or its value.
     kind: Any = axis.type
-    return _AXIS_TYPE_ORDER.get(str(getattr(kind, "value", kind)), 1)
+    name: AxisTypeName = str(getattr(kind, "value", kind))  # type: ignore[assignment]
+    return axis_type_rank(name)
 
 
 def _canonical_axes(axes: Sequence["PhysicalAxisInput"]) -> List["PhysicalAxisInput"]:
@@ -84,8 +74,8 @@ def create_space(
 
     Args:
         name: What to call the space — "stage", "atlas", "well A1".
-        axes: Either a mapping of axis name to unit
-            (``{"z": "micrometer", "y": "micrometer", "x": "micrometer"}``),
+        axes: Either a mapping of axis name to `kanne.scalars.Unit`
+            (``{d: Unit("micrometer") for d in "zyx"}``),
             whose axis types are inferred from the names, or a sequence of
             `PhysicalAxisInput` when a name does not imply its type. Axes are
             put into RFC-5 order (time, then categorical, then space); the order
@@ -105,17 +95,20 @@ def create_space(
     Raises:
         ValueError: If no axes are given.
     """
-    from kanne.scalars import Unit
-
-    from mikro_next.api.schema import AxisType, PhysicalAxisInput, create_coordinate_system
+    from mikro_next.api.schema import (
+        UNSET,
+        AxisType,
+        PhysicalAxisInput,
+        create_coordinate_system,
+    )
 
     axis_inputs: List[PhysicalAxisInput]
     if isinstance(axes, Mapping):
         axis_inputs = [
             PhysicalAxisInput(
                 name=axis,
-                type=AxisType(_default_axis_type(axis)),
-                unit=Unit(unit),
+                type=AxisType(default_axis_type(axis)),
+                unit=unit,
             )
             for axis, unit in axes.items()
         ]
@@ -125,29 +118,25 @@ def create_space(
     if not axis_inputs:
         raise ValueError(f"A coordinate system needs at least one axis, {name!r} has none")
 
-    kwargs: Dict[str, Any] = {}
-    if epoch is not None:
-        kwargs["epoch"] = epoch
-
     return create_coordinate_system(
         name=name,
         axes=_canonical_axes(axis_inputs),
         registrations=list(registrations) if registrations is not None else [],
+        epoch=epoch if epoch is not None else UNSET,
         rath=rath,
-        **kwargs,
     )
 
 
 def space_2d(
     name: str = "space",
     *,
-    unit: str = "micrometer",
+    unit: Unit = Unit("micrometer"),
     axes: Sequence[str] = ("y", "x"),
     rath: Optional["MikroNextRath"] = None,
 ) -> "CoordinateSystem":
     """A flat physical space: ``(y, x)``, one length unit for both axes.
 
-        plane = space_2d("slide", unit="micrometer")
+        plane = space_2d("slide", unit=Unit("micrometer"))
         plane.register(dataset, scale={"y": 0.2, "x": 0.2})
 
     Args:
@@ -165,7 +154,7 @@ def space_2d(
 def space_3d(
     name: str = "space",
     *,
-    unit: str = "micrometer",
+    unit: Unit = Unit("micrometer"),
     axes: Sequence[str] = ("z", "y", "x"),
     rath: Optional["MikroNextRath"] = None,
 ) -> "CoordinateSystem":
@@ -175,7 +164,7 @@ def space_3d(
     property of the space — every axis here is in the same unit — it is the
     per-axis scale of the edge that registers the data::
 
-        world = space_3d("stage", unit="micrometer")
+        world = space_3d("stage", unit=Unit("micrometer"))
         world.register(dataset, scale={"z": 1.0, "y": 0.2, "x": 0.2})
 
     Args:
@@ -193,8 +182,8 @@ def space_3d(
 def timelapse_3d(
     name: str = "space",
     *,
-    unit: str = "micrometer",
-    time_unit: str = "second",
+    unit: Unit = Unit("micrometer"),
+    time_unit: Unit = Unit("second"),
     axes: Sequence[str] = ("z", "y", "x"),
     epoch: Optional["datetime"] = None,
     rath: Optional["MikroNextRath"] = None,
@@ -222,3 +211,12 @@ def timelapse_3d(
         epoch=epoch,
         rath=rath,
     )
+
+
+__all__ = [
+    "AxisSpec",
+    "create_space",
+    "space_2d",
+    "space_3d",
+    "timelapse_3d",
+]

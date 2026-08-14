@@ -11,7 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from mikro_next.api.schema import PhasorCursorInput, TransferFunctionInput
-from mikro_next.render import channel_graph, composite_graph, rgb_graph
+from mikro_next.render import ChannelSpec, channel_graph, composite_graph, rgb_graph
 
 
 def test_rgb_triple_is_completed_to_opaque_rgba() -> None:
@@ -57,5 +57,5 @@ def test_render_builders_emit_rgba() -> None:
         (0, 0, 255, 255),
     ]
 
-    composite = composite_graph([{"intensity_index": 0, "color": (12, 34, 56)}])
+    composite = composite_graph([ChannelSpec(intensity_index=0, color=(12, 34, 56))])
     assert composite.root.children[0].transfer.color == (12, 34, 56, 255)

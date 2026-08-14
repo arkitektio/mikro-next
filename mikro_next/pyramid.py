@@ -26,12 +26,20 @@ from __future__ import annotations
 import atexit
 import shutil
 import tempfile
-from typing import TYPE_CHECKING, List, Mapping, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Final, List, Mapping, Optional, Sequence, Tuple
 
 import xarray as xr
 
+from mikro_next.vocabulary import (
+    COARSENABLE_AXIS_TYPES,
+    AxisTypeName,
+    Reduction,
+    axis_type_rank,
+    default_axis_type,
+)
+
 if TYPE_CHECKING:
-    from mikro_next.api.schema import ScaleInput
+    from mikro_next.api.schema import ScaleInput, ScaleMethod
 
 
 # The reductions xarray's ``coarsen`` can apply, plus ``nearest`` which is a
@@ -41,7 +49,7 @@ if TYPE_CHECKING:
 # calls the same operation, and ``sum`` has no member at all — pooling that
 # conserves counts is not a resampling filter, so it travels with no method
 # rather than being misreported as one of the others.
-_REDUCTIONS: Mapping[str, Optional[str]] = {
+_REDUCTIONS: Final[Mapping[Reduction, Optional[str]]] = {
     "max": "MAX",
     "mean": "AREA",
     "sum": None,
@@ -49,19 +57,10 @@ _REDUCTIONS: Mapping[str, Optional[str]] = {
     "nearest": "NEAREST",
 }
 
-# Rank by axis type, matching the server's ordering rule: time first, then
-# channel and custom types, then space.
-_TYPE_RANK = {"TIME": 0, "SPACE": 2}
 
-
-def _axis_type(name: str) -> str:
-    """The conventional axis type for a bare axis name."""
-    from mikro_next.traits import _default_axis_type
-
-    return _default_axis_type(name)
-
-
-def canonical(array: xr.DataArray, types: Optional[Mapping[str, str]] = None) -> xr.DataArray:
+def canonical(
+    array: xr.DataArray, types: Optional[Mapping[str, AxisTypeName]] = None
+) -> xr.DataArray:
     """Reorder an array's dimensions into the axis order the server requires:
     time, then channel and custom types, then space.
 
@@ -81,7 +80,7 @@ def canonical(array: xr.DataArray, types: Optional[Mapping[str, str]] = None) ->
     dims = [str(d) for d in array.dims]
     ordered = sorted(
         dims,
-        key=lambda d: _TYPE_RANK.get(types.get(d, _axis_type(d)), 1),
+        key=lambda d: axis_type_rank(types.get(d, default_axis_type(d))),
     )
     if ordered == dims:
         return array
@@ -91,7 +90,7 @@ def canonical(array: xr.DataArray, types: Optional[Mapping[str, str]] = None) ->
 def _coarsen_dims(
     array: xr.DataArray,
     axes: Optional[Sequence[str]],
-    types: Mapping[str, str],
+    types: Mapping[str, AxisTypeName],
 ) -> List[str]:
     """Which of the array's dimensions this pyramid halves.
 
@@ -102,7 +101,7 @@ def _coarsen_dims(
     dims = [str(d) for d in array.dims]
 
     if axes is None:
-        return [d for d in dims if types.get(d, _axis_type(d)) == "SPACE"]
+        return [d for d in dims if types.get(d, default_axis_type(d)) == "SPACE"]
 
     chosen = [str(a) for a in axes]
     unknown = [a for a in chosen if a not in dims]
@@ -111,7 +110,9 @@ def _coarsen_dims(
             f"Cannot coarsen along {unknown}: the array has dimensions {dims}"
         )
     categorical = [
-        a for a in chosen if types.get(a, _axis_type(a)) not in ("SPACE", "TIME", "MICROTIME")
+        a
+        for a in chosen
+        if types.get(a, default_axis_type(a)) not in COARSENABLE_AXIS_TYPES
     ]
     if categorical:
         raise ValueError(
@@ -123,7 +124,9 @@ def _coarsen_dims(
     return chosen
 
 
-def _downsample(array: xr.DataArray, dims: Sequence[str], method: str) -> xr.DataArray:
+def _downsample(
+    array: xr.DataArray, dims: Sequence[str], method: Reduction
+) -> xr.DataArray:
     """One pyramid step: halve `dims`, reducing with `method`."""
     if method == "nearest":
         out = array.isel({d: slice(None, None, 2) for d in dims})
@@ -170,10 +173,10 @@ def _is_lazy(array: xr.DataArray) -> bool:
 def build_pyramid(
     base: xr.DataArray,
     levels: int = 5,
-    method: str = "max",
+    method: Reduction = "max",
     *,
     axes: Optional[Sequence[str]] = None,
-    types: Optional[Mapping[str, str]] = None,
+    types: Optional[Mapping[str, AxisTypeName]] = None,
     materialize: Optional[bool] = None,
 ) -> List[xr.DataArray]:
     """A resolution pyramid: `base` and each successive halving of it.
@@ -221,7 +224,9 @@ def build_pyramid(
     return pyramid
 
 
-def scales_from(pyramid: Sequence[xr.DataArray], method: str = "max") -> List["ScaleInput"]:
+def scales_from(
+    pyramid: Sequence[xr.DataArray], method: Reduction = "max"
+) -> List["ScaleInput"]:
     """The ``scales`` argument for a pyramid you already hold.
 
     Levels 1..N only: ``data`` *is* level 0, so listing it here as well would
@@ -233,15 +238,19 @@ def scales_from(pyramid: Sequence[xr.DataArray], method: str = "max") -> List["S
         dataset = create_a_dataset(data=pyramid[0],
                                    scales=scales_from(pyramid, "mean"), ...)
     """
-    from mikro_next.api.schema import ScaleInput
+    from mikro_next.api.schema import ScaleInput, ScaleMethod
 
     if method not in _REDUCTIONS:
         raise ValueError(
             f"Unknown reduction {method!r}. Pick one of {', '.join(_REDUCTIONS)}."
         )
 
+    recorded = _REDUCTIONS[method]
+    scale_method: Optional[ScaleMethod] = (
+        ScaleMethod(recorded) if recorded is not None else None
+    )
     return [
-        ScaleInput(level=level, array=array, scale_method=_REDUCTIONS[method])
+        ScaleInput(level=level, array=array, scale_method=scale_method)
         for level, array in enumerate(pyramid)
         if level > 0
     ]
@@ -250,10 +259,10 @@ def scales_from(pyramid: Sequence[xr.DataArray], method: str = "max") -> List["S
 def dataset_arrays(
     base: xr.DataArray,
     levels: int = 5,
-    method: str = "max",
+    method: Reduction = "max",
     *,
     axes: Optional[Sequence[str]] = None,
-    types: Optional[Mapping[str, str]] = None,
+    types: Optional[Mapping[str, AxisTypeName]] = None,
     materialize: Optional[bool] = None,
 ) -> Tuple[xr.DataArray, List["ScaleInput"]]:
     """The ``(data, scales)`` pair ``create_a_dataset`` wants.
@@ -280,3 +289,11 @@ def dataset_arrays(
         materialize=materialize,
     )
     return pyramid[0], scales_from(pyramid, method)
+
+
+__all__ = [
+    "canonical",
+    "build_pyramid",
+    "scales_from",
+    "dataset_arrays",
+]

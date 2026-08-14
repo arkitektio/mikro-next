@@ -23,6 +23,8 @@ from typing import (
     Generator,
     List,
     Mapping,
+    ClassVar,
+    FrozenSet,
     NamedTuple,
     NoReturn,
     Sequence,
@@ -37,7 +39,7 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, model_validator
 import xarray as xr
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Self, cast
 from dask.array.core import from_zarr  # type: ignore
 from zarr.storage import StorePath
 from .scalars import ArrayCoercible, FiveDVector
@@ -45,6 +47,16 @@ from rath.scalars import ID, IDCoercible
 from typing import Any
 from rath.turms.utils import get_attributes_or_error
 from rath.traits import FederationFetchable
+
+from .vocabulary import (
+    MATRIX_KINDS,
+    AxisSelection,
+    Calibration,
+    ResolvedTransformKind,
+    TransformKind,
+    default_axis_type,
+    normalize_selection,
+)
 
 _Given = TypeVar("_Given")
 
@@ -58,7 +70,7 @@ PointsLike = Union[Sequence[float], Sequence[Sequence[float]], NDArray[np.generi
 
 if TYPE_CHECKING:
     import duckdb
-    from pyarrow.parquet import ParquetDataset  # type: ignore
+    from mikro_next.io.obstore import ParquetDatasetViaObstore
     from mikro_next.api.schema import (
         HasZarrStoreAccessor,
         Image,
@@ -66,6 +78,7 @@ if TYPE_CHECKING:
         Annotation,
         Axis,
         CoordinateSystem,
+        CoordinateAnchorInput,
         CreateTransformationMutationCreatetransformationBase,
         GetCoordinateGraphQueryCoordinategraph,
         PhysicalAxisInput,
@@ -73,6 +86,7 @@ if TYPE_CHECKING:
         Lens,
         PlacementValidity,
         TransformInput,
+        ValueHistogramInput,
         ValueRelation,
         Scene,
         ScenePolicyInput,
@@ -113,19 +127,16 @@ class _LivesInASpace(Protocol):
 Registrable = Union[_LivesInItsOwnGrid, _LivesInASpace, "CoordinateSystemTrait"]
 
 
-_AXIS_TYPE_BY_NAME = {
-    "t": "TIME",
-    "time": "TIME",
-    "c": "CHANNEL",
-    "channel": "CHANNEL",
-}
+def _three_floats(values: "NDArray[np.generic]") -> Tuple[float, float, float]:
+    """The first three entries of a row, as the tuple of floats callers expect.
 
-
-def _default_axis_type(name: str) -> str:
-    """The conventional axis type for a bare axis name: ``t``/``time`` -> TIME,
-    ``c``/``channel`` -> CHANNEL, everything else -> SPACE. Pass a full input
-    object instead of a bare name when the convention does not apply."""
-    return _AXIS_TYPE_BY_NAME.get(name.lower(), "SPACE")
+    Slicing a numpy row yields an ndarray of numpy scalars, which is neither a
+    tuple nor made of Python floats — a signature promising
+    ``Tuple[float, float, float]`` and returning one used to be reconciled by a
+    ``# type: ignore``.
+    """
+    x, y, z = (float(v) for v in values[:3])
+    return (x, y, z)
 
 
 class MikroFetchable(FederationFetchable):
@@ -202,11 +213,12 @@ class HasZarrStoreTrait(BaseModel):
 
         for view in views:
             if isinstance(view, AffineTransformationView):
+                diagonal = view.affine_matrix.as_matrix().diagonal()
                 if stage is None:
-                    return view.affine_matrix.as_matrix().diagonal()[:3]  # type: ignore
+                    return _three_floats(diagonal)
                 else:
                     if get_attributes_or_error(view, "stage.id") == stage:
-                        return view.affine_matrix.as_matrix().diagonal()[:3]  # type: ignore
+                        return _three_floats(diagonal)
 
         raise NotImplementedError(
             f"No pixel size found for this representation {self}. Have you attached any views?"
@@ -461,7 +473,7 @@ class HasZarrStoreAccessor(BaseModel):
 
     """
 
-    _openstore: Any = None
+    _openstore: Optional[StorePath] = None
 
     @property
     def zarr_store(self) -> StorePath:
@@ -477,19 +489,20 @@ class HasZarrStoreAccessor(BaseModel):
 class HasParquetStoreAccesor(BaseModel):
     """Parquet Store Accessor"""
 
-    _dataset: Any = None
-    _duckdb_con: Any = None
-    _duckdb_rel: Any = None
+    _dataset: Optional["ParquetDatasetViaObstore"] = None
+    _duckdb_con: Optional["duckdb.DuckDBPyConnection"] = None
+    _duckdb_rel: Optional["duckdb.DuckDBPyRelation"] = None
 
     @property
-    def parquet_dataset(self) -> "ParquetDataset":
+    def parquet_dataset(self) -> "ParquetDatasetViaObstore":
         """The Parquet Dataset of the ParquetStore object"""
         from mikro_next.io.download import open_parquet_filesystem
 
-        if self._dataset is None:
-            id = get_attributes_or_error(self, "id")
-            self._dataset = open_parquet_filesystem(id)
-        return self._dataset
+        dataset = self._dataset
+        if dataset is None:
+            dataset = open_parquet_filesystem(get_attributes_or_error(self, "id"))
+            self._dataset = dataset
+        return dataset
 
     @property
     def duckdb_relation(self) -> "duckdb.DuckDBPyRelation":
@@ -501,16 +514,19 @@ class HasParquetStoreAccesor(BaseModel):
         """
         from mikro_next.io.download import open_parquet_duckdb
 
-        if self._duckdb_rel is None:
-            id = get_attributes_or_error(self, "id")
-            self._duckdb_con, self._duckdb_rel = open_parquet_duckdb(id)
-        return self._duckdb_rel
+        relation = self._duckdb_rel
+        if relation is None:
+            self._duckdb_con, relation = open_parquet_duckdb(
+                get_attributes_or_error(self, "id")
+            )
+            self._duckdb_rel = relation
+        return relation
 
 
 class HasDownloadAccessor(BaseModel):
     """Download Accessor"""
 
-    _dataset: Any = None
+    _dataset: Optional[str] = None
 
     def download(self, file_name: str | None = None) -> "str":
         """Download the file from the backing store.
@@ -534,7 +550,7 @@ class HasPresignedDownloadAccessor(BaseModel):
 
     """
 
-    _dataset: Any = None
+    _dataset: Optional[str] = None
 
     def download(self, file_name: str | None = None) -> str:
         """Download the file from the presigned URL
@@ -732,7 +748,7 @@ class DatasetTrait:
 
     def calibrate(
         self,
-        axes: Union[Mapping[str, Tuple[float, str]], Sequence["PhysicalAxisInput"]],
+        axes: Union[Mapping[str, Calibration], Sequence["PhysicalAxisInput"]],
         *,
         name: str = "physical",
         scale: Optional[Sequence[float]] = None,
@@ -745,9 +761,9 @@ class DatasetTrait:
         units, and the edge registering the dataset's pixel grid into it.
 
         The primary form takes a mapping of every intrinsic axis name to a
-        (factor, unit) pair, e.g. ``{"z": (0.5, "micrometer"), "y": (0.2,
-        "micrometer"), "x": (0.2, "micrometer")}`` — axis name and type are
-        copied from the intrinsic axis, and the factors become the edge's SCALE.
+        `Calibration` — ``{"z": Calibration(0.5, Unit("micrometer")), ...}`` —
+        whose axis name and type are copied from the intrinsic axis, and whose
+        factors become the edge's SCALE.
         Pass ``translation`` as well (a stage position, say) and the two fold
         into a single AFFINE, because an edge answers to exactly one kind.
         Power users can pass a sequence of ``PhysicalAxisInput`` directly,
@@ -757,12 +773,13 @@ class DatasetTrait:
         ordinary coordinate system with an edge into it — so this is one call,
         authored as one registration, rather than sugar on ingest:
 
-            dataset.calibrate({d: (0.2, "micrometer") for d in "zyx"})
+            dataset.calibrate({d: Calibration(0.2, Unit("micrometer")) for d in "zyx"})
 
         Returns:
             The created coordinate system. The edge is authored with it.
         """
         from mikro_next.api.schema import (
+            UNSET,
             create_coordinate_system,
             PhysicalAxisInput,
             RegistrationPathInput,
@@ -785,12 +802,12 @@ class DatasetTrait:
                     f"The calibration must cover every intrinsic axis exactly: "
                     f"intrinsic axes are {intrinsic_names}, got {sorted(axes)}"
                 )
-            factors = [float(axes[a.name][0]) for a in intrinsic_axes]
+            factors = [float(axes[a.name].factor) for a in intrinsic_axes]
             calibrated_axes = [
                 PhysicalAxisInput(
                     name=a.name,
                     type=a.type,
-                    unit=axes[a.name][1],
+                    unit=axes[a.name].unit,
                     long_name=a.long_name,
                 )
                 for a in intrinsic_axes
@@ -823,30 +840,26 @@ class DatasetTrait:
             scale, translation, affine, None
         )
 
-        registration: Dict[str, Any] = {
-            "dataset": get_attributes_or_error(self, "id"),
-            "name": f"{getattr(self, 'name', 'dataset')} -> {name}",
-            "transform": _transform_member(
+        registration = RegistrationPathInput(
+            dataset=get_attributes_or_error(self, "id"),
+            name=f"{getattr(self, 'name', 'dataset')} -> {name}",
+            transform=_transform_member(
                 kind, scale=scale, translation=translation, affine=affine
             ),
-        }
-
-        kwargs: Dict[str, Any] = {}
-        if epoch is not None:
-            kwargs["epoch"] = epoch
+        )
 
         return create_coordinate_system(
             name=name,
             axes=calibrated_axes,
-            registrations=[RegistrationPathInput(**registration)],
+            registrations=[registration],
+            epoch=epoch if epoch is not None else UNSET,
             rath=rath,
-            **kwargs,
         )
 
     def lens(
         self,
         rath: Optional["MikroNextRath"] = None,
-        **selections: Union[int, slice, Tuple[int, ...], Sequence[Optional[int]]],
+        **selections: AxisSelection,
     ) -> "Lens":
         """Create a lens on this dataset from pythonic per-axis selections.
 
@@ -868,35 +881,8 @@ class DatasetTrait:
                 raise ValueError(
                     f"Invalid axis {axis!r} for dataset with axes {list(axis_names)}"
                 )
-            if isinstance(selection, bool):
-                raise TypeError(f"Invalid selection for axis {axis!r}: {selection!r}")
-            if isinstance(selection, int):
-                slices.append(
-                    SliceInput(axis=axis, start=selection, stop=selection + 1)
-                )
-            elif isinstance(selection, slice):
-                slices.append(
-                    SliceInput(
-                        axis=axis,
-                        start=selection.start,
-                        stop=selection.stop,
-                        step=selection.step,
-                    )
-                )
-            elif isinstance(selection, (tuple, list)) and 2 <= len(selection) <= 3:
-                slices.append(
-                    SliceInput(
-                        axis=axis,
-                        start=selection[0],
-                        stop=selection[1],
-                        step=selection[2] if len(selection) == 3 else None,
-                    )
-                )
-            else:
-                raise TypeError(
-                    f"Invalid selection for axis {axis!r}: {selection!r}. Pass an "
-                    f"int, a slice(), or a (start, stop[, step]) tuple"
-                )
+            start, stop, step = normalize_selection(axis, selection)
+            slices.append(SliceInput(axis=axis, start=start, stop=stop, step=step))
 
         return create_lens(
             dataset=get_attributes_or_error(self, "id"), slices=slices, rath=rath
@@ -935,7 +921,7 @@ class DatasetTrait:
         Returns:
             The created FIELD transformation.
         """
-        from mikro_next.api.schema import create_transformation
+        from mikro_next.api.schema import UNSET, create_transformation
 
         # The mixin has no fields of its own; the model it is mixed into has
         # `intrinsic_system`, which is what makes a dataset registrable.
@@ -948,12 +934,6 @@ class DatasetTrait:
                 "selected in the query to order the output axes"
             )
 
-        kwargs: Dict[str, Any] = {}
-        if name is not None:
-            kwargs["name"] = name
-        if validity is not None:
-            kwargs["validity"] = validity
-
         transform = _transform_member(
             "FIELD",
             field=get_attributes_or_error(intrinsic, "id"),
@@ -965,8 +945,9 @@ class DatasetTrait:
             input=get_attributes_or_error(intrinsic, "id"),
             output=get_attributes_or_error(target, "id"),
             transform=transform,
+            name=name if name is not None else UNSET,
+            validity=validity if validity is not None else UNSET,
             rath=rath,
-            **kwargs,
         )
 
 
@@ -981,7 +962,7 @@ class CreateADatasetTrait:
     """
 
     @model_validator(mode="after")
-    def _validate_dims_match_axes(self) -> "CreateADatasetTrait":
+    def _validate_dims_match_axes(self) -> Self:
         """Ensure the axes (and scale arrays) match the data array dims."""
         data = getattr(self, "data", None)
         axes = getattr(self, "axes", None)
@@ -1071,7 +1052,7 @@ class AxisInputTrait(BaseModel):
     @classmethod
     def _coerce_bare_name(cls, value: Any) -> Any:
         if isinstance(value, str):
-            return {"name": value, "type": _default_axis_type(value)}
+            return {"name": value, "type": default_axis_type(value)}
         return value
 
 
@@ -1079,7 +1060,7 @@ class ValueHistogramInputTrait(BaseModel):
     """Builds the render metadata of an array in one call."""
 
     @classmethod
-    def from_array(cls, array: ArrayCoercible, bins: int = 256) -> "ValueHistogramInputTrait":
+    def from_array(cls, array: ArrayCoercible, bins: int = 256) -> "ValueHistogramInput":
         """Robust min/max, a 1st/99th-percentile contrast window and a UI
         histogram, computed from the array itself.
 
@@ -1090,6 +1071,8 @@ class ValueHistogramInputTrait(BaseModel):
             array: Anything ``np.asarray`` accepts (numpy, xarray, dask).
             bins: The number of histogram bins.
         """
+        from mikro_next.api.schema import ValueHistogramInput
+
         clean = np.asarray(array)
         clean = clean[np.isfinite(clean)]
         if clean.size == 0:
@@ -1099,7 +1082,7 @@ class ValueHistogramInputTrait(BaseModel):
         lo, hi = float(clean.min()), float(clean.max())
         p1, p99 = np.percentile(clean, [1, 99])
         counts, edges = np.histogram(clean, bins=bins, range=(lo, hi))
-        return cls(
+        return ValueHistogramInput(
             min=lo,
             max=hi,
             p1=float(p1),
@@ -1119,7 +1102,7 @@ class CoordinateAnchorInputTrait(BaseModel):
         dims: Optional[Sequence[str]] = None,
         bins: int = 256,
         at: Optional[Mapping[str, int]] = None,
-    ) -> "CoordinateAnchorInputTrait":
+    ) -> "CoordinateAnchorInput":
         """An anchor carrying the array's value histogram.
 
         A histogram is a single fact about the array it was computed from, so it
@@ -1142,7 +1125,11 @@ class CoordinateAnchorInputTrait(BaseModel):
             bins: The number of histogram bins.
             at: Axis name -> position this anchor sits at.
         """
-        from mikro_next.api.schema import AxisAnchorInput, ValueHistogramInput
+        from mikro_next.api.schema import (
+            AxisAnchorInput,
+            CoordinateAnchorInput,
+            ValueHistogramInput,
+        )
 
         if at is not None:
             anchors = [
@@ -1159,7 +1146,7 @@ class CoordinateAnchorInputTrait(BaseModel):
                     )
             anchors = [AxisAnchorInput(axis=str(d), value=0) for d in dims]
 
-        return cls(
+        return CoordinateAnchorInput(
             axis_anchors=anchors,
             value_histogram=ValueHistogramInput.from_array(array, bins=bins),
         )
@@ -1172,7 +1159,7 @@ class CoordinateAnchorInputTrait(BaseModel):
         array: xr.DataArray,
         axis: str = "c",
         bins: int = 256,
-    ) -> List["CoordinateAnchorInputTrait"]:
+    ) -> List["CoordinateAnchorInput"]:
         """One histogram anchor per position along ``axis`` — the whole
         ``anchors=`` argument in one call.
 
@@ -1254,8 +1241,8 @@ class Lensable:
         kind: "RoiKind",
         vectors: "TwoDArray",
         name: str | None = None,
-        collection: str | None = None,
-        scene: str | None = None,
+        collection: Optional[IDCoercible] = None,
+        scene: Optional[IDCoercible] = None,
     ) -> "Annotation":
         """Draw an annotation on the data of this lens
 
@@ -1341,15 +1328,13 @@ class Lensable:
     def derive(
         self,
         *,
-        kind: Optional[Union[str, Enum]] = None,
+        kind: Optional[Union[TransformKind, Enum]] = None,
         scale: Optional[Sequence[float]] = None,
         translation: Optional[Sequence[float]] = None,
         affine: Optional[Sequence[Sequence[float]]] = None,
         input_axes: Optional[Sequence[str]] = None,
         output_axes: Optional[Sequence[str]] = None,
-        # `use_enum_values` means the generated input stores the enum's value, so
-        # a bare string is exactly as valid as the member.
-        value_relation: Optional[Union["ValueRelation", str]] = None,
+        value_relation: Optional["ValueRelation"] = None,
         reason: Optional[str] = None,
     ) -> "DerivedFromInput":
         """A derivation edge pointing back into this lens, for a dataset about
@@ -1392,12 +1377,10 @@ class Lensable:
             reason=reason,
         )
 
-        kwargs: Dict[str, Any] = {}
-        if value_relation is not None:
-            kwargs["value_relation"] = value_relation
-
         return LensDerivedFromInput(
-            lens=get_attributes_or_error(self, "id"), transform=transform, **kwargs
+            lens=get_attributes_or_error(self, "id"),
+            transform=transform,
+            value_relation=value_relation,
         )
 
     def derive_identity(
@@ -1417,9 +1400,7 @@ class Lensable:
         self,
         offset: Sequence[float],
         *,
-        # `use_enum_values` means the generated input stores the enum's value, so
-        # the bare string this defaults to is exactly as valid as the member.
-        value_relation: Optional[Union["ValueRelation", str]] = "IDENTICAL",
+        value_relation: Optional["ValueRelation"] = None,
     ) -> "DerivedFromInput":
         """A TRANSLATION derivation edge: same axes, shifted origin — a crop.
 
@@ -1428,6 +1409,10 @@ class Lensable:
         does not compute, so `value_relation` defaults to IDENTICAL (statistics
         transfer); override it when the values were also recomputed.
         """
+        from mikro_next.api.schema import ValueRelation
+
+        if value_relation is None:
+            value_relation = ValueRelation.IDENTICAL
         return self.derive(
             kind="TRANSLATION",
             translation=offset,
@@ -1455,9 +1440,13 @@ class Lensable:
         )
 
 
-def _normalize_kind(kind: Union[str, Enum]) -> str:
-    """Normalize a transformation kind to its plain string value."""
-    return str(getattr(kind, "value", kind))
+def _normalize_kind(kind: Union[ResolvedTransformKind, Enum]) -> ResolvedTransformKind:
+    """Normalize a transformation kind to its plain string value.
+
+    `use_enum_values=True` means a kind read off a model may be either the enum
+    or its value, and the two compare unequal against a bare literal.
+    """
+    return str(getattr(kind, "value", kind))  # type: ignore[return-value]
 
 
 def _axis_names_in_order(system: "CoordinateSystemTrait") -> List[str]:
@@ -1525,7 +1514,7 @@ def _infer_transform_kind(
     affine: Optional[Sequence[Sequence[float]]],
     input_axes: Optional[Sequence[str]],
 ) -> Tuple[
-    str,
+    TransformKind,
     Optional[Sequence[float]],
     Optional[Sequence[float]],
     Optional[Sequence[Sequence[float]]],
@@ -1561,7 +1550,7 @@ def _infer_transform_kind(
 
 
 def _transform_member(
-    kind: Union[str, Enum],
+    kind: Union[TransformKind, Enum],
     *,
     scale: Optional[Sequence[float]] = None,
     translation: Optional[Sequence[float]] = None,
@@ -1586,70 +1575,76 @@ def _transform_member(
     """
     from mikro_next.api import schema
 
-    kind = _normalize_kind(kind)
+    # Wider than the parameter: a caller reaching here untyped may still hand in
+    # a resolved kind, and the dispatch below refuses it by name rather than by
+    # falling through to the wrong member.
+    normalized: ResolvedTransformKind = _normalize_kind(kind)
 
-    if reason is not None and kind != "UNMAPPABLE":
+    if reason is not None and normalized != "UNMAPPABLE":
         raise ValueError(
-            f"reason is only recorded on an UNMAPPABLE edge, not on a {kind}: "
+            f"reason is only recorded on an UNMAPPABLE edge, not on a {normalized}: "
             "the coordinate graph reads nothing else from it"
         )
 
     def require(name: str, value: Optional[_Given]) -> _Given:
         """The value, or a refusal naming the parameter the kind needs."""
         if value is None:
-            raise ValueError(f"A {kind} transformation needs {name}=")
+            raise ValueError(f"A {normalized} transformation needs {name}=")
         return value
 
-    if kind == "IDENTITY":
+    if normalized == "IDENTITY":
         given = (scale, translation, affine, input_axes, output_axes, field)
         if any(value is not None for value in given):
             raise ValueError("An IDENTITY transformation takes no parameters")
         return schema.IdentityTransformInput()
-    if kind == "SCALE":
+    if normalized == "SCALE":
         return schema.ScaleTransformInput(
             scale=tuple(float(s) for s in require("scale", scale))
         )
-    if kind == "TRANSLATION":
+    if normalized == "TRANSLATION":
         return schema.TranslationTransformInput(
             translation=tuple(float(t) for t in require("translation", translation))
         )
-    if kind == "AFFINE":
+    if normalized == "AFFINE":
         return schema.AffineTransformInput(
             affine=np.asarray(require("affine", affine), dtype=float).tolist()
         )
-    if kind == "ROTATION":
+    if normalized == "ROTATION":
         return schema.RotationTransformInput(
             affine=np.asarray(require("affine", affine), dtype=float).tolist()
         )
-    if kind == "MAP_AXIS":
+    if normalized == "MAP_AXIS":
         return schema.MapAxisTransformInput(
             input_axes=list(require("input_axes", input_axes)),
             output_axes=list(require("output_axes", output_axes)),
         )
-    if kind == "BY_DIMENSION":
-        optional: Dict[str, Any] = {}
-        if scale is not None:
-            optional["scale"] = [float(s) for s in scale]
-        if translation is not None:
-            optional["translation"] = [float(t) for t in translation]
-        if affine is not None:
-            optional["affine"] = np.asarray(affine, dtype=float).tolist()
+    if normalized == "BY_DIMENSION":
         return schema.ByDimensionTransformInput(
             input_axes=list(require("input_axes", input_axes)),
             output_axes=list(require("output_axes", output_axes)),
-            **optional,
+            scale=None if scale is None else tuple(float(s) for s in scale),
+            translation=(
+                None if translation is None else tuple(float(t) for t in translation)
+            ),
+            affine=(
+                None
+                if affine is None
+                else tuple(
+                    tuple(row) for row in np.asarray(affine, dtype=float).tolist()
+                )
+            ),
         )
-    if kind == "FIELD":
+    if normalized == "FIELD":
         return schema.FieldTransformInput(
             field=require("field", field),
             input_axes=list(require("input_axes", input_axes)),
             output_axes=list(require("output_axes", output_axes)),
         )
-    if kind == "UNMAPPABLE":
+    if normalized == "UNMAPPABLE":
         if reason is None:
             return schema.UnmappableTransformInput()
         return schema.UnmappableTransformInput(reason=reason)
-    raise ValueError(f"Unknown transformation kind {kind!r}")
+    raise ValueError(f"Unknown transformation kind {normalized!r}")
 
 
 class PathStep(NamedTuple):
@@ -1659,7 +1654,7 @@ class PathStep(NamedTuple):
     case its matrix must be inverted before composing.
     """
 
-    transformation: Any
+    transformation: "TransformationTrait"
     inverted: bool
 
 
@@ -1673,14 +1668,9 @@ class TransformationTrait:
     explicit axis reordering only ever happens through MAP_AXIS edges.
     """
 
-    MATRIX_KINDS = (
-        "IDENTITY",
-        "SCALE",
-        "TRANSLATION",
-        "AFFINE",
-        "ROTATION",
-        "MAP_AXIS",
-    )
+    #: Re-exported for callers that branch on it; the vocabulary itself lives
+    #: in `mikro_next.vocabulary`.
+    MATRIX_KINDS: ClassVar[FrozenSet[ResolvedTransformKind]] = MATRIX_KINDS
 
     def ndim_in(self) -> Optional[int]:
         """Number of input axes, if the input system was selected in the query."""
@@ -1829,7 +1819,7 @@ class TransformationTrait:
 
 
 def _bfs_path(
-    transformations: Sequence[Any],
+    transformations: Sequence[object],
     start_id: str,
     target_id: str,
     allow_fetch: bool = False,
@@ -1839,9 +1829,16 @@ def _bfs_path(
     Edges are walked forward (input -> output) and backward (output -> input,
     flagged inverted). Only kinds with a closed-form matrix are walkable
     (plus SEQUENCE when `allow_fetch` permits resolving children later).
+
+    The graph query returns a heterogeneous union, and a kind this client does
+    not model comes back as a fieldless catch-all that carries no trait — hence
+    `object` here, and the narrowing below. Such an edge is not walkable for the
+    same reason a FIELD edge is not: nothing about it yields a matrix.
     """
     adjacency: Dict[str, List[Tuple[PathStep, str]]] = {}
     for t in transformations:
+        if not isinstance(t, TransformationTrait):
+            continue
         kind = _normalize_kind(get_attributes_or_error(t, "kind"))
         composable = kind in TransformationTrait.MATRIX_KINDS or (
             kind == "SEQUENCE" and allow_fetch
@@ -2147,7 +2144,10 @@ class CoordinateSystemTrait:
         index: int,
         cols: int,
         pitch: float,
-        **kwargs: Any,
+        *,
+        scale: Optional[Union[Mapping[str, float], Sequence[float]]] = None,
+        name: Optional[str] = None,
+        validity: Optional["PlacementValidity"] = None,
     ) -> "CreatedTransformation":
         """Register `source` into this space at grid cell `index`.
 
@@ -2161,7 +2161,9 @@ class CoordinateSystemTrait:
             index: Which cell to place it in, counting in reading order.
             cols: How many cells make a row.
             pitch: The centre-to-centre spacing, in this space's units.
-            **kwargs: Passed through to `register` (`scale`, `name`, `validity`).
+            scale: Passed through to `register`.
+            name: Passed through to `register`.
+            validity: Passed through to `register`.
 
         Returns:
             The created registration edge.
@@ -2172,7 +2174,14 @@ class CoordinateSystemTrait:
         if cols < 1:
             raise ValueError(f"cols must be at least 1, got {cols}")
         row, col = divmod(index, cols)
-        return self.register(source, x=col * pitch, y=row * pitch, **kwargs)
+        return self.register(
+            source,
+            scale=scale,
+            name=name,
+            validity=validity,
+            x=col * pitch,
+            y=row * pitch,
+        )
 
     def unregister(
         self,
@@ -2256,19 +2265,16 @@ class CoordinateSystemTrait:
             The created scene.
         """
         from mikro_next.api.schema import (
+            UNSET,
             create_scene_from_coordinate_system,
             ScenePolicyInput,
         )
 
-        kwargs: Dict[str, Any] = {}
-        if name is not None:
-            kwargs["name"] = name
-
         return create_scene_from_coordinate_system(
             coordinate_system=get_attributes_or_error(self, "id"),
             policy=policy if policy is not None else ScenePolicyInput(),
+            name=name if name is not None else UNSET,
             rath=rath,
-            **kwargs,
         )
 
     def clear(self, rath: Optional["MikroNextRath"] = None) -> Tuple[ID, ...]:
@@ -2321,12 +2327,12 @@ class CoordinateSystemTrait:
 
     def transform_to(
         self,
-        other: Union[str, ID, "CoordinateSystemTrait"],
+        other: Union[IDCoercible, "CoordinateSystemTrait"],
         *,
         scale: Optional[Sequence[float]] = None,
         translation: Optional[Sequence[float]] = None,
         affine: Optional[Sequence[Sequence[float]]] = None,
-        kind: Optional[str] = None,
+        kind: Optional[TransformKind] = None,
         name: Optional[str] = None,
         input_axes: Optional[Sequence[str]] = None,
         output_axes: Optional[Sequence[str]] = None,
@@ -2345,7 +2351,7 @@ class CoordinateSystemTrait:
         "these two spaces are the same grid". `reason` is recorded only on an
         UNMAPPABLE edge.
         """
-        from mikro_next.api.schema import create_transformation
+        from mikro_next.api.schema import UNSET, create_transformation
 
         other_id = (
             other if isinstance(other, str) else get_attributes_or_error(other, "id")
@@ -2394,18 +2400,13 @@ class CoordinateSystemTrait:
             reason=reason,
         )
 
-        kwargs: Dict[str, Any] = {}
-        if name is not None:
-            kwargs["name"] = name
-        if validity is not None:
-            kwargs["validity"] = validity
-
         return create_transformation(
             input=get_attributes_or_error(self, "id"),
             output=other_id,
             transform=transform,
+            name=name if name is not None else UNSET,
+            validity=validity if validity is not None else UNSET,
             rath=rath,
-            **kwargs,
         )
 
     def graph(
@@ -2420,20 +2421,17 @@ class CoordinateSystemTrait:
         Returns:
             The reachable systems and the edges between them.
         """
-        from mikro_next.api.schema import get_coordinate_graph
+        from mikro_next.api.schema import UNSET, get_coordinate_graph
 
-        kwargs: Dict[str, Any] = {}
-        if max_depth is not None:
-            kwargs["max_depth"] = max_depth
         return get_coordinate_graph(
             coordinate_system=get_attributes_or_error(self, "id"),
+            max_depth=max_depth if max_depth is not None else UNSET,
             rath=rath,
-            **kwargs,
         )
 
     def path_to(
         self,
-        other: Union[str, ID, "CoordinateSystemTrait"],
+        other: Union[IDCoercible, "CoordinateSystemTrait"],
         *,
         max_depth: Optional[int] = None,
         allow_fetch: bool = False,
@@ -2458,7 +2456,7 @@ class CoordinateSystemTrait:
 
     def matrix_to(
         self,
-        other: Union[str, ID, "CoordinateSystemTrait"],
+        other: Union[IDCoercible, "CoordinateSystemTrait"],
         *,
         max_depth: Optional[int] = None,
         allow_fetch: bool = False,
@@ -2476,7 +2474,7 @@ class CoordinateSystemTrait:
 
     def transform_points_to(
         self,
-        other: Union[str, ID, "CoordinateSystemTrait"],
+        other: Union[IDCoercible, "CoordinateSystemTrait"],
         points: PointsLike,
         *,
         max_depth: Optional[int] = None,

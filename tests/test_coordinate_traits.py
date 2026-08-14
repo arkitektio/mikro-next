@@ -8,7 +8,12 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from kanne.scalars import Unit
+
+from mikro_next.vocabulary import Calibration
+
 from mikro_next.api.schema import (
+    UNSET,
     Axis,
     CoordinateSystem,
     TransformationAffineTransformation,
@@ -215,11 +220,13 @@ class TestCalibrateValidation:
 
     def test_requires_intrinsic_system(self):
         with pytest.raises(ValueError, match="intrinsic"):
-            self.make_dataset(None).calibrate({"y": (0.1, "µm"), "x": (0.1, "µm")})
+            self.make_dataset(None).calibrate(
+                {"y": Calibration(0.1, Unit("µm")), "x": Calibration(0.1, Unit("µm"))}
+            )
 
     def test_mapping_must_cover_every_axis(self):
         with pytest.raises(ValueError, match="every intrinsic axis"):
-            self.make_dataset(PIX).calibrate({"y": (0.1, "µm")})
+            self.make_dataset(PIX).calibrate({"y": Calibration(0.1, Unit("µm"))})
 
     def test_list_form_needs_exactly_one_of_scale_or_affine(self):
         with pytest.raises(ValueError, match="exactly"):
@@ -484,7 +491,7 @@ class TestSpaceHelpers:
     def test_space_3d_is_zyx_in_one_length_unit(self):
         from mikro_next import space_3d
 
-        axes = self.create(space_3d, "stage", unit="micrometer")["axes"]
+        axes = self.create(space_3d, "stage", unit=Unit("micrometer"))["axes"]
         assert [a.name for a in axes] == ["z", "y", "x"]
         assert {str(a.unit) for a in axes} == {"micrometer"}
         assert {str(a.type) for a in axes} == {"SPACE"}
@@ -500,19 +507,26 @@ class TestSpaceHelpers:
         order — a space whose axes disagree describes a different array."""
         from mikro_next import timelapse_3d
 
-        seen = self.create(timelapse_3d, "movie", time_unit="second")
+        seen = self.create(timelapse_3d, "movie", time_unit=Unit("second"))
         axes = seen["axes"]
         assert [a.name for a in axes] == ["t", "z", "y", "x"]
         assert str(axes[0].type) == "TIME"
         assert str(axes[0].unit) == "second"
-        # No epoch given: the clock is unanchored, not anchored to null.
-        assert "epoch" not in seen
+        # No epoch given: the clock is unanchored, not anchored to null. UNSET is
+        # how the generated layer spells "omitted" — it never reaches the wire.
+        assert seen["epoch"] is UNSET
 
     def test_create_space_infers_the_axis_type_from_the_name(self):
         from mikro_next import create_space
 
         axes = self.create(
-            create_space, "mixed", {"x": "micrometer", "c": "dimensionless", "t": "second"}
+            create_space,
+            "mixed",
+            {
+                "x": Unit("micrometer"),
+                "c": Unit("dimensionless"),
+                "t": Unit("second"),
+            },
         )["axes"]
         # Sorted into RFC-5 order: time, then categorical, then space.
         assert [a.name for a in axes] == ["t", "c", "x"]
@@ -583,7 +597,7 @@ class TestStage:
         assert variables == {"input": {"coordinateSystem": "w", "policy": {}}}
 
     def test_an_omitted_name_is_not_sent_as_null(self):
-        assert "name" not in self.stage()
+        assert self.stage()["name"] is UNSET
         assert self.stage(name="overview")["name"] == "overview"
 
 
