@@ -1,7 +1,7 @@
 """Upload middleware for the funcs API.
 
 This middleware intercepts serialized operation variables and uploads
-uploadable types (ArrayLike, ImageLike, ParquetLike, etc.) to the datalayer
+uploadable types (ArrayLike, ParquetLike, etc.) to the datalayer
 *before* the operation reaches the rath link chain.
 
 It provides both sync and async paths:
@@ -26,9 +26,7 @@ from mikro_next.scalars import (
     ArrayLike,
     FileLike,
     ImageFileLike,
-    ImageLike,
-    LabelsLike,
-    MeshLike,
+    FabriksLike,
     ParquetLike,
 )
 from mikro_next.io.upload import (
@@ -36,14 +34,14 @@ from mikro_next.io.upload import (
     aupload_bigfile,
     aupload_xarray,
     aupload_parquet,
+    astore_fabriks_collection,
     astore_media_file,
-    astore_mesh_file,
     # Sync paths (obstore)
     upload_xarray,
     upload_parquet,
     upload_bigfile,
+    store_fabriks_collection,
     store_media_file,
-    store_mesh_file,
 )
 
 from mikro_next.datalayer import DataLayer
@@ -51,6 +49,7 @@ from mikro_next.datalayer import DataLayer
 if TYPE_CHECKING:
     from mikro_next.api.schema import (
         BigFileUploadGrant,
+        FabriksUploadGrant,
         MediaUploadGrant,
         ParquetUploadGrant,
         ZarrUploadGrant,
@@ -112,8 +111,8 @@ class UploadMiddleware(FuncsMiddleware):
     """Middleware that uploads supported data types to the datalayer.
 
     This middleware walks the serialized variables dict, finds instances of
-    uploadable scalar types (ArrayLike, ImageLike, ParquetLike, LabelsLike,
-    FileLike, ImageFileLike, MeshLike), uploads them to S3, and replaces
+    uploadable scalar types (ArrayLike, ParquetLike, FileLike, ImageFileLike,
+    FabriksLike), uploads them to S3, and replaces
     them with their store IDs.
 
     Provides two paths:
@@ -179,6 +178,46 @@ class UploadMiddleware(FuncsMiddleware):
             ).model_dump(by_alias=True, exclude_unset=True),
         )
 
+    def _get_fabriks_credentials(
+        self, key: str, datalayer: str, rath: "MikroNextRath"
+    ) -> "FabriksUploadGrant":
+        """Get fabriks upload credentials synchronously.
+
+        One grant for the whole prefix -- the manifest, both catalogs and every level -- because
+        a fabriks store is a tree rather than an object.
+        """
+        from mikro_next.api.schema import (
+            RequestFabriksUploadInput,
+            RequestFabriksUploadMutation,
+        )
+
+        x = rath.query(
+            RequestFabriksUploadMutation.Meta.document,
+            RequestFabriksUploadMutation.Arguments(input=RequestFabriksUploadInput()).model_dump(
+                by_alias=True, exclude_unset=True
+            ),
+        )
+        return RequestFabriksUploadMutation(**x.data).request_fabriks_upload
+
+    def _finish_fabriks_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+        """Finish a fabriks upload synchronously.
+
+        The completion protocol, not a formality: the server reads the prefix's `fabriks.json`
+        and refuses one that has none, which is exactly what an interrupted write looks like
+        since the manifest is written last.
+        """
+        from mikro_next.api.schema import (
+            FinishFabriksUploadInput,
+            FinishFabriksUploadMutation,
+        )
+
+        rath.query(
+            FinishFabriksUploadMutation.Meta.document,
+            FinishFabriksUploadMutation.Arguments(
+                input=FinishFabriksUploadInput(storeId=store_id, valid=True)
+            ).model_dump(by_alias=True, exclude_unset=True),
+        )
+
     def _get_table_credentials(
         self, key: str, datalayer: str, rath: "MikroNextRath"
     ) -> "ParquetUploadGrant":
@@ -197,7 +236,7 @@ class UploadMiddleware(FuncsMiddleware):
         return RequestParquetUploadMutation(**x.data).request_parquet_upload
 
     def _get_bigfile_credentials(
-        self, file: FileLike | MeshLike, datalayer: str, rath: "MikroNextRath"
+        self, file: FileLike, datalayer: str, rath: "MikroNextRath"
     ) -> "BigFileUploadGrant":
         """Get big file upload credentials synchronously."""
         from mikro_next.api.schema import (
@@ -267,6 +306,37 @@ class UploadMiddleware(FuncsMiddleware):
             ).model_dump(by_alias=True, exclude_unset=True),
         )
 
+    async def _aget_fabriks_credentials(
+        self, key: str, datalayer: str, rath: "MikroNextRath"
+    ) -> "FabriksUploadGrant":
+        """Get fabriks upload credentials asynchronously."""
+        from mikro_next.api.schema import (
+            RequestFabriksUploadInput,
+            RequestFabriksUploadMutation,
+        )
+
+        x = await rath.aquery(
+            RequestFabriksUploadMutation.Meta.document,
+            RequestFabriksUploadMutation.Arguments(input=RequestFabriksUploadInput()).model_dump(
+                by_alias=True, exclude_unset=True
+            ),
+        )
+        return RequestFabriksUploadMutation(**x.data).request_fabriks_upload
+
+    async def _afinish_fabriks_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+        """Finish a fabriks upload asynchronously."""
+        from mikro_next.api.schema import (
+            FinishFabriksUploadInput,
+            FinishFabriksUploadMutation,
+        )
+
+        await rath.aquery(
+            FinishFabriksUploadMutation.Meta.document,
+            FinishFabriksUploadMutation.Arguments(
+                input=FinishFabriksUploadInput(storeId=store_id, valid=True)
+            ).model_dump(by_alias=True, exclude_unset=True),
+        )
+
     async def _aget_table_credentials(
         self, key: str, datalayer: str, rath: "MikroNextRath"
     ) -> "ParquetUploadGrant":
@@ -285,7 +355,7 @@ class UploadMiddleware(FuncsMiddleware):
         return RequestParquetUploadMutation(**x.data).request_parquet_upload
 
     async def _aget_bigfile_credentials(
-        self, file: FileLike | MeshLike, datalayer: str, rath: "MikroNextRath"
+        self, file: FileLike, datalayer: str, rath: "MikroNextRath"
     ) -> "BigFileUploadGrant":
         """Get big file upload credentials asynchronously."""
         from mikro_next.api.schema import (
@@ -345,7 +415,7 @@ class UploadMiddleware(FuncsMiddleware):
         self,
         datalayer: "DataLayer",
         rath: "MikroNextRath",
-        parquet_input: ParquetLike | LabelsLike,
+        parquet_input: ParquetLike,
     ) -> str:
         """Upload a Parquet file synchronously."""
         endpoint_url = self.get_datalayer_url()
@@ -369,12 +439,16 @@ class UploadMiddleware(FuncsMiddleware):
         credentials = self._request_media_credentials(file.file_name, endpoint_url, rath)
         return store_media_file(file, credentials, datalayer)
 
-    def _store_mesh(self, datalayer: "DataLayer", rath: "MikroNextRath", mesh: MeshLike) -> str:
-        """Store a mesh file synchronously via obstore."""
+    def _store_fabriks(
+        self, datalayer: "DataLayer", rath: "MikroNextRath", collection: FabriksLike
+    ) -> str:
+        """Write a fabriks collection into a granted prefix and register it as complete."""
         endpoint_url = self.get_datalayer_url()
 
-        credentials = self._get_bigfile_credentials(mesh, endpoint_url, rath)
-        return store_mesh_file(mesh, credentials, datalayer)
+        credentials = self._get_fabriks_credentials(collection.key, endpoint_url, rath)
+        store_id = store_fabriks_collection(collection, credentials, datalayer)
+        self._finish_fabriks_upload(store_id, rath)
+        return store_id
 
     # ====================================================================
     # Async upload methods (obstore path)
@@ -395,7 +469,7 @@ class UploadMiddleware(FuncsMiddleware):
         self,
         datalayer: "DataLayer",
         rath: "MikroNextRath",
-        parquet_input: ParquetLike | LabelsLike,
+        parquet_input: ParquetLike,
     ) -> str:
         """Upload a Parquet file asynchronously."""
         endpoint_url = await datalayer.get_endpoint_url()
@@ -421,14 +495,16 @@ class UploadMiddleware(FuncsMiddleware):
         credentials = await self._arequest_media_credentials(file.file_name, endpoint_url, rath)
         return await astore_media_file(file, credentials, datalayer)
 
-    async def _astore_mesh(
-        self, datalayer: "DataLayer", rath: "MikroNextRath", mesh: MeshLike
+    async def _astore_fabriks(
+        self, datalayer: "DataLayer", rath: "MikroNextRath", collection: FabriksLike
     ) -> str:
-        """Store a mesh file asynchronously."""
+        """Write a fabriks collection into a granted prefix and register it as complete."""
         endpoint_url = await datalayer.get_endpoint_url()
 
-        credentials = await self._aget_bigfile_credentials(mesh, endpoint_url, rath)
-        return await astore_mesh_file(mesh, credentials, datalayer)
+        credentials = await self._aget_fabriks_credentials(collection.key, endpoint_url, rath)
+        store_id = await astore_fabriks_collection(collection, credentials, datalayer)
+        await self._afinish_fabriks_upload(store_id, rath)
+        return store_id
 
     # ====================================================================
     # Core middleware methods
@@ -458,12 +534,12 @@ class UploadMiddleware(FuncsMiddleware):
         variables = _apply_recursive_sync(
             partial(self._upload_xarray, datalayer, rath),
             variables,
-            (ArrayLike, ImageLike),
+            (ArrayLike,),
         )
         variables = _apply_recursive_sync(
             partial(self._upload_parquet, datalayer, rath),
             variables,
-            (ParquetLike, LabelsLike),
+            (ParquetLike,),
         )
         variables = _apply_recursive_sync(
             partial(self._upload_bigfile, datalayer, rath),
@@ -476,9 +552,9 @@ class UploadMiddleware(FuncsMiddleware):
             (ImageFileLike,),
         )
         variables = _apply_recursive_sync(
-            partial(self._store_mesh, datalayer, rath),
+            partial(self._store_fabriks, datalayer, rath),
             variables,
-            MeshLike,
+            FabriksLike,
         )
 
         return variables
@@ -507,12 +583,12 @@ class UploadMiddleware(FuncsMiddleware):
         variables = await _apply_recursive_async(
             partial(self._aupload_xarray, datalayer, rath),
             variables,
-            (ArrayLike, ImageLike),
+            (ArrayLike,),
         )
         variables = await _apply_recursive_async(
             partial(self._aupload_parquet, datalayer, rath),
             variables,
-            (ParquetLike, LabelsLike),
+            (ParquetLike,),
         )
         variables = await _apply_recursive_async(
             partial(self._aupload_bigfile, datalayer, rath),
@@ -525,9 +601,9 @@ class UploadMiddleware(FuncsMiddleware):
             (ImageFileLike,),
         )
         variables = await _apply_recursive_async(
-            partial(self._astore_mesh, datalayer, rath),
+            partial(self._astore_fabriks, datalayer, rath),
             variables,
-            MeshLike,
+            FabriksLike,
         )
 
         return variables

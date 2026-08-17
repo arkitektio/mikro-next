@@ -1,9 +1,0 @@
-fragment ImageWithData on Image {
-  id
-  folder {
-    name
-    parent {
-      name
-    }
-  }
-}

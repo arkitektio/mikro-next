@@ -1,4 +1,4 @@
-"""Unit tests for the ``create_a_dataset`` inputs.
+"""Unit tests for the ``create_array_dataset`` inputs.
 
 The array-dataset path is what replaced the deprecated ``from_array_like`` /
 ``Image`` route, and the difference is that the caller supplies an arbitrarily
@@ -18,7 +18,7 @@ from mikro_next.api.schema import (
     AxisInput,
     AxisType,
     CoordinateAnchorInput,
-    CreateADatasetInput,
+    CreateArrayDatasetInput,
     ScaleInput,
     ValueHistogramInput,
 )
@@ -34,7 +34,7 @@ def _axes(names: list[str]) -> list[AxisInput]:
 
 def test_matching_axes_validate() -> None:
     """Axes that cover exactly the array's dims are accepted."""
-    model = CreateADatasetInput(
+    model = CreateArrayDatasetInput(
         data=_data(["z", "y", "x", "c"]),
         scales=(),
         name="ds",
@@ -45,7 +45,7 @@ def test_matching_axes_validate() -> None:
 
 def test_axis_order_is_irrelevant() -> None:
     """Only the set of axis names must match, not their order."""
-    CreateADatasetInput(
+    CreateArrayDatasetInput(
         data=_data(["z", "y", "x", "c"]),
         scales=(),
         name="ds",
@@ -56,7 +56,7 @@ def test_axis_order_is_irrelevant() -> None:
 def test_missing_axis_raises() -> None:
     """A data dim with no matching axis is rejected."""
     with pytest.raises(ValidationError):
-        CreateADatasetInput(
+        CreateArrayDatasetInput(
             data=_data(["z", "y", "x", "c"]),
             scales=(),
             name="ds",
@@ -67,7 +67,7 @@ def test_missing_axis_raises() -> None:
 def test_extra_axis_raises() -> None:
     """An axis that does not correspond to any data dim is rejected."""
     with pytest.raises(ValidationError):
-        CreateADatasetInput(
+        CreateArrayDatasetInput(
             data=_data(["z", "y", "x"]),
             scales=(),
             name="ds",
@@ -78,7 +78,7 @@ def test_extra_axis_raises() -> None:
 def test_scale_dims_must_match() -> None:
     """A scale array whose dims differ from the data dims is rejected."""
     with pytest.raises(ValidationError):
-        CreateADatasetInput(
+        CreateArrayDatasetInput(
             data=_data(["z", "y", "x"]),
             scales=(ScaleInput(level=0, array=_data(["z", "y", "c"])),),
             name="ds",
@@ -89,7 +89,7 @@ def test_scale_dims_must_match() -> None:
 def test_the_labels_of_the_data_array_survive() -> None:
     """Unlike the deprecated image path, nothing is renamed into a fixed
     ``ctzyx`` vocabulary -- an axis called ``m`` stays called ``m``."""
-    model = CreateADatasetInput(
+    model = CreateArrayDatasetInput(
         data=_data(["t", "m", "y", "x"]),
         scales=(),
         name="flim",
@@ -122,7 +122,7 @@ def test_a_bare_axis_name_infers_its_type(name: str, expected: str) -> None:
 
 
 def test_bare_axis_names_are_accepted_by_the_mutation_input() -> None:
-    model = CreateADatasetInput(
+    model = CreateArrayDatasetInput(
         data=_data(["c", "z", "y", "x"]), scales=(), name="ds", axes=["c", "z", "y", "x"]
     )
     assert [axis.type for axis in model.axes] == ["CHANNEL", "SPACE", "SPACE", "SPACE"]

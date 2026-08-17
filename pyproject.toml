@@ -23,7 +23,14 @@ dependencies = [
 [project.optional-dependencies]
 turms = []
 table = ["pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
-complete = ["pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
+# `fabriks` is the wire format: it owns the octree, the codecs and the simplifiers, and pulls
+# in everything that takes part in building a collection (trimesh, shapely, scipy,
+# fast-simplification). Its `[meshopt]` extra is deliberately *not* here: `codec` defaults to
+# `NONE`, so nothing on the default path needs a decoder on either side of the wire.
+mesh = ["fabriks>=1.0", "pyarrow>=12.0.1"]
+# `codec="MESHOPT"`, for a caller whose renderer ships the EXT_meshopt_compression decoder.
+meshopt = ["fabriks[meshopt]>=1.0", "pyarrow>=12.0.1"]
+complete = ["fabriks[meshopt]>=1.0", "pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
 # Installed inside the semantic-release Docker action so build_command has uv.
 build = ["uv>=0.7.12"]
 
@@ -54,7 +61,6 @@ dev-dependencies =  [
     # `tests/test_specs.py` skips itself. Drop this once rekuest declares it.
     "janus>=1.0",
 ]
-
 
 [tool.hatch.build.targets.sdist]
 include = ["mikro_next"]
@@ -105,15 +111,6 @@ markers = [
     "linux_only: marks tests that only run on Linux",
     "no_windows: marks tests that are skipped on Windows",
 ]
-
-
-[[tool.pydoc-markdown.loaders]]
-type = "python"
-search_path = ["mikro"]
-
-[tool.pydoc-markdown.renderer]
-type = "docusaurus"
-docs_base_path = "website/docs"
 
 
 

@@ -4,9 +4,7 @@ import asyncio
 from mikro_next.scalars import (
     ArrayLike,
     ImageFileLike,
-    ImageLike,
-    LabelsLike,
-    MeshLike,
+    FabriksLike,
     ParquetLike,
     FileLike,
 )
@@ -17,8 +15,8 @@ from mikro_next.io.upload import (
     aupload_bigfile,
     aupload_xarray,
     aupload_parquet,
+    astore_fabriks_collection,
     astore_media_file,
-    astore_mesh_file,
 )
 from pydantic import Field
 from concurrent.futures import ThreadPoolExecutor
@@ -28,6 +26,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mikro_next.api.schema import (
+        FabriksUploadGrant,
         MediaUploadGrant,
         ZarrUploadGrant,
         ParquetUploadGrant,
@@ -36,7 +35,6 @@ if TYPE_CHECKING:
     from mikro_next.datalayer import DataLayer
     from mikro_next.io.upload import (
         FileLike,
-        MeshLike,
         ParquetLike,
         ArrayLike,
         ImageFileLike,
@@ -141,6 +139,61 @@ class UploadLink(ParsingLink):
 
         raise ValueError("No result found for finishing zarr upload")
 
+    async def aget_fabriks_credentials(self, key: str, datalayer: str) -> "FabriksUploadGrant":
+        """Get fabriks upload credentials.
+
+        One grant for the whole prefix -- the manifest, both catalogs and every level -- because
+        a fabriks store is a tree rather than an object.
+        """
+        from mikro_next.api.schema import (
+            RequestFabriksUploadInput,
+            RequestFabriksUploadMutation,
+        )
+
+        if not self.next:
+            raise ValueError("No next link found. Please set the next link.")
+
+        operation = opify(
+            RequestFabriksUploadMutation.Meta.document,
+            variables={
+                "input": RequestFabriksUploadInput().model_dump(by_alias=True, exclude_unset=True)
+            },
+        )
+
+        async for result in self.next.aexecute(operation):
+            return RequestFabriksUploadMutation(**result.data).request_fabriks_upload
+
+        raise ValueError("No result found for fabriks upload credentials")
+
+    async def afinish_fabriks_upload(self, store_id: str) -> None:
+        """Finish a fabriks upload.
+
+        The completion protocol, not a formality: this reads the prefix's `fabriks.json` and
+        refuses one that has none, which is exactly what an interrupted write looks like since
+        the manifest is written last.
+        """
+        from mikro_next.api.schema import (
+            FinishFabriksUploadInput,
+            FinishFabriksUploadMutation,
+        )
+
+        if not self.next:
+            raise ValueError("No next link found. Please set the next link.")
+
+        operation = opify(
+            FinishFabriksUploadMutation.Meta.document,
+            variables={
+                "input": FinishFabriksUploadInput(storeId=store_id, valid=True).model_dump(
+                    by_alias=True, exclude_unset=True
+                )
+            },
+        )
+
+        async for result in self.next.aexecute(operation):
+            return
+
+        raise ValueError("No result found for finishing fabriks upload")
+
     async def aget_table_credentials(self, key: str, datalayer: str) -> "ParquetUploadGrant":
         """Get table upload credentials"""
         from mikro_next.api.schema import (
@@ -214,7 +267,7 @@ class UploadLink(ParsingLink):
         raise ValueError("No result found for media upload credentials")
 
     async def aupload_parquet(
-        self, datalayer: "DataLayer", parquet_input: ParquetLike | LabelsLike
+        self, datalayer: "DataLayer", parquet_input: ParquetLike
     ) -> str:
         """Upload a Parquet file to the DataLayer asynchronously."""
         assert datalayer is not None, "Datalayer must be set"
@@ -267,17 +320,20 @@ class UploadLink(ParsingLink):
             datalayer,
         )
 
-    async def astore_mesh_file(self, datalayer: "DataLayer", mesh: MeshLike) -> str:
-        """Store a mesh file in the DataLayer asynchronously."""
+    async def astore_fabriks_collection(self, datalayer: "DataLayer", collection: FabriksLike) -> str:
+        """Write a fabriks collection into a granted prefix and register it as complete."""
         assert datalayer is not None, "Datalayer must be set"
         endpoint_url = await datalayer.get_endpoint_url()
 
-        credentials = await self.aget_mesh_credentials(mesh.key, endpoint_url)
-        return await astore_mesh_file(
-            mesh,
+        credentials = await self.aget_fabriks_credentials(collection.key, endpoint_url)
+        store_id = await astore_fabriks_collection(
+            collection,
             credentials,
             datalayer,
         )
+
+        await self.afinish_fabriks_upload(store_id)
+        return store_id
 
     async def aparse(self, operation: Operation) -> Operation:
         """Parse the operation (Async)
@@ -296,12 +352,12 @@ class UploadLink(ParsingLink):
         operation.variables = await apply_recursive(
             partial(self.aupload_xarray, datalayer),
             operation.variables,
-            (ArrayLike, ImageLike),
+            (ArrayLike,),
         )
         operation.variables = await apply_recursive(
             partial(self.aupload_parquet, datalayer),
             operation.variables,
-            (ParquetLike, LabelsLike),
+            (ParquetLike,),
         )
         operation.variables = await apply_recursive(
             partial(self.aupload_bigfile, datalayer),
@@ -314,7 +370,7 @@ class UploadLink(ParsingLink):
             (ImageFileLike),
         )
         operation.variables = await apply_recursive(
-            partial(self.astore_mesh_file, datalayer), operation.variables, MeshLike
+            partial(self.astore_fabriks_collection, datalayer), operation.variables, FabriksLike
         )
 
         return operation

@@ -1,6 +1,6 @@
 """Unit tests for the array-dataset pyramid helpers.
 
-``create_a_dataset`` takes level 0 as ``data`` and every coarser level as a
+``create_array_dataset`` takes level 0 as ``data`` and every coarser level as a
 ``ScaleInput`` in ``scales``, and :mod:`mikro_next.pyramid` is what produces that
 pair. Everything here runs offline -- the split, the reduction, the axis
 selection and the ``ScaleMethod`` provenance are all decided client-side, which
@@ -266,7 +266,7 @@ def test_scales_from_carries_the_level_arrays() -> None:
 
 
 def test_dataset_arrays_splits_level_zero_from_the_rest() -> None:
-    """The ``(data, scales)`` pair ``create_a_dataset`` wants, already split."""
+    """The ``(data, scales)`` pair ``create_array_dataset`` wants, already split."""
     base = _volume()
     data, scales = dataset_arrays(base, levels=3, method="mean")
 

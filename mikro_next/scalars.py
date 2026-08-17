@@ -7,12 +7,11 @@ Custom scalars for mikro_next
 from __future__ import annotations
 
 import io
-from typing import Any, IO, Dict, List, Optional, TypeAlias, TYPE_CHECKING
+from typing import Any, IO, List, TypeAlias, TYPE_CHECKING
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema
 
 
-from collections.abc import Iterable
 import mimetypes
 from pathlib import Path
 from pydantic_core import core_schema
@@ -23,9 +22,9 @@ from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     import pandas as pd
+    from fabriks import MeshCollection
 
 OneDArray = NDArray[np.generic]
-FiveDArray = NDArray[np.generic]
 TwoDArray = NDArray[np.generic]
 
 
@@ -38,16 +37,8 @@ ThreeDVectorCoercible: TypeAlias = List[float] | OneDArray | List[int]
 FourDVectorCoercible: TypeAlias = List[float] | OneDArray | List[int]
 """ A type alias for 4D vector-like structures that can be coerced into a FourDVector."""
 
-FiveDVectorCoercible: TypeAlias = List[float] | OneDArray | List[List[float]] | List[List[int]]
-""" A type alias for 5D vector-like structures that can be coerced into a FiveDVector."""
-
 ArrayCoercible: TypeAlias = xr.DataArray | OneDArray | List[float] | List[List[float]]
 """ A type alias for array-like structures that can be coerced into an xarray DataArray."""
-
-ImageCoercible: TypeAlias = xr.DataArray | FiveDArray | List[float] | List[List[float]]
-
-LabelsLikeCoercible: TypeAlias = xr.DataArray | OneDArray | List[List[str]] | Dict[str, List[str]]
-""" A type alias for label-like structures that can be coerced into an xarray DataArray"""
 
 ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for image file-like structures that can be coerced into an xarray DataArray."""
@@ -55,9 +46,6 @@ ImageFileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 ParquetCoercible: TypeAlias = "pd.DataFrame | str | Path | Any"
 """ A type alias for parquet-like structures: an in-memory DataFrame, a path to a
 parquet file already on disk, or a pyarrow ``Table``/``RecordBatchReader``."""
-
-MeshCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
-""" A type alias for mesh-like structures that can be coerced into an xarray DataArray."""
 
 FileCoercible: TypeAlias = str | bytes | Path | io.BufferedReader
 """ A type alias for file-like structures that can be coerced into an xarray DataArray."""
@@ -103,63 +91,10 @@ def is_dask_array(v: Any) -> bool:  # noqa: ANN401
         raise ValueError(f"Error checking for dask array: {e}")
 
 
-def coerce_to_ctzyx(v: ArrayCoercible) -> xr.DataArray:
-    """Coerce array-like input into a mikro-compliant 5D ``ctzyx`` DataArray.
-
-    Bare numpy/dask arrays get their trailing dimensions labelled (``c, t, z, y, x``);
-    explicitly labelled DataArrays must carry ``x`` and ``y`` dimensions and have any
-    missing ``t``/``c``/``z`` dimensions expanded. The result is always transposed to
-    ``ctzyx`` so that it round-trips with the reader, which assumes that layout.
-
-    The array is returned lazily (dask chunks are preserved when present) so the upload
-    path can stream it to zarr chunk-by-chunk instead of materialising it in memory.
-    """
-    was_labeled = True
-    # If a bare array is passed, the user did not label the dimensions, so we assign
-    # the trailing ctzyx dims and run extra sanity checks on the inferred layout.
-    if isinstance(v, np.ndarray) or is_dask_array(v):
-        dims = ["c", "t", "z", "y", "x"]
-        v = xr.DataArray(v, dims=dims[5 - v.ndim :])
-        was_labeled = False
-
-    if not isinstance(v, xr.DataArray):
-        raise ValueError("This needs to be a instance of xarray.DataArray")
-
-    if "x" not in v.dims:
-        raise ValueError("Representations must always have a 'x' Dimension")
-
-    if "y" not in v.dims:
-        raise ValueError("Representations must always have a 'y' Dimension")
-
-    if "t" not in v.dims:
-        v = v.expand_dims("t")
-    if "c" not in v.dims:
-        v = v.expand_dims("c")
-    if "z" not in v.dims:
-        v = v.expand_dims("z")
-
-    if not was_labeled:
-        if v.sizes["t"] > v.sizes["x"] or v.sizes["t"] > v.sizes["y"]:
-            raise ValueError(
-                f"Probably Non sensical dimensions. T is bigger than x or y: Sizes {v.sizes}"
-            )
-        if v.sizes["z"] > v.sizes["x"] or v.sizes["z"] > v.sizes["y"]:
-            raise ValueError(
-                f"Probably Non sensical dimensions. Z is bigger than x or y: Sizes {v.sizes}"
-            )
-        if v.sizes["c"] > v.sizes["x"] or v.sizes["c"] > v.sizes["y"]:
-            raise ValueError(
-                f"Probably Non sensical dimensions. C is bigger than x or y: Sizes {v.sizes}"
-            )
-
-    return v.transpose(*"ctzyx")
-
-
 def coerce_to_labeled_array(v: ArrayCoercible) -> xr.DataArray:
     """Coerce array-like input into a labelled ``xr.DataArray`` without forcing ``ctzyx``.
 
-    Unlike :func:`coerce_to_ctzyx` (used by ``ImageLike``), this preserves the
-    caller's dimension labels and order verbatim: no dimensions are added,
+    This preserves the caller's dimension labels and order verbatim: no dimensions are added,
     removed, or transposed. This is the generic dataset path where the user
     supplies arbitrary, explicitly-labelled dimensions alongside matching
     ``axes`` (validated at the model level by ``CreateADatasetTrait``).
@@ -344,109 +279,6 @@ class FourDVector(list[float]):
         return np.array(self).reshape(-1)
 
 
-class FiveDVector(list[float]):
-    """A custom scalar to represent a vector."""
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls,
-        source_type: Any,  # noqa: ANN401
-        _handler: GetCoreSchemaHandler,  # noqa: ANN401
-    ) -> CoreSchema:
-        """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_plain_validator_function(cls.validate)
-
-    @property
-    def x(self) -> float:
-        """Get the x coordinate."""
-        return self[4]
-
-    @property
-    def y(self) -> float:
-        """Get the y coordinate."""
-        return self[3]
-
-    @property
-    def z(self) -> float:
-        """Get the z coordinate."""
-        return self[2]
-
-    @property
-    def t(self) -> float:
-        """Get the t coordinate."""
-        return self[1]
-
-    @property
-    def c(self) -> float:
-        """Get the c coordinate."""
-        return self[0]
-
-    @classmethod
-    def from_params(cls, c: int, t: int, z: int, x: float, y: float) -> "FiveDVector":
-        """Create a FiveDVector from individual parameters."""
-        return cls([float(c), float(t), float(z), float(y), float(x)])
-
-    @classmethod
-    def validate(cls, v: FiveDVectorCoercible) -> "FiveDVector":
-        """Validate the input array and convert it to a xr.DataArray."""
-
-        if isinstance(v, np.ndarray):
-            if not v.ndim == 1:
-                raise ValueError("The input array must be a 1D array")
-            v = v.tolist()
-
-        if not isinstance(v, Iterable):  # type: ignore
-            raise ValueError("The input must be a list or a 1-D numpy array.")
-
-        if not isinstance(v, list):
-            v = list(v)
-
-        for i in v:
-            if not isinstance(i, (int, float)):
-                raise ValueError(
-                    f"The input must be a list of integers or floats. You provided a list of {type(i)}"
-                )
-
-        if len(v) < 2 or len(v) > 5:
-            raise ValueError(
-                f"The input must be a list or at least 2 elements (x, y) but not more than 5e lements (c, t, z, x, y). Every additional element is a z value (c, t, z, x, y). You provided a list o {len(v)} elements"
-            )
-
-        return cls(v)  # type: ignore
-
-    @classmethod
-    def list_from_numpyarray(
-        cls,
-        x: OneDArray,
-        t: Optional[int] = None,
-        c: Optional[int] = None,
-        z: Optional[int] = None,
-    ) -> List["FiveDVector"]:
-        """Creates a list of FiveDVectors from a numpy array
-
-        Args:
-            vector_list (List[List[float]]): A list of lists of floats
-
-        Returns:
-            List[Vectorizable]: A list of InputVector
-        """
-        assert x.ndim == 2, "Needs to be a List array of vectors"
-        if x.shape[1] == 4:
-            return [FiveDVector([c] + i) for i in x.tolist()]
-        elif x.shape[1] == 3:
-            return [FiveDVector([c, t] + i) for i in x.tolist()]
-        elif x.shape[1] == 2:
-            return [FiveDVector([c, t, z] + i) for i in x.tolist()]
-        else:
-            raise NotImplementedError(
-                f"Incompatible shape {x.shape} of {x}. List dimension needs to either be of size 2 or 3"
-            )
-
-    def as_vector(self) -> OneDArray:
-        """Convert the FiveDVector to a numpy array."""
-        return np.array(self)
-
-
 class FourByFourMatrix(list[list[float]]):
     """A custom scalar to represent a four by four matrix (e.g 3D affine matrix.)"""
 
@@ -530,105 +362,6 @@ class ArrayLike:
     def validate(cls, v: ArrayCoercible) -> "ArrayLike":
         """Validate the input array, preserving its labelled dimensions as-is."""
         return cls(coerce_to_labeled_array(v))
-
-    def __repr__(self) -> str:
-        """Return a string representation of the ArrayLike scalar."""
-        return f"InputArray({self.value})"
-
-
-class ImageLike:
-    """A custom scalar for wrapping of every supported array like structure on
-    the mikro platform. This scalar enables validation of various array formats
-    into a mikro api compliant xr.DataArray.."""
-
-    def __init__(self, value: xr.DataArray) -> None:
-        """Initialize the ArrayLike scalar with an xarray DataArray."""
-        self.value = value
-        self.key = str(uuid.uuid4())
-
-    def __get__(self, instance, owner) -> "ImageLike": ...  # noqa: ANN001, D105 #type: ignore
-
-    def __set__(self, instance, value: ArrayCoercible) -> None: ...  # noqa: ANN001, D105 #type: ignore
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls,
-        source_type: Any,  # noqa: ANN401
-        handler: GetCoreSchemaHandler,  # noqa: ANN401
-    ) -> CoreSchema:
-        """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
-
-    @classmethod
-    def validate(cls, v: ArrayCoercible) -> "ImageLike":
-        """Validate the input array and convert it to a ``ctzyx`` xr.DataArray."""
-        return cls(coerce_to_ctzyx(v))
-
-    def __repr__(self) -> str:
-        """Return a string representation of the ImageLike scalar."""
-        return f"ImageLike({self.value})"
-
-
-class LabelsLike:
-    """A custom scalar for wrapping of every supported array like structure on
-    the mikro platform. This scalar enables validation of various array formats
-    into a mikro api compliant xr.DataArray.."""
-
-    def __init__(self, value: pd.DataFrame) -> None:
-        """Initialize the ArrayLike scalar with an xarray DataArray."""
-        self.value = value
-        self.key = str(uuid.uuid4())
-
-    def __get__(self, instance, owner) -> "ArrayLike": ...  # noqa: ANN001, D105 #type: ignore
-
-    def __set__(self, instance, value: ArrayCoercible) -> None: ...  # noqa: ANN001, D105 #type: ignore
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls,
-        source_type: Any,  # noqa: ANN401
-        handler: GetCoreSchemaHandler,  # noqa: ANN401
-    ) -> CoreSchema:
-        """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
-
-    @classmethod
-    def validate(cls, v: LabelsLikeCoercible) -> "LabelsLike":
-        """Validate the input array and convert it to a pandas DataFrame."""
-        pd = _require_pandas()
-        if isinstance(v, dict):
-            mask_to_labels: Dict[int, List[str]] = {}
-
-            for key, value in v.items():
-                if not isinstance(key, int):
-                    raise ValueError(
-                        f"Expected a string or integer key for mask value, got {type(key)}"
-                    )
-
-                if isinstance(value, str):
-                    value = [value]
-
-                if not isinstance(value, list):
-                    raise ValueError(f"Expected a list of strings for key {key}, got {type(value)}")
-
-                if not all(isinstance(i, str) for i in value):
-                    raise ValueError(f"Expected a list of strings for key {key}, got {value}")
-
-                mask_to_labels[int(key)] = value
-
-            v = pd.DataFrame.from_dict(mask_to_labels, orient="index")
-
-        if isinstance(v, list):
-            assert all(isinstance(i, list) or isinstance(i, str) for i in v), (
-                f"Expected a list of lists, got {v}"
-            )
-
-            v = pd.DataFrame(v, columns=["label"])
-
-        if not isinstance(v, pd.DataFrame):
-            raise ValueError("This needs to be a instance of xarray.DataArray")
-
-        return cls(v)
 
     def __repr__(self) -> str:
         """Return a string representation of the ArrayLike scalar."""
@@ -752,6 +485,82 @@ class ParquetLike:
         return f"ParquetLike({self.value})"
 
 
+class FabriksLike:
+    """A reference to a **fabriks collection**, uploaded as one prefix rather than as tables.
+
+    A fabriks store is `fabriks.json`, both catalogs and one part file per octree level under a
+    single key -- so the value here is the built collection itself, and the upload link writes
+    the tree into a granted prefix and lands the manifest last. The server then reads the grid
+    and the encoding off that manifest instead of taking a caller's word for them, which is why
+    ``createMeshCollection`` no longer has fields for either.
+
+    That is also why there is nothing to validate here beyond identity. Under the previous wire
+    format this client checked each frame's columns before spending an upload, because the
+    server's check came a round trip too late; now the artifact carries its own declarations and
+    the only client-side mistake left to catch is handing over something that is not a
+    collection at all.
+    """
+
+    def __init__(self, value: "MeshCollection") -> None:
+        """Initialize the FabriksLike scalar with a built fabriks collection."""
+        self.value = value
+        self.key = str(uuid.uuid4())
+
+    def __get__(self, instance, owner) -> "FabriksLike": ...  # noqa: ANN001, D105 # type: ignore
+
+    def __set__(self, instance, value: "FabriksCoercible") -> None: ...  # noqa: ANN001, D105 # type: ignore
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+
+    @classmethod
+    def validate(cls, v: "FabriksCoercible") -> "FabriksLike":
+        """Accept a built collection, and refuse the things that look like one but are not."""
+        if isinstance(v, FabriksLike):
+            return v
+
+        # fabriks is an extra, so it is imported only where the value might be one of its types.
+        try:
+            from fabriks import MeshCollection  # type: ignore
+        except ImportError as error:
+            raise ValueError(
+                "A mesh collection is built by `fabriks`, which is not installed. Install it with "
+                "`pip install mikro-next[mesh]`."
+            ) from error
+
+        if isinstance(v, MeshCollection):
+            return cls(v)
+
+        # The single-frame mistake is worth naming: under the previous wire format a caller
+        # passed the catalog table here, and a pyarrow Table is exactly what they still have in
+        # hand after building one.
+        raise ValueError(
+            f"This is uploaded as a fabriks collection -- one prefix holding the manifest, both "
+            f"catalogs and every octree level -- so it takes a `fabriks.MeshCollection`, not a "
+            f"{type(v).__name__}. Build one with `mikro_next.meshes.build_mesh_collection(objects)`."
+        )
+
+    def __repr__(self) -> str:
+        """Return a string representation of the FabriksLike scalar.
+
+        The counts and the grid rather than the value: a collection holds every object's
+        geometry, and repr is what an error message and a log line are built out of.
+        """
+        manifest = self.value.manifest
+        return f"FabriksLike({manifest.counts}, cellSize={manifest.grid.cell_size}, levels={manifest.grid.levels})"
+
+
+#: What a caller may hand to a `FabriksLike` field. Deliberately narrow: everything a collection
+#: could be built *from* is an argument to `build_mesh_collection`, not a value on the wire.
+FabriksCoercible: TypeAlias = "MeshCollection | FabriksLike"
+
+
 class ImageFileLike:
     """A custom scalar for ensuring a common format to support write to the
     parquet api supported by mikro_next It converts the passed value into
@@ -854,54 +663,3 @@ class FileLike:
     def __repr__(self) -> str:
         """Return a string representation of the FileLike scalar."""
         return f"FileLike({self.value})"
-
-
-class MeshLike:
-    """A custom scalar for ensuring a common format to support write to the
-    mesh api supported by mikro_next It converts the passed value into
-    a compliant format.."""
-
-    def __init__(self, value: IO[bytes], name: str = "") -> None:
-        """Initialize the MeshLike scalar with a file-like object."""
-        self.value = value
-        self.key = str(name)
-
-    def __get__(self, instance, owner) -> "MeshLike":  # noqa: ANN001 # type: ignore
-        """Get the MeshLike scalar from the instance."""
-        ...
-
-    def __set__(self, instance, value: MeshCoercible):  # noqa: ANN001, ANN204 # type: ignore
-        """Set the MeshLike scalar on the instance."""
-        ...  # noqa: ANN001
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls,
-        source_type: Any,  # noqa: ANN401
-        handler: GetCoreSchemaHandler,  # noqa: ANN401
-    ) -> CoreSchema:
-        """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
-
-    @classmethod
-    def validate(cls, v: MeshCoercible) -> "MeshLike":
-        """Validate the input array and convert it to a xr.DataArray."""
-
-        if isinstance(v, str):
-            file = open(v, "rb")
-            name = v
-        elif isinstance(v, io.IOBase):
-            file = v
-            name = "Random Name"
-        else:
-            file = v
-            name = str(v)
-
-        if not isinstance(file, io.BufferedReader):
-            raise ValueError("This needs to be a instance of a file")
-
-        return cls(file, name=name)
-
-    def __repr__(self) -> str:
-        """Return a string representation of the MeshLike scalar."""
-        return f"MeshLike({self.value})"

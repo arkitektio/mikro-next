@@ -1,4 +1,4 @@
-"""Integration tests for the array-dataset path -- ``create_a_dataset``.
+"""Integration tests for the array-dataset path -- ``create_array_dataset``.
 
 This is what replaced the deprecated ``from_array_like`` / ``Image`` route.
 Two things are different and both are exercised here: the array keeps its own
@@ -10,7 +10,7 @@ The helpers the converters use are used here too (``dataset_arrays``,
 ``CoordinateAnchorInput.histogram_anchors``) rather than hand-rolled equivalents:
 they are the supported way to build these arguments, so they are what should be
 under test end to end. Their offline behaviour lives in ``test_pyramid.py`` and
-``test_adataset_validation.py``.
+``test_array_dataset_validation.py``.
 
 Axis order is not arbitrary: the server requires axes sorted by type -- time,
 then channel and custom types, then space -- and the array's dimension order is
@@ -35,10 +35,10 @@ from mikro_next.api.schema import (
     ScaleInput,
     ScaleMethod,
     SourceFileInput,
-    create_a_dataset,
+    create_array_dataset,
     create_folder,
     from_file_like,
-    get_a_dataset,
+    get_array_dataset,
 )
 
 from .conftest import DeployedMikro
@@ -67,19 +67,19 @@ def _axes() -> List[AxisInput]:
 
 
 @pytest.mark.integration
-def test_create_a_dataset(deployed_app: DeployedMikro) -> None:
+def test_create_array_dataset(deployed_app: DeployedMikro) -> None:
     """Create a dataset from a single arbitrarily-labelled array."""
     data = _make_volume()
-    dataset = create_a_dataset(
+    dataset = create_array_dataset(
         data=data,
         # ``data`` *is* level 0; listing it in ``scales`` too would upload it
         # twice, which the server rejects (one_data_array_per_level).
         scales=[],
-        name="adataset_basic",
+        name="array_dataset_basic",
         axes=_axes(),
     )
     assert dataset.id, "Dataset should have an ID"
-    assert dataset.name == "adataset_basic"
+    assert dataset.name == "array_dataset_basic"
     # The axis names come back as given rather than being renamed into a fixed
     # t/c/z/y/x vocabulary. Their *order* is no longer free -- the server
     # requires axes sorted by type -- so only the names are asserted here.
@@ -87,20 +87,20 @@ def test_create_a_dataset(deployed_app: DeployedMikro) -> None:
 
 
 @pytest.mark.integration
-def test_create_a_dataset_from_bare_axis_names(deployed_app: DeployedMikro) -> None:
+def test_create_array_dataset_from_bare_axis_names(deployed_app: DeployedMikro) -> None:
     """The common case needs no ``AxisInput`` at all: a bare name carries its
     own conventional type (``c`` -> CHANNEL, everything spatial -> SPACE)."""
-    dataset = create_a_dataset(
+    dataset = create_array_dataset(
         data=_make_volume(),
         scales=[],
-        name="adataset_bare_axes",
+        name="array_dataset_bare_axes",
         axes=["c", "z", "y", "x"],
     )
     assert set(dataset.axis_names) == {"c", "z", "y", "x"}
 
 
 @pytest.mark.integration
-def test_create_a_dataset_with_pyramid(deployed_app: DeployedMikro) -> None:
+def test_create_array_dataset_with_pyramid(deployed_app: DeployedMikro) -> None:
     """Create a dataset with a multiscale pyramid of scale arrays.
 
     ``dataset_arrays`` returns the two halves already separated -- level 0 as
@@ -109,10 +109,10 @@ def test_create_a_dataset_with_pyramid(deployed_app: DeployedMikro) -> None:
     """
     data, scales = dataset_arrays(_make_volume(), levels=3, method="mean")
 
-    dataset = create_a_dataset(
+    dataset = create_array_dataset(
         data=data,
         scales=scales,
-        name="adataset_pyramid",
+        name="array_dataset_pyramid",
         axes=_axes(),
     )
     assert dataset.id
@@ -126,23 +126,23 @@ def test_create_a_dataset_with_pyramid(deployed_app: DeployedMikro) -> None:
 
 
 @pytest.mark.integration
-def test_create_a_dataset_with_a_hand_built_scale(deployed_app: DeployedMikro) -> None:
+def test_create_array_dataset_with_a_hand_built_scale(deployed_app: DeployedMikro) -> None:
     """``scales`` also takes levels built any other way, as long as they are
     numbered from 1 and share the base's dims."""
     data = _make_volume()
     coarse = data.coarsen(z=2, y=2, x=2, boundary="trim").mean().astype(data.dtype)  # type: ignore[attr-defined]
 
-    dataset = create_a_dataset(
+    dataset = create_array_dataset(
         data=data,
         scales=[ScaleInput(level=1, array=coarse, scaleMethod=ScaleMethod.AREA)],
-        name="adataset_manual_scale",
+        name="array_dataset_manual_scale",
         axes=_axes(),
     )
     assert {arr.level for arr in dataset.data_arrays} == {0, 1}
 
 
 @pytest.mark.integration
-def test_create_a_dataset_with_anchors(deployed_app: DeployedMikro) -> None:
+def test_create_array_dataset_with_anchors(deployed_app: DeployedMikro) -> None:
     """Create a dataset with per-channel coordinate anchors and histograms.
 
     ``histogram_anchors`` produces one anchor per channel, each computed from
@@ -151,36 +151,36 @@ def test_create_a_dataset_with_anchors(deployed_app: DeployedMikro) -> None:
     neither.
     """
     data = _make_volume()
-    dataset = create_a_dataset(
+    dataset = create_array_dataset(
         data=data,
         scales=[],
-        name="adataset_anchored",
+        name="array_dataset_anchored",
         axes=_axes(),
         anchors=cast(
             List[CoordinateAnchorInput], CoordinateAnchorInput.histogram_anchors(data)
         ),
     )
     assert dataset.id
-    assert dataset.name == "adataset_anchored"
+    assert dataset.name == "array_dataset_anchored"
 
 
 @pytest.mark.integration
-def test_create_a_dataset_in_a_folder(deployed_app: DeployedMikro) -> None:
+def test_create_array_dataset_in_a_folder(deployed_app: DeployedMikro) -> None:
     """A dataset can be filed at creation rather than moved afterwards."""
-    folder = create_folder(name="adataset_folder")
-    dataset = create_a_dataset(
+    folder = create_folder(name="array_dataset_folder")
+    dataset = create_array_dataset(
         data=_make_volume(),
         scales=[],
-        name="adataset_filed",
+        name="array_dataset_filed",
         axes=_axes(),
         folder=folder.id,
     )
     assert dataset.id
-    assert get_a_dataset(id=dataset.id).id == dataset.id
+    assert get_array_dataset(id=dataset.id).id == dataset.id
 
 
 @pytest.mark.integration
-def test_create_a_dataset_recording_the_file_it_came_from(
+def test_create_array_dataset_recording_the_file_it_came_from(
     deployed_app: DeployedMikro,
 ) -> None:
     """What every converter does: record the bytes the arrays were read out of.
@@ -194,10 +194,10 @@ def test_create_a_dataset_recording_the_file_it_came_from(
         source.write_bytes(b"not really a microscope file, but it is bytes")
         uploaded = from_file_like(file=str(source), file_name=source.name)
 
-    dataset = create_a_dataset(
+    dataset = create_array_dataset(
         data=_make_volume(),
         scales=[],
-        name="adataset_from_file",
+        name="array_dataset_from_file",
         axes=_axes(),
         source_files=[SourceFileInput(file=uploaded.id, seriesIdentifier="series 0")],
     )
@@ -210,16 +210,16 @@ def test_a_derived_dataset_records_the_dataset_it_came_from(
 ) -> None:
     """A segmentation of a volume shares that volume's grid, so its lineage edge
     is an identity transform: same grid, different values."""
-    source = create_a_dataset(
-        data=_make_volume(), scales=[], name="adataset_lineage_source", axes=_axes()
+    source = create_array_dataset(
+        data=_make_volume(), scales=[], name="array_dataset_lineage_source", axes=_axes()
     )
 
-    derived = create_a_dataset(
+    derived = create_array_dataset(
         data=xr.DataArray(
             np.zeros((2, 4, 64, 64), dtype="uint16"), dims=["c", "z", "y", "x"]
         ),
         scales=[],
-        name="adataset_lineage_derived",
+        name="array_dataset_lineage_derived",
         axes=_axes(),
         derived_from=[
             DatasetDerivedFromInput(dataset=source.id, transform=IdentityTransformInput())
@@ -230,16 +230,16 @@ def test_a_derived_dataset_records_the_dataset_it_came_from(
 
 
 @pytest.mark.integration
-def test_create_a_dataset_rejects_mismatched_axes(
+def test_create_array_dataset_rejects_mismatched_axes(
     deployed_app: DeployedMikro,
 ) -> None:
     """The model-level trait rejects axes that don't cover the data dims."""
     data = _make_volume()
     with pytest.raises(Exception):
-        create_a_dataset(
+        create_array_dataset(
             data=data,
             scales=[],
-            name="adataset_bad",
+            name="array_dataset_bad",
             # Missing the "c" axis -> should fail before any upload.
             axes=[
                 AxisInput(name="z", type=AxisType.SPACE),

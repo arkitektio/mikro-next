@@ -1,13 +1,13 @@
 """Building a dataset's resolution pyramid.
 
-``create_a_dataset`` takes level 0 as ``data`` and every coarser level as a
+``create_array_dataset`` takes level 0 as ``data`` and every coarser level as a
 ``ScaleInput`` in ``scales``. Nothing enforces that split, so it gets restated in
 prose everywhere it is used — and listing level 0 in both silently uploads the
 base twice. ``dataset_arrays`` returns the two halves already separated, which
 makes the rule structural instead of documented::
 
     data, scales = dataset_arrays(volume, levels=6, method="mean")
-    create_a_dataset(data=data, scales=scales, name=..., axes=[...])
+    create_array_dataset(data=data, scales=scales, name=..., axes=[...])
 
 Three things this handles that hand-written pyramids get right only by accident:
 
@@ -235,7 +235,7 @@ def scales_from(
     :func:`build_pyramid` rather than :func:`dataset_arrays`::
 
         pyramid = build_pyramid(base, levels=8, method="mean")
-        dataset = create_a_dataset(data=pyramid[0],
+        dataset = create_array_dataset(data=pyramid[0],
                                    scales=scales_from(pyramid, "mean"), ...)
     """
     from mikro_next.api.schema import ScaleInput, ScaleMethod
@@ -265,7 +265,7 @@ def dataset_arrays(
     types: Optional[Mapping[str, AxisTypeName]] = None,
     materialize: Optional[bool] = None,
 ) -> Tuple[xr.DataArray, List["ScaleInput"]]:
-    """The ``(data, scales)`` pair ``create_a_dataset`` wants.
+    """The ``(data, scales)`` pair ``create_array_dataset`` wants.
 
     Level 0 is returned separately from the rest because that is how the mutation
     takes it: ``data`` *is* level 0, and ``scales`` carries only what is coarser

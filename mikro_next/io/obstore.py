@@ -119,9 +119,9 @@ def _generic_chunk_shape(array: xr.DataArray, chunksize_in_bytes: int = 20_000_0
 def _zarr_chunk_shape(array: xr.DataArray) -> tuple[int, ...]:
     """Compute an on-disk zarr chunk shape (~20MB) aligned to the array dims.
 
-    Canonical 5D ``ctzyx`` arrays (as produced by the ``ImageLike`` scalar) use
-    the ``ctzyx``-aware :func:`rechunk` heuristic. Arbitrarily-labelled arrays
-    (the generic ``ArrayLike``/dataset path) fall back to a semantics-agnostic
+    Canonical 5D ``ctzyx`` arrays use the ``ctzyx``-aware :func:`rechunk`
+    heuristic. Arbitrarily-labelled arrays (the ``ArrayLike`` dataset path, which
+    is now the only one the schema has) fall back to a semantics-agnostic
     chunker. Returns a chunk tuple in the array's own dimension order so it can be
     passed straight to zarr.
     """

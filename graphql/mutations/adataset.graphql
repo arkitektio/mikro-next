@@ -1,5 +1,0 @@
-mutation CreateADataset($input: CreateADatasetInput!) {
-  createADataset(input: $input) {
-    ...ADataset
-  }
-}

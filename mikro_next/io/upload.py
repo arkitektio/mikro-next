@@ -1,8 +1,10 @@
 """Module for uploading various data types to a DataLayer.
 
 Provides both async and sync upload paths via obstore:
-    - Async: aupload_xarray, aupload_parquet, aupload_bigfile, astore_media_file, astore_mesh_file
-    - Sync: upload_xarray, upload_parquet, upload_bigfile, store_media_file, store_mesh_file
+    - Async: aupload_xarray, aupload_parquet, aupload_bigfile, astore_media_file,
+      astore_fabriks_collection
+    - Sync: upload_xarray, upload_parquet, upload_bigfile, store_media_file,
+      store_fabriks_collection
 """
 
 from io import BytesIO
@@ -19,8 +21,7 @@ from mikro_next.scalars import (
     ArrayLike,
     FileLike,
     ImageFileLike,
-    LabelsLike,
-    MeshLike,
+    FabriksLike,
     ParquetLike,
 )
 
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
         ZarrUploadGrant,
         ParquetUploadGrant,
         BigFileUploadGrant,
+        FabriksUploadGrant,
         MediaUploadGrant,
     )
     from mikro_next.datalayer import DataLayer
@@ -122,7 +124,7 @@ def _parquet_payload(value: object) -> "tuple[object, Path | None]":
 
 
 def _store_parquet_input(
-    parquet_input: ParquetLike | LabelsLike,
+    parquet_input: ParquetLike,
     credentials: "ParquetUploadGrant",
     endpoint_url: str,
 ) -> str:
@@ -150,12 +152,27 @@ def _store_parquet_input(
             scratch.unlink(missing_ok=True)
 
 
-async def astore_mesh_file(
-    mesh: MeshLike,
-    credentials: "BigFileUploadGrant",
+async def astore_fabriks_collection(
+    collection: FabriksLike,
+    credentials: "FabriksUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
-    """Store a mesh file in the DataLayer asynchronously via obstore."""
+    """Write a fabriks collection into the granted prefix, and return the store it landed in.
+
+    A whole tree rather than one object -- ``fabriks.json``, both catalogs and a part file per
+    octree level -- which is why the grant covers a prefix and permits reading and deleting
+    inside it. The ordering is fabriks's and is load-bearing: every file the manifest names is
+    written before the manifest is, so a prefix without one is an interrupted write rather than
+    a collection. ``finishFabriksUpload`` is the other half of that protocol -- it reads the
+    manifest and refuses a prefix that has none -- so nothing here retries or reorders the
+    write; the writer owns it.
+
+    ``awrite_collection`` does the whole write in a worker thread, since Parquet serialization
+    is CPU-bound and obstore's ``put`` releases the GIL -- which also keeps the manifest-last
+    ordering trivially true rather than a scheduling question.
+    """
+    from fabriks import awrite_collection
+
     from mikro_next.io.obstore import create_s3_store
 
     endpoint_url = await datalayer.get_endpoint_url()
@@ -163,11 +180,12 @@ async def astore_mesh_file(
 
     try:
         logger.debug(
-            f"Uploading mesh to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+            f"Uploading fabriks collection to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
-        await obstore.put_async(store, credentials.key, mesh.value)
+        manifest = await awrite_collection(collection.value, store, credentials.key)
         logger.info(
-            f"Successfully uploaded mesh to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+            f"Successfully uploaded fabriks collection to s3://{credentials.bucket}/{credentials.key} "
+            f"at {endpoint_url} ({manifest.counts})"
         )
         return credentials.store
     except Exception as e:
@@ -238,7 +256,7 @@ async def aupload_xarray(
 
 
 async def aupload_parquet(
-    parquet: ParquetLike | LabelsLike,
+    parquet: ParquetLike,
     credentials: "ParquetUploadGrant",
     datalayer: "DataLayer",
     executor: ThreadPoolExecutor,
@@ -330,23 +348,32 @@ def _store_media_file_via_obstore(
         ) from e
 
 
-def _store_mesh_via_obstore(
-    mesh: MeshLike,
-    credentials: "BigFileUploadGrant",
-    endpoint_url: str,
+def store_fabriks_collection(
+    collection: FabriksLike,
+    credentials: "FabriksUploadGrant",
+    datalayer: "DataLayer",
 ) -> str:
-    """Store a mesh file in the DataLayer synchronously via obstore."""
+    """Write a fabriks collection into the granted prefix synchronously.
+
+    The same write as :func:`astore_fabriks_collection` -- fabriks's writer is synchronous and the
+    async path is it in a worker thread -- so this is the writer itself rather than a second
+    implementation of it.
+    """
+    from fabriks import write_collection
+
     from mikro_next.io.obstore import create_s3_store
 
+    endpoint_url = datalayer.endpoint_url
     store = create_s3_store(endpoint_url, credentials)
 
     try:
         logger.debug(
-            f"Uploading mesh (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+            f"Uploading fabriks collection to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
-        obstore.put(store, credentials.key, mesh.value)
+        manifest = write_collection(collection.value, store, credentials.key)
         logger.info(
-            f"Successfully uploaded mesh (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+            f"Successfully uploaded fabriks collection to s3://{credentials.bucket}/{credentials.key} "
+            f"at {endpoint_url} ({manifest.counts})"
         )
         return credentials.store
     except Exception as e:
@@ -365,7 +392,7 @@ def upload_xarray(
 
 
 def upload_parquet(
-    parquet: ParquetLike | LabelsLike,
+    parquet: ParquetLike,
     credentials: "ParquetUploadGrant",
     datalayer: "DataLayer",
 ) -> str:
@@ -389,12 +416,3 @@ def store_media_file(
 ) -> str:
     """Store a media file synchronously via obstore."""
     return _store_media_file_via_obstore(file, credentials, datalayer.endpoint_url)
-
-
-def store_mesh_file(
-    mesh: MeshLike,
-    credentials: "BigFileUploadGrant",
-    datalayer: "DataLayer",
-) -> str:
-    """Store a mesh file synchronously via obstore."""
-    return _store_mesh_via_obstore(mesh, credentials, datalayer.endpoint_url)

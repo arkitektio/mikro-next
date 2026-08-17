@@ -1,11 +1,8 @@
-"""Test cases for the FourByFourMatrix scalar and PartialAffineTransformationViewInput schema."""
+"""Test cases for the FourByFourMatrix scalar."""
 
 import numpy as np
 import pytest
 from mikro_next.scalars import FourByFourMatrix
-from mikro_next.api.schema import (
-    PartialAffineTransformationViewInput,
-)
 
 
 def test_four_by_four_matrix() -> None:
@@ -18,18 +15,6 @@ def test_four_by_four_matrix() -> None:
     invalid_matrix = np.array([[1, 2], [3, 4]])
     with pytest.raises(ValueError):
         FourByFourMatrix.validate(invalid_matrix)
-
-
-def test_partial_affine_transformation_view_input() -> None:
-    """Test the PartialAffineTransformationViewInput schema for valid and invalid inputs."""
-    # Test valid PartialAffineTransformationViewInput
-    PartialAffineTransformationViewInput(
-        affineMatrix=np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-    )
-
-    # Test invalid PartialAffineTransformationViewInput (non-4x4 matrix)
-    with pytest.raises(ValueError):
-        PartialAffineTransformationViewInput(affineMatrix=np.array([[1, 2], [3, 4]]))
 
 
 def test_four_by_four_matrix_edge_cases() -> None:
@@ -78,17 +63,3 @@ def test_four_by_four_matrix_invalid_shapes() -> None:
     with pytest.raises(ValueError):
         FourByFourMatrix.validate(np.ones((4, 4, 4)))
 
-
-def test_affine_transformation_with_nans() -> None:
-    """Test PartialAffineTransformationViewInput with NaN values."""
-    # Test matrix with NaN values should raise an error or handle gracefully
-    nan_matrix = np.array([[1, 0, 0, np.nan], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-
-    # This might raise an error or handle it gracefully depending on implementation
-    try:
-        PartialAffineTransformationViewInput(affineMatrix=nan_matrix)
-    except (ValueError, TypeError):
-        pass  # Expected behavior for NaN values
-
-    with pytest.raises(ValueError):
-        PartialAffineTransformationViewInput(affineMatrix=np.array([[1, 2], [3, 4]]))

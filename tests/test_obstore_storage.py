@@ -19,7 +19,7 @@ from mikro_next.io.obstore import (
     awrite_dataarray_to_zarr,
     write_dataarray_to_zarr,
 )
-from mikro_next.scalars import ArrayLike, ImageLike
+from mikro_next.scalars import ArrayLike
 
 
 def test_parquet_dataset_via_obstore_reads_dataframe() -> None:
@@ -141,13 +141,6 @@ async def test_awrite_dataarray_to_zarr_streams_dask_arrays(monkeypatch) -> None
     # rechunk targets ~20MB chunks, so the z axis is split rather than written whole.
     assert back.chunks[2] < 50
     assert np.array_equal(back[:], source)
-
-
-def test_image_like_coerces_to_ctzyx() -> None:
-    # ImageLike still forces the canonical 5D ctzyx layout.
-    img = ImageLike.validate(np.zeros((8, 8), dtype="uint16"))
-    assert img.value.dims == ("c", "t", "z", "y", "x")
-    assert img.value.shape == (1, 1, 1, 8, 8)
 
 
 def test_array_like_preserves_labels() -> None:

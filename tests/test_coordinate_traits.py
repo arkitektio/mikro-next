@@ -206,9 +206,9 @@ class TestCoordinateSystemHelpers:
 
 class TestCalibrateValidation:
     def make_dataset(self, intrinsic):
-        from mikro_next.api.schema import ADataset
+        from mikro_next.api.schema import ArrayDataset
 
-        return ADataset(
+        return ArrayDataset(
             id="d1",
             name="ds",
             axisNames=("y", "x"),
@@ -314,9 +314,9 @@ class TestPathComposition:
 
 
 def make_dataset(axis_names):
-    from mikro_next.api.schema import ADataset
+    from mikro_next.api.schema import ArrayDataset
 
-    return ADataset(
+    return ArrayDataset(
         id="d",
         name="ds",
         axisNames=tuple(axis_names),

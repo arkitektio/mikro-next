@@ -4,18 +4,15 @@ import pytest
 from rath.operation import GraphQLException
 from mikro_next.api.schema import (
     create_folder,
-    search_folders,
-    search_images,
+    search_animations,
+    search_annotation_collections,
+    search_array_datasets,
+    search_coordinate_systems,
     search_files,
+    search_folders,
     search_mesh_collections,
-    search_rois,
+    search_scene_snapshots,
     search_scenes,
-    search_stages,
-    search_snapshots,
-    search_tables,
-    search_table_cells,
-    search_table_rows,
-    search_rgb_views,
 )
 from .conftest import DeployedMikro
 
@@ -89,21 +86,14 @@ def test_search_offset_defaults_to_zero(paginated_folders: list) -> None:
     "search_func, extra_kwargs",
     [
         (search_folders, {}),
-        (search_images, {}),
         (search_files, {}),
+        (search_array_datasets, {}),
         (search_mesh_collections, {}),
-        (search_rois, {}),
+        (search_annotation_collections, {}),
+        (search_coordinate_systems, {}),
         (search_scenes, {}),
-        (search_stages, {}),
-        (search_snapshots, {}),
-        (search_tables, {}),
-        # tableCells/tableRows are scoped to a table, so they take a required
-        # `table` argument. The id need not resolve to real data here; we only
-        # check that limit/offset are accepted (a missing table yields a
-        # non-pagination server error, which is tolerated below).
-        (search_table_cells, {"table": "1"}),
-        (search_table_rows, {"table": "1"}),
-        (search_rgb_views, {}),
+        (search_scene_snapshots, {}),
+        (search_animations, {}),
     ],
 )
 def test_search_widgets_accept_limit_and_offset(

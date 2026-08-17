@@ -28,7 +28,6 @@ from typing import (
     NamedTuple,
     NoReturn,
     Sequence,
-    Type,
     TypeVar,
     Tuple,
     Protocol,
@@ -42,7 +41,7 @@ import xarray as xr
 from typing import TYPE_CHECKING, Self, cast
 from dask.array.core import from_zarr  # type: ignore
 from zarr.storage import StorePath
-from .scalars import ArrayCoercible, FiveDVector
+from .scalars import ArrayCoercible
 from rath.scalars import ID, IDCoercible
 from typing import Any
 from rath.turms.utils import get_attributes_or_error
@@ -73,8 +72,7 @@ if TYPE_CHECKING:
     from mikro_next.io.obstore import ParquetDatasetViaObstore
     from mikro_next.api.schema import (
         HasZarrStoreAccessor,
-        Image,
-        RoiKind,
+        AnnotationKind,
         Annotation,
         Axis,
         CoordinateSystem,
@@ -164,274 +162,6 @@ class MikroFetchable(FederationFetchable):
         if rath is None:
             raise NoMikroFound("No rath client found in context. Please provide a rath client.")
         return rath
-
-
-class HasZarrStoreTrait(BaseModel):
-    """Image Trait
-
-    Implements both identifier and shrinking methods.
-    Also Implements the data attribute
-
-    Attributes:
-        data (xarray.Dataset): The data of the representation.
-
-    """
-
-    @property
-    def data(self) -> xr.DataArray:
-        """The data of this image as an xarray.DataArray"""
-        from dask.array.core import Array
-
-        store: HasZarrStoreAccessor = get_attributes_or_error(self, "store")
-
-        array: Array = from_zarr(store.zarr_store)
-
-        return xr.DataArray(array, dims=["c", "t", "z", "y", "x"])
-
-    @property
-    def multi_scale_data(self) -> List[xr.DataArray]:
-        """The multi-scale data of this image as a list of xarray.DataArray"""
-        scale_views = get_attributes_or_error(self, "derived_scale_views")
-
-        if len(scale_views) == 0:
-            raise ValueError(
-                "No ScaleView found in views. Please create a ScaleView first."
-            )
-
-        sorted_views = sorted(scale_views, key=lambda image: image.scale_x)
-        return [x.image.data for x in sorted_views]
-
-    def get_pixel_size(self, stage: ID | None = None) -> Tuple[float, float, float]:
-        """The pixel size of the representation
-
-        Returns:
-            Tuple[float, float, float]: The pixel size
-        """
-        from mikro_next.api.schema import AffineTransformationView
-
-        views = get_attributes_or_error(self, "views")
-
-        for view in views:
-            if isinstance(view, AffineTransformationView):
-                diagonal = view.affine_matrix.as_matrix().diagonal()
-                if stage is None:
-                    return _three_floats(diagonal)
-                else:
-                    if get_attributes_or_error(view, "stage.id") == stage:
-                        return _three_floats(diagonal)
-
-        raise NotImplementedError(
-            f"No pixel size found for this representation {self}. Have you attached any views?"
-        )
-
-
-class PhysicalSizeProtocol(Protocol):
-    """A Protocol for Vectorizable data
-
-    Attributes:
-        x (float): The x value
-        y (float): The y value
-        z (float): The z value
-        t (float): The t value
-        c (float): The c value
-    """
-
-    x: float | None
-    y: float | None
-    z: float | None
-    t: float | None
-    c: float | None
-
-    def __init__(
-        self,
-        x: Optional[float] = None,
-        y: Optional[float] = None,
-        z: Optional[float] = None,
-        t: Optional[float] = None,
-        c: Optional[float] = None,
-    ) -> None:
-        """Initialize the PhysicalSizeProtocol."""
-        ...
-
-
-class PhysicalSizeTrait:
-    """Additional Methods for PhysicalSize"""
-
-    def is_similar(
-        self: PhysicalSizeProtocol,
-        other: PhysicalSizeProtocol,
-        tolerance: float = 0.02,
-        raise_exception: Optional[bool] = False,
-    ) -> bool:
-        """Check whether this physical size is close to another within a tolerance.
-
-        Args:
-            other: The other physical size to compare against.
-            tolerance: Maximum allowed absolute difference per axis.
-            raise_exception: If True, raise ValueError instead of returning False.
-
-        Returns:
-            True if all non-None shared axes are within tolerance, False otherwise.
-        """
-        if hasattr(self, "x") and self.x is not None and other.x is not None:
-            if abs(other.x - self.x) > tolerance:
-                if raise_exception:
-                    raise ValueError(
-                        f"X values are not similar: {self.x} vs {other.x} is above tolerance {tolerance}"
-                    )
-                return False
-        if hasattr(self, "y") and self.y is not None and other.y is not None:
-            if abs(other.y - self.y) > tolerance:
-                if raise_exception:
-                    raise ValueError(
-                        f"Y values are not similar: {self.y} vs {other.y} is above tolerance {tolerance}"
-                    )
-                return False
-        if hasattr(self, "z") and self.z is not None and other.z is not None:
-            if abs(other.z - self.z) > tolerance:
-                if raise_exception:
-                    raise ValueError(
-                        f"Z values are not similar: {self.z} vs {other.z} is above tolerance {tolerance}"
-                    )
-                return False
-        if hasattr(self, "t") and self.t is not None and other.t is not None:
-            if abs(other.t - self.t) > tolerance:
-                if raise_exception:
-                    raise ValueError(
-                        f"T values are not similar: {self.t} vs {other.t} is above tolerance {tolerance}"
-                    )
-                return False
-        if hasattr(self, "c") and self.c is not None and other.c is not None:
-            if abs(other.c - self.c) > tolerance:
-                if raise_exception:
-                    raise ValueError(
-                        f"C values are not similar: {self.c} vs {other.c} is above tolerance {tolerance}"
-                    )
-                return False
-
-        return True
-
-    def to_scale(self) -> List[float]:
-        """Get the scale of the physical size
-        Returns:
-            List[float]: The scale of the physical size
-        """
-        return [
-            getattr(self, "t", 1),
-            getattr(self, "c", 1),
-            getattr(self, "z", 1),
-            getattr(self, "y", 1),
-            getattr(self, "x", 1),
-        ]
-
-
-class IsVectorizableTrait:
-    """Additional Methods for ROI"""
-
-    @property
-    def vector_data(self) -> TwoDArray:
-        """A numpy array of the vectors of the ROI
-
-        Returns:
-            np.ndarray: _description_
-        """
-        return self.get_vector_data(dims="yx")
-
-    def get_vector_data(self, dims: str | list[str] = "yx") -> TwoDArray:
-        """Get the vector data of the ROI as a numpy array"""
-        vector_list = get_attributes_or_error(self, "vectors")
-        assert vector_list, (
-            "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
-        )
-        vector_list: list[list[float]]
-
-        mapper = {
-            "y": 4,
-            "x": 3,
-            "z": 2,
-            "t": 1,
-            "c": 0,
-        }
-
-        return np.array([[v[mapper[ac]] for ac in dims] for v in vector_list])
-
-    def to_slices(self) -> Tuple[slice, ...]:
-        """Get the bounding box of the ROI as a tuple of slices"""
-        vector_data = self.get_vector_data(dims="ctzyx")
-        return tuple(
-            slice(vector_data[:, i].min(), vector_data[:, i].max() + 1)
-            for i in range(5)
-        )
-
-    def image_data(self) -> xr.DataArray:
-        """Get the vector data of the ROI as a numpy array"""
-        vector_list = get_attributes_or_error(self, "vectors")
-        assert vector_list, (
-            "Please query 'vectors' in your request on 'ROI'. Data is not accessible otherwise"
-        )
-        vector_list: list[list[float]]
-
-        image: "Image" = get_attributes_or_error(self, "image")
-
-        return image.data[*self.to_slices()]
-
-    def center(self) -> FiveDVector:
-        """The center of the ROI
-
-        Caluclates the geometrical center of the ROI according to its type
-        and the vectors of the ROI.
-
-        Returns:
-            InputVector: The center of the ROI
-        """
-        from mikro_next.api.schema import RoiKind, FiveDVector
-
-        kind = get_attributes_or_error(self, "kind")
-        if kind == RoiKind.RECTANGLE:
-            return FiveDVector.validate(self.get_vector_data(dims="ctzyx").mean(axis=0))
-
-        raise NotImplementedError(
-            f"Center calculation not implemented for this ROI type {kind}"
-        )
-
-    def crop(self, data: xr.DataArray) -> xr.DataArray:
-        """Crop the data to the ROI
-
-        Args:
-            data (xr.DataArray): The data to crop
-
-        Returns:
-            xr.DataArray: The cropped data
-        """
-        vector_data = self.get_vector_data(dims="ctzyx")
-        return data.sel(  # type: ignore
-            x=slice(vector_data[:, 3].min(), vector_data[:, 3].max()),
-            y=slice(vector_data[:, 4].min(), vector_data[:, 4].max()),
-            z=slice(vector_data[:, 2].min(), vector_data[:, 2].max()),
-            t=slice(vector_data[:, 1].min(), vector_data[:, 1].max()),
-            c=slice(vector_data[:, 0].min(), vector_data[:, 0].max()),
-        )  # type: ignore
-
-    def center_as_array(self) -> OneDArray:
-        """The center of the ROI
-
-        Caluclates the geometrical center of the ROI according to its type
-        and the vectors of the ROI.
-
-        Returns:
-            InputVector: The center of the ROI
-        """
-        from mikro_next.api.schema import RoiKind
-
-        kind = get_attributes_or_error(self, "kind")
-        if kind == RoiKind.RECTANGLE:
-            return self.get_vector_data(dims="ctzyx").mean(axis=0)
-        if kind == RoiKind.POINT:
-            return self.get_vector_data(dims="ctzyx")[0]
-
-        raise NotImplementedError(
-            f"Center calculation not implemented for this ROI kind {kind}"
-        )
 
 
 class HasParquestStoreTrait(BaseModel):
@@ -565,111 +295,6 @@ class HasPresignedDownloadAccessor(BaseModel):
 
         url, key = get_attributes_or_error(self, "presigned_url", "key")
         return download_presigned_file(url, file_name=file_name or key)
-
-
-class Vector(Protocol):
-    """A Protocol for Vectorizable data
-
-    Attributes:
-        x (float): The x value
-        y (float): The y value
-        z (float): The z value
-        t (float): The t value
-        c (float): The c value
-    """
-
-    x: float
-    y: float
-    z: float
-    t: float
-    c: float
-
-    def __init__(
-        self,
-        x: Optional[int] = None,
-        y: Optional[int] = None,
-        z: Optional[int] = None,
-        t: Optional[int] = None,
-        c: Optional[int] = None,
-    ) -> None: ...
-
-
-T = TypeVar("T", bound=Vector)
-
-
-class HasPixelSizeTrait:
-    """Mixin for PixelTranslatable data"""
-
-    @property
-    def pixel_size(self) -> Tuple[float, float, float]:
-        """The pixel size of the representation
-
-        Returns:
-            Tuple[float, float, float]: The pixel size
-        """
-        kind, matrix = get_attributes_or_error(self, "kind", "matrix")
-
-        if kind == "AFFINE":
-            return tuple(np.array(matrix).reshape(4, 4).diagonal()[:3])
-
-        raise NotImplementedError(f"Pixel size not implemented for this kind {kind}")
-
-    @property
-    def position(self) -> Tuple[float, float, float]:
-        """The pixel size of the representation
-
-        Returns:
-            Tuple[float, float, float]: The pixel size
-        """
-        kind, matrix = get_attributes_or_error(self, "kind", "matrix")
-
-        if kind == "AFFINE":
-            return tuple(np.array(matrix).reshape(4, 4)[:3, 3])
-
-        raise NotImplementedError(f"Pixel size not implemented for this kind {kind}")
-
-
-class HasFromNumpyArrayTrait:
-    """Mixin for Vectorizable data
-    adds functionality to convert a numpy array to a list of vectors
-    """
-
-    @classmethod
-    def list_from_numpyarray(
-        cls: Type[T],
-        x: TwoDArray,
-        t: Optional[int] = None,
-        c: Optional[int] = None,
-        z: Optional[int] = None,
-    ) -> List[T]:
-        """Creates a list of InputVector from a numpya array
-
-        Args:
-            vector_list (List[List[float]]): A list of lists of floats
-
-        Returns:
-            List[Vectorizable]: A list of InputVector
-        """
-        assert x.ndim == 2, "Needs to be a List array of vectors"
-        if x.shape[1] == 4:
-            return [cls(x=i[1], y=i[0], z=i[2], t=i[3], c=c) for i in x.tolist()]
-        if x.shape[1] == 3:
-            return [cls(x=i[1], y=i[0], z=i[2], t=t, c=c) for i in x.tolist()]
-        elif x.shape[1] == 2:
-            return [cls(x=i[1], y=i[0], t=t, c=c, z=z) for i in x.tolist()]
-        else:
-            raise NotImplementedError(
-                f"Incompatible shape {x.shape} of {x}. List dimension needs to either be of size 2 or 3"
-            )
-
-    @classmethod
-    def from_array(
-        cls: Type[T],
-        x: OneDArray,
-    ) -> T:
-        """Creates a InputVector from a numpy array"""
-        assert x.ndim == 1, "Needs to be a 1D array of floats"
-        return cls(x=x[4], y=x[3], z=x[2], t=x[1], c=x[0])
 
 
 class FileTrait:
@@ -906,7 +531,7 @@ class DatasetTrait:
         walked backwards.
 
         For a table that does not exist yet, prefer ``create_table_dataset``'s
-        ``keyed_by=[KeyedByInput(dataset=mask.id)]``: it says the same thing in
+        ``keyed_by=[DatasetKeyedByInput(dataset=mask.id)]``: it says the same thing in
         the call that creates the table, so the pair is atomic, and the server
         derives the consumed and produced axes from the two spaces rather than
         taking them on trust. This method is the standalone form, for keying a
@@ -952,7 +577,7 @@ class DatasetTrait:
 
 
 class CreateADatasetTrait:
-    """Validation trait for the generic ``create_a_dataset`` input.
+    """Validation trait for the generic ``create_array_dataset`` input.
 
     Unlike the classic image path, the dataset path lets the user supply an
     arbitrarily-labelled array. This trait enforces that the labels are coherent
@@ -1238,7 +863,7 @@ class Lensable:
 
     def draw(
         self,
-        kind: "RoiKind",
+        kind: "AnnotationKind",
         vectors: "TwoDArray",
         name: str | None = None,
         collection: Optional[IDCoercible] = None,
@@ -1256,7 +881,7 @@ class Lensable:
         the lens' coordinate system.
 
         Args:
-            kind (RoiKind): The kind of the annotation to draw
+            kind (AnnotationKind): The kind of the annotation to draw
             vectors (TwoDArray): A 2D array of vectors to draw the annotation with. The last
                 dimension needs to be of size 3 and represent the z, y, x values of the vectors.
             name (str | None): An optional name for the annotation
@@ -1340,7 +965,7 @@ class Lensable:
         """A derivation edge pointing back into this lens, for a dataset about
         to be created from what the lens frames.
 
-        The result goes into ``create_a_dataset(derived_from=[...])``. When
+        The result goes into ``create_array_dataset(derived_from=[...])``. When
         `kind` is omitted it is inferred from which parameters are given:
         `affine` -> AFFINE, `scale` -> SCALE, `translation` -> TRANSLATION
         (scale and translation together fold into one AFFINE), `input_axes` ->

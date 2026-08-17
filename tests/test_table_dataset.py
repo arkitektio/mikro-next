@@ -29,10 +29,10 @@ from mikro_next.api.schema import (
     AxisInput,
     AxisType,
     CreateTableDatasetInput,
-    KeyedByInput,
+    DatasetKeyedByInput,
     TableColumnInput,
     TableColumnRole,
-    create_a_dataset,
+    create_array_dataset,
     create_table_dataset,
     get_table_dataset,
     update_table_dataset,
@@ -207,7 +207,7 @@ def test_the_input_carries_the_mask_a_table_is_keyed_by() -> None:
         name="measurements",
         data=_measurements(),
         columns=_MEASUREMENT_COLUMNS,
-        keyedBy=[KeyedByInput(dataset="17", name="object ids -> measurements")],
+        keyedBy=[DatasetKeyedByInput(dataset="17", name="object ids -> measurements")],
     )
     assert model.keyed_by is not None
     assert model.keyed_by[0].dataset == "17"
@@ -451,7 +451,7 @@ def test_a_table_is_keyed_by_the_mask_it_measures(deployed_app: DeployedMikro) -
     for object_id in range(1, 9):
         labels[object_id % 4, object_id : object_id + 2, object_id : object_id + 2] = object_id
 
-    mask = create_a_dataset(
+    mask = create_array_dataset(
         data=xr.DataArray(labels, dims=["z", "y", "x"]),
         scales=[],
         name="keyed_mask",
@@ -463,7 +463,7 @@ def test_a_table_is_keyed_by_the_mask_it_measures(deployed_app: DeployedMikro) -
         data=_measurements(),
         columns=_KEYED_MEASUREMENT_COLUMNS,
         validate_schema=True,
-        keyed_by=[KeyedByInput(dataset=mask.id, name="object ids -> measurements")],
+        keyed_by=[DatasetKeyedByInput(dataset=mask.id, name="object ids -> measurements")],
     )
 
     assert table.id

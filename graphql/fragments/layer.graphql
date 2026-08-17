@@ -16,4 +16,20 @@ fragment Layer on Layer {
     placement
     placementValidity
   }
+  ... on MeshLayer {
+    collection {
+      id
+      version
+    }
+    materialColor
+    wireframe
+    colorBy {
+      table
+      column
+      colormap
+      classColors
+    }
+    placement
+    placementValidity
+  }
 }

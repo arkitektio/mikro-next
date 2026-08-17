@@ -25,34 +25,19 @@
                 "Any": "typing.Any",
                 "JSON": "typing.Any",
                 "UUID": "str",
-                "StructureString": "str",
                 "ArrayLike": "mikro_next.scalars.ArrayLike",
-                "ImageLike": "mikro_next.scalars.ImageLike",
-                "LabelsLike": "mikro_next.scalars.LabelsLike",
                 "ParquetLike": "mikro_next.scalars.ParquetLike",
+                "FabriksLike": "mikro_next.scalars.FabriksLike",
                 "FileLike": "mikro_next.scalars.FileLike",
-                "MeshLike": "mikro_next.scalars.MeshLike",
                 "ImageFileLike": "mikro_next.scalars.ImageFileLike",
-                "Upload": "mikro_next.scalars.Upload",
-                "Vector": "mikro_next.scalars.Vector",
-                "TwoDVector": "mikro_next.scalars.TwoDVector",
                 "ThreeDVector": "mikro_next.scalars.ThreeDVector",
-                "FourDVector": "mikro_next.scalars.FourDVector",
-                "FiveDVector": "mikro_next.scalars.FiveDVector",
-                "Matrix": "mikro_next.scalars.Matrix",
                 "GenericQuantity": "kanne.scalars.GenericQuantity",
-                "Metric": "typing.Any",
-                "MetricMap": "typing.Any",
-                "Duration": "kanne.scalars.Duration",
                 "Length": "kanne.scalars.Length",
                 "Unit": "kanne.scalars.Unit",
                 "Power": "kanne.scalars.Power",
                 "Frequency": "kanne.scalars.Frequency",
                 "Temperature": "kanne.scalars.Temperature",
-                "MikroStore": "mikro_next.scalars.MikroStore",
-                "FourByFourMatrix": "mikro_next.scalars.FourByFourMatrix",
-                "ID": "rath.scalars.ID",
-                "RGBAColor": "mikro_next.scalars.RGBAColor"
+                "ID": "rath.scalars.ID"
             },
             "coercible_scalars": {},
             "coercible_inputs": {},
@@ -106,10 +91,7 @@
                 "CoordinateAnchorInput": [
                     "mikro_next.traits.CoordinateAnchorInputTrait"
                 ],
-                "Image": [
-                    "mikro_next.traits.HasZarrStoreTrait"
-                ],
-                "Table": [
+                "TableDataset": [
                     "mikro_next.traits.HasParquestStoreTrait"
                 ],
                 "ZarrStore": [
@@ -124,16 +106,10 @@
                 "MediaStore": [
                     "mikro_next.traits.HasPresignedDownloadAccessor"
                 ],
-                "ROI": [
-                    "mikro_next.traits.IsVectorizableTrait"
-                ],
-                "TransformationView": [
-                    "mikro_next.traits.HasPixelSizeTrait"
-                ],
                 "Lens": [
                     "mikro_next.traits.Lensable"
                 ],
-                "ADataset": [
+                "ArrayDataset": [
                     "mikro_next.traits.DatasetTrait"
                 ],
                 "Scene": [
@@ -178,7 +154,7 @@
                 "DataArray": [
                     "mikro_next.traits.DataArrayTrait"
                 ],
-                "CreateADatasetInput": [
+                "CreateArrayDatasetInput": [
                     "mikro_next.traits.CreateADatasetTrait"
                 ],
                 "File": [
@@ -211,11 +187,10 @@
                     "type": "turms.plugins.funcs.FuncsPlugin",
                     "coercible_scalars": {
                         "ArrayLike": "mikro_next.scalars.ArrayCoercible",
-                        "ImageLike": "mikro_next.scalars.ImageCoercible",
                         "ImageFileLike": "mikro_next.scalars.ImageFileCoercible",
                         "FileLike": "mikro_next.scalars.ImageFileCoercible",
-                        "MeshLike": "mikro_next.scalars.MeshCoercible",
                         "ParquetLike": "mikro_next.scalars.ParquetCoercible",
+                        "FabriksLike": "mikro_next.scalars.FabriksCoercible",
                         "ID": "rath.scalars.IDCoercible"
                     },
                     "coercible_inputs": {

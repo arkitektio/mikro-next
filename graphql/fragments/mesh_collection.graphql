@@ -7,11 +7,8 @@ fragment MeshCollection on MeshCollection {
   coordinateSystem {
     ...CoordinateSystem
   }
-  catalog {
-    ...ParquetStore
-  }
-  geometry {
-    ...ParquetStore
+  store {
+    ...FabriksStore
   }
   derivedFrom {
     ...Transformation

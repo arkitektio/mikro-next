@@ -9,3 +9,15 @@ mutation CreateLabelLayer($input: CreateLabelLayerInput!) {
     ...Layer
   }
 }
+
+mutation CreateMeshLayer($input: CreateMeshLayerInput!) {
+  createMeshLayer(input: $input) {
+    ...Layer
+  }
+}
+
+mutation UpdateMeshLayer($input: UpdateMeshLayerInput!) {
+  updateMeshLayer(input: $input) {
+    ...Layer
+  }
+}

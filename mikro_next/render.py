@@ -11,7 +11,7 @@ the shapes that actually recur::
     rgb_graph()
 
 For the common cases you may not need a graph at all: passing
-``bootstrap_scene=BootstrapSceneInput(kind=...)`` to ``create_a_dataset`` has the
+``bootstrap_scene=BootstrapSceneInput(kind=...)`` to ``create_array_dataset`` has the
 server build the scene, the lens and a default layer for you. Reach for these
 when you want something the default recipes do not express — a specific colormap,
 a contrast window, a projection mode.

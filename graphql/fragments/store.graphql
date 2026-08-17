@@ -26,3 +26,20 @@ fragment MediaStore on MediaStore {
   bucket
   path
 }
+
+# One prefix holding `fabriks.json`, both catalogs and every octree level -- so one grant reads
+# all of it. `specVersion`, `grid`, `encoding`, `axes`, `counts` and `files` are read off the
+# manifest by `finishFabriksUpload` rather than declared through the API, which is why they are
+# asked for here: they are what was actually written, not what a caller claimed.
+fragment FabriksStore on FabriksStore {
+  id
+  key
+  bucket
+  path
+  specVersion
+  grid
+  encoding
+  axes
+  counts
+  files
+}

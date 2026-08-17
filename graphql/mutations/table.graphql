@@ -1,6 +1,0 @@
-mutation from_parquet_like($input: FromParquetLike!) {
-  fromParquetLike(input: $input) {
-    ...Table
-  }
-}
-

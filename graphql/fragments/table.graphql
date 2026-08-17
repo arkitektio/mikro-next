@@ -1,7 +1,0 @@
-fragment Table on Table {
-  id
-  name
-  store {
-    ...ParquetStore
-  }
-}

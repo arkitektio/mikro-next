@@ -32,7 +32,7 @@ import xarray as xr
 
 from mikro_next import canonical, dataset_arrays, space_3d
 from mikro_next.api.schema import (
-    ADataset,
+    ArrayDataset,
     AxisAnchorInput,
     AxisType,
     BootstrapLayerKind,
@@ -40,11 +40,11 @@ from mikro_next.api.schema import (
     CoordinateSystem,
     GetCoordinateGraphQueryCoordinategraph,
     OmeMetadataInput,
-    RoiKind,
+    AnnotationKind,
     ScenePolicyInput,
     TransformKind,
     ValueRelation,
-    create_a_dataset,
+    create_array_dataset,
     get_coordinate_graph,
     get_scene,
 )
@@ -92,7 +92,7 @@ def _ome(name: str) -> OmeMetadataInput:
     )
 
 
-def _upload(data: xr.DataArray, name: str) -> ADataset:
+def _upload(data: xr.DataArray, name: str) -> ArrayDataset:
     """A two-level dataset with one contrast window per channel.
 
     ``dataset_arrays`` returns level 0 and the coarser levels already split the
@@ -100,7 +100,7 @@ def _upload(data: xr.DataArray, name: str) -> ADataset:
     ``scales`` as well would upload it twice.
     """
     pyramid, scales = dataset_arrays(data, levels=2, method="mean")
-    return create_a_dataset(
+    return create_array_dataset(
         data=pyramid,
         scales=scales,
         name=name,
@@ -151,7 +151,7 @@ class Placed(NamedTuple):
     """A physical space with one dataset registered into it."""
 
     world: CoordinateSystem
-    dataset: ADataset
+    dataset: ArrayDataset
     data: xr.DataArray
 
 
@@ -166,7 +166,7 @@ def registered_dataset(deployed_app: DeployedMikro) -> Placed:
 
 
 @pytest.fixture(scope="module")
-def derived_dataset(registered_dataset: Placed) -> Tuple[ADataset, ADataset]:
+def derived_dataset(registered_dataset: Placed) -> Tuple[ArrayDataset, ArrayDataset]:
     """A thresholded child hung off the source's lens by an identity edge.
 
     ``isel(c=0)`` drops the singleton channel axis so the threshold walks the
@@ -183,7 +183,7 @@ def derived_dataset(registered_dataset: Placed) -> Tuple[ADataset, ADataset]:
     # The segmentation shares the source's grid exactly, so its edge back to the
     # lens is an IDENTITY and it carries no physical space of its own; that is
     # reached by composing this edge with the source's registration.
-    derived = create_a_dataset(
+    derived = create_array_dataset(
         data=data,
         scales=[],
         name="coordsys_thresholded",
@@ -268,7 +268,7 @@ def test_histogram_anchors_splits_on_the_channel_axis(
     assert [a.axis_anchors[0].value for a in anchors] == [0, 1]
     assert {a.axis_anchors[0].axis for a in anchors} == {"c"}
 
-    dataset = create_a_dataset(
+    dataset = create_array_dataset(
         data=two_channels,
         scales=[],
         name="coordsys_two_channel",
@@ -377,10 +377,10 @@ def test_draw_annotates_the_lens(registered_dataset: Placed) -> None:
     assert surface is not None, "A lens frames some coordinate system"
 
     vectors = np.array([[0.0, 0.0, 0.0], [2.0, 8.0, 8.0]])
-    annotation = lens.draw(kind=RoiKind.RECTANGLE, vectors=vectors, name="a rectangle")
+    annotation = lens.draw(kind=AnnotationKind.RECTANGLE, vectors=vectors, name="a rectangle")
 
     assert annotation.id, "Annotation should have an ID"
-    assert annotation.kind == RoiKind.RECTANGLE
+    assert annotation.kind == AnnotationKind.RECTANGLE
     assert np.allclose(np.asarray(annotation.vectors, dtype=float), vectors)
 
     drawing = annotation.coordinate_system
@@ -398,7 +398,7 @@ def test_draw_annotates_the_lens(registered_dataset: Placed) -> None:
 
 @pytest.mark.integration
 def test_derive_identity_creates_a_categorized_child(
-    derived_dataset: Tuple[ADataset, ADataset],
+    derived_dataset: Tuple[ArrayDataset, ArrayDataset],
 ) -> None:
     """A segmentation shares the source grid exactly, so the edge is an IDENTITY."""
     source, derived = derived_dataset
@@ -422,7 +422,7 @@ def test_derive_identity_creates_a_categorized_child(
 @pytest.mark.integration
 def test_intrinsic_system_stages_a_label_scene(
     registered_dataset: Placed,
-    derived_dataset: Tuple[ADataset, ADataset],
+    derived_dataset: Tuple[ArrayDataset, ArrayDataset],
 ) -> None:
     """The child stages in its own pixel grid, not in the source's physical space.
 

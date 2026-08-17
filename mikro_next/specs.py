@@ -2,7 +2,7 @@
 
 An action that convolves a z-stack does not accept "a Lens" — it accepts a
 volume. These aliases say so in the signature, in the same vocabulary
-``ADatasetSpec`` uses server-side::
+``ArrayDatasetSpec`` uses server-side::
 
     from mikro_next.specs import Volume, TimelapseVolume
 
@@ -20,7 +20,7 @@ The vocabulary counts axes by :class:`~mikro_next.api.schema.AxisType` rather
 than naming positions (``axis_0_kind``), because axis position is not stable
 across specs: canonical order puts time and channel *before* space, so the
 three SPACE axes of a plain volume sit at 0–2 but at 2–4 in a TCZYX timelapse.
-Counts make specs stack the way ``ADatasetSpec`` says they do — a 3D timelapse
+Counts make specs stack the way ``ArrayDatasetSpec`` says they do — a 3D timelapse
 is VOLUME, TIMESERIES and MULTICHANNEL at once::
 
     TimelapseVolume = Annotated[Volume, *at_least(N_TIME_AXES, 1)]
@@ -333,7 +333,7 @@ class _HasAxes(Protocol):
 
 Candidate = Union[_HasCoordinateSystem, _HasIntrinsicSystem]
 """Anything with ``axis_names``, ``shape`` and a typed system — a Lens
-(``coordinate_system``) or an ADataset (``intrinsic_system``)."""
+(``coordinate_system``) or an ArrayDataset (``intrinsic_system``)."""
 
 
 def _axis_table(candidate: Candidate) -> Tuple[Tuple[str, AxisTypeName, int], ...]:
@@ -402,7 +402,7 @@ def axes_of_type(lens: Lens, axis_type: Union[AxisType, AxisTypeName]) -> Tuple[
 def carried_axes(lens: Lens, dims: Sequence[str]) -> List[AxisInput]:
     """AxisInput for a derived array's dims, types carried from the source lens.
 
-    For ``create_a_dataset(axes=...)`` on a dataset computed from this lens:
+    For ``create_array_dataset(axes=...)`` on a dataset computed from this lens:
     an axis that survived the computation keeps the semantic type it had at
     the source instead of being re-guessed from its name, so the derived
     dataset's descriptors — and with them the action's Provides — stay true

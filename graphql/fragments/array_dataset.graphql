@@ -1,4 +1,4 @@
-fragment ADataset on ADataset {
+fragment ArrayDataset on ArrayDataset {
   id
   name
   axisNames
