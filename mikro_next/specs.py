@@ -69,21 +69,15 @@ Three rules, each protecting against a silent failure:
 from __future__ import annotations
 
 import re
-from collections import Counter
-from collections import abc
+from collections import Counter, abc
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import (
     Annotated,
     Any,
-    Dict,
     Final,
-    List,
     Literal,
-    Mapping,
-    Optional,
     Protocol,
-    Sequence,
-    Tuple,
     Union,
     cast,
     get_args,
@@ -128,7 +122,7 @@ DescriptorKey = Literal[
 
 #: What a descriptor key can be constrained to. The counts are ints; VALUE_KIND
 #: is a string; the set operators (IN, NOT_IN) take a sequence of either.
-DescriptorValue = Union[int, str, bool, Sequence[Union[int, str]]]
+DescriptorValue = Union[int, str, bool, Sequence[int | str]]
 
 #: The matching operators, as they read back off a `RequiresInput`. A Literal
 #: rather than `RequiresOperator` because `use_enum_values=True` means the model
@@ -165,7 +159,7 @@ ADJUSTABLE_KEYS: Final[Mapping[DescriptorKey, AxisTypeName]] = {
 
 def constrain(
     key: DescriptorKey, operator: ConstraintOperator, value: DescriptorValue
-) -> Tuple[Requires, Provides]:
+) -> tuple[Requires, Provides]:
     """A mirrored Requires/Provides pair for one constraint.
 
     Both directions carry the same statement so one alias serves argument and
@@ -179,17 +173,17 @@ def constrain(
     )
 
 
-def exactly(key: DescriptorKey, value: DescriptorValue) -> Tuple[Requires, Provides]:
+def exactly(key: DescriptorKey, value: DescriptorValue) -> tuple[Requires, Provides]:
     """Constrain a descriptor key to exactly a value."""
     return constrain(key, "EQUALS", value)
 
 
-def at_least(key: DescriptorKey, value: DescriptorValue) -> Tuple[Requires, Provides]:
+def at_least(key: DescriptorKey, value: DescriptorValue) -> tuple[Requires, Provides]:
     """Constrain a descriptor key to at least a value."""
     return constrain(key, "GTE", value)
 
 
-def at_most(key: DescriptorKey, value: DescriptorValue) -> Tuple[Requires, Provides]:
+def at_most(key: DescriptorKey, value: DescriptorValue) -> tuple[Requires, Provides]:
     """Constrain a descriptor key to at most a value."""
     return constrain(key, "LTE", value)
 
@@ -308,7 +302,7 @@ class _HasCoordinateSystem(Protocol):
     def shape(self) -> Sequence[int]: ...
 
     @property
-    def coordinate_system(self) -> Optional["_HasAxes"]: ...
+    def coordinate_system(self) -> _HasAxes | None: ...
 
 
 class _HasIntrinsicSystem(Protocol):
@@ -321,7 +315,7 @@ class _HasIntrinsicSystem(Protocol):
     def shape(self) -> Sequence[int]: ...
 
     @property
-    def intrinsic_system(self) -> Optional["_HasAxes"]: ...
+    def intrinsic_system(self) -> _HasAxes | None: ...
 
 
 class _HasAxes(Protocol):
@@ -336,7 +330,7 @@ Candidate = Union[_HasCoordinateSystem, _HasIntrinsicSystem]
 (``coordinate_system``) or an ArrayDataset (``intrinsic_system``)."""
 
 
-def _axis_table(candidate: Candidate) -> Tuple[Tuple[str, AxisTypeName, int], ...]:
+def _axis_table(candidate: Candidate) -> tuple[tuple[str, AxisTypeName, int], ...]:
     """``(name, axis_type, extent)`` per axis, in array order.
 
     Types come from the candidate's coordinate system when it was fetched with
@@ -348,7 +342,7 @@ def _axis_table(candidate: Candidate) -> Tuple[Tuple[str, AxisTypeName, int], ..
     system = getattr(candidate, "coordinate_system", None) or getattr(
         candidate, "intrinsic_system", None
     )
-    types: Tuple[AxisTypeName, ...]
+    types: tuple[AxisTypeName, ...]
     if system is not None:
         axes = sorted(system.axes, key=lambda axis: axis.order)
         # `use_enum_values` means the field may hold either the enum or its value.
@@ -358,12 +352,12 @@ def _axis_table(candidate: Candidate) -> Tuple[Tuple[str, AxisTypeName, int], ..
     return tuple(zip(names, types, shape))
 
 
-def axis_types(candidate: Candidate) -> Tuple[AxisTypeName, ...]:
+def axis_types(candidate: Candidate) -> tuple[AxisTypeName, ...]:
     """Per-axis semantic types in array order, as AxisType value strings."""
     return tuple(axis_type for _, axis_type, _ in _axis_table(candidate))
 
 
-def lens_descriptors(candidate: Candidate) -> Dict[DescriptorKey, DescriptorValue]:
+def lens_descriptors(candidate: Candidate) -> dict[DescriptorKey, DescriptorValue]:
     """The descriptor key/value pairs a lens (or dataset) carries as a match
     candidate.
 
@@ -375,7 +369,7 @@ def lens_descriptors(candidate: Candidate) -> Dict[DescriptorKey, DescriptorValu
     """
     table = _axis_table(candidate)
     counts = Counter(axis_type for _, axis_type, _ in table)
-    descriptors: Dict[DescriptorKey, DescriptorValue] = {
+    descriptors: dict[DescriptorKey, DescriptorValue] = {
         key: counts.get(axis_type, 0) for axis_type, key in _KEY_BY_AXIS_TYPE.items()
     }
     for key, wanted in ADJUSTABLE_KEYS.items():
@@ -385,7 +379,7 @@ def lens_descriptors(candidate: Candidate) -> Dict[DescriptorKey, DescriptorValu
     return descriptors
 
 
-def axes_of_type(lens: Lens, axis_type: Union[AxisType, AxisTypeName]) -> Tuple[str, ...]:
+def axes_of_type(lens: Lens, axis_type: AxisType | AxisTypeName) -> tuple[str, ...]:
     """The names of the lens' axes of one AxisType, in array order.
 
     The runtime counterpart of the spec vocabulary: a function typed over
@@ -399,7 +393,7 @@ def axes_of_type(lens: Lens, axis_type: Union[AxisType, AxisTypeName]) -> Tuple[
     )
 
 
-def carried_axes(lens: Lens, dims: Sequence[str]) -> List[AxisInput]:
+def carried_axes(lens: Lens, dims: Sequence[str]) -> list[AxisInput]:
     """AxisInput for a derived array's dims, types carried from the source lens.
 
     For ``create_array_dataset(axes=...)`` on a dataset computed from this lens:
@@ -411,7 +405,10 @@ def carried_axes(lens: Lens, dims: Sequence[str]) -> List[AxisInput]:
     """
     types = dict(zip(lens.axis_names, axis_types(lens)))
     return [
-        AxisInput(name=dim, type=AxisType(types.get(dim, default_axis_type(dim))))
+        AxisInput(
+            name=dim,
+            type=AxisType(types[dim] if dim in types else default_axis_type(dim)),
+        )
         for dim in dims
     ]
 
@@ -434,7 +431,7 @@ class SpecMismatch(Exception):
 Spec = Any
 
 
-def spec_constraints(spec: Spec) -> Tuple[RequiresInput, ...]:
+def spec_constraints(spec: Spec) -> tuple[RequiresInput, ...]:
     """The constraints a spec type carries.
 
     Reads the Requires side of the mirrored pairs; since every pair states the
@@ -469,7 +466,7 @@ def _constraint_operator(constraint: RequiresInput) -> ConstraintOperator:
 
 def _holds(
     operator: ConstraintOperator,
-    actual: Optional[DescriptorValue],
+    actual: DescriptorValue | None,
     expected: DescriptorValue,
     present: bool,
 ) -> bool:
@@ -522,8 +519,8 @@ Declarations = Mapping[DescriptorKey, DescriptorValue]
 
 
 def unfulfilled(
-    lens: Lens, spec: Spec, declares: Optional[Declarations] = None
-) -> Tuple[str, ...]:
+    lens: Lens, spec: Spec, declares: Declarations | None = None
+) -> tuple[str, ...]:
     """Every constraint of `spec` this lens does not satisfy, human-readable.
 
     Structural keys are computed via `lens_descriptors`; provenance keys
@@ -533,7 +530,7 @@ def unfulfilled(
     descriptors = lens_descriptors(lens)
     if declares:
         descriptors.update(declares)
-    failures: List[str] = []
+    failures: list[str] = []
     for constraint in spec_constraints(spec):
         key = _constrained_key(constraint)
         operator = _constraint_operator(constraint)
@@ -547,7 +544,7 @@ def unfulfilled(
 def _describe(
     constraint: RequiresInput,
     operator: ConstraintOperator,
-    actual: Optional[DescriptorValue],
+    actual: DescriptorValue | None,
     present: bool,
 ) -> str:
     """One unsatisfied constraint, human-readable."""
@@ -556,13 +553,13 @@ def _describe(
 
 
 def fulfills(
-    lens: Lens, spec: Spec, declares: Optional[Declarations] = None
+    lens: Lens, spec: Spec, declares: Declarations | None = None
 ) -> bool:
     """Whether a lens satisfies every constraint of a spec."""
     return not unfulfilled(lens, spec, declares)
 
 
-def ensure(lens: Lens, spec: Spec, declares: Optional[Declarations] = None) -> Lens:
+def ensure(lens: Lens, spec: Spec, declares: Declarations | None = None) -> Lens:
     """Assert a lens fulfils a spec, then return it — the produce-side guard.
 
     A Provides is a promise the definition makes statically; nothing checks the
@@ -598,7 +595,7 @@ class Pin:
 
     key: DescriptorKey
     axis_type: AxisTypeName
-    axes: Tuple[Tuple[str, int], ...]
+    axes: tuple[tuple[str, int], ...]
     operator: ConstraintOperator
     target: int
 
@@ -612,8 +609,8 @@ class CompositionPlan:
     adjustable fixes, each one a choice to offer the user.
     """
 
-    failures: Tuple[str, ...]
-    pins: Tuple[Pin, ...]
+    failures: tuple[str, ...]
+    pins: tuple[Pin, ...]
 
     @property
     def satisfiable(self) -> bool:
@@ -627,7 +624,7 @@ class CompositionPlan:
 
 
 def compose(
-    candidate: Candidate, spec: Spec, declares: Optional[Declarations] = None
+    candidate: Candidate, spec: Spec, declares: Declarations | None = None
 ) -> CompositionPlan:
     """Plan how a dataset (or lens) could fit a spec — the reference composer.
 
@@ -643,8 +640,8 @@ def compose(
     if declares:
         descriptors.update(declares)
 
-    failures: List[str] = []
-    pins: List[Pin] = []
+    failures: list[str] = []
+    pins: list[Pin] = []
     for constraint in spec_constraints(spec):
         key = _constrained_key(constraint)
         operator = _constraint_operator(constraint)
@@ -695,7 +692,7 @@ def _selected_extent(choice: AxisSelection, extent: int, axis: str) -> int:
 
 def selections_for(
     plan: CompositionPlan, **choices: AxisSelection
-) -> Dict[str, AxisSelection]:
+) -> dict[str, AxisSelection]:
     """Resolve a plan's pins into per-axis selections for ``dataset.lens(...)``.
 
     Each choice keyword names an axis of a pin (``c=1`` pins channel 1). Every
@@ -705,7 +702,7 @@ def selections_for(
     if plan.failures:
         raise SpecMismatch("Plan is unsatisfiable: " + "; ".join(plan.failures))
     remaining = dict(choices)
-    selections: Dict[str, AxisSelection] = {}
+    selections: dict[str, AxisSelection] = {}
     for pin in plan.pins:
         names = [name for name, _ in pin.axes]
         picked = {name: remaining.pop(name) for name in names if name in remaining}
@@ -743,7 +740,7 @@ class LensableDataset(_HasIntrinsicSystem, Protocol):
 def fit_lens(
     dataset: LensableDataset,
     spec: Spec,
-    declares: Optional[Declarations] = None,
+    declares: Declarations | None = None,
     **choices: AxisSelection,
 ) -> Lens:
     """Compose a lens over a dataset that fits a spec — the conversion itself.
@@ -764,58 +761,58 @@ def fit_lens(
 
 
 __all__ = [
-    "N_SPACE_AXES",
-    "N_TIME_AXES",
-    "N_CHANNEL_AXES",
-    "N_SPECTRUM_AXES",
-    "N_MICROTIME_AXES",
-    "N_CHANNELS",
-    "N_TIMEPOINTS",
-    "VALUE_KIND",
     "ADJUSTABLE_KEYS",
-    "DescriptorKey",
-    "DescriptorValue",
+    "N_CHANNELS",
+    "N_CHANNEL_AXES",
+    "N_MICROTIME_AXES",
+    "N_SPACE_AXES",
+    "N_SPECTRUM_AXES",
+    "N_TIMEPOINTS",
+    "N_TIME_AXES",
+    "VALUE_KIND",
+    "Candidate",
+    "CompositionPlan",
     "ConstraintOperator",
     "Declarations",
-    "Spec",
-    "Candidate",
-    "LensableDataset",
-    "constrain",
-    "exactly",
-    "at_least",
-    "at_most",
-    "refine",
-    "Scalar",
-    "Profile",
-    "Image",
-    "Volume",
-    "Hypervolume",
-    "Timeseries",
-    "Multichannel",
-    "Spectral",
+    "DescriptorKey",
+    "DescriptorValue",
     "Flim",
-    "Still",
-    "SingleChannel",
-    "TimelapseImage",
-    "TimelapseVolume",
+    "Hypervolume",
+    "Image",
+    "LabelMask",
+    "LensableDataset",
+    "Multichannel",
     "MultichannelImage",
     "MultichannelVolume",
+    "Pin",
+    "Profile",
+    "RGBImage",
+    "Scalar",
+    "SingleChannel",
     "SingleChannelImage",
     "SingleChannelVolume",
-    "RGBImage",
-    "LabelMask",
-    "axis_types",
-    "lens_descriptors",
-    "axes_of_type",
-    "carried_axes",
+    "Spec",
     "SpecMismatch",
+    "Spectral",
+    "Still",
+    "TimelapseImage",
+    "TimelapseVolume",
+    "Timeseries",
+    "Volume",
+    "at_least",
+    "at_most",
+    "axes_of_type",
+    "axis_types",
+    "carried_axes",
+    "compose",
+    "constrain",
+    "ensure",
+    "exactly",
+    "fit_lens",
+    "fulfills",
+    "lens_descriptors",
+    "refine",
+    "selections_for",
     "spec_constraints",
     "unfulfilled",
-    "fulfills",
-    "ensure",
-    "Pin",
-    "CompositionPlan",
-    "compose",
-    "selections_for",
-    "fit_lens",
 ]

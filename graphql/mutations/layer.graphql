@@ -21,3 +21,25 @@ mutation UpdateMeshLayer($input: UpdateMeshLayerInput!) {
     ...Layer
   }
 }
+
+# Retune a label layer after creation -- above all, switch or republish its colour picker.
+# The server has had this mutation since the picker landed; no document ever asked for it,
+# which is why a label layer's colouring was write-once-at-create from Python.
+mutation UpdateLabelLayer($input: UpdateLabelLayerInput!) {
+  updateLabelLayer(input: $input) {
+    ...Layer
+  }
+}
+
+# A point cloud drawn from a table dataset's coordinate columns. Its objects ARE
+# rows of that table, so a colouring by one of its own columns needs no FIELD
+# edge — which is the one way this layer differs from the other two kinds.
+mutation CreatePointLayer($input: CreatePointLayerInput!) {
+  createPointLayer(input: $input) { ...Layer }
+}
+
+# Retune it afterwards — above all, switch or republish its colour picker. The
+# pickers are replaced wholesale: `[]` clears, an omitted field leaves alone.
+mutation UpdatePointLayer($input: UpdatePointLayerInput!) {
+  updatePointLayer(input: $input) { ...Layer }
+}

@@ -1,8 +1,9 @@
-from typing import Any, Dict
+from typing import Any
 
 from fakts_next.fakts import Fakts
-from mikro_next.datalayer import DataLayer
 from pydantic import BaseModel
+
+from mikro_next.datalayer import DataLayer
 
 
 class DataLayerFakt(BaseModel):
@@ -18,7 +19,7 @@ class FaktsDataLayer(DataLayer):
     fakts_group: str
     fakts: Fakts
 
-    _old_fakt: Dict[str, Any] = {}
+    _old_fakt: dict[str, Any] = {}
     _configured = False
 
     async def get_endpoint_url(self) -> str:

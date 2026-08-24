@@ -1,27 +1,28 @@
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
+
+from arkitekt_next.service_registry import (
+    BaseArkitektService,
+    Params,
+    get_default_service_registry,
+)
+from fakts_next import Fakts
+from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
 from fakts_next.contrib.rath.auth import FaktsAuthLink
+from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
+from fakts_next.models import Requirement
+from rath.links.compose import compose
 from rath.links.dictinglink import DictingLink
 from rath.links.file import FileExtraction
 from rath.links.split import SplitLink
-from fakts_next import Fakts
-from arkitekt_next.service_registry import BaseArkitektService, Params
-from fakts_next.models import Requirement
+from rekuest_next.links.context import ContextLink
 
-from mikro_next.mikro_next import MikroNext
-from mikro_next.rath import MikroNextRath
-from rath.links.compose import compose
-from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
-from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
+from graphql import OperationType
 from mikro_next.contrib.fakts.datalayer import FaktsDataLayer
 from mikro_next.middleware.upload import UploadMiddleware
-from graphql import OperationType
-from arkitekt_next.service_registry import (
-    get_default_service_registry,
-)
-
-from rekuest_next.links.context import ContextLink
+from mikro_next.mikro_next import MikroNext
+from mikro_next.rath import MikroNextRath
 
 
 def build_relative_path(*path: str) -> str:
@@ -101,7 +102,7 @@ class MikroService(BaseArkitektService):
         with open(schema_graphql_path) as f:
             return f.read()
 
-    def get_turms_project(self) -> Dict[str, Any]:
+    def get_turms_project(self) -> dict[str, Any]:
         """Returns the Turms project configuration for the Mikro service.
 
         This will be used to generate the Turms project configuration when

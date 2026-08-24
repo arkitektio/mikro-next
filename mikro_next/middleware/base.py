@@ -12,7 +12,7 @@ Both sync and async variants are supported:
 from __future__ import annotations
 
 import abc
-from typing import Any, Dict, Type, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
@@ -43,10 +43,10 @@ class FuncsMiddleware(BaseModel, abc.ABC):
     @abc.abstractmethod
     def process_variables(
         self,
-        variables: Dict[str, Any],
-        operation: Type[TOperation],
-        rath: "MikroNextRath",
-    ) -> Dict[str, Any]:
+        variables: dict[str, Any],
+        operation: type[TOperation],
+        rath: MikroNextRath,
+    ) -> dict[str, Any]:
         """Process the serialized variables dict synchronously.
 
         Called from ``execute()`` and ``subscribe()`` (the sync path).
@@ -65,10 +65,10 @@ class FuncsMiddleware(BaseModel, abc.ABC):
     @abc.abstractmethod
     async def aprocess_variables(
         self,
-        variables: Dict[str, Any],
-        operation: Type[TOperation],
-        rath: "MikroNextRath",
-    ) -> Dict[str, Any]:
+        variables: dict[str, Any],
+        operation: type[TOperation],
+        rath: MikroNextRath,
+    ) -> dict[str, Any]:
         """Process the serialized variables dict asynchronously.
 
         Called from ``aexecute()`` and ``asubscribe()`` (the async path).
@@ -86,8 +86,6 @@ class FuncsMiddleware(BaseModel, abc.ABC):
 
     async def aenter(self) -> None:
         """Called when the middleware stack is entered (async context)."""
-        pass
 
     async def aexit(self) -> None:
         """Called when the middleware stack is exited (async context)."""
-        pass

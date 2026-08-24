@@ -241,13 +241,13 @@ def test_a_failed_write_is_reported_as_an_upload_error(
     class Refusing:
         """A store that will not take anything."""
 
-        def put(self, path: str, data: Any) -> Any:  # noqa: ANN401, ARG002
+        def put(self, path: str, data: Any) -> Any:  # noqa: ANN401
             raise OSError("nope")
 
-        def get(self, path: str) -> Any:  # noqa: ANN401, ARG002
+        def get(self, path: str) -> Any:  # noqa: ANN401
             raise OSError("nope")
 
-        def list(self, prefix: str | None = None) -> Any:  # noqa: ANN401, ARG002
+        def list(self, prefix: str | None = None) -> Any:  # noqa: ANN401
             return iter(())
 
     monkeypatch.setattr("mikro_next.io.obstore.create_s3_store", lambda *_, **__: Refusing())
@@ -340,3 +340,43 @@ def test_the_middleware_replaces_a_collection_with_the_store_it_uploaded_to(
     ]
     assert asked == ["request", "finish"], asked
     assert rath.variables[-1]["input"] == {"storeId": "42", "valid": True}
+
+
+def test_the_parquet_parts_are_written_with_a_codec_the_viewer_can_decode() -> None:
+    """A mesh collection's *file* compression is fabriks's, not this library's -- and three
+    of the six codecs fabriks can select are ones the viewer cannot decode.
+
+    It reads meshes with hyparquet, whose built-ins are UNCOMPRESSED and SNAPPY, plus the
+    ZSTD the frontend registers by hand out of `fzstd`; `hyparquet-compressors` is not a
+    dependency there. So gzip, brotli or lz4 would upload cleanly, verify cleanly and draw
+    nothing. Today the default is zstd; this is what notices if that ever changes.
+
+    Distinct from `build_mesh_collection`'s `compression`, which is the per-blob codec inside
+    a row and is the manifest's business.
+    """
+    from mikro_next.compression import MESH_CODECS
+    from mikro_next.meshes import refuse_an_unreadable_part_codec
+
+    codec = refuse_an_unreadable_part_codec()
+    assert codec.upper().replace("NONE", "UNCOMPRESSED") in MESH_CODECS
+
+
+def test_an_unreadable_part_codec_is_refused_with_the_reason(monkeypatch) -> None:
+    """The failure it prevents has no error attached to it anywhere else."""
+    import inspect
+
+    from fabriks import frames
+
+    from mikro_next.compression import UnreadableCodecError
+    from mikro_next.meshes import refuse_an_unreadable_part_codec
+
+    def gzip_default(table, *, compression="gzip"):  # noqa: ANN001
+        raise AssertionError("not called")
+
+    monkeypatch.setattr(frames, "table_to_parquet", gzip_default)
+    assert inspect.signature(frames.table_to_parquet).parameters["compression"].default == "gzip"
+
+    with pytest.raises(UnreadableCodecError) as raised:
+        refuse_an_unreadable_part_codec()
+    assert "hyparquet" in str(raised.value)
+    assert "draw nothing" in str(raised.value)

@@ -1,5 +1,6 @@
-from typing import Hashable, Mapping, cast
 import math
+from collections.abc import Hashable, Mapping
+from typing import cast
 
 
 def rechunk(
@@ -35,10 +36,10 @@ def rechunk(
     )  # Biggest Y but not bigger than 1024
 
     best_z = math.ceil(chunksize_in_bytes / (x * y * itemsize))
-    z = best_z if best_z < sizes["z"] else sizes["z"]
+    z = min(sizes["z"], best_z)
 
     best_t = math.ceil(chunksize_in_bytes / (x * y * z * itemsize))
-    t = best_t if best_t < sizes["t"] else sizes["t"]
+    t = min(sizes["t"], best_t)
 
     chunk = {
         "c": 1,

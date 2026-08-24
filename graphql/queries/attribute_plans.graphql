@@ -30,6 +30,10 @@ query AttributePlans($system: ID!, $maxDepth: Int) {
       id
       name
     }
+    sparseDataset {
+      id
+      name
+    }
     path {
       inverted
       transformation {
@@ -62,11 +66,26 @@ query AttributePlans($system: ID!, $maxDepth: Int) {
       }
     }
     lookup {
+      # TABLE or SPARSE. The other shape's fields are null: a table lookup is SQL over a
+      # parquet, a sparse one is two reads of a zarr group and no database at all.
+      kind
       sql
       store {
         id
         key
       }
+      sparseArray {
+        id
+        path
+        indexedAxis
+        store {
+          id
+          key
+          spec
+        }
+      }
+      keyAxis
+      valueAxes
       keyColumns {
         axis
         column {

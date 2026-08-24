@@ -21,7 +21,7 @@ try:
 except ImportError:  # pragma: no cover — depends on the install
     pytest.skip("rekuest-next is an optional dev dependency", allow_module_level=True)
 
-from mikro_next.specs import (  # noqa: E402 — after the skip, by necessity
+from mikro_next.specs import (
     N_CHANNELS,
     VALUE_KIND,
     Image,

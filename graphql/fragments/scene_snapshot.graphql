@@ -1,7 +1,6 @@
 fragment SceneSnapshot on SceneSnapshot {
   id
   name
-  majorColor
   scene {
     ...Scene
   }

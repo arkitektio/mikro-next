@@ -1,5 +1,5 @@
 # The parameters a child carries, for the composite kinds (SEQUENCE,
-# BY_DIMENSION, BIJECTION). `__typename` is load-bearing rather than
+# BY_DIMENSION). `__typename` is load-bearing rather than
 # decorative: the generated child models are a union discriminated on it, so a
 # child selection without it cannot be tagged and the *whole* parent edge fails
 # validation and degrades to a fieldless CatchAll.
@@ -67,11 +67,6 @@ fragment Transformation on Transformation {
     inputAxes
     outputAxes
     byDimensionChildren: transformations {
-      ...TransformationChild
-    }
-  }
-  ... on BijectionTransformation {
-    bijectionChildren: transformations {
       ...TransformationChild
     }
   }

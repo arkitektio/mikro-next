@@ -1,13 +1,53 @@
-from pydantic import BaseModel, ConfigDict, Field
-from kanne.scalars import GenericQuantity, Temperature, Power, Frequency, Unit, Length
-from mikro_next.traits import RGBAColorInputTrait, DatasetTrait, FileTrait, TransformationTrait, SceneTrait, Lensable, MikroFetchable, ValueHistogramInputTrait, HasParquetStoreAccesor, DataArrayTrait, HasZarrStoreAccessor, HasPresignedDownloadAccessor, CoordinateAnchorInputTrait, AxisInputTrait, CoordinateSystemTrait, HasDownloadAccessor, CreateADatasetTrait, HasParquestStoreTrait
-from mikro_next.scalars import ArrayLike, FabriksCoercible, ImageFileLike, FileLike, ImageFileCoercible, FabriksLike, ParquetCoercible, ThreeDVector, ArrayCoercible, ParquetLike
-from typing import Iterable, Iterator, AsyncIterator, Literal, Optional, Annotated, Any, Union, Tuple, Dict, List
-from mikro_next.funcs import execute, aexecute, subscribe, asubscribe
-from rath.scalars import IDCoercible, ID
+from collections.abc import AsyncIterator, Iterable, Iterator
 from datetime import datetime
-from mikro_next.rath import MikroNextRath
 from enum import Enum
+from typing import Annotated, Any, Literal
+
+from kanne.scalars import Frequency, GenericQuantity, Length, Power, Temperature, Unit
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from rath.scalars import ID, IDCoercible
+
+from mikro_next.funcs import aexecute, asubscribe, execute, subscribe
+from mikro_next.rath import MikroNextRath
+from mikro_next.scalars import (
+    ArrayCoercible,
+    ArrayLike,
+    FabriksCoercible,
+    FabriksLike,
+    FileLike,
+    ImageFileCoercible,
+    ImageFileLike,
+    ParquetCoercible,
+    ParquetLike,
+    SporadikCoercible,
+    SporadikLike,
+    ThreeDVector,
+)
+from mikro_next.traits import (
+    AxisInputTrait,
+    CoordinateAnchorInputTrait,
+    CoordinateSystemTrait,
+    CreateADatasetTrait,
+    CreateSparseDatasetTrait,
+    CreateTableDatasetTrait,
+    DataArrayTrait,
+    DatasetTrait,
+    FileTrait,
+    HasDownloadAccessor,
+    HasParquestStoreTrait,
+    HasParquetStoreAccesor,
+    HasPresignedDownloadAccessor,
+    HasZarrStoreAccessor,
+    Lensable,
+    MikroFetchable,
+    RGBAColorInputTrait,
+    SceneTrait,
+    SparseAxisInputTrait,
+    SparseColorByInputTrait,
+    TransformationTrait,
+    ValueHistogramInputTrait,
+)
+
 
 class GraphQLDefault:
     """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
@@ -35,7 +75,7 @@ class UnsetType:
 UNSET = UnsetType()
 
 class AnnotationKind(str, Enum):
-    """The shape an annotation is drawn as. Unlike `RoiKind`, which this replaced, the members name geometry only: which axes a shape spans is a property of the coordinate system it is drawn in, not of the shape"""
+    """The physical unit used to express spatial dimensions, e.g. of pixel sizes or stage positions."""
     POINT = 'POINT'
     'A single point.'
     MULTI_POINT = 'MULTI_POINT'
@@ -58,6 +98,7 @@ class AnnotationKind(str, Enum):
     'A round shape across three axes with one radius. Vectors are the two opposite corners of its bounding box.'
     ELLIPSOID = 'ELLIPSOID'
     "A round shape across three axes with a radius per axis. Vectors are the two opposite corners of its bounding box; each semi-axis is half that axis' extent."
+    __str__ = str.__str__
 
 class AnnotationKindChoices(str, Enum):
     """No documentation"""
@@ -72,6 +113,7 @@ class AnnotationKindChoices(str, Enum):
     ELLIPSE = 'ELLIPSE'
     SPHERE = 'SPHERE'
     ELLIPSOID = 'ELLIPSOID'
+    __str__ = str.__str__
 
 class ArrayDatasetSpec(str, Enum):
     """What a dataset structurally is, materialized from the axes of its intrinsic coordinate system at creation. Specs stack: a 3D timelapse is VOLUME, TIMESERIES and MULTICHANNEL at once. Exactly one spatial member (SCALAR/PROFILE/IMAGE/VOLUME/HYPERVOLUME) ever holds."""
@@ -93,9 +135,10 @@ class ArrayDatasetSpec(str, Enum):
     'Carries a SPECTRUM axis: a spectrally resolved acquisition, a lambda stack.'
     FLIM = 'FLIM'
     'Carries a MICROTIME axis: fluorescence-lifetime arrival-time bins.'
+    __str__ = str.__str__
 
 class AxisType(str, Enum):
-    """The semantic kind of an axis. A system's axes must be ordered by type: time first, then channel and custom types, then space."""
+    """The semantic kind of an axis. Axes are declared in the order the data has them -- for an array, its store's dimension order; for a table, its coordinate columns as declared -- and no ordering by type is required of them: the time, channel and phasor axes are found by type rather than by position. What the render axes are derived from is the relative order of the SPACE axes, the last being x."""
     SPACE = 'SPACE'
     'A spatial axis. Unitless pixel indices in a pixel-grid system; carries a physical length unit in a unit-carrying system.'
     TIME = 'TIME'
@@ -112,6 +155,7 @@ class AxisType(str, Enum):
     'A wavelength bin of a spectrally resolved acquisition. Continuous -- unlike a CHANNEL axis, whose coordinates index acquisitions rather than positions -- so a pyramid may re-bin it, and a phasor may be taken over it.'
     INDEX = 'INDEX'
     'An enumerating axis with no metric: an object id, a row number. It has no unit because there is nothing to measure — the distance between object 3 and object 4 means nothing.'
+    __str__ = str.__str__
 
 class Blending(str, Enum):
     """The blending mode used to combine multiple channels or layers into a composite image."""
@@ -121,6 +165,14 @@ class Blending(str, Enum):
     'Multiplicative blending, where the color values of overlapping layers are multiplied.'
     NORMAL = 'NORMAL'
     'Alpha-over compositing: the layer is blended over the layers below using its opacity.'
+    __str__ = str.__str__
+
+class BlendingChoices(str, Enum):
+    """No documentation"""
+    ADDITIVE = 'ADDITIVE'
+    MULTIPLICATIVE = 'MULTIPLICATIVE'
+    NORMAL = 'NORMAL'
+    __str__ = str.__str__
 
 class BootstrapLayerKind(str, Enum):
     """The render recipe an image layer carries: which default graph createSceneFromCoordinateSystem builds, via `ScenePolicyInput.kind`."""
@@ -132,6 +184,7 @@ class BootstrapLayerKind(str, Enum):
     'The channel sources under a maximum-intensity projection over z. Inferred when the dataset has a z axis with more than one plane.'
     LABEL = 'LABEL'
     'A single categorical source mapping discrete integer labels to distinct colors. Never inferred from structure -- nothing about an array distinguishes a label map from an image -- so it comes either from a derivation declared CATEGORIZED or from stating it outright.'
+    __str__ = str.__str__
 
 class ChannelKind(str, Enum):
     """No documentation"""
@@ -139,9 +192,10 @@ class ChannelKind(str, Enum):
     FIBER_SM = 'FIBER_SM'
     FIBER_MM = 'FIBER_MM'
     WAVEGUIDE = 'WAVEGUIDE'
+    __str__ = str.__str__
 
 class ColorMap(str, Enum):
-    """The colormap used to map intensity values of a channel to display colors."""
+    """The color space format used to interpret color component values."""
     VIRIDIS = 'VIRIDIS'
     'The perceptually uniform viridis colormap, ranging from dark purple to yellow.'
     PLASMA = 'PLASMA'
@@ -186,9 +240,50 @@ class ColorMap(str, Enum):
     'A colormap of cool tones ranging from cyan to magenta.'
     WARM = 'WARM'
     'A colormap of warm tones ranging from yellow to red.'
+    HUES = 'HUES'
+    'Qualitative. A colour per distinct value, scattered around the hue wheel by the golden ratio so consecutive classes land far apart. The default categorical palette, and the one the id hash itself paints with.'
+    DISTINCT = 'DISTINCT'
+    'Qualitative. The hue scatter with saturation and value tiered by rank as well, so two classes that happen to land on nearby hues still separate -- a palette-free take on glasbey. Reach for it when a mask has many classes.'
+    PASTEL = 'PASTEL'
+    'Qualitative. The hue scatter at low saturation, for a colouring meant to sit under something else rather than carry the picture.'
+    VIVID = 'VIVID'
+    'Qualitative. The hue scatter at full saturation, for a colouring meant to carry the picture.'
+    __str__ = str.__str__
+
+class ColorSourceKind(str, Enum):
+    """Which sort of source a colouring reads its value from: the discriminator of `LabelColorByInput` and `MeshColorByInput`. Two members, because there are two ways a set of ids reaches a number -- a column of a table they key into, or one slice of a sparse matrix they index. Flat with a discriminator rather than an input union, which GraphQL has no such thing as; the fields the other member reads are refused rather than ignored"""
+    COLUMN = 'COLUMN'
+    "A column of a table the source's ids key into, reached by `table`, `column` and any `joinPath`. Every colouring written before sparse datasets existed is one of these, which is why it is the default."
+    SPARSE = 'SPARSE'
+    "One slice of a sparse matrix the source's ids index, reached by `dataset` and the position `at`. Always measured: a slice is a value per object, so it takes a colormap and never a class map."
+    __str__ = str.__str__
+
+class ColumnControl(str, Enum):
+    """Which kind of control a column admits, derived from its declared role. The one split that decides how a value becomes a colour and how it is filtered -- published here so a picker renders the control the write path will actually accept."""
+    MEASURE = 'MEASURE'
+    'The values are measured and ordered, so they take a colormap over their range and a `min`/`max` bound. Roles COORDINATE and ATTRIBUTE.'
+    CATEGORICAL = 'CATEGORICAL'
+    'The values name things rather than measuring them, so they take an explicit value-to-colour map and a `values` set. A colormap or a bound over them would impose an order they do not have. Roles ID, TRACK_ID, LABEL and COLOR.'
+    __str__ = str.__str__
+
+class ColumnRole(str, Enum):
+    """What a table dataset's column is for: a coordinate that places the row, or data hanging off it."""
+    COORDINATE = 'COORDINATE'
+    "A spatial or temporal column whose values are coordinates. The coordinate columns become the axes of the table's own coordinate system, which is what makes the table placeable."
+    ATTRIBUTE = 'ATTRIBUTE'
+    'A measurement or property column — area, an intensity, a marker level. Data only; it does not place the row.'
+    ID = 'ID'
+    'A per-row identifier.'
+    TRACK_ID = 'TRACK_ID'
+    'Groups rows into a trajectory. Required to render a table as tracks.'
+    LABEL = 'LABEL'
+    'A per-row text label.'
+    COLOR = 'COLOR'
+    'A per-row color, or a value a layer colors the rows by.'
+    __str__ = str.__str__
 
 class CreatableTransformKind(str, Enum):
-    """The kind of a transformation a client can author directly: the discriminator of `TransformInput`. SEQUENCE and BIJECTION are absent on purpose -- they are wrappers the ingest builds together with their children (pyramid levels, stepped lenses), never authored empty."""
+    """The kind of a transformation a client can author directly: the discriminator of `TransformInput`. SEQUENCE is absent on purpose -- it is a wrapper the ingest builds together with its children (pyramid levels, stepped lenses), never authored empty."""
     IDENTITY = 'IDENTITY'
     'The identity map. Input and output coordinates are the same, so it takes no parameters.'
     SCALE = 'SCALE'
@@ -207,6 +302,7 @@ class CreatableTransformKind(str, Enum):
     "A non-affine map given by the values of an array rather than by a formula. Takes `field` (the array's coordinate system), `inputAxes` and `outputAxes`."
     UNMAPPABLE = 'UNMAPPABLE'
     'A declared NON-correspondence: no point of either space maps to a point of the other. Takes only an optional `reason`.'
+    __str__ = str.__str__
 
 class DerivationSourceKind(str, Enum):
     """Which kind of thing a derivation names as the source its data was computed from: the discriminator of `DerivedFromInput`. The edge itself is the same whichever is chosen -- child space in, source space out -- so a table named as TABLE_DATASET and the same table named as COORDINATE_SYSTEM write the identical row; the read side reports what lives at the far end through `CoordinateSystem.residents`, not which member was used to say it"""
@@ -222,6 +318,7 @@ class DerivationSourceKind(str, Enum):
     'An annotation collection, through the space its shapes are drawn in.'
     COORDINATE_SYSTEM = 'COORDINATE_SYSTEM'
     'A coordinate system directly, when the source is a space rather than a container -- a physical space, or a world.'
+    __str__ = str.__str__
 
 class Easing(str, Enum):
     """How a viewer eases the camera along the travel into an animation waypoint."""
@@ -233,6 +330,7 @@ class Easing(str, Enum):
     'Start at full speed, arrive slowly. Right for the last leg, settling onto the final pose.'
     EASE_IN_OUT = 'EASE_IN_OUT'
     'Slow at both ends, quick in the middle. The default: it reads as deliberate on a leg that stands alone.'
+    __str__ = str.__str__
 
 class ElementKind(str, Enum):
     """No documentation"""
@@ -253,6 +351,7 @@ class ElementKind(str, Enum):
     SHUTTER = 'SHUTTER'
     SAMPLE = 'SAMPLE'
     OTHER = 'OTHER'
+    __str__ = str.__str__
 
 class FileLinkContainerKind(str, Enum):
     """Which sort of container a file link names: the discriminator of `ExportOfInput`. Only the four containers that hold data a file can be written from or read into -- a lens is a selection over a dataset rather than a thing with its own bytes, and a coordinate system is a space, which no file encodes"""
@@ -264,6 +363,7 @@ class FileLinkContainerKind(str, Enum):
     'A mesh collection, the container an STL or OBJ file is loaded into.'
     ANNOTATION_COLLECTION = 'ANNOTATION_COLLECTION'
     'An annotation collection, the container a GeoJSON or ROI file is loaded into.'
+    __str__ = str.__str__
 
 class FilterKind(str, Enum):
     """No documentation"""
@@ -275,13 +375,41 @@ class FilterKind(str, Enum):
     NEUTRAL_DENSITY = 'NEUTRAL_DENSITY'
     TUNEABLE = 'TUNEABLE'
     OTHER = 'OTHER'
+    __str__ = str.__str__
 
-class KeyedBySourceKind(str, Enum):
-    """Which kind of thing keys a table: the discriminator of `KeyedByInput`. Two members, not the six `DerivationSourceKind` carries, because a keying source has to be something whose own contents identify an object -- a mask's pixels, a collection's geometry. A lens is a selection and owns neither; a table is already in record-land, where the relation is `TableColumn.references` rather than an edge; a bare space holds nothing at all. Advertising those and refusing them at runtime would be a schema that says yes where the server says no"""
+class IdentificationKind(str, Enum):
+    """How one axis is identified -- the discriminator of `IdentificationInput`, and the same question whether the axis belongs to a sparse matrix or to a table. An axis of positions means nothing until something says what those positions *are*, and there are exactly these three ways to answer. Two of them author a FIELD edge, which is also what makes the data reachable from a layer over that source; `TABLE` authors none and states a foreign key instead, because a table is already in record-land"""
     DATASET = 'DATASET'
-    'A label mask, through its intrinsic pixel grid: the array being mapped is the array doing the mapping, and its pixel values are the ids.'
+    'A label mask, through its intrinsic pixel grid: its pixel values are the positions along this axis. Authors a FIELD edge, so it is also what makes the data reachable from a layer over that mask.'
     MESH_COLLECTION = 'MESH_COLLECTION'
-    'A mesh collection, through its vertex coordinate system: the ids ride on the geometry rows, so a client that picked a surface is already holding one.'
+    'A mesh collection, through its vertex coordinate system: the ids ride on the geometry rows, so a client that picked a surface is already holding one. Authors a FIELD edge, exactly as DATASET does.'
+    TABLE = 'TABLE'
+    "A table whose rows this axis' positions are -- the relation `Column.references` carries, said of the axis. Authors no edge and touches no coordinate system: a table is already in record-land, where the relation is a foreign key rather than a map between spaces. It is what lets a FIELD edge land beside it, because an axis identified this way is one the edge is not expected to supply. Valid on an INDEX axis only: a SPACE or TIME coordinate's values are positions, and a position in nanometres and a row id are different things."
+    __str__ = str.__str__
+
+class LayerKindChoices(str, Enum):
+    """No documentation"""
+    IMAGE = 'IMAGE'
+    LABEL = 'LABEL'
+    ANNOTATION = 'ANNOTATION'
+    POINT = 'POINT'
+    TRACK = 'TRACK'
+    MESH = 'MESH'
+    __str__ = str.__str__
+
+class MeshShading(str, Enum):
+    """How a mesh surface is lit. Vocabulary a mesh needs and an image has no use for: a raster has no normals to shade with, which is why this sits on the mesh layer rather than anywhere near a render graph."""
+    FLAT = 'FLAT'
+    'One normal per face, so every facet reads as a facet. Honest about a decimated surface: it shows the triangles the geometry actually has rather than smoothing them away.'
+    SMOOTH = 'SMOOTH'
+    'Interpolated vertex normals, so the surface reads as curved. The default, and the one that flatters an isosurface.'
+    PBR = 'PBR'
+    "A metallic-roughness material lit by the viewer's environment. Costs more and looks like a rendering rather than a measurement -- reach for it for a figure, not for reading data."
+    MATCAP = 'MATCAP'
+    'A pre-lit sphere texture sampled in view space. Lighting does not move with the camera, which makes shape easy to read and comparisons between two views fair.'
+    UNLIT = 'UNLIT'
+    'No lighting at all: every fragment takes the material colour or the colour-by value. The right choice when the colour *is* the measurement and shading would be read as one.'
+    __str__ = str.__str__
 
 class ObjectiveImmersion(str, Enum):
     """No documentation"""
@@ -292,6 +420,7 @@ class ObjectiveImmersion(str, Enum):
     MULTI = 'MULTI'
     GLYCEROL = 'GLYCEROL'
     OTHER = 'OTHER'
+    __str__ = str.__str__
 
 class PhasorColorMode(str, Enum):
     """What a phasor render node derives a pixel's color from."""
@@ -301,6 +430,7 @@ class PhasorColorMode(str, Enum):
     'The modulus of the phasor. Over a microtime axis this is the modulation lifetime (tau_m); it exceeds tau_phi exactly when the decay is multi-exponential.'
     AVERAGE = 'AVERAGE'
     'The mean of the phase- and modulation-derived values.'
+    __str__ = str.__str__
 
 class PhasorCursorKind(str, Enum):
     """The shape of a region selected in phasor space."""
@@ -308,15 +438,19 @@ class PhasorCursorKind(str, Enum):
     'A disc, given by its centre (g, s) and a radius.'
     POLYGON = 'POLYGON'
     'An arbitrary closed region, given by at least three (g, s) vertices.'
+    __str__ = str.__str__
 
 class PlacementState(str, Enum):
     """Whether a layer has a place in its scene's world, and if not, why not. Derived, never stored."""
     PLACED = 'PLACED'
     "The layer's data reaches the scene's world: `pathToWorld` is the route."
+    CONDITIONAL = 'CONDITIONAL'
+    "The layer's data is registered, but only at particular coordinates — a per-channel or per-timepoint correction, written as one selector-scoped edge per index. Where it sits genuinely depends on where you are standing, so `pathToWorld` and `asAffine` are null until you pass `at`, and answer for that coordinate when you do. This is a placement, not a gap: there is nothing to author."
     UNREGISTERED = 'UNREGISTERED'
     "Nothing yet relates this layer's data to the scene's world. `pathToWorld` is null because the registration is *missing* — this is a gap in the data, and authoring the edge closes it."
     UNMAPPABLE = 'UNMAPPABLE'
-    "This layer's data can never be placed: it reaches the world only across an UNMAPPABLE edge, which declares that no point correspondence exists. `pathToWorld` is null because there is nothing to find — badge it, and do not go looking for the missing registration."
+    "This layer's data can never be placed: it reaches the world only across an UNMAPPABLE edge, which declares that no point correspondence exists, and it reaches nowhere else. `pathToWorld` is null because there is nothing to find — badge it, and do not go looking for the missing registration."
+    __str__ = str.__str__
 
 class PlacementValidity(str, Enum):
     """How much a transformation edge's map is actually known: guessed, inferred from metadata, authored by someone, or validated against the data. A layer's validity is derived from it, never stored: the weakest edge on its path to world."""
@@ -328,11 +462,13 @@ class PlacementValidity(str, Enum):
     'Exact or checked: either the server derived the map from shapes and slices, so it cannot be wrong, or someone validated an authored registration against the data.'
     UNKNOWN = 'UNKNOWN'
     'This map was assumed, never measured -- badge it. The server writes it nowhere: nothing fabricates a placement any more, so an edge wears UNKNOWN only because a client said so on `createTransformation`, or because it is a historical auto-registered edge.'
+    __str__ = str.__str__
 
 class PortRole(str, Enum):
     """No documentation"""
     INPUT = 'INPUT'
     OUTPUT = 'OUTPUT'
+    __str__ = str.__str__
 
 class PreferredView(str, Enum):
     """How a viewer should open a scene: flat, volumetric, or its own choice."""
@@ -342,6 +478,7 @@ class PreferredView(str, Enum):
     'Open volumetric: the projection view, looking at the data as a body.'
     AUTO = 'AUTO'
     'No preference stated -- the viewer decides, e.g. from whether the data has a z axis with depth. The default: a scene nobody has expressed a preference for should not claim one.'
+    __str__ = str.__str__
 
 class ProjectionMode(str, Enum):
     """The 3D projection / rendering mode applied to a volumetric (z-stacked) render node."""
@@ -353,6 +490,7 @@ class ProjectionMode(str, Enum):
     'Alpha volume rendering: samples along z are alpha-composited front-to-back.'
     ISOSURFACE = 'ISOSURFACE'
     'Isosurface rendering: a surface is extracted at a threshold value.'
+    __str__ = str.__str__
 
 class PulseKind(str, Enum):
     """No documentation"""
@@ -362,6 +500,7 @@ class PulseKind(str, Enum):
     REPETITIVE = 'REPETITIVE'
     MODE_LOCKED = 'MODE_LOCKED'
     OTHER = 'OTHER'
+    __str__ = str.__str__
 
 class ScaleMethod(str, Enum):
     """How a pyramid level's voxels were computed from the level above it. Stated, never derived -- nothing about two arrays says whether one was averaged or picked out of the other -- and it matters because over an array of object ids only NEAREST and MODE are allowed: every other method returns numbers that were not in the input, and an invented id is an object that does not exist."""
@@ -381,21 +520,7 @@ class ScaleMethod(str, Enum):
     'The maximum of the source window. Returns a real value, but over ids it biases every boundary toward whichever object sorts higher, so it is not label-safe either.'
     MIN = 'MIN'
     "The minimum of the source window. Not label-safe, for the mirror of MAX's reason."
-
-class TableColumnRole(str, Enum):
-    """What a table dataset's column is for: a coordinate that places the row, or data hanging off it."""
-    COORDINATE = 'COORDINATE'
-    "A spatial or temporal column whose values are coordinates. The coordinate columns become the axes of the table's own coordinate system, which is what makes the table placeable."
-    ATTRIBUTE = 'ATTRIBUTE'
-    'A measurement or property column — area, an intensity, a marker level. Data only; it does not place the row.'
-    ID = 'ID'
-    'A per-row identifier.'
-    TRACK_ID = 'TRACK_ID'
-    'Groups rows into a trajectory. Required to render a table as tracks.'
-    LABEL = 'LABEL'
-    'A per-row text label.'
-    COLOR = 'COLOR'
-    'A per-row color, or a value a layer colors the rows by.'
+    __str__ = str.__str__
 
 class TransformKind(str, Enum):
     """The kind of a coordinate transformation, discriminating how its parameters are interpreted. Direction is always forward: input -> output."""
@@ -417,10 +542,9 @@ class TransformKind(str, Enum):
     'A composition of child transformations, each acting on a named subset of the axes.'
     FIELD = 'FIELD'
     'A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a coordinate system, and so a node of this graph, not a payload on this edge. Whether its values are absolute POSITIONS or per-point OFFSETS is read from the value axis of that node -- COORDINATE or DISPLACEMENT -- never restated here. A label mask is the case where the field IS the input: its own pixels are the map. Not invertible in closed form, so a placement path never walks it backwards -- which is also the right semantics for a dereference, an object being a set of pixels.'
-    BIJECTION = 'BIJECTION'
-    'A pair of child transformations giving an explicit forward and inverse map. This is how an inverse that cannot be derived is instead *given*.'
     UNMAPPABLE = 'UNMAPPABLE'
     'A declared NON-correspondence: the two systems are related — one was derived from the other — and no point of either maps to a point of the other. It carries no parameters, is constrained by no rank, has no matrix, and is never walked by a placement search, in either direction. Recording an IDENTITY instead would be a lie; recording nothing would lose the lineage.'
+    __str__ = str.__str__
 
 class TransformKindChoices(str, Enum):
     """No documentation"""
@@ -433,8 +557,8 @@ class TransformKindChoices(str, Enum):
     SEQUENCE = 'SEQUENCE'
     BY_DIMENSION = 'BY_DIMENSION'
     FIELD = 'FIELD'
-    BIJECTION = 'BIJECTION'
     UNMAPPABLE = 'UNMAPPABLE'
+    __str__ = str.__str__
 
 class ValueRelation(str, Enum):
     """What a derivation did to the values -- the axis the spatial kind says nothing about. A threshold is spatially IDENTITY with categorized values; a crop is value-identical. Stated on the derivation edge (one event, one row, two orthogonal statements); the algorithm and its parameters belong to task provenance, not here."""
@@ -444,198 +568,215 @@ class ValueRelation(str, Enum):
     "The same quantity with new numbers (a deconvolution, a normalization, a denoise): still an intensity, but nothing computed on the source's values transfers."
     CATEGORIZED = 'CATEGORIZED'
     'The values became labels or classes (a threshold, a segmentation): a different value domain. This is the structural signal that lets a bootstrapped scene render the data as a label map.'
+    __str__ = str.__str__
 
 class AffineTransformInput(BaseModel):
     """The fields an AFFINE member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
     kind: Literal['AFFINE'] = Field(default='AFFINE')
-    affine: Tuple[Tuple[float, ...], ...]
+    affine: tuple[tuple[float, ...], ...]
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class AnnotationCollectionDerivedFromInput(BaseModel):
     """The fields an ANNOTATION_COLLECTION derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
     kind: Literal['ANNOTATION_COLLECTION'] = Field(default='ANNOTATION_COLLECTION')
-    transform: Optional['TransformInput'] = None
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
-    annotation_collection: ID = Field(alias='annotationCollection')
+    transform: 'TransformInput | None' = None
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
+    annotation_collection: ID = Field(validation_alias=AliasChoices('annotation_collection', 'annotationCollection'), serialization_alias='annotationCollection')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class AnnotationCollectionExportOfInput(BaseModel):
     """The fields an ANNOTATION_COLLECTION export link reads. Published for codegen; the wire type is the flat ExportOfInput"""
     kind: Literal['ANNOTATION_COLLECTION'] = Field(default='ANNOTATION_COLLECTION')
-    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None)
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
-    annotation_collection: ID = Field(alias='annotationCollection')
+    series_identifier: str | None = Field(validation_alias=AliasChoices('series_identifier', 'seriesIdentifier'), serialization_alias='seriesIdentifier', default=None)
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
+    annotation_collection: ID = Field(validation_alias=AliasChoices('annotation_collection', 'annotationCollection'), serialization_alias='annotationCollection')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ApertureElementInput(BaseModel):
     """The fields an APERTURE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['APERTURE'] = Field(default='APERTURE')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    diameter: Optional[Length] = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    diameter: Length | None = None
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class BeamSplitterElementInput(BaseModel):
     """The fields a BEAM_SPLITTER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['BEAM_SPLITTER'] = Field(default='BEAM_SPLITTER')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    r_fraction: Optional[float] = Field(alias='rFraction', default=None)
-    t_fraction: Optional[float] = Field(alias='tFraction', default=None)
-    band_min: Optional[Length] = Field(alias='bandMin', default=None)
-    band_max: Optional[Length] = Field(alias='bandMax', default=None)
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    r_fraction: float | None = Field(validation_alias=AliasChoices('r_fraction', 'rFraction'), serialization_alias='rFraction', default=None)
+    t_fraction: float | None = Field(validation_alias=AliasChoices('t_fraction', 'tFraction'), serialization_alias='tFraction', default=None)
+    band_min: Length | None = Field(validation_alias=AliasChoices('band_min', 'bandMin'), serialization_alias='bandMin', default=None)
+    band_max: Length | None = Field(validation_alias=AliasChoices('band_max', 'bandMax'), serialization_alias='bandMax', default=None)
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ByDimensionTransformInput(BaseModel):
     """The fields a BY_DIMENSION member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
     kind: Literal['BY_DIMENSION'] = Field(default='BY_DIMENSION')
-    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
-    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
-    scale: Optional[Tuple[float, ...]] = None
-    translation: Optional[Tuple[float, ...]] = None
-    affine: Optional[Tuple[Tuple[float, ...], ...]] = None
+    input_axes: tuple[str, ...] = Field(validation_alias=AliasChoices('input_axes', 'inputAxes'), serialization_alias='inputAxes')
+    output_axes: tuple[str, ...] = Field(validation_alias=AliasChoices('output_axes', 'outputAxes'), serialization_alias='outputAxes')
+    scale: tuple[float, ...] | None = None
+    translation: tuple[float, ...] | None = None
+    affine: tuple[tuple[float, ...], ...] | None = None
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CCDElementInput(BaseModel):
     """The fields a CCD element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['CCD'] = Field(default='CCD')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    pixel_size: Optional[Length] = Field(alias='pixelSize', default=None)
-    resolution: Optional[Tuple[int, ...]] = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    pixel_size: Length | None = Field(validation_alias=AliasChoices('pixel_size', 'pixelSize'), serialization_alias='pixelSize', default=None)
+    resolution: tuple[int, ...] | None = None
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class ColumnColorByInput(BaseModel):
+    """The fields a COLUMN member of a colour picker entry reads. Published for codegen; the wire type is the flat LabelColorByInput / MeshColorByInput"""
+    kind: Literal['COLUMN'] = Field(default='COLUMN')
+    colormap: ColorMap | None = None
+    min: float | None = None
+    max: float | None = None
+    label: str | None = None
+    table: ID
+    column: str
+    join_path: Annotated[tuple['JoinStepInput', ...] | None, GraphQLDefault('[]')] = Field(validation_alias=AliasChoices('join_path', 'joinPath'), serialization_alias='joinPath', default=None)
+    'Default: []'
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CoordinateSystemDerivedFromInput(BaseModel):
     """The fields a COORDINATE_SYSTEM derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
     kind: Literal['COORDINATE_SYSTEM'] = Field(default='COORDINATE_SYSTEM')
-    transform: Optional['TransformInput'] = None
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
-    coordinate_system: ID = Field(alias='coordinateSystem')
+    transform: 'TransformInput | None' = None
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
+    coordinate_system: ID = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DatasetDerivedFromInput(BaseModel):
     """The fields a DATASET derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
     kind: Literal['DATASET'] = Field(default='DATASET')
-    transform: Optional['TransformInput'] = None
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    transform: 'TransformInput | None' = None
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
     dataset: ID
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DatasetExportOfInput(BaseModel):
     """The fields a DATASET export link reads. Published for codegen; the wire type is the flat ExportOfInput"""
     kind: Literal['DATASET'] = Field(default='DATASET')
-    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None)
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    series_identifier: str | None = Field(validation_alias=AliasChoices('series_identifier', 'seriesIdentifier'), serialization_alias='seriesIdentifier', default=None)
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
     dataset: ID
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
-class DatasetKeyedByInput(BaseModel):
-    """The fields a DATASET keying reads. Published for codegen; the wire type is the flat KeyedByInput"""
+class DatasetIdentifiesInput(BaseModel):
+    """The fields a DATASET identification reads. Published for codegen; the wire type is the flat IdentificationInput"""
     kind: Literal['DATASET'] = Field(default='DATASET')
-    name: Optional[str] = None
-    validity: Optional[PlacementValidity] = None
+    name: str | None = None
+    validity: PlacementValidity | None = None
     dataset: ID
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DetectorElementInput(BaseModel):
     """The fields a DETECTOR element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['DETECTOR'] = Field(default='DETECTOR')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    nepd_w_per_sqrt_hz: Optional[float] = Field(alias='nepdWPerSqrtHz', default=None)
-    amplifier_gain_db: Optional[float] = Field(alias='amplifierGainDb', default=None)
-    gain: Optional[float] = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    nepd_w_per_sqrt_hz: float | None = Field(validation_alias=AliasChoices('nepd_w_per_sqrt_hz', 'nepdWPerSqrtHz'), serialization_alias='nepdWPerSqrtHz', default=None)
+    amplifier_gain_db: float | None = Field(validation_alias=AliasChoices('amplifier_gain_db', 'amplifierGainDb'), serialization_alias='amplifierGainDb', default=None)
+    gain: float | None = None
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class FieldTransformInput(BaseModel):
     """The fields a FIELD member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
     kind: Literal['FIELD'] = Field(default='FIELD')
     field: ID
-    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
-    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    input_axes: tuple[str, ...] = Field(validation_alias=AliasChoices('input_axes', 'inputAxes'), serialization_alias='inputAxes')
+    output_axes: tuple[str, ...] = Field(validation_alias=AliasChoices('output_axes', 'outputAxes'), serialization_alias='outputAxes')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class FilterElementInput(BaseModel):
     """The fields a FILTER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['FILTER'] = Field(default='FILTER')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    description: Optional[str] = None
-    filter_kind: Optional[FilterKind] = Field(alias='filterKind', default=None)
-    transmittance: Optional[float] = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    description: str | None = None
+    filter_kind: FilterKind | None = Field(validation_alias=AliasChoices('filter_kind', 'filterKind'), serialization_alias='filterKind', default=None)
+    transmittance: float | None = None
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class IdentityTransformInput(BaseModel):
     """The fields an IDENTITY member of TransformInput reads -- only the discriminator, the map having no parameters. Published for codegen; the wire type is the flat TransformInput"""
@@ -643,1423 +784,1620 @@ class IdentityTransformInput(BaseModel):
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LampElementInput(BaseModel):
     """The fields a LAMP element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['LAMP'] = Field(default='LAMP')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    channel: Optional[ChannelKind] = None
-    lamp_type: Optional[str] = Field(alias='lampType', default=None)
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    channel: ChannelKind | None = None
+    lamp_type: str | None = Field(validation_alias=AliasChoices('lamp_type', 'lampType'), serialization_alias='lampType', default=None)
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LaserElementInput(BaseModel):
     """The fields a LASER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['LASER'] = Field(default='LASER')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    nominal_wavelength: Length = Field(alias='nominalWavelength')
-    power: Optional[Power] = None
-    channel: Optional[ChannelKind] = None
-    laser_medium: Optional[str] = Field(alias='laserMedium', default=None)
-    pulse_kind: Optional[PulseKind] = Field(alias='pulseKind', default=None)
-    repetition_rate: Optional[Frequency] = Field(alias='repetitionRate', default=None)
-    has_pockels_cell: Optional[bool] = Field(alias='hasPockelsCell', default=None)
-    has_q_switch: Optional[bool] = Field(alias='hasQSwitch', default=None)
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    nominal_wavelength: Length = Field(validation_alias=AliasChoices('nominal_wavelength', 'nominalWavelength'), serialization_alias='nominalWavelength')
+    power: Power | None = None
+    channel: ChannelKind | None = None
+    laser_medium: str | None = Field(validation_alias=AliasChoices('laser_medium', 'laserMedium'), serialization_alias='laserMedium', default=None)
+    pulse_kind: PulseKind | None = Field(validation_alias=AliasChoices('pulse_kind', 'pulseKind'), serialization_alias='pulseKind', default=None)
+    repetition_rate: Frequency | None = Field(validation_alias=AliasChoices('repetition_rate', 'repetitionRate'), serialization_alias='repetitionRate', default=None)
+    has_pockels_cell: bool | None = Field(validation_alias=AliasChoices('has_pockels_cell', 'hasPockelsCell'), serialization_alias='hasPockelsCell', default=None)
+    has_q_switch: bool | None = Field(validation_alias=AliasChoices('has_q_switch', 'hasQSwitch'), serialization_alias='hasQSwitch', default=None)
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LensDerivedFromInput(BaseModel):
     """The fields a LENS derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
     kind: Literal['LENS'] = Field(default='LENS')
-    transform: Optional['TransformInput'] = None
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
+    transform: 'TransformInput | None' = None
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
     lens: ID
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LensElementInput(BaseModel):
     """The fields a LENS element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['LENS'] = Field(default='LENS')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    focal_length: Optional[Length] = Field(alias='focalLength', default=None)
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    focal_length: Length | None = Field(validation_alias=AliasChoices('focal_length', 'focalLength'), serialization_alias='focalLength', default=None)
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class MapAxisTransformInput(BaseModel):
     """The fields a MAP_AXIS member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
     kind: Literal['MAP_AXIS'] = Field(default='MAP_AXIS')
-    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
-    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    input_axes: tuple[str, ...] = Field(validation_alias=AliasChoices('input_axes', 'inputAxes'), serialization_alias='inputAxes')
+    output_axes: tuple[str, ...] = Field(validation_alias=AliasChoices('output_axes', 'outputAxes'), serialization_alias='outputAxes')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class MeshCollectionDerivedFromInput(BaseModel):
     """The fields a MESH_COLLECTION derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
     kind: Literal['MESH_COLLECTION'] = Field(default='MESH_COLLECTION')
-    transform: Optional['TransformInput'] = None
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
-    mesh_collection: ID = Field(alias='meshCollection')
+    transform: 'TransformInput | None' = None
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
+    mesh_collection: ID = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class MeshCollectionExportOfInput(BaseModel):
     """The fields a MESH_COLLECTION export link reads. Published for codegen; the wire type is the flat ExportOfInput"""
     kind: Literal['MESH_COLLECTION'] = Field(default='MESH_COLLECTION')
-    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None)
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
-    mesh_collection: ID = Field(alias='meshCollection')
+    series_identifier: str | None = Field(validation_alias=AliasChoices('series_identifier', 'seriesIdentifier'), serialization_alias='seriesIdentifier', default=None)
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
+    mesh_collection: ID = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
-class MeshCollectionKeyedByInput(BaseModel):
-    """The fields a MESH_COLLECTION keying reads. Published for codegen; the wire type is the flat KeyedByInput"""
+class MeshCollectionIdentifiesInput(BaseModel):
+    """The fields a MESH_COLLECTION identification reads. Published for codegen; the wire type is the flat IdentificationInput"""
     kind: Literal['MESH_COLLECTION'] = Field(default='MESH_COLLECTION')
-    name: Optional[str] = None
-    validity: Optional[PlacementValidity] = None
-    mesh_collection: ID = Field(alias='meshCollection')
+    name: str | None = None
+    validity: PlacementValidity | None = None
+    mesh_collection: ID = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class MirrorElementInput(BaseModel):
     """The fields a MIRROR element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['MIRROR'] = Field(default='MIRROR')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    angle_deg: Optional[float] = Field(alias='angleDeg', default=None)
-    band_min: Optional[Length] = Field(alias='bandMin', default=None)
-    band_max: Optional[Length] = Field(alias='bandMax', default=None)
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    angle_deg: float | None = Field(validation_alias=AliasChoices('angle_deg', 'angleDeg'), serialization_alias='angleDeg', default=None)
+    band_min: Length | None = Field(validation_alias=AliasChoices('band_min', 'bandMin'), serialization_alias='bandMin', default=None)
+    band_max: Length | None = Field(validation_alias=AliasChoices('band_max', 'bandMax'), serialization_alias='bandMax', default=None)
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ObjectiveElementInput(BaseModel):
     """The fields an OBJECTIVE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['OBJECTIVE'] = Field(default='OBJECTIVE')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    magnification: Optional[float] = None
-    numerical_aperture: Optional[float] = Field(alias='numericalAperture', default=None)
-    brand: Optional[str] = None
-    working_distance: Optional[Length] = Field(alias='workingDistance', default=None)
-    immersion_medium: Optional[ObjectiveImmersion] = Field(alias='immersionMedium', default=None)
-    iris: Optional[bool] = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    magnification: float | None = None
+    numerical_aperture: float | None = Field(validation_alias=AliasChoices('numerical_aperture', 'numericalAperture'), serialization_alias='numericalAperture', default=None)
+    brand: str | None = None
+    working_distance: Length | None = Field(validation_alias=AliasChoices('working_distance', 'workingDistance'), serialization_alias='workingDistance', default=None)
+    immersion_medium: ObjectiveImmersion | None = Field(validation_alias=AliasChoices('immersion_medium', 'immersionMedium'), serialization_alias='immersionMedium', default=None)
+    iris: bool | None = None
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class OtherElementInput(BaseModel):
     """The fields an OTHER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['OTHER'] = Field(default='OTHER')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    description: Optional[str] = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    description: str | None = None
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class OtherSourceElementInput(BaseModel):
     """The fields an OTHER_SOURCE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['OTHER_SOURCE'] = Field(default='OTHER_SOURCE')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    channel: Optional[ChannelKind] = None
-    lamp_type: Optional[str] = Field(alias='lampType', default=None)
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    channel: ChannelKind | None = None
+    lamp_type: str | None = Field(validation_alias=AliasChoices('lamp_type', 'lampType'), serialization_alias='lampType', default=None)
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class PinholeElementInput(BaseModel):
     """The fields a PINHOLE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['PINHOLE'] = Field(default='PINHOLE')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    diameter: Optional[Length] = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    diameter: Length | None = None
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class PolarizerElementInput(BaseModel):
     """The fields a POLARIZER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['POLARIZER'] = Field(default='POLARIZER')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    angle_deg: Optional[float] = Field(alias='angleDeg', default=None)
-    extinction_ratio: Optional[float] = Field(alias='extinctionRatio', default=None)
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    angle_deg: float | None = Field(validation_alias=AliasChoices('angle_deg', 'angleDeg'), serialization_alias='angleDeg', default=None)
+    extinction_ratio: float | None = Field(validation_alias=AliasChoices('extinction_ratio', 'extinctionRatio'), serialization_alias='extinctionRatio', default=None)
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RotationTransformInput(BaseModel):
     """The fields a ROTATION member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
     kind: Literal['ROTATION'] = Field(default='ROTATION')
-    affine: Tuple[Tuple[float, ...], ...]
+    affine: tuple[tuple[float, ...], ...]
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class SampleElementInput(BaseModel):
     """The fields a SAMPLE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['SAMPLE'] = Field(default='SAMPLE')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    description: Optional[str] = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    description: str | None = None
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ScaleTransformInput(BaseModel):
     """The fields a SCALE member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
     kind: Literal['SCALE'] = Field(default='SCALE')
-    scale: Tuple[float, ...]
+    scale: tuple[float, ...]
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ShutterElementInput(BaseModel):
     """The fields a SHUTTER element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['SHUTTER'] = Field(default='SHUTTER')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    is_open: Optional[bool] = Field(alias='isOpen', default=None)
-    shutter_type: Optional[str] = Field(alias='shutterType', default=None)
-    gain: Optional[float] = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    is_open: bool | None = Field(validation_alias=AliasChoices('is_open', 'isOpen'), serialization_alias='isOpen', default=None)
+    shutter_type: str | None = Field(validation_alias=AliasChoices('shutter_type', 'shutterType'), serialization_alias='shutterType', default=None)
+    gain: float | None = None
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class SparseColorByInput(SparseColorByInputTrait, BaseModel):
+    """The fields a SPARSE member of a colour picker entry reads. Published for codegen; the wire type is the flat LabelColorByInput / MeshColorByInput"""
+    kind: Literal['SPARSE'] = Field(default='SPARSE')
+    colormap: ColorMap | None = None
+    min: float | None = None
+    max: float | None = None
+    label: str | None = None
+    dataset: ID
+    at: tuple['AxisPositionInput', ...]
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class TableDatasetDerivedFromInput(BaseModel):
     """The fields a TABLE_DATASET derivation reads. Published for codegen; the wire type is the flat DerivedFromInput"""
     kind: Literal['TABLE_DATASET'] = Field(default='TABLE_DATASET')
-    transform: Optional['TransformInput'] = None
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
-    table_dataset: ID = Field(alias='tableDataset')
+    transform: 'TransformInput | None' = None
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
+    table_dataset: ID = Field(validation_alias=AliasChoices('table_dataset', 'tableDataset'), serialization_alias='tableDataset')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class TableDatasetExportOfInput(BaseModel):
     """The fields a TABLE_DATASET export link reads. Published for codegen; the wire type is the flat ExportOfInput"""
     kind: Literal['TABLE_DATASET'] = Field(default='TABLE_DATASET')
-    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None)
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
-    table_dataset: ID = Field(alias='tableDataset')
+    series_identifier: str | None = Field(validation_alias=AliasChoices('series_identifier', 'seriesIdentifier'), serialization_alias='seriesIdentifier', default=None)
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
+    table_dataset: ID = Field(validation_alias=AliasChoices('table_dataset', 'tableDataset'), serialization_alias='tableDataset')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class TableIdentifiesInput(BaseModel):
+    """The fields a TABLE identification reads. Published for codegen; the wire type is the flat IdentificationInput"""
+    kind: Literal['TABLE'] = Field(default='TABLE')
+    table: ID
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class TranslationTransformInput(BaseModel):
     """The fields a TRANSLATION member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
     kind: Literal['TRANSLATION'] = Field(default='TRANSLATION')
-    translation: Tuple[float, ...]
+    translation: tuple[float, ...]
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UnmappableTransformInput(BaseModel):
     """The fields an UNMAPPABLE member of TransformInput reads. Published for codegen; the wire type is the flat TransformInput"""
     kind: Literal['UNMAPPABLE'] = Field(default='UNMAPPABLE')
-    reason: Optional[str] = None
+    reason: str | None = None
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class WaveplateElementInput(BaseModel):
     """The fields a WAVEPLATE element reads. Published for codegen; the wire type is the flat OpticalElementInput"""
     kind: Literal['WAVEPLATE'] = Field(default='WAVEPLATE')
-    id: Optional[ID] = None
+    id: ID | None = None
     label: str
-    pose: Optional['Pose3DInput'] = None
-    ports: Annotated[Optional[Tuple['LightPortInput', ...]], GraphQLDefault('[]')] = None
+    pose: 'Pose3DInput | None' = None
+    ports: Annotated[tuple['LightPortInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    serial_number: Optional[str] = Field(alias='serialNumber', default=None)
-    angle_deg: Optional[float] = Field(alias='angleDeg', default=None)
-    retardance: Optional[float] = None
-    design_wavelength: Optional[Length] = Field(alias='designWavelength', default=None)
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = Field(validation_alias=AliasChoices('serial_number', 'serialNumber'), serialization_alias='serialNumber', default=None)
+    angle_deg: float | None = Field(validation_alias=AliasChoices('angle_deg', 'angleDeg'), serialization_alias='angleDeg', default=None)
+    retardance: float | None = None
+    design_wavelength: Length | None = Field(validation_alias=AliasChoices('design_wavelength', 'designWavelength'), serialization_alias='designWavelength', default=None)
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class AnimationFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
-    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
-    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
-    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
-    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
-    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
-    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
-    id: Optional[ID] = None
-    name: Optional['StrFilterLookup'] = None
-    and_: Optional['AnimationFilter'] = Field(alias='AND', default=None)
-    or_: Optional['AnimationFilter'] = Field(alias='OR', default=None)
-    not_: Optional['AnimationFilter'] = Field(alias='NOT', default=None)
-    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    scene: Optional[ID] = Field(default=None, description='Filter by the scene this tour flies through')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    search: str | None = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    created_through_task: str | None = Field(validation_alias=AliasChoices('created_through_task', 'createdThroughTask'), serialization_alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: ID | None = Field(validation_alias=AliasChoices('created_through', 'createdThrough'), serialization_alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: ID | None = Field(validation_alias=AliasChoices('assigned_by', 'assignedBy'), serialization_alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: ID | None = Field(validation_alias=AliasChoices('created_through_by', 'createdThroughBy'), serialization_alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    id: ID | None = None
+    name: 'StrFilterLookup | None' = None
+    and_: 'AnimationFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'AnimationFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'AnimationFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    scene: ID | None = Field(default=None, description='Filter by the scene this tour flies through')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class AnimationWaypointInput(BaseModel):
     """One camera pose in a tour, and how the viewer travels to it. Its position in the tour is its position in the `waypoints` list -- there is no order field to pass"""
     camera: 'CameraStateInput' = Field(description='Where the camera is at this stop')
-    name: Optional[str] = Field(default=None, description='What this stop shows')
-    duration_ms: Optional[int] = Field(alias='durationMs', default=None, description='How long the viewer takes to travel to this stop, in milliseconds')
-    easing: Optional[Easing] = Field(default=None, description='How the viewer eases the camera along that travel')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    name: str | None = Field(default=None, description='What this stop shows')
+    duration_ms: int | None = Field(validation_alias=AliasChoices('duration_ms', 'durationMs'), serialization_alias='durationMs', default=None, description='How long the viewer takes to travel to this stop, in milliseconds')
+    easing: Easing | None = Field(default=None, description='How the viewer eases the camera along that travel')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class AnnotationCollectionFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
-    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
-    id: Optional[ID] = None
-    name: Optional['StrFilterLookup'] = None
-    and_: Optional['AnnotationCollectionFilter'] = Field(alias='AND', default=None)
-    or_: Optional['AnnotationCollectionFilter'] = Field(alias='OR', default=None)
-    not_: Optional['AnnotationCollectionFilter'] = Field(alias='NOT', default=None)
-    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    folder: Optional[ID] = Field(default=None, description='Filter by the folder this annotation collection is filed in')
-    folders: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of folder IDs')
-    scene: Optional[ID] = Field(default=None, description='Filter by the scene this collection was minted for as its default drawing surface')
-    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None, description="Filter by the coordinate system the annotations are drawn in (the collection's own)")
-    dataset: Optional[ID] = Field(default=None, description='Filter by the dataset the shapes are drawn over, following the derivation edge')
-    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    id: ID | None = None
+    name: 'StrFilterLookup | None' = None
+    and_: 'AnnotationCollectionFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'AnnotationCollectionFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'AnnotationCollectionFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    folder: ID | None = Field(default=None, description='Filter by the folder this annotation collection is filed in')
+    folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
+    scene: ID | None = Field(default=None, description='Filter by the scene this collection was minted for as its default drawing surface')
+    coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None, description="Filter by the coordinate system the annotations are drawn in (the collection's own)")
+    dataset: ID | None = Field(default=None, description='Filter by the dataset the shapes are drawn over, following the derivation edge')
+    search: str | None = Field(default=None, description='Search by name (case-insensitive substring)')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class AnnotationFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
-    id: Optional[str] = None
-    name: Optional['StrFilterLookup'] = None
-    description: Optional['StrFilterLookup'] = None
-    kind: Optional[AnnotationKindChoices] = None
-    and_: Optional['AnnotationFilter'] = Field(alias='AND', default=None)
-    or_: Optional['AnnotationFilter'] = Field(alias='OR', default=None)
-    not_: Optional['AnnotationFilter'] = Field(alias='NOT', default=None)
-    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    collection: Optional[ID] = Field(default=None, description='Filter by the collection this annotation belongs to')
-    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None, description="Filter by the coordinate system this annotation is drawn in (its collection's own)")
-    dataset: Optional[ID] = Field(default=None, description="Filter by the dataset the annotations are drawn over, following the collection's derivation edge")
-    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
-    pinned_to: Optional[Tuple['CoordinateInput', ...]] = Field(alias='pinnedTo', default=None, description="Filter to annotations pinned to every one of these coordinates, e.g. [{name: 't', value: 3}]. GIN-backed containment on the stored coordinate dict; an annotation that spans a coordinate does not match a pin on it")
-    intersects: Optional['BoundingBoxInput'] = Field(default=None, description='Filter to annotations whose intrinsic bounding box overlaps this box (GiST-backed). Only meaningful within one frame: pass `collection` or `coordinateSystem` alongside. A box of lower rank is zero-filled on the missing coordinates')
-    contains_point: Optional[Tuple[float, ...]] = Field(alias='containsPoint', default=None, description='Filter to annotations whose intrinsic bounding box contains this point (GiST-backed). Only meaningful within one frame: pass `collection` or `coordinateSystem` alongside')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    id: str | None = None
+    name: 'StrFilterLookup | None' = None
+    description: 'StrFilterLookup | None' = None
+    kind: AnnotationKindChoices | None = None
+    and_: 'AnnotationFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'AnnotationFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'AnnotationFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    collection: ID | None = Field(default=None, description='Filter by the collection this annotation belongs to')
+    coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None, description="Filter by the coordinate system this annotation is drawn in (its collection's own)")
+    dataset: ID | None = Field(default=None, description="Filter by the dataset the annotations are drawn over, following the collection's derivation edge")
+    search: str | None = Field(default=None, description='Search by name (case-insensitive substring)')
+    pinned_to: tuple['CoordinateInput', ...] | None = Field(validation_alias=AliasChoices('pinned_to', 'pinnedTo'), serialization_alias='pinnedTo', default=None, description="Filter to annotations pinned to every one of these coordinates, e.g. [{name: 't', value: 3}]. GIN-backed containment on the stored coordinate dict; an annotation that spans a coordinate does not match a pin on it")
+    intersects: 'BoundingBoxInput | None' = Field(default=None, description='Filter to annotations whose intrinsic bounding box overlaps this box (GiST-backed). Only meaningful within one frame: pass `collection` or `coordinateSystem` alongside. A box of lower rank is zero-filled on the missing coordinates')
+    contains_point: tuple[float, ...] | None = Field(validation_alias=AliasChoices('contains_point', 'containsPoint'), serialization_alias='containsPoint', default=None, description='Filter to annotations whose intrinsic bounding box contains this point (GiST-backed). Only meaningful within one frame: pass `collection` or `coordinateSystem` alongside')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class AnnotationSpecInput(BaseModel):
     """One shape of a bulk draw: the per-annotation subset of CreateAnnotationInput, without the collection/scene target"""
     kind: AnnotationKind
-    vectors: Tuple[ThreeDVector, ...]
-    stroke_color: Optional[Tuple[int, ...]] = Field(alias='strokeColor', default=None)
-    fill_color: Optional[Tuple[int, ...]] = Field(alias='fillColor', default=None)
-    name: Optional[str] = None
-    description: Optional[str] = None
-    coordinates: Optional[Tuple['CoordinateInput', ...]] = None
-    stroke_width: Optional[float] = Field(alias='strokeWidth', default=None)
-    filled: Optional[bool] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    vectors: tuple[ThreeDVector, ...]
+    stroke_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('stroke_color', 'strokeColor'), serialization_alias='strokeColor', default=None)
+    fill_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('fill_color', 'fillColor'), serialization_alias='fillColor', default=None)
+    name: str | None = None
+    description: str | None = None
+    coordinates: tuple['CoordinateInput', ...] | None = None
+    stroke_width: float | None = Field(validation_alias=AliasChoices('stroke_width', 'strokeWidth'), serialization_alias='strokeWidth', default=None)
+    filled: bool | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ArrayDatasetFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
-    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
-    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
-    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
-    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
-    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
-    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
-    id: Optional[ID] = None
-    name: Optional['StrFilterLookup'] = None
-    description: Optional['StrFilterLookup'] = None
-    and_: Optional['ArrayDatasetFilter'] = Field(alias='AND', default=None)
-    or_: Optional['ArrayDatasetFilter'] = Field(alias='OR', default=None)
-    not_: Optional['ArrayDatasetFilter'] = Field(alias='NOT', default=None)
-    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    folder: Optional[ID] = Field(default=None, description='Filter by the folder this dataset is filed in')
-    folders: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of folder IDs')
-    spec: Optional[Tuple[ArrayDatasetSpec, ...]] = Field(default=None, description='Filter to datasets satisfying every one of these specs, e.g. [VOLUME, TIMESERIES] for 3D timelapses. Materialized from the axes of the intrinsic coordinate system at creation. A dataset carries one spatial spec (by how many SPACE axes it has) plus a modifier per acquisition axis present, so two spatial specs together match nothing')
-    has_axis_types: Optional[Tuple[AxisType, ...]] = Field(alias='hasAxisTypes', default=None, description='Filter to datasets whose intrinsic coordinate system carries every one of these axis types, e.g. [TIME, CHANNEL]. The raw form of `spec`, for the types no spec names: COORDINATE, DISPLACEMENT, INDEX')
-    multiscale: Optional[bool] = Field(default=None, description='Filter by whether the dataset carries a resolution pyramid: true for the multiscale ones, false for those with a single level')
-    has_physical_space: Optional[bool] = Field(alias='hasPhysicalSpace', default=None, description="Filter by whether the dataset has an edge into a space with real units. False finds the data that is still only pixels, with no pixel size or stage pose recorded. Unrelated to a phasor histogram's `calibrated`, which is about reference correction")
-    scene: Optional[ID] = Field(default=None, description="Filter to datasets rendered in this scene, through their lenses' layers. What is actually staged there -- for what merely could be, use `placeableIn`")
-    placeable_in: Optional[ID] = Field(alias='placeableIn', default=None, description='Filter to datasets placeable into this coordinate system: those with a lens whose space has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene, because that is all the answer depends on -- every scene over one world offers the same candidates. Pass `scene.worldCoordinateSystem.id` to ask it of a scene. What could be staged there -- for what already is, use `scene`')
-    derived_from: Optional[ID] = Field(alias='derivedFrom', default=None, description='Filter to the datasets computed from this one -- the deconvolutions, segmentations and projections that named a space of it as their parent. Every child, not just the ones it places: a fusion that named it second is listed, and so is a child whose derivation is UNMAPPABLE, since it still came from here')
-    not_derived: Optional[bool] = Field(alias='notDerived', default=None, description="Filter for datasets that were acquired rather than computed: true for the roots, those with no derivation edge into another dataset's space")
-    source_file: Optional[ID] = Field(alias='sourceFile', default=None, description='Filter to the datasets converted from this file -- every series of it, unless `sourceSeriesIdentifier` narrows that. A file link, not a derivation: this asks which bytes the arrays were read out of, where `derivedFrom` asks which data they were computed from. A dataset can honestly answer both')
-    source_series_identifier: Optional[str] = Field(alias='sourceSeriesIdentifier', default=None, description='Filter to the datasets converted from one series of a file. Pair it with `sourceFile`; alone it matches that series identifier in any file')
-    has_default_scene: Optional[bool] = Field(alias='hasDefaultScene', default=None, description='Filter by whether the dataset nominates a scene to open. False finds the ones with no thumbnail -- what `backfill_default_scenes` could not seed, and the work remaining before that command can be deleted')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    search: str | None = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    created_through_task: str | None = Field(validation_alias=AliasChoices('created_through_task', 'createdThroughTask'), serialization_alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: ID | None = Field(validation_alias=AliasChoices('created_through', 'createdThrough'), serialization_alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: ID | None = Field(validation_alias=AliasChoices('assigned_by', 'assignedBy'), serialization_alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: ID | None = Field(validation_alias=AliasChoices('created_through_by', 'createdThroughBy'), serialization_alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    id: ID | None = None
+    name: 'StrFilterLookup | None' = None
+    description: 'StrFilterLookup | None' = None
+    and_: 'ArrayDatasetFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'ArrayDatasetFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'ArrayDatasetFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    folder: ID | None = Field(default=None, description='Filter by the folder this dataset is filed in')
+    folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
+    spec: tuple[ArrayDatasetSpec, ...] | None = Field(default=None, description='Filter to datasets satisfying every one of these specs, e.g. [VOLUME, TIMESERIES] for 3D timelapses. Materialized from the axes of the intrinsic coordinate system at creation. A dataset carries one spatial spec (by how many SPACE axes it has) plus a modifier per acquisition axis present, so two spatial specs together match nothing')
+    has_axis_types: tuple[AxisType, ...] | None = Field(validation_alias=AliasChoices('has_axis_types', 'hasAxisTypes'), serialization_alias='hasAxisTypes', default=None, description='Filter to datasets whose intrinsic coordinate system carries every one of these axis types, e.g. [TIME, CHANNEL]. The raw form of `spec`, for the types no spec names: COORDINATE, DISPLACEMENT, INDEX')
+    multiscale: bool | None = Field(default=None, description='Filter by whether the dataset carries a resolution pyramid: true for the multiscale ones, false for those with a single level')
+    has_physical_space: bool | None = Field(validation_alias=AliasChoices('has_physical_space', 'hasPhysicalSpace'), serialization_alias='hasPhysicalSpace', default=None, description="Filter by whether the dataset has an edge into a space with real units. False finds the data that is still only pixels, with no pixel size or stage pose recorded. Unrelated to a phasor histogram's `calibrated`, which is about reference correction")
+    scene: ID | None = Field(default=None, description="Filter to datasets rendered in this scene, through their lenses' layers. What is actually staged there -- for what merely could be, use `placeableIn`")
+    placeable_in: ID | None = Field(validation_alias=AliasChoices('placeable_in', 'placeableIn'), serialization_alias='placeableIn', default=None, description='Filter to datasets placeable into this coordinate system: those with a lens whose space has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene, because that is all the answer depends on -- every scene over one world offers the same candidates. Pass `scene.worldCoordinateSystem.id` to ask it of a scene. What could be staged there -- for what already is, use `scene`')
+    derived_from: ID | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None, description='Filter to the datasets computed from this one -- the deconvolutions, segmentations and projections that named a space of it as their parent. Every child, not just the ones it places: a fusion that named it second is listed, and so is a child whose derivation is UNMAPPABLE, since it still came from here')
+    not_derived: bool | None = Field(validation_alias=AliasChoices('not_derived', 'notDerived'), serialization_alias='notDerived', default=None, description="Filter for datasets that were acquired rather than computed: true for the roots, those with no derivation edge into another dataset's space")
+    source_file: ID | None = Field(validation_alias=AliasChoices('source_file', 'sourceFile'), serialization_alias='sourceFile', default=None, description='Filter to the datasets converted from this file -- every series of it, unless `sourceSeriesIdentifier` narrows that. A file link, not a derivation: this asks which bytes the arrays were read out of, where `derivedFrom` asks which data they were computed from. A dataset can honestly answer both')
+    source_series_identifier: str | None = Field(validation_alias=AliasChoices('source_series_identifier', 'sourceSeriesIdentifier'), serialization_alias='sourceSeriesIdentifier', default=None, description='Filter to the datasets converted from one series of a file. Pair it with `sourceFile`; alone it matches that series identifier in any file')
+    has_default_scene: bool | None = Field(validation_alias=AliasChoices('has_default_scene', 'hasDefaultScene'), serialization_alias='hasDefaultScene', default=None, description='Filter by whether the dataset nominates a scene to open. False finds the ones with no thumbnail -- what `backfill_default_scenes` could not seed, and the work remaining before that command can be deleted')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class AxisAnchorInput(BaseModel):
     """Input type for an axis anchor, which pins one axis to one discrete position"""
     axis: str
     value: int
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class AxisInput(AxisInputTrait, BaseModel):
     """Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge"""
     name: str
     type: AxisType
-    long_name: Optional[str] = Field(alias='longName', default=None)
-    description: Optional[str] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    long_name: str | None = Field(validation_alias=AliasChoices('long_name', 'longName'), serialization_alias='longName', default=None)
+    description: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class AxisPositionInput(BaseModel):
+    """One position along one named axis: which slice of a matrix a colouring reads. The same pair a coordinate anchor carries -- it *names* a position rather than enumerating them, which is what lets a matrix with 19 059 features be selected from at all"""
+    axis: str
+    value: int
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class BeamStateInput(BaseModel):
     """State of the optical beam on a particular path segment."""
-    wavelength: Optional[Length] = None
-    power: Optional[Power] = None
-    polarization: Optional[str] = None
-    mode_hint: Optional[str] = Field(alias='modeHint', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    wavelength: Length | None = None
+    power: Power | None = None
+    polarization: str | None = None
+    mode_hint: str | None = Field(validation_alias=AliasChoices('mode_hint', 'modeHint'), serialization_alias='modeHint', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class BoundingBoxInput(BaseModel):
     """An axis-aligned box as a min and a max corner, in the coordinate order of the frame it is asked in"""
-    min: Tuple[float, ...]
-    max: Tuple[float, ...]
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    min: tuple[float, ...]
+    max: tuple[float, ...]
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CameraStateInput(BaseModel):
     """Where a viewer's camera is in a scene, and how it is looking at it. Give the flat view, the volumetric view, or both -- one pose serves either, and `Scene.preferredView` picks which a viewer opens. Every number is read against the scene's world coordinate system, whose axes carry the units, so they are bare numbers here"""
     position: Any = Field(description="Where the camera is centred, keyed by the world's axis names. Keyed rather than a positional list because the world's axes are named and a tour through a timelapse moves in t as much as in z -- a list would silently depend on axis order. Axes the pose does not name are left wherever the viewer already had them.")
-    cross_section_orientation: Optional[Tuple[float, ...]] = Field(alias='crossSectionOrientation', default=None, description="The flat view's orientation, as a quaternion. Null to leave it to the viewer.")
-    cross_section_scale: Optional[float] = Field(alias='crossSectionScale', default=None, description="The flat view's zoom, in world units per screen pixel. Null to leave it to the viewer.")
-    projection_orientation: Optional[Tuple[float, ...]] = Field(alias='projectionOrientation', default=None, description="The volumetric view's orientation, as a quaternion. Null to leave it to the viewer.")
-    projection_scale: Optional[float] = Field(alias='projectionScale', default=None, description="The volumetric view's zoom, in world units per screen pixel. Null to leave it to the viewer.")
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    cross_section_orientation: tuple[float, ...] | None = Field(validation_alias=AliasChoices('cross_section_orientation', 'crossSectionOrientation'), serialization_alias='crossSectionOrientation', default=None, description="The flat view's orientation, as a quaternion. Null to leave it to the viewer.")
+    cross_section_scale: float | None = Field(validation_alias=AliasChoices('cross_section_scale', 'crossSectionScale'), serialization_alias='crossSectionScale', default=None, description="The flat view's zoom, in world units per screen pixel. Null to leave it to the viewer.")
+    projection_orientation: tuple[float, ...] | None = Field(validation_alias=AliasChoices('projection_orientation', 'projectionOrientation'), serialization_alias='projectionOrientation', default=None, description="The volumetric view's orientation, as a quaternion. Null to leave it to the viewer.")
+    projection_scale: float | None = Field(validation_alias=AliasChoices('projection_scale', 'projectionScale'), serialization_alias='projectionScale', default=None, description="The volumetric view's zoom, in world units per screen pixel. Null to leave it to the viewer.")
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ChangeFolderInput(BaseModel):
     """Input for changing an existing folder's name or parent"""
     name: str = Field(description='The name of the folder')
-    parent: Optional[ID] = Field(default=None, description='The ID of the parent folder to nest this folder under')
+    parent: ID | None = Field(default=None, description='The ID of the parent folder to nest this folder under')
     id: ID = Field(description='The ID of the folder to change')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ClearCoordinateSystemInput(BaseModel):
     """Input for clearing a shared coordinate system: delete every registration INTO it in one call, keeping the space, its scenes, and its own claims into wider spaces"""
     id: ID = Field(description='The ID of the shared coordinate system to clear')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ClearSceneInput(BaseModel):
     """Input for clearing a scene: delete every layer, keep the scene and everything it composes over"""
     id: ID = Field(description='The ID of the scene to clear')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class ColumnInput(BaseModel):
+    """One column of the table. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A COORDINATE column is an axis and is declared in `axes` as well, which is where its type and its identification live"""
+    name: str
+    dtype: str | None = None
+    role: ColumnRole | None = None
+    unit: Unit | None = None
+    long_name: str | None = Field(validation_alias=AliasChoices('long_name', 'longName'), serialization_alias='longName', default=None)
+    description: str | None = None
+    references: ID | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class ColumnOptionFilter(BaseModel):
+    """No documentation"""
+    search: str | None = Field(default=None, description="Case-insensitive substring, matched against the column's name, its `longName` and the name of the table it lives in. The same `icontains` the list queries' `search` uses")
+    controls: tuple[ColumnControl, ...] | None = Field(default=None, description='Keep only the options admitting these controls: MEASURE for the ones taking a colormap and a range, CATEGORICAL for the ones taking a value set')
+    roles: tuple[ColumnRole, ...] | None = Field(default=None, description='Keep only the options whose column declares one of these roles. Finer than `controls`, which groups the roles into the two the pickers actually branch on')
+    table: ID | None = Field(default=None, description='Keep only the options whose value is **read from** this table -- the terminal one, not a table the `joinPath` passes through on the way. An option hopping from A into B is kept by `table: B` and dropped by `table: A`')
+    direct_only: bool | None = Field(validation_alias=AliasChoices('direct_only', 'directOnly'), serialization_alias='directOnly', default=None, description="Keep only the options whose `joinPath` is empty -- the columns of the tables the collection's ids key directly, with no `references` hop")
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CoordinateAnchorInput(CoordinateAnchorInputTrait, BaseModel):
     """Input type for a coordinate anchor, which specifies a list of dimension anchors to anchor to"""
-    axis_anchors: Tuple[AxisAnchorInput, ...] = Field(alias='axisAnchors')
-    microscope: Optional['OptikitStateInput'] = None
-    ome_metadata: Optional['OmeMetadataInput'] = Field(alias='omeMetadata', default=None)
-    value_histogram: Optional['ValueHistogramInput'] = Field(alias='valueHistogram', default=None)
-    label: Optional['LabelInput'] = None
-    light_graph: Optional['LightpathGraphInput'] = Field(alias='lightGraph', default=None)
-    phasor_histogram: Optional['PhasorHistogramInput'] = Field(alias='phasorHistogram', default=None)
-    phasor_calibration: Optional['PhasorCalibrationInput'] = Field(alias='phasorCalibration', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    axis_anchors: tuple[AxisAnchorInput, ...] = Field(validation_alias=AliasChoices('axis_anchors', 'axisAnchors'), serialization_alias='axisAnchors')
+    microscope: 'OptikitStateInput | None' = None
+    ome_metadata: 'OmeMetadataInput | None' = Field(validation_alias=AliasChoices('ome_metadata', 'omeMetadata'), serialization_alias='omeMetadata', default=None)
+    value_histogram: 'ValueHistogramInput | None' = Field(validation_alias=AliasChoices('value_histogram', 'valueHistogram'), serialization_alias='valueHistogram', default=None)
+    label: 'LabelInput | None' = None
+    light_graph: 'LightpathGraphInput | None' = Field(validation_alias=AliasChoices('light_graph', 'lightGraph'), serialization_alias='lightGraph', default=None)
+    phasor_histogram: 'PhasorHistogramInput | None' = Field(validation_alias=AliasChoices('phasor_histogram', 'phasorHistogram'), serialization_alias='phasorHistogram', default=None)
+    phasor_calibration: 'PhasorCalibrationInput | None' = Field(validation_alias=AliasChoices('phasor_calibration', 'phasorCalibration'), serialization_alias='phasorCalibration', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CoordinateInput(BaseModel):
     """A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel"""
     name: str
     value: int
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CoordinateSystemFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
-    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
-    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
-    id: Optional[ID] = None
-    name: Optional['StrFilterLookup'] = None
-    and_: Optional['CoordinateSystemFilter'] = Field(alias='AND', default=None)
-    or_: Optional['CoordinateSystemFilter'] = Field(alias='OR', default=None)
-    not_: Optional['CoordinateSystemFilter'] = Field(alias='NOT', default=None)
-    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    uninhabited: Optional[bool] = Field(default=None, description='Filter to the spaces nothing lives in: pure reference frames, the worlds and atlases sources are registered into. False finds the spaces some data actually occupies')
-    dataset: Optional[ID] = Field(default=None, description="Filter to the spaces this dataset's data lives in: its own grid, and the grids of its pyramid levels and lenses")
-    scene: Optional[ID] = Field(default=None, description='Filter by a scene composing over this system as its world')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    search: str | None = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    id: ID | None = None
+    name: 'StrFilterLookup | None' = None
+    and_: 'CoordinateSystemFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'CoordinateSystemFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'CoordinateSystemFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    uninhabited: bool | None = Field(default=None, description='Filter to the spaces nothing lives in: pure reference frames, the worlds and atlases sources are registered into. False finds the spaces some data actually occupies')
+    dataset: ID | None = Field(default=None, description="Filter to the spaces this dataset's data lives in: its own grid, and the grids of its pyramid levels and lenses")
+    scene: ID | None = Field(default=None, description='Filter by a scene composing over this system as its world')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateAnimationInput(BaseModel):
     """Input for creating a named camera tour of a scene. The waypoints are given in tour order and that order is what is stored -- a tour is authored as a whole, never a stop at a time"""
     scene: ID = Field(description='The ID of the scene this tour flies through')
     name: str = Field(description='The name of the tour')
-    description: Optional[str] = Field(default=None, description='What the tour shows')
-    waypoints: Tuple[AnimationWaypointInput, ...] = Field(description='The poses the viewer pans through, in tour order')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    description: str | None = Field(default=None, description='What the tour shows')
+    waypoints: tuple[AnimationWaypointInput, ...] = Field(description='The poses the viewer pans through, in tour order')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateAnnotationCollectionInput(BaseModel):
     """Input for creating an annotation collection. The collection gets a coordinate system of its own, and an edge relates it to the space the shapes are drawn over"""
     name: str
-    description: Optional[str] = None
-    axes: Tuple[AxisInput, ...]
-    folder: Optional[ID] = None
-    derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
-    source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    description: str | None = None
+    axes: tuple[AxisInput, ...]
+    folder: ID | None = None
+    derived_from: tuple['DerivedFromInput', ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
+    source_files: tuple['SourceFileInput', ...] | None = Field(validation_alias=AliasChoices('source_files', 'sourceFiles'), serialization_alias='sourceFiles', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateAnnotationInput(BaseModel):
     """Input for drawing an annotation. Provide exactly one of `collection` (append to it) or `scene` (draw on the scene: its annotation collection is found, or minted on first use together with its coordinate system, its registration into the world, and its layer)"""
     kind: AnnotationKind
-    vectors: Tuple[ThreeDVector, ...]
-    stroke_color: Optional[Tuple[int, ...]] = Field(alias='strokeColor', default=None)
-    fill_color: Optional[Tuple[int, ...]] = Field(alias='fillColor', default=None)
-    collection: Optional[ID] = None
-    scene: Optional[ID] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    coordinates: Optional[Tuple[CoordinateInput, ...]] = None
-    stroke_width: Optional[float] = Field(alias='strokeWidth', default=None)
-    filled: Optional[bool] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    vectors: tuple[ThreeDVector, ...]
+    stroke_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('stroke_color', 'strokeColor'), serialization_alias='strokeColor', default=None)
+    fill_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('fill_color', 'fillColor'), serialization_alias='fillColor', default=None)
+    collection: ID | None = None
+    scene: ID | None = None
+    name: str | None = None
+    description: str | None = None
+    coordinates: tuple[CoordinateInput, ...] | None = None
+    stroke_width: float | None = Field(validation_alias=AliasChoices('stroke_width', 'strokeWidth'), serialization_alias='strokeWidth', default=None)
+    filled: bool | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateAnnotationsInput(BaseModel):
     """Input for drawing many annotations in one call. Provide exactly one of `collection` or `scene` (same semantics as createAnnotation); the transform chain and version resolve once for the whole batch"""
-    collection: Optional[ID] = None
-    scene: Optional[ID] = None
-    annotations: Tuple[AnnotationSpecInput, ...]
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    collection: ID | None = None
+    scene: ID | None = None
+    annotations: tuple[AnnotationSpecInput, ...]
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateArrayDatasetInput(CreateADatasetTrait, BaseModel):
     """Input type for creating an array dataset. Its axes are structural (name and kind); physical units, if known, arrive afterwards through createCoordinateSystem with a registrations entry naming the dataset"""
     data: ArrayLike
-    scales: Tuple['ScaleInput', ...]
+    scales: tuple['ScaleInput', ...]
     name: str
-    axes: Tuple[AxisInput, ...]
-    folder: Optional[ID] = None
-    anchors: Optional[Tuple[CoordinateAnchorInput, ...]] = None
-    derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
-    source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    axes: tuple[AxisInput, ...]
+    folder: ID | None = None
+    anchors: tuple[CoordinateAnchorInput, ...] | None = None
+    derived_from: tuple['DerivedFromInput', ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
+    source_files: tuple['SourceFileInput', ...] | None = Field(validation_alias=AliasChoices('source_files', 'sourceFiles'), serialization_alias='sourceFiles', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateCoordinateSystemInput(BaseModel):
     """Create a SHARED coordinate system -- a reference space with no owner, e.g. a world or an atlas -- and, in the same call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it. Every other system is owned by a container and created with it, so a shared space is the only system created directly. createSceneFromCoordinateSystem later builds a scene over it and materializes those sources as layers"""
     name: str
-    axes: Tuple['PhysicalAxisInput', ...]
-    epoch: Optional[datetime] = None
-    registrations: Annotated[Optional[Tuple['RegistrationPathInput', ...]], GraphQLDefault('[]')] = None
+    axes: tuple['PhysicalAxisInput', ...]
+    epoch: datetime | None = None
+    registrations: Annotated[tuple['RegistrationPathInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateFolderInput(BaseModel):
     """Input for creating a new folder to organize images and files"""
     name: str = Field(description='The name of the folder')
-    parent: Optional[ID] = Field(default=None, description='The ID of the parent folder to nest this folder under')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    parent: ID | None = Field(default=None, description='The ID of the parent folder to nest this folder under')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateLabelLayerInput(BaseModel):
     """Create a label layer that renders an instance / segmentation map: an array whose values are discrete object ids"""
     lens: ID
     scene: ID
-    render: Optional['LabelRenderInput'] = None
-    opacity: Optional[float] = None
-    visible: Optional[bool] = None
-    order: Optional[int] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    render: 'LabelRenderInput | None' = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateLayerInput(BaseModel):
     """Input type for creating an image from an array-like object"""
     lens: ID
     scene: ID
-    blending: Optional[Blending] = None
-    opacity: Optional[float] = None
-    visible: Optional[bool] = None
-    order: Optional[int] = None
-    render_graph: 'LayerRenderGraphInput' = Field(alias='renderGraph')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    blending: Blending | None = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
+    render_graph: 'LayerRenderGraphInput' = Field(validation_alias=AliasChoices('render_graph', 'renderGraph'), serialization_alias='renderGraph')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateLensInput(BaseModel):
     """Input type for creating an image from an array-like object"""
     dataset: ID
-    slices: Tuple['SliceInput', ...]
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    slices: tuple['SliceInput', ...]
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateMeshCollectionInput(BaseModel):
     """Input for registering an immutable, versioned mesh collection. The collection gets a coordinate system of its own, and an edge relates it to the space the meshes were extracted from"""
     version: str
     store: FabriksLike
-    axes: Tuple[AxisInput, ...]
-    folder: Optional[ID] = None
-    derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
-    source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
-    provenance_metadata: Optional[Any] = Field(alias='provenanceMetadata', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    axes: tuple[AxisInput, ...]
+    folder: ID | None = None
+    derived_from: tuple['DerivedFromInput', ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
+    source_files: tuple['SourceFileInput', ...] | None = Field(validation_alias=AliasChoices('source_files', 'sourceFiles'), serialization_alias='sourceFiles', default=None)
+    provenance_metadata: Any | None = Field(validation_alias=AliasChoices('provenance_metadata', 'provenanceMetadata'), serialization_alias='provenanceMetadata', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateMeshLayerInput(BaseModel):
     """Create a layer that renders a mesh collection (surface reconstructions / isosurfaces) in a scene. The collection's own coordinate system is the layer's space, so it must already have a path to the scene's world"""
     scene: ID
-    mesh_collection: ID = Field(alias='meshCollection')
-    material_color: Optional[Tuple[int, ...]] = Field(alias='materialColor', default=None)
-    wireframe: Optional[bool] = None
-    color_by: Optional['MeshColorByInput'] = Field(alias='colorBy', default=None)
-    blending: Optional[Blending] = None
-    opacity: Optional[float] = None
-    visible: Optional[bool] = None
-    order: Optional[int] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    mesh_collection: ID = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection')
+    material_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('material_color', 'materialColor'), serialization_alias='materialColor', default=None)
+    wireframe: bool | None = None
+    shading: MeshShading | None = None
+    max_level: int | None = Field(validation_alias=AliasChoices('max_level', 'maxLevel'), serialization_alias='maxLevel', default=None)
+    color_bys: tuple['MeshColorByInput', ...] | None = Field(validation_alias=AliasChoices('color_bys', 'colorBys'), serialization_alias='colorBys', default=None)
+    active_color_by: int | None = Field(validation_alias=AliasChoices('active_color_by', 'activeColorBy'), serialization_alias='activeColorBy', default=None)
+    filter_bys: tuple['MeshFilterByInput', ...] | None = Field(validation_alias=AliasChoices('filter_bys', 'filterBys'), serialization_alias='filterBys', default=None)
+    active_filter_bys: tuple[int, ...] | None = Field(validation_alias=AliasChoices('active_filter_bys', 'activeFilterBys'), serialization_alias='activeFilterBys', default=None)
+    blending: Blending | None = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreatePhasorCalibrationInput(BaseModel):
     """Attach an instrument-response correction to a dataset, taking a raw phasor to a calibrated one. Measured once per detector from a reference acquisition. Its absence is legitimate: an uncalibrated phasor still renders, its hue is just not traceable to an absolute lifetime"""
     axis: str = Field(description='The axis the correction applies to')
-    harmonic: Optional[int] = Field(default=None, description='The harmonic the correction applies at')
-    phase_offset: Optional[float] = Field(alias='phaseOffset', default=None, description='The phase correction in radians')
-    modulation_factor: Optional[float] = Field(alias='modulationFactor', default=None, description='The modulation correction')
-    reference: Optional[str] = Field(default=None, description='What the correction was measured against')
+    harmonic: int | None = Field(default=None, description='The harmonic the correction applies at')
+    phase_offset: float | None = Field(validation_alias=AliasChoices('phase_offset', 'phaseOffset'), serialization_alias='phaseOffset', default=None, description='The phase correction in radians')
+    modulation_factor: float | None = Field(validation_alias=AliasChoices('modulation_factor', 'modulationFactor'), serialization_alias='modulationFactor', default=None, description='The modulation correction')
+    reference: str | None = Field(default=None, description='What the correction was measured against')
     dataset: ID = Field(description='The ID of the dataset the correction applies to')
-    axis_anchors: Optional[Tuple[AxisAnchorInput, ...]] = Field(alias='axisAnchors', default=None, description='The coordinates the correction is pinned to')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    axis_anchors: tuple[AxisAnchorInput, ...] | None = Field(validation_alias=AliasChoices('axis_anchors', 'axisAnchors'), serialization_alias='axisAnchors', default=None, description='The coordinates the correction is pinned to')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreatePhasorHistogramInput(BaseModel):
     """Attach a phasor distribution to a dataset: the 2D (g, s) density of a phasor taken over one axis at one harmonic. Computed after ingest by a task that reads the cube; recomputing at the same harmonic replaces it, while a second harmonic lands beside the first"""
     axis: str = Field(description='The axis the phasor was taken over')
-    counts: Tuple[float, ...] = Field(description='The flattened bins x bins density')
-    harmonic: Optional[int] = Field(default=None, description='The harmonic the phasor was taken at')
-    bins: Optional[int] = Field(default=None, description='The resolution of the square (g, s) density grid')
-    g_min: Optional[float] = Field(alias='gMin', default=None)
-    g_max: Optional[float] = Field(alias='gMax', default=None)
-    s_min: Optional[float] = Field(alias='sMin', default=None)
-    s_max: Optional[float] = Field(alias='sMax', default=None)
-    total: Optional[int] = None
-    calibrated: Optional[bool] = None
-    profile: Optional[Tuple[float, ...]] = None
+    counts: tuple[float, ...] = Field(description='The flattened bins x bins density')
+    harmonic: int | None = Field(default=None, description='The harmonic the phasor was taken at')
+    bins: int | None = Field(default=None, description='The resolution of the square (g, s) density grid')
+    g_min: float | None = Field(validation_alias=AliasChoices('g_min', 'gMin'), serialization_alias='gMin', default=None)
+    g_max: float | None = Field(validation_alias=AliasChoices('g_max', 'gMax'), serialization_alias='gMax', default=None)
+    s_min: float | None = Field(validation_alias=AliasChoices('s_min', 'sMin'), serialization_alias='sMin', default=None)
+    s_max: float | None = Field(validation_alias=AliasChoices('s_max', 'sMax'), serialization_alias='sMax', default=None)
+    total: int | None = None
+    calibrated: bool | None = None
+    profile: tuple[float, ...] | None = None
     dataset: ID = Field(description='The ID of the dataset the phasor was computed from')
-    axis_anchors: Optional[Tuple[AxisAnchorInput, ...]] = Field(alias='axisAnchors', default=None, description='The coordinates the distribution is pinned to')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    axis_anchors: tuple[AxisAnchorInput, ...] | None = Field(validation_alias=AliasChoices('axis_anchors', 'axisAnchors'), serialization_alias='axisAnchors', default=None, description='The coordinates the distribution is pinned to')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreatePhasorLayerInput(BaseModel):
     """Create a layer that reduces one axis of a lens to a phasor and colors each pixel by it -- a lifetime overlay over a FLIM cube, or a spectral one over a hyperspectral cube"""
     lens: ID
     scene: ID
-    phasor_axis: Optional[str] = Field(alias='phasorAxis', default=None)
-    intensity_axis: Optional[str] = Field(alias='intensityAxis', default=None)
-    intensity_index: Annotated[Optional[int], GraphQLDefault('0')] = Field(alias='intensityIndex', default=None)
+    phasor_axis: str | None = Field(validation_alias=AliasChoices('phasor_axis', 'phasorAxis'), serialization_alias='phasorAxis', default=None)
+    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None)
+    intensity_index: Annotated[int | None, GraphQLDefault('0')] = Field(validation_alias=AliasChoices('intensity_index', 'intensityIndex'), serialization_alias='intensityIndex', default=None)
     'Default: 0'
-    harmonic: Optional[int] = None
-    transfer: Optional['PhasorTransferInput'] = None
-    blending: Optional[Blending] = None
-    opacity: Optional[float] = None
-    visible: Optional[bool] = None
-    order: Optional[int] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    harmonic: int | None = None
+    transfer: 'PhasorTransferInput | None' = None
+    blending: Blending | None = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreatePointLayerInput(BaseModel):
+    """Create a layer that renders a point cloud (e.g. SMLM localisations, centroids) from a table dataset"""
+    scene: ID
+    table_dataset: ID = Field(validation_alias=AliasChoices('table_dataset', 'tableDataset'), serialization_alias='tableDataset')
+    color_bys: tuple['LabelColorByInput', ...] | None = Field(validation_alias=AliasChoices('color_bys', 'colorBys'), serialization_alias='colorBys', default=None)
+    active_color_by: int | None = Field(validation_alias=AliasChoices('active_color_by', 'activeColorBy'), serialization_alias='activeColorBy', default=None)
+    filter_bys: tuple['LabelFilterByInput', ...] | None = Field(validation_alias=AliasChoices('filter_bys', 'filterBys'), serialization_alias='filterBys', default=None)
+    active_filter_bys: tuple[int, ...] | None = Field(validation_alias=AliasChoices('active_filter_bys', 'activeFilterBys'), serialization_alias='activeFilterBys', default=None)
+    size_column: str | None = Field(validation_alias=AliasChoices('size_column', 'sizeColumn'), serialization_alias='sizeColumn', default=None)
+    color_column: str | None = Field(validation_alias=AliasChoices('color_column', 'colorColumn'), serialization_alias='colorColumn', default=None)
+    point_size: float | None = Field(validation_alias=AliasChoices('point_size', 'pointSize'), serialization_alias='pointSize', default=None)
+    colormap: ColorMap | None = None
+    blending: Blending | None = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateSceneFromCoordinateSystemInput(BaseModel):
     """Bootstrap a renderable scene over an existing coordinate system. Over an ownerless SHARED space the sources already registered into it become layers, up to the policy's nchildren -- each source's path to world is the one registration createCoordinateSystem authored. Over an owned system (a dataset's intrinsic pixels, a physical space, a collection's space) the container's own data becomes the layer: it is in its own space by construction, so no edge exists or is authored. Rerunning makes another scene over the same space, which outlives them all"""
-    coordinate_system: ID = Field(alias='coordinateSystem')
-    name: Optional[str] = None
-    policy: Annotated[Optional['ScenePolicyInput'], GraphQLDefault("{'nchildren': 8, 'transformTables': False, 'includeMeshes': True, 'kind': None}")] = None
+    coordinate_system: ID = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem')
+    name: str | None = None
+    policy: Annotated['ScenePolicyInput | None', GraphQLDefault("{'nchildren': 8, 'transformTables': False, 'includeMeshes': True, 'kind': None}")] = None
     "Default: {'nchildren': 8, 'transformTables': False, 'includeMeshes': True, 'kind': None}"
-    default_for: Optional[Tuple[ID, ...]] = Field(alias='defaultFor', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    default_for: tuple[ID, ...] | None = Field(validation_alias=AliasChoices('default_for', 'defaultFor'), serialization_alias='defaultFor', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateSceneInput(BaseModel):
     """Input type for creating a scene over a world coordinate system: an adopted existing system (a shared space, a dataset's intrinsic grid, a physical space), or one created for it"""
     name: str
-    blending: Optional[Blending] = None
-    preferred_view: Optional[PreferredView] = Field(alias='preferredView', default=None)
-    background_color: Optional[Tuple[float, ...]] = Field(alias='backgroundColor', default=None)
-    axes: Optional[Tuple['PhysicalAxisInput', ...]] = None
-    epoch: Optional[datetime] = None
-    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None)
-    default_for: Optional[Tuple[ID, ...]] = Field(alias='defaultFor', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    blending: Blending | None = None
+    preferred_view: PreferredView | None = Field(validation_alias=AliasChoices('preferred_view', 'preferredView'), serialization_alias='preferredView', default=None)
+    background_color: tuple[float, ...] | None = Field(validation_alias=AliasChoices('background_color', 'backgroundColor'), serialization_alias='backgroundColor', default=None)
+    axes: tuple['PhysicalAxisInput', ...] | None = None
+    epoch: datetime | None = None
+    coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None)
+    default_for: tuple[ID, ...] | None = Field(validation_alias=AliasChoices('default_for', 'defaultFor'), serialization_alias='defaultFor', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
-class CreateTableDatasetInput(BaseModel):
+class CreateSparseDatasetInput(CreateSparseDatasetTrait, BaseModel):
+    """Create a sparse dataset from one uploaded sparse store, which holds the matrix in one or more layouts. A sparse matrix is a grid of numbers with no row labels and no column labels, so **every axis says what its positions are** through its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows they are. Carried on the axis, identified-exactly-once is a property of this input rather than a rule the server enforces. Nothing about the matrix itself is declared: the spec, shape, each layout's encoding and its chunking were read from the store when its upload was finished, and are checked against these axes rather than taken from them"""
+    name: str
+    store: SporadikLike
+    axes: Annotated[tuple['SparseAxisInput', ...] | None, GraphQLDefault('[]')] = None
+    'Default: []'
+    description: str | None = None
+    folder: ID | None = None
+    derived_from: tuple['DerivedFromInput', ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
+    source_files: tuple['SourceFileInput', ...] | None = Field(validation_alias=AliasChoices('source_files', 'sourceFiles'), serialization_alias='sourceFiles', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateTableDatasetInput(CreateTableDatasetTrait, BaseModel):
     """Input for creating a table dataset from a Parquet store. Its coordinate columns become the axes of a coordinate system it owns; declare no coordinate columns for a pure measurement table (its rows enumerate objects and its lineage edge is UNMAPPABLE)"""
     name: str
     data: ParquetLike
-    columns: Annotated[Optional[Tuple['TableColumnInput', ...]], GraphQLDefault('[]')] = None
+    columns: Annotated[tuple[ColumnInput, ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    description: Optional[str] = None
-    folder: Optional[ID] = None
-    derived_from: Optional[Tuple['DerivedFromInput', ...]] = Field(alias='derivedFrom', default=None)
-    source_files: Optional[Tuple['SourceFileInput', ...]] = Field(alias='sourceFiles', default=None)
-    keyed_by: Optional[Tuple['KeyedByInput', ...]] = Field(alias='keyedBy', default=None)
-    validate_schema: Annotated[Optional[bool], GraphQLDefault('False')] = Field(alias='validateSchema', default=None)
-    'Default: False'
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    axes: Annotated[tuple['TableAxisInput', ...] | None, GraphQLDefault('[]')] = None
+    'Default: []'
+    description: str | None = None
+    folder: ID | None = None
+    derived_from: tuple['DerivedFromInput', ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
+    source_files: tuple['SourceFileInput', ...] | None = Field(validation_alias=AliasChoices('source_files', 'sourceFiles'), serialization_alias='sourceFiles', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateTransformationInput(BaseModel):
     """Input for creating one edge of the coordinate graph, mapping an input coordinate system to an output one"""
     input: ID
     output: ID
     transform: 'TransformInput'
-    name: Optional[str] = None
-    validity: Optional[PlacementValidity] = None
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    name: str | None = None
+    validity: PlacementValidity | None = None
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
+    selector: 'SelectorInput | None' = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteAnimationInput(BaseModel):
     """Input for deleting a camera tour by ID"""
     id: ID = Field(description='The ID of the tour to delete')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteAnnotationCollectionInput(BaseModel):
     """Input for deleting an annotation collection by ID"""
     id: ID = Field(description='The ID of the annotation collection to delete')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteAnnotationInput(BaseModel):
     """Input for deleting an annotation by ID"""
     id: ID
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteCoordinateSystemInput(BaseModel):
     """Input for deleting a shared coordinate system by ID"""
     id: ID = Field(description='The ID of the shared coordinate system to delete')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteMeshCollectionInput(BaseModel):
     """Input for deleting a mesh collection by ID"""
     id: ID = Field(description='The ID of the mesh collection to delete')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteRegistrationInput(BaseModel):
     """Input for un-registering a source from a shared space by naming the source and the space, not the edge. Provide exactly one source -- the same selector registering it took"""
-    dataset: Optional[ID] = None
-    table_dataset: Optional[ID] = Field(alias='tableDataset', default=None)
-    mesh_collection: Optional[ID] = Field(alias='meshCollection', default=None)
-    annotation_collection: Optional[ID] = Field(alias='annotationCollection', default=None)
-    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None)
+    dataset: ID | None = None
+    table_dataset: ID | None = Field(validation_alias=AliasChoices('table_dataset', 'tableDataset'), serialization_alias='tableDataset', default=None)
+    mesh_collection: ID | None = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection', default=None)
+    annotation_collection: ID | None = Field(validation_alias=AliasChoices('annotation_collection', 'annotationCollection'), serialization_alias='annotationCollection', default=None)
+    coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None)
     world: ID = Field(description='The shared space the registration goes into')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteSceneInput(BaseModel):
     """Input for deleting a scene by ID"""
     id: ID = Field(description='The ID of the scene to delete')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteSceneSnapshotInput(BaseModel):
     """Input for deleting a lens snapshot by ID"""
     id: ID = Field(description='The ID of the snapshot to delete')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class DeleteSparseDatasetInput(BaseModel):
+    """Input for deleting a sparse dataset by ID"""
+    id: ID = Field(description='The ID of the sparse dataset to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteTableDatasetInput(BaseModel):
     """Input for deleting a table dataset by ID"""
     id: ID = Field(description='The ID of the table dataset to delete')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteTransformationInput(BaseModel):
     """Input for deleting a transformation by ID"""
     id: ID = Field(description='The ID of the transformation to delete')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
-DerivedFromInput = Annotated[Union[AnnotationCollectionDerivedFromInput, CoordinateSystemDerivedFromInput, DatasetDerivedFromInput, LensDerivedFromInput, MeshCollectionDerivedFromInput, TableDatasetDerivedFromInput], Field(discriminator='kind')]
+    model_config = ConfigDict(frozen=True, extra='forbid')
+DerivedFromInput = Annotated[AnnotationCollectionDerivedFromInput | CoordinateSystemDerivedFromInput | DatasetDerivedFromInput | LensDerivedFromInput | MeshCollectionDerivedFromInput | TableDatasetDerivedFromInput, Field(discriminator='kind')]
 
 class DeviceStateInput(BaseModel):
     """One hardware device's recorded state: its identity in the setup plus its settings at this coordinate"""
     label: str = Field(description="The device's identity in the setup, e.g. 'filter-wheel-1'")
-    kind: Optional[str] = Field(default=None, description="A free-form device kind, e.g. 'laser', 'filter-wheel'")
-    settings: Annotated[Optional[Tuple['SettingInput', ...]], GraphQLDefault('[]')] = None
+    kind: str | None = Field(default=None, description="A free-form device kind, e.g. 'laser', 'filter-wheel'")
+    settings: Annotated[tuple['SettingInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class EulerInput(BaseModel):
     """Euler angles representing rotation in 3D space."""
-    rx: Optional[float] = None
-    ry: Optional[float] = None
-    rz: Optional[float] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
-ExportOfInput = Annotated[Union[AnnotationCollectionExportOfInput, DatasetExportOfInput, MeshCollectionExportOfInput, TableDatasetExportOfInput], Field(discriminator='kind')]
+    rx: float | None = None
+    ry: float | None = None
+    rz: float | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+ExportOfInput = Annotated[AnnotationCollectionExportOfInput | DatasetExportOfInput | MeshCollectionExportOfInput | TableDatasetExportOfInput, Field(discriminator='kind')]
 
 class FinishBigFileUploadInput(BaseModel):
     """No documentation"""
-    store_id: str = Field(alias='storeId')
-    valid: Annotated[Optional[bool], GraphQLDefault('True')] = None
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    valid: Annotated[bool | None, GraphQLDefault('True')] = None
     'Default: True'
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class FinishFabriksUploadInput(BaseModel):
     """No documentation"""
-    store_id: str = Field(alias='storeId')
-    valid: Annotated[Optional[bool], GraphQLDefault('True')] = None
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    valid: Annotated[bool | None, GraphQLDefault('True')] = None
     'Default: True'
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class FinishMediaUploadInput(BaseModel):
     """No documentation"""
-    store_id: str = Field(alias='storeId')
-    valid: Annotated[Optional[bool], GraphQLDefault('True')] = None
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    valid: Annotated[bool | None, GraphQLDefault('True')] = None
     'Default: True'
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class FinishParquetUploadInput(BaseModel):
     """No documentation"""
-    store_id: str = Field(alias='storeId')
-    valid: Annotated[Optional[bool], GraphQLDefault('True')] = None
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    valid: Annotated[bool | None, GraphQLDefault('True')] = None
     'Default: True'
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class FinishSparseUploadInput(BaseModel):
+    """No documentation"""
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    valid: Annotated[bool | None, GraphQLDefault('True')] = None
+    'Default: True'
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class FinishZarrUploadInput(BaseModel):
     """No documentation"""
-    store_id: str = Field(alias='storeId')
-    valid: Annotated[Optional[bool], GraphQLDefault('True')] = None
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    valid: Annotated[bool | None, GraphQLDefault('True')] = None
     'Default: True'
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class FromFileLike(BaseModel):
     """Input for creating a file record from an uploaded big-file store"""
     file: FileLike = Field(description='The uploaded big-file store to create the file from')
-    file_name: str = Field(alias='fileName', description='The name of the file')
-    folder: Optional[ID] = Field(default=None, description='The ID of the folder to put the file in (defaults to the current default folder)')
-    export_of: Optional[Tuple[ExportOfInput, ...]] = Field(alias='exportOf', default=None, description='The containers this file was written from')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
-KeyedByInput = Annotated[Union[DatasetKeyedByInput, MeshCollectionKeyedByInput], Field(discriminator='kind')]
+    file_name: str = Field(validation_alias=AliasChoices('file_name', 'fileName'), serialization_alias='fileName', description='The name of the file')
+    folder: ID | None = Field(default=None, description='The ID of the folder to put the file in (defaults to the current default folder)')
+    export_of: tuple[ExportOfInput, ...] | None = Field(validation_alias=AliasChoices('export_of', 'exportOf'), serialization_alias='exportOf', default=None, description='The containers this file was written from')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+IdentificationInput = Annotated[DatasetIdentifiesInput | MeshCollectionIdentifiesInput | TableIdentifiesInput, Field(discriminator='kind')]
 
-class LabelColorByInput(BaseModel):
-    """Color objects by a column of the table this mask's FIELD edge keys into, instead of by hashing their id"""
+class JoinStepInput(BaseModel):
+    """One hop of a join path: the column whose values identify rows of the next table. The target is not named here -- the next step names it, and which of its columns holds row identity is already declared on it"""
     table: ID
     column: str
-    colormap: Optional[ColorMap] = None
-    class_colors: Optional[Any] = Field(alias='classColors', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+LabelColorByInput = Annotated[ColumnColorByInput | SparseColorByInput, Field(discriminator='kind')]
+
+class LabelFilterByInput(BaseModel):
+    """One entry of a label layer's filter picker: draw only the objects whose row in a table this mask's FIELD edge keys into satisfies this rule. Which half applies follows from the column's declared role -- bounds for a measure column, an explicit value set for a categorical one"""
+    kind: Annotated[ColorSourceKind | None, GraphQLDefault('COLUMN')] = None
+    'Default: COLUMN'
+    table: ID | None = None
+    column: str | None = None
+    join_path: Annotated[tuple[JoinStepInput, ...] | None, GraphQLDefault('[]')] = Field(validation_alias=AliasChoices('join_path', 'joinPath'), serialization_alias='joinPath', default=None)
+    'Default: []'
+    dataset: ID | None = None
+    at: Annotated[tuple[AxisPositionInput, ...] | None, GraphQLDefault('[]')] = None
+    'Default: []'
+    min: float | None = None
+    max: float | None = None
+    values: tuple[str, ...] | None = None
+    exclude: Annotated[bool | None, GraphQLDefault('False')] = None
+    'Default: False'
+    label: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LabelInput(BaseModel):
     """Input type for a label, which specifies a label to associate with a coordinate anchor or an image"""
     label: str
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LabelRenderInput(BaseModel):
-    """How a label layer's discrete object ids become color. Every field is optional; omitted ones keep their current value on an update, and take their default on a create"""
-    intensity_axis: Optional[str] = Field(alias='intensityAxis', default=None)
-    intensity_index: Optional[int] = Field(alias='intensityIndex', default=None)
-    seed: Optional[int] = None
-    background: Optional[int] = None
-    opacity: Optional[float] = None
-    contour: Optional[bool] = None
-    contour_width: Optional[float] = Field(alias='contourWidth', default=None)
-    selected: Optional[Tuple[int, ...]] = None
-    selection_color: Optional[Tuple[int, ...]] = Field(alias='selectionColor', default=None)
-    show_unselected: Optional[bool] = Field(alias='showUnselected', default=None)
-    color_by: Optional[LabelColorByInput] = Field(alias='colorBy', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    """How a label layer's discrete object ids become color. OMITTED fields keep their current value on an update and take their default on a create; an explicit `null` CLEARS the ones whose null means something, which is what tells 'leave the colouring alone' apart from 'draw none of it'"""
+    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None, description='The lens axis to index. Pass `null` to go back to reading the pixel value itself as the id (the common case for masks); omit to leave it alone')
+    intensity_index: int | None = Field(validation_alias=AliasChoices('intensity_index', 'intensityIndex'), serialization_alias='intensityIndex', default=None, description='The index along that axis to render (default 0)')
+    seed: int | None = Field(default=None, description='The seed of the hash mapping an id to its color. Changing it repaints every object, which is how two touching objects that happened to hash alike are separated (default 0)')
+    background: int | None = Field(default=None, description="The id drawn fully transparent -- the 'not an object' value (default 0)")
+    opacity: float | None = Field(default=None, description='Opacity applied to the colored ids within the layer, from 0 to 1 (default 1.0)')
+    contour: bool | None = Field(default=None, description='Whether objects are drawn as outlines rather than filled, so the data underneath stays visible (default false)')
+    contour_width: float | None = Field(validation_alias=AliasChoices('contour_width', 'contourWidth'), serialization_alias='contourWidth', default=None, description='The width of that outline, in pixels of the mask (default 1.0)')
+    selected: tuple[int, ...] | None = Field(default=None, description='The ids singled out for emphasis. An empty list means nothing is selected, which is not the same as everything')
+    selection_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('selection_color', 'selectionColor'), serialization_alias='selectionColor', default=None, description='The RGBA the selected ids take, overriding their hashed color: four components, each 0..255. Pass `null` to go back to the hashed colour; omit to leave it alone')
+    show_unselected: bool | None = Field(validation_alias=AliasChoices('show_unselected', 'showUnselected'), serialization_alias='showUnselected', default=None, description='Whether ids outside the selection still render. False isolates the selection (default true)')
+    color_bys: tuple[LabelColorByInput, ...] | None = Field(validation_alias=AliasChoices('color_bys', 'colorBys'), serialization_alias='colorBys', default=None, description="The colourings this layer offers, in the order a picker should show them -- area through a continuous colormap, cell type through a qualitative one -- instead of hashing each id to a colour. Each names a table reachable from the layer's lens by a FIELD edge (author it with `createTableDataset(keyedBy:)`) and a column that table declares, because a colorBy naming an unrelated table is not a preference to hold onto until the edge shows up, it is a join nothing can execute. Which entry is drawn is `activeColorBy`; publishing a picker is not the same as choosing within it. Replaces the published picker wholesale -- its order is the display order, so there is nothing to merge on. Pass `[]` to remove every colouring and fall back to the hash")
+    active_color_by: int | None = Field(validation_alias=AliasChoices('active_color_by', 'activeColorBy'), serialization_alias='activeColorBy', default=None, description='Which entry of `colorBys` is drawn, as an index into it. Null hashes each id to a colour -- what having no colouring has always meant. Re-checked against the picker being written, never the stored one: if a new `colorBys` no longer holds the entry that was active, the layer falls back to the hash -- name `activeColorBy` in the same call to point at another entry instead')
+    filter_bys: tuple[LabelFilterByInput, ...] | None = Field(validation_alias=AliasChoices('filter_bys', 'filterBys'), serialization_alias='filterBys', default=None, description="The filters this layer offers, in the order a picker should show them -- 'large cells', 'not debris' -- each keeping or dropping objects by a column of a table this mask's FIELD edge keys into. Which half of the rule applies follows from the column's declared role: `min`/`max` bounds over a measure column, an explicit `values` set over a categorical one. Two entries may share a column, because two ranges over one measure are two different rules. Which of them are actually applied is `activeFilterBys`. Replaces the published filters wholesale, as `colorBys` does; pass `[]` to remove every rule and draw all objects")
+    active_filter_bys: tuple[int, ...] | None = Field(validation_alias=AliasChoices('active_filter_bys', 'activeFilterBys'), serialization_alias='activeFilterBys', default=None, description='Which entries of `filterBys` are applied, as indices into it. Several at once is the normal case -- they combine with AND, and an object is drawn when every active rule keeps it. Empty applies none of them, so everything draws. Re-checked against the filters being written: a new `filterBys` that no longer holds an applied rule drops it from this set rather than leaving it dangling')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class LayerFilter(BaseModel):
+    """No documentation"""
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    id: ID | None = None
+    kind: LayerKindChoices | None = None
+    blending: BlendingChoices | None = None
+    and_: 'LayerFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'LayerFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'LayerFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    scene: ID | None = Field(default=None, description='Filter by the scene this layer is placed in')
+    lens: ID | None = Field(default=None, description='Filter image layers by the lens they render')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LayerNodeInput(BaseModel):
     """A node in a layer's internal render graph. A 'channel' node carries an intensity source and transfer function; a 'phasor' node reduces an axis to a phasor and colors the pixel by it; a 'blend' node composites its children; a 'projection' node projects theirs over z."""
     kind: str
-    label: Optional[str] = None
-    intensity_axis: Optional[str] = Field(alias='intensityAxis', default=None)
-    intensity_index: Optional[int] = Field(alias='intensityIndex', default=None)
-    visible: Optional[bool] = None
-    transfer: Optional['TransferFunctionInput'] = None
-    blending: Optional[Blending] = None
-    mode: Optional[ProjectionMode] = None
-    phasor_axis: Optional[str] = Field(alias='phasorAxis', default=None)
-    harmonic: Optional[int] = None
-    phasor_transfer: Optional['PhasorTransferInput'] = Field(alias='phasorTransfer', default=None)
-    children: Optional[Tuple['LayerNodeInput', ...]] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    label: str | None = None
+    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None)
+    intensity_index: int | None = Field(validation_alias=AliasChoices('intensity_index', 'intensityIndex'), serialization_alias='intensityIndex', default=None)
+    visible: bool | None = None
+    transfer: 'TransferFunctionInput | None' = None
+    blending: Blending | None = None
+    mode: ProjectionMode | None = None
+    phasor_axis: str | None = Field(validation_alias=AliasChoices('phasor_axis', 'phasorAxis'), serialization_alias='phasorAxis', default=None)
+    harmonic: int | None = None
+    phasor_transfer: 'PhasorTransferInput | None' = Field(validation_alias=AliasChoices('phasor_transfer', 'phasorTransfer'), serialization_alias='phasorTransfer', default=None)
+    children: tuple['LayerNodeInput', ...] | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LayerRenderGraphInput(BaseModel):
     """The composable render recipe inside a single layer, rooted at a blend node"""
     root: LayerNodeInput
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LightEdgeInput(BaseModel):
     """Input for connecting two optical ports."""
     id: str
-    source_element_id: ID = Field(alias='sourceElementId')
-    source_port_id: ID = Field(alias='sourcePortId')
-    target_element_id: ID = Field(alias='targetElementId')
-    target_port_id: ID = Field(alias='targetPortId')
-    path_length: Optional[Length] = Field(alias='pathLength', default=None)
-    medium: Annotated[Optional[str], GraphQLDefault('AIR')] = None
+    source_element_id: ID = Field(validation_alias=AliasChoices('source_element_id', 'sourceElementId'), serialization_alias='sourceElementId')
+    source_port_id: ID = Field(validation_alias=AliasChoices('source_port_id', 'sourcePortId'), serialization_alias='sourcePortId')
+    target_element_id: ID = Field(validation_alias=AliasChoices('target_element_id', 'targetElementId'), serialization_alias='targetElementId')
+    target_port_id: ID = Field(validation_alias=AliasChoices('target_port_id', 'targetPortId'), serialization_alias='targetPortId')
+    path_length: Length | None = Field(validation_alias=AliasChoices('path_length', 'pathLength'), serialization_alias='pathLength', default=None)
+    medium: Annotated[str | None, GraphQLDefault('AIR')] = None
     'Default: AIR'
-    loss_db: Annotated[Optional[float], GraphQLDefault('0.0')] = Field(alias='lossDb', default=None)
+    loss_db: Annotated[float | None, GraphQLDefault('0.0')] = Field(validation_alias=AliasChoices('loss_db', 'lossDb'), serialization_alias='lossDb', default=None)
     'Default: 0.0'
-    beam: Optional[BeamStateInput] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    beam: BeamStateInput | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LightPortInput(BaseModel):
     """Input definition for an optical port on an element."""
     id: ID
     name: str
     role: PortRole
-    channel: Annotated[Optional[ChannelKind], GraphQLDefault('FREE_SPACE')] = None
+    channel: Annotated[ChannelKind | None, GraphQLDefault('FREE_SPACE')] = None
     'Default: FREE_SPACE'
-    spectrum: Optional['SpectrumInput'] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    spectrum: 'SpectrumInput | None' = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LightpathGraphInput(BaseModel):
     """Bulk input for a full lightpath graph, including elements and edges."""
-    elements: Tuple['OpticalElementInput', ...]
-    edges: Tuple[LightEdgeInput, ...]
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    elements: tuple['OpticalElementInput', ...]
+    edges: tuple[LightEdgeInput, ...]
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class LookupStopInput(BaseModel):
     """One control point of an intensity transfer curve: a raw intensity, and the normalized value it maps to. The two sides are on different scales -- `position` in the data's units, `value` in the 0..1 the colormap is indexed with"""
     position: float
     value: float
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class MeshCollectionFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
-    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
-    id: Optional[ID] = None
-    version: Optional['StrFilterLookup'] = None
-    and_: Optional['MeshCollectionFilter'] = Field(alias='AND', default=None)
-    or_: Optional['MeshCollectionFilter'] = Field(alias='OR', default=None)
-    not_: Optional['MeshCollectionFilter'] = Field(alias='NOT', default=None)
-    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    folder: Optional[ID] = Field(default=None, description='Filter by the folder this mesh collection is filed in')
-    folders: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of folder IDs')
-    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None, description="Filter by the coordinate system the mesh geometry is expressed in (the collection's own)")
-    dataset: Optional[ID] = Field(default=None, description='Filter by the dataset the meshes were extracted from, following the derivation edge')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    id: ID | None = None
+    version: 'StrFilterLookup | None' = None
+    and_: 'MeshCollectionFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'MeshCollectionFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'MeshCollectionFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    folder: ID | None = Field(default=None, description='Filter by the folder this mesh collection is filed in')
+    folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
+    coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None, description="Filter by the coordinate system the mesh geometry is expressed in (the collection's own)")
+    dataset: ID | None = Field(default=None, description='Filter by the dataset the meshes were extracted from, following the derivation edge')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+MeshColorByInput = Annotated[ColumnColorByInput | SparseColorByInput, Field(discriminator='kind')]
 
-class MeshColorByInput(BaseModel):
-    """Color a mesh collection's objects by a column of the table its FIELD edge keys into, instead of by the layer's flat material color"""
-    table: ID
-    column: str
-    colormap: Optional[ColorMap] = None
-    class_colors: Optional[Any] = Field(alias='classColors', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+class MeshFilterByInput(BaseModel):
+    """Draw only the objects whose row in a table this collection's FIELD edge keys into satisfies this rule. Which half applies follows from the column's declared role -- bounds for a measure column, an explicit value set for a categorical one"""
+    kind: Annotated[ColorSourceKind | None, GraphQLDefault('COLUMN')] = None
+    'Default: COLUMN'
+    table: ID | None = None
+    column: str | None = None
+    join_path: Annotated[tuple[JoinStepInput, ...] | None, GraphQLDefault('[]')] = Field(validation_alias=AliasChoices('join_path', 'joinPath'), serialization_alias='joinPath', default=None)
+    'Default: []'
+    dataset: ID | None = None
+    at: Annotated[tuple[AxisPositionInput, ...] | None, GraphQLDefault('[]')] = None
+    'Default: []'
+    min: float | None = None
+    max: float | None = None
+    values: tuple[str, ...] | None = None
+    exclude: Annotated[bool | None, GraphQLDefault('False')] = None
+    'Default: False'
+    label: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class OffsetPaginationInput(BaseModel):
     """No documentation"""
-    offset: Annotated[Optional[int], GraphQLDefault('0')] = None
+    offset: Annotated[int | None, GraphQLDefault('0')] = None
     'Default: 0'
-    limit: Optional[int] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    limit: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class OmeMetadataInput(BaseModel):
     """Input type for OME metadata"""
-    metadata_string: str = Field(alias='metadataString', description='The OME metadata as a JSON string')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
-OpticalElementInput = Annotated[Union[ApertureElementInput, BeamSplitterElementInput, CCDElementInput, DetectorElementInput, FilterElementInput, LampElementInput, LaserElementInput, LensElementInput, MirrorElementInput, ObjectiveElementInput, OtherElementInput, OtherSourceElementInput, PinholeElementInput, PolarizerElementInput, SampleElementInput, ShutterElementInput, WaveplateElementInput], Field(discriminator='kind')]
+    metadata_string: str = Field(validation_alias=AliasChoices('metadata_string', 'metadataString'), serialization_alias='metadataString', description='The OME metadata as a JSON string')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+OpticalElementInput = Annotated[ApertureElementInput | BeamSplitterElementInput | CCDElementInput | DetectorElementInput | FilterElementInput | LampElementInput | LaserElementInput | LensElementInput | MirrorElementInput | ObjectiveElementInput | OtherElementInput | OtherSourceElementInput | PinholeElementInput | PolarizerElementInput | SampleElementInput | ShutterElementInput | WaveplateElementInput, Field(discriminator='kind')]
 
 class OptikitStateInput(BaseModel):
     """The recorded microscope (Optikit) state: the hardware truth at the moment of acquisition. The common facts (stage, environment) are first-class and quantity-typed; everything else is per-device named settings"""
-    stage: Optional['StageStateInput'] = None
-    temperature: Optional[Temperature] = None
-    devices: Annotated[Optional[Tuple[DeviceStateInput, ...]], GraphQLDefault('[]')] = None
+    stage: 'StageStateInput | None' = None
+    temperature: Temperature | None = None
+    devices: Annotated[tuple[DeviceStateInput, ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class PhasorCalibrationInput(BaseModel):
     """Input type for an instrument-response correction: the phase offset and modulation factor taking a raw phasor to a calibrated one"""
     axis: str = Field(description='The axis the correction applies to')
-    harmonic: Optional[int] = Field(default=None, description='The harmonic the correction applies at')
-    phase_offset: Optional[float] = Field(alias='phaseOffset', default=None, description='The phase correction in radians')
-    modulation_factor: Optional[float] = Field(alias='modulationFactor', default=None, description='The modulation correction')
-    reference: Optional[str] = Field(default=None, description='What the correction was measured against')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    harmonic: int | None = Field(default=None, description='The harmonic the correction applies at')
+    phase_offset: float | None = Field(validation_alias=AliasChoices('phase_offset', 'phaseOffset'), serialization_alias='phaseOffset', default=None, description='The phase correction in radians')
+    modulation_factor: float | None = Field(validation_alias=AliasChoices('modulation_factor', 'modulationFactor'), serialization_alias='modulationFactor', default=None, description='The modulation correction')
+    reference: str | None = Field(default=None, description='What the correction was measured against')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class PhasorCursorInput(RGBAColorInputTrait, BaseModel):
     """A region of phasor space, and the color the pixels falling inside it are painted. A color rule on the image, not a plot widget"""
-    kind: Optional[PhasorCursorKind] = None
-    g: Optional[float] = None
-    s: Optional[float] = None
-    radius: Optional[float] = None
-    points: Optional[Tuple[Tuple[float, ...], ...]] = None
-    color: Optional[Tuple[int, ...]] = None
-    label: Optional[str] = None
-    visible: Optional[bool] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    kind: PhasorCursorKind | None = None
+    g: float | None = None
+    s: float | None = None
+    radius: float | None = None
+    points: tuple[tuple[float, ...], ...] | None = None
+    color: tuple[int, ...] | None = None
+    label: str | None = None
+    visible: bool | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class PhasorHistogramInput(BaseModel):
     """Input type for a phasor distribution: the 2D (g, s) density of a phasor taken over one axis at one harmonic, plus the summed profile it came from. Persisted so a client can pick a value range for a phasor overlay without reading the cube"""
     axis: str = Field(description='The axis the phasor was taken over')
-    counts: Tuple[float, ...] = Field(description='The flattened bins x bins density')
-    harmonic: Optional[int] = Field(default=None, description='The harmonic the phasor was taken at')
-    bins: Optional[int] = Field(default=None, description='The resolution of the square (g, s) density grid')
-    g_min: Optional[float] = Field(alias='gMin', default=None)
-    g_max: Optional[float] = Field(alias='gMax', default=None)
-    s_min: Optional[float] = Field(alias='sMin', default=None)
-    s_max: Optional[float] = Field(alias='sMax', default=None)
-    total: Optional[int] = None
-    calibrated: Optional[bool] = None
-    profile: Optional[Tuple[float, ...]] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    counts: tuple[float, ...] = Field(description='The flattened bins x bins density')
+    harmonic: int | None = Field(default=None, description='The harmonic the phasor was taken at')
+    bins: int | None = Field(default=None, description='The resolution of the square (g, s) density grid')
+    g_min: float | None = Field(validation_alias=AliasChoices('g_min', 'gMin'), serialization_alias='gMin', default=None)
+    g_max: float | None = Field(validation_alias=AliasChoices('g_max', 'gMax'), serialization_alias='gMax', default=None)
+    s_min: float | None = Field(validation_alias=AliasChoices('s_min', 'sMin'), serialization_alias='sMin', default=None)
+    s_max: float | None = Field(validation_alias=AliasChoices('s_max', 'sMax'), serialization_alias='sMax', default=None)
+    total: int | None = None
+    calibrated: bool | None = None
+    profile: tuple[float, ...] | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class PhasorTransferInput(BaseModel):
     """How a phasor becomes the pixel's color: the transfer function of a phasor source"""
-    mode: Optional[PhasorColorMode] = None
-    min: Optional[GenericQuantity] = None
-    max: Optional[GenericQuantity] = None
-    colormap: Optional[ColorMap] = None
-    weight_by_intensity: Optional[bool] = Field(alias='weightByIntensity', default=None)
-    intensity: Optional['TransferFunctionInput'] = None
-    cursors: Optional[Tuple[PhasorCursorInput, ...]] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    mode: PhasorColorMode | None = None
+    min: GenericQuantity | None = None
+    max: GenericQuantity | None = None
+    colormap: ColorMap | None = None
+    weight_by_intensity: bool | None = Field(validation_alias=AliasChoices('weight_by_intensity', 'weightByIntensity'), serialization_alias='weightByIntensity', default=None)
+    intensity: 'TransferFunctionInput | None' = None
+    cursors: tuple[PhasorCursorInput, ...] | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class PhysicalAxisInput(BaseModel):
     """Input type for one axis of a unit-carrying coordinate system: its name, its semantic kind and its physical unit"""
     name: str
     type: AxisType
     unit: Unit
-    long_name: Optional[str] = Field(alias='longName', default=None)
-    description: Optional[str] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    long_name: str | None = Field(validation_alias=AliasChoices('long_name', 'longName'), serialization_alias='longName', default=None)
+    description: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class PinSceneSnapshotInput(BaseModel):
     """Input for pinning or unpinning a lens snapshot for quick access"""
     id: ID = Field(description='The ID of the snapshot to pin or unpin')
     pin: bool = Field(description='True to pin, false to unpin')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class Pose3DInput(BaseModel):
     """A 3D pose consisting of position and orientation."""
-    position: Optional['Vec3Input'] = None
-    orientation: Optional[EulerInput] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    position: 'Vec3Input | None' = None
+    orientation: EulerInput | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RegistrationPathInput(BaseModel):
     """A source (dataset, table dataset, mesh collection, or coordinate system) to register into a shared space, plus the edge that places it. The edge points from the source's own coordinate system to the shared space; the transform is validated exactly as createTransformation validates one"""
-    dataset: Optional[ID] = None
-    table_dataset: Optional[ID] = Field(alias='tableDataset', default=None)
-    mesh_collection: Optional[ID] = Field(alias='meshCollection', default=None)
-    annotation_collection: Optional[ID] = Field(alias='annotationCollection', default=None)
-    coordinate_system: Optional[ID] = Field(alias='coordinateSystem', default=None)
-    transform: Optional['TransformInput'] = None
-    name: Optional[str] = None
-    validity: Optional[PlacementValidity] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    dataset: ID | None = None
+    table_dataset: ID | None = Field(validation_alias=AliasChoices('table_dataset', 'tableDataset'), serialization_alias='tableDataset', default=None)
+    mesh_collection: ID | None = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection', default=None)
+    annotation_collection: ID | None = Field(validation_alias=AliasChoices('annotation_collection', 'annotationCollection'), serialization_alias='annotationCollection', default=None)
+    coordinate_system: ID | None = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem', default=None)
+    transform: 'TransformInput | None' = None
+    name: str | None = None
+    validity: PlacementValidity | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestBigFileAccessInput(BaseModel):
     """No documentation"""
-    store_id: str = Field(alias='storeId')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestBigFileUploadInput(BaseModel):
     """No documentation"""
-    original_file_name: str = Field(alias='originalFileName')
-    file_size: Optional[int] = Field(alias='fileSize', default=None)
-    content_type: Optional[str] = Field(alias='contentType', default=None)
-    host: Optional[str] = None
-    port: Optional[int] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    original_file_name: str = Field(validation_alias=AliasChoices('original_file_name', 'originalFileName'), serialization_alias='originalFileName')
+    file_size: int | None = Field(validation_alias=AliasChoices('file_size', 'fileSize'), serialization_alias='fileSize', default=None)
+    content_type: str | None = Field(validation_alias=AliasChoices('content_type', 'contentType'), serialization_alias='contentType', default=None)
+    host: str | None = None
+    port: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestFabriksAccessInput(BaseModel):
     """No documentation"""
-    store_id: str = Field(alias='storeId')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestFabriksUploadInput(BaseModel):
     """No documentation"""
-    host: Optional[str] = None
-    port: Optional[int] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    host: str | None = None
+    port: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestMediaAccessInput(BaseModel):
     """No documentation"""
-    store_id: str = Field(alias='storeId')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestMediaUploadInput(BaseModel):
     """No documentation"""
-    original_file_name: str = Field(alias='originalFileName')
-    file_size: Optional[int] = Field(alias='fileSize', default=None)
-    content_type: Optional[str] = Field(alias='contentType', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    original_file_name: str = Field(validation_alias=AliasChoices('original_file_name', 'originalFileName'), serialization_alias='originalFileName')
+    file_size: int | None = Field(validation_alias=AliasChoices('file_size', 'fileSize'), serialization_alias='fileSize', default=None)
+    content_type: str | None = Field(validation_alias=AliasChoices('content_type', 'contentType'), serialization_alias='contentType', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestParquetAccessInput(BaseModel):
     """No documentation"""
-    store_id: str = Field(alias='storeId')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestParquetUploadInput(BaseModel):
     """No documentation"""
-    content_type: Optional[str] = Field(alias='contentType', default=None)
-    host: Optional[str] = None
-    port: Optional[int] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    content_type: str | None = Field(validation_alias=AliasChoices('content_type', 'contentType'), serialization_alias='contentType', default=None)
+    host: str | None = None
+    port: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class RequestSparseUploadInput(BaseModel):
+    """No documentation"""
+    host: str | None = None
+    port: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestZarrAccessInput(BaseModel):
     """No documentation"""
-    store_id: str = Field(alias='storeId')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RequestZarrUploadInput(BaseModel):
     """No documentation"""
-    shape: Optional[Tuple[int, ...]] = None
-    chunks: Optional[Tuple[int, ...]] = None
-    version: Optional[str] = None
-    host: Optional[str] = None
-    port: Optional[int] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    shape: tuple[int, ...] | None = None
+    chunks: tuple[int, ...] | None = None
+    version: str | None = None
+    host: str | None = None
+    port: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class RevertInput(BaseModel):
     """Input for reverting a folder to a previous history revision"""
     id: ID = Field(description='The ID of the folder to revert')
-    history_id: ID = Field(alias='historyId', description='The ID of the provenance history entry to revert the folder to')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    history_id: ID = Field(validation_alias=AliasChoices('history_id', 'historyId'), serialization_alias='historyId', description='The ID of the provenance history entry to revert the folder to')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ScaleInput(BaseModel):
     """Input type for one pyramid level: the array backing it, and how it was downsampled. Its scale factor is derived from its actual shape, never supplied"""
     level: int
     array: ArrayLike = Field(description='The array-like object to create the image from')
-    scale_method: Optional[ScaleMethod] = Field(alias='scaleMethod', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    scale_method: ScaleMethod | None = Field(validation_alias=AliasChoices('scale_method', 'scaleMethod'), serialization_alias='scaleMethod', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ScenePolicyInput(BaseModel):
     """The policy createSceneFromCoordinateSystem follows: at most `nchildren` layers, materialized from the sources living in or registered into the space, filtered by source kind and drawn by the recipe in `kind`"""
-    nchildren: Annotated[Optional[int], GraphQLDefault('8')] = None
+    nchildren: Annotated[int | None, GraphQLDefault('8')] = None
     'Default: 8'
-    transform_tables: Annotated[Optional[bool], GraphQLDefault('False')] = Field(alias='transformTables', default=None)
+    transform_tables: Annotated[bool | None, GraphQLDefault('False')] = Field(validation_alias=AliasChoices('transform_tables', 'transformTables'), serialization_alias='transformTables', default=None)
     'Default: False'
-    include_meshes: Annotated[Optional[bool], GraphQLDefault('True')] = Field(alias='includeMeshes', default=None)
+    include_meshes: Annotated[bool | None, GraphQLDefault('True')] = Field(validation_alias=AliasChoices('include_meshes', 'includeMeshes'), serialization_alias='includeMeshes', default=None)
     'Default: True'
-    kind: Optional[BootstrapLayerKind] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    kind: BootstrapLayerKind | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class SceneSnapshotFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
-    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
-    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
-    pinned: Optional[bool] = Field(default=None, description='Filter by whether the current user has pinned the item')
-    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
-    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
-    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
-    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
-    id: Optional[ID] = None
-    name: Optional['StrFilterLookup'] = None
-    and_: Optional['SceneSnapshotFilter'] = Field(alias='AND', default=None)
-    or_: Optional['SceneSnapshotFilter'] = Field(alias='OR', default=None)
-    not_: Optional['SceneSnapshotFilter'] = Field(alias='NOT', default=None)
-    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    scene: Optional[ID] = Field(default=None, description='Filter by the scene this snapshot is a picture of')
-    scenes: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of scenes (fetch the tiles for a set of scenes in one query, the way a picker does)')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    search: str | None = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    pinned: bool | None = Field(default=None, description='Filter by whether the current user has pinned the item')
+    created_through_task: str | None = Field(validation_alias=AliasChoices('created_through_task', 'createdThroughTask'), serialization_alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: ID | None = Field(validation_alias=AliasChoices('created_through', 'createdThrough'), serialization_alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: ID | None = Field(validation_alias=AliasChoices('assigned_by', 'assignedBy'), serialization_alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: ID | None = Field(validation_alias=AliasChoices('created_through_by', 'createdThroughBy'), serialization_alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    id: ID | None = None
+    name: 'StrFilterLookup | None' = None
+    and_: 'SceneSnapshotFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'SceneSnapshotFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'SceneSnapshotFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    scene: ID | None = Field(default=None, description='Filter by the scene this snapshot is a picture of')
+    scenes: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of scenes (fetch the tiles for a set of scenes in one query, the way a picker does)')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class SceneSnapshotInput(BaseModel):
     """Input for creating a snapshot (a pre-rendered picture) of a scene from an already-uploaded media file"""
     file: ImageFileLike = Field(description='The uploaded media file store containing the rendered image')
     scene: ID = Field(description='The ID of the scene this is a picture of')
-    name: Optional[str] = Field(default=None, description='The name of the snapshot')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    name: str | None = Field(default=None, description='The name of the snapshot')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class SelectorInput(BaseModel):
+    """Where along one axis a transformation applies: the map holds at that index and makes no claim elsewhere"""
+    axis: str
+    index: int
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class SettingInput(BaseModel):
     """One named device setting with exactly one value slot filled: a quantity when the setting carries a unit, else a number, text or flag. A setting holding two values is two settings"""
     name: str
-    quantity: Optional[GenericQuantity] = None
-    number: Optional[float] = None
-    text: Optional[str] = None
-    flag: Optional[bool] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    quantity: GenericQuantity | None = None
+    number: float | None = None
+    text: str | None = None
+    flag: bool | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class SliceInput(BaseModel):
     """Input type for a slice along one axis of a dataset"""
     axis: str
-    start: Optional[int] = None
-    stop: Optional[int] = None
-    step: Optional[int] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    start: int | None = None
+    stop: int | None = None
+    step: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class SourceFileInput(BaseModel):
     """One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism"""
     file: ID
-    series_identifier: Optional[str] = Field(alias='seriesIdentifier', default=None)
-    value_relation: Optional[ValueRelation] = Field(alias='valueRelation', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    series_identifier: str | None = Field(validation_alias=AliasChoices('series_identifier', 'seriesIdentifier'), serialization_alias='seriesIdentifier', default=None)
+    value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class SparseAxisInput(SparseAxisInputTrait, BaseModel):
+    """One axis of a sparse matrix, and what its positions **are**. `identifiedBy` is a list because fan-in is real -- a nucleus mask and a cell mask may key the same axis, one edge each -- and it may not be empty: an axis nothing identifies is not a lax dataset, it is one no source could ever key. There is no `type` field: both axes of a sparse matrix enumerate and neither has a metric, so INDEX is the only thing it could ever be"""
+    name: str
+    identified_by: tuple[IdentificationInput, ...] = Field(validation_alias=AliasChoices('identified_by', 'identifiedBy'), serialization_alias='identifiedBy')
+    long_name: str | None = Field(validation_alias=AliasChoices('long_name', 'longName'), serialization_alias='longName', default=None)
+    description: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class SpectrumInput(BaseModel):
     """Spectral window for wavelength-dependent components."""
     min: Length
     max: Length
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class StageStateInput(BaseModel):
     """Where the stage was, per axis, as physical lengths (e.g. '100.5 um')"""
-    x: Optional[Length] = None
-    y: Optional[Length] = None
-    z: Optional[Length] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    x: Length | None = None
+    y: Length | None = None
+    z: Length | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class StrFilterLookup(BaseModel):
     """No documentation"""
-    exact: Optional[str] = None
-    i_exact: Optional[str] = Field(alias='iExact', default=None)
-    contains: Optional[str] = None
-    i_contains: Optional[str] = Field(alias='iContains', default=None)
-    in_list: Optional[Tuple[str, ...]] = Field(alias='inList', default=None)
-    gt: Optional[str] = None
-    gte: Optional[str] = None
-    lt: Optional[str] = None
-    lte: Optional[str] = None
-    starts_with: Optional[str] = Field(alias='startsWith', default=None)
-    i_starts_with: Optional[str] = Field(alias='iStartsWith', default=None)
-    ends_with: Optional[str] = Field(alias='endsWith', default=None)
-    i_ends_with: Optional[str] = Field(alias='iEndsWith', default=None)
-    range: Optional[Tuple[str, ...]] = None
-    is_null: Optional[bool] = Field(alias='isNull', default=None)
-    regex: Optional[str] = None
-    i_regex: Optional[str] = Field(alias='iRegex', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    exact: str | None = None
+    i_exact: str | None = Field(validation_alias=AliasChoices('i_exact', 'iExact'), serialization_alias='iExact', default=None)
+    contains: str | None = None
+    i_contains: str | None = Field(validation_alias=AliasChoices('i_contains', 'iContains'), serialization_alias='iContains', default=None)
+    in_list: tuple[str, ...] | None = Field(validation_alias=AliasChoices('in_list', 'inList'), serialization_alias='inList', default=None)
+    gt: str | None = None
+    gte: str | None = None
+    lt: str | None = None
+    lte: str | None = None
+    starts_with: str | None = Field(validation_alias=AliasChoices('starts_with', 'startsWith'), serialization_alias='startsWith', default=None)
+    i_starts_with: str | None = Field(validation_alias=AliasChoices('i_starts_with', 'iStartsWith'), serialization_alias='iStartsWith', default=None)
+    ends_with: str | None = Field(validation_alias=AliasChoices('ends_with', 'endsWith'), serialization_alias='endsWith', default=None)
+    i_ends_with: str | None = Field(validation_alias=AliasChoices('i_ends_with', 'iEndsWith'), serialization_alias='iEndsWith', default=None)
+    range: tuple[str, ...] | None = None
+    is_null: bool | None = Field(validation_alias=AliasChoices('is_null', 'isNull'), serialization_alias='isNull', default=None)
+    regex: str | None = None
+    i_regex: str | None = Field(validation_alias=AliasChoices('i_regex', 'iRegex'), serialization_alias='iRegex', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
-class TableColumnInput(BaseModel):
-    """One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and becomes an axis of the table's space; a COORDINATE or ATTRIBUTE column may state the unit its values are in"""
-    name: str
-    dtype: str
-    role: Annotated[Optional[TableColumnRole], GraphQLDefault('ATTRIBUTE')] = None
-    'Default: ATTRIBUTE'
-    axis_type: Optional[AxisType] = Field(alias='axisType', default=None)
-    unit: Optional[Unit] = None
-    long_name: Optional[str] = Field(alias='longName', default=None)
-    description: Optional[str] = None
-    references: Optional[ID] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+class TableAxisInput(BaseModel):
+    """One axis of the table's own space: which Parquet column it is, what kind of position it holds, and what those positions **are**. The list's order is the axis order, so the space is stated rather than derived by filtering a column list. `identifiedBy` replaces the old sibling `keyedBy`: there the axis a source keyed was matched by subtraction inside the server, correct and invisible, and here the pairing is the input's own shape. It is a list because fan-in is real -- a nucleus mask and a cell mask may key one axis, one edge each -- and it may be empty, because a localization table's `x` axis is identified by nothing and should be"""
+    column: str
+    type: AxisType
+    unit: Unit | None = None
+    long_name: str | None = Field(validation_alias=AliasChoices('long_name', 'longName'), serialization_alias='longName', default=None)
+    description: str | None = None
+    identified_by: Annotated[tuple[IdentificationInput, ...] | None, GraphQLDefault('[]')] = Field(validation_alias=AliasChoices('identified_by', 'identifiedBy'), serialization_alias='identifiedBy', default=None)
+    'Default: []'
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class TableDatasetFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
-    search: Optional[str] = Field(default=None, description='Search by name (case-insensitive substring)')
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
-    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
-    created_through_task: Optional[str] = Field(alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
-    created_through: Optional[ID] = Field(alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
-    assigned_by: Optional[ID] = Field(alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
-    created_through_by: Optional[ID] = Field(alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
-    id: Optional[ID] = None
-    name: Optional[StrFilterLookup] = None
-    description: Optional[StrFilterLookup] = None
-    and_: Optional['TableDatasetFilter'] = Field(alias='AND', default=None)
-    or_: Optional['TableDatasetFilter'] = Field(alias='OR', default=None)
-    not_: Optional['TableDatasetFilter'] = Field(alias='NOT', default=None)
-    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    folder: Optional[ID] = Field(default=None, description='Filter by the folder this table dataset is filed in')
-    folders: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by a list of folder IDs')
-    dataset: Optional[ID] = Field(default=None, description='Filter by the dataset the table was computed from, following its derivation edge')
-    has_column_role: Optional[TableColumnRole] = Field(alias='hasColumnRole', default=None, description='Filter to tables that declare a column of this role, e.g. TRACK_ID')
-    placeable_in: Optional[ID] = Field(alias='placeableIn', default=None, description='Filter to table datasets placeable into this coordinate system: those whose own coordinate system has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    search: str | None = Field(default=None, description='Search by name (case-insensitive substring)')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    created_through_task: str | None = Field(validation_alias=AliasChoices('created_through_task', 'createdThroughTask'), serialization_alias='createdThroughTask', default=None, description='Filter by the rekuest task id the item was created through')
+    created_through: ID | None = Field(validation_alias=AliasChoices('created_through', 'createdThrough'), serialization_alias='createdThrough', default=None, description='Filter by the database ID of the task the item was created through (the `createdThrough { id }` field)')
+    assigned_by: ID | None = Field(validation_alias=AliasChoices('assigned_by', 'assignedBy'), serialization_alias='assignedBy', default=None, description='Filter by the sub of the user that assigned the creating task')
+    created_through_by: ID | None = Field(validation_alias=AliasChoices('created_through_by', 'createdThroughBy'), serialization_alias='createdThroughBy', default=None, description='Filter by the database ID of the user that assigned the creating task (the `createdThroughBy { id }` field)')
+    id: ID | None = None
+    name: StrFilterLookup | None = None
+    description: StrFilterLookup | None = None
+    and_: 'TableDatasetFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'TableDatasetFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'TableDatasetFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    folder: ID | None = Field(default=None, description='Filter by the folder this table dataset is filed in')
+    folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
+    dataset: ID | None = Field(default=None, description='Filter by the dataset the table was computed from, following its derivation edge')
+    has_column_role: ColumnRole | None = Field(validation_alias=AliasChoices('has_column_role', 'hasColumnRole'), serialization_alias='hasColumnRole', default=None, description='Filter to tables that declare a column of this role, e.g. TRACK_ID')
+    placeable_in: ID | None = Field(validation_alias=AliasChoices('placeable_in', 'placeableIn'), serialization_alias='placeableIn', default=None, description='Filter to table datasets placeable into this coordinate system: those whose own coordinate system has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class TransferFunctionInput(RGBAColorInputTrait, BaseModel):
     """Transfer-function settings for a channel source in a layer render graph"""
-    clim_min: Optional[float] = Field(alias='climMin', default=None)
-    clim_max: Optional[float] = Field(alias='climMax', default=None)
-    colormap: Optional[ColorMap] = None
-    color: Optional[Tuple[int, ...]] = None
-    gamma: Optional[float] = None
-    opacity: Optional[float] = None
-    invert: Optional[bool] = None
-    stops: Optional[Tuple[LookupStopInput, ...]] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
-TransformInput = Annotated[Union[AffineTransformInput, ByDimensionTransformInput, FieldTransformInput, IdentityTransformInput, MapAxisTransformInput, RotationTransformInput, ScaleTransformInput, TranslationTransformInput, UnmappableTransformInput], Field(discriminator='kind')]
+    clim_min: float | None = Field(validation_alias=AliasChoices('clim_min', 'climMin'), serialization_alias='climMin', default=None)
+    clim_max: float | None = Field(validation_alias=AliasChoices('clim_max', 'climMax'), serialization_alias='climMax', default=None)
+    colormap: ColorMap | None = None
+    color: tuple[int, ...] | None = None
+    gamma: float | None = None
+    opacity: float | None = None
+    invert: bool | None = None
+    stops: tuple[LookupStopInput, ...] | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+TransformInput = Annotated[AffineTransformInput | ByDimensionTransformInput | FieldTransformInput | IdentityTransformInput | MapAxisTransformInput | RotationTransformInput | ScaleTransformInput | TranslationTransformInput | UnmappableTransformInput, Field(discriminator='kind')]
 
 class TransformationFilter(BaseModel):
     """No documentation"""
-    ids: Optional[Tuple[ID, ...]] = Field(default=None, description='Filter by list of IDs')
-    created_before: Optional[datetime] = Field(alias='createdBefore', default=None, description='Filter for items created before this datetime')
-    created_after: Optional[datetime] = Field(alias='createdAfter', default=None, description='Filter for items created after this datetime')
-    owner: Optional[ID] = Field(default=None, description="Filter by the creator's subject ID")
-    id: Optional[ID] = None
-    kind: Optional[TransformKindChoices] = None
-    and_: Optional['TransformationFilter'] = Field(alias='AND', default=None)
-    or_: Optional['TransformationFilter'] = Field(alias='OR', default=None)
-    not_: Optional['TransformationFilter'] = Field(alias='NOT', default=None)
-    distinct: Optional[bool] = Field(alias='DISTINCT', default=None)
-    validity: Optional[PlacementValidity] = Field(default=None, description="Filter by how much the edge's map is actually known, e.g. UNKNOWN to list every placement that is still an assumption")
-    input: Optional[ID] = Field(default=None, description='Filter by the coordinate system this transformation maps from')
-    output: Optional[ID] = Field(default=None, description='Filter by the coordinate system this transformation maps to')
-    roots_only: Optional[bool] = Field(alias='rootsOnly', default=None, description='Show only top-level edges, excluding the children of SEQUENCE / BY_DIMENSION wrappers')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
+    created_before: datetime | None = Field(validation_alias=AliasChoices('created_before', 'createdBefore'), serialization_alias='createdBefore', default=None, description='Filter for items created before this datetime')
+    created_after: datetime | None = Field(validation_alias=AliasChoices('created_after', 'createdAfter'), serialization_alias='createdAfter', default=None, description='Filter for items created after this datetime')
+    owner: ID | None = Field(default=None, description="Filter by the creator's subject ID")
+    id: ID | None = None
+    kind: TransformKindChoices | None = None
+    and_: 'TransformationFilter | None' = Field(validation_alias=AliasChoices('and_', 'AND'), serialization_alias='AND', default=None)
+    or_: 'TransformationFilter | None' = Field(validation_alias=AliasChoices('or_', 'OR'), serialization_alias='OR', default=None)
+    not_: 'TransformationFilter | None' = Field(validation_alias=AliasChoices('not_', 'NOT'), serialization_alias='NOT', default=None)
+    distinct: bool | None = Field(validation_alias=AliasChoices('distinct', 'DISTINCT'), serialization_alias='DISTINCT', default=None)
+    validity: PlacementValidity | None = Field(default=None, description="Filter by how much the edge's map is actually known, e.g. UNKNOWN to list every placement that is still an assumption")
+    input: ID | None = Field(default=None, description='Filter by the coordinate system this transformation maps from')
+    output: ID | None = Field(default=None, description='Filter by the coordinate system this transformation maps to')
+    roots_only: bool | None = Field(validation_alias=AliasChoices('roots_only', 'rootsOnly'), serialization_alias='rootsOnly', default=None, description='Show only top-level edges, excluding the children of SEQUENCE / BY_DIMENSION wrappers')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateAnimationInput(BaseModel):
     """Input for re-authoring a camera tour. Passing `waypoints` replaces every stop -- which is also how a tour is reordered, since a stop's position in the tour is its position in this list"""
     id: ID = Field(description='The ID of the tour to update')
-    name: Optional[str] = Field(default=None, description='The name of the tour')
-    description: Optional[str] = Field(default=None, description='What the tour shows')
-    waypoints: Optional[Tuple[AnimationWaypointInput, ...]] = Field(default=None, description="The poses, in tour order. Replaces the tour's stops entirely")
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    name: str | None = Field(default=None, description='The name of the tour')
+    description: str | None = Field(default=None, description='What the tour shows')
+    waypoints: tuple[AnimationWaypointInput, ...] | None = Field(default=None, description="The poses, in tour order. Replaces the tour's stops entirely")
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateAnnotationInput(BaseModel):
     """Input for editing an annotation. Only the supplied fields change; new vectors re-derive the bounding box against the current transform chain"""
-    kind: Optional[AnnotationKind] = None
-    vectors: Optional[Tuple[ThreeDVector, ...]] = None
-    stroke_color: Optional[Tuple[int, ...]] = Field(alias='strokeColor', default=None)
-    fill_color: Optional[Tuple[int, ...]] = Field(alias='fillColor', default=None)
+    kind: AnnotationKind | None = None
+    vectors: tuple[ThreeDVector, ...] | None = None
+    stroke_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('stroke_color', 'strokeColor'), serialization_alias='strokeColor', default=None)
+    fill_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('fill_color', 'fillColor'), serialization_alias='fillColor', default=None)
     id: ID
-    name: Optional[str] = None
-    description: Optional[str] = None
-    coordinates: Optional[Tuple[CoordinateInput, ...]] = None
-    stroke_width: Optional[float] = Field(alias='strokeWidth', default=None)
-    filled: Optional[bool] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    name: str | None = None
+    description: str | None = None
+    coordinates: tuple[CoordinateInput, ...] | None = None
+    stroke_width: float | None = Field(validation_alias=AliasChoices('stroke_width', 'strokeWidth'), serialization_alias='strokeWidth', default=None)
+    filled: bool | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateCoordinateSystemInput(BaseModel):
     """Input for renaming a shared coordinate system or anchoring its clock. Shared spaces only: every other system is named by the container that owns it"""
     id: ID
-    name: Optional[str] = None
-    epoch: Optional[datetime] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    name: str | None = None
+    epoch: datetime | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class UpdateLabelLayerInput(BaseModel):
+    """Update a label layer's render settings. Every field is a patch: what is not sent keeps its current value"""
+    id: ID
+    render: LabelRenderInput | None = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateMeshLayerInput(BaseModel):
-    """Retune how a mesh layer is drawn. A patch: every field is optional and an omitted one keeps its current value, so switching the coloring cannot silently drop the material or the wireframe. The collection and the scene are not editable -- a layer renders what it was created to render"""
+    """Retune how a mesh layer is drawn. A patch: an OMITTED field keeps its current value, so switching the colouring cannot silently drop the material or the wireframe -- while an explicit `null` CLEARS the fields whose null means something. The collection and the scene are not editable -- a layer renders what it was created to render"""
+    id: ID = Field(description='The ID of the mesh layer to update')
+    material_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('material_color', 'materialColor'), serialization_alias='materialColor', default=None, description='Material (surface) color of the mesh, as RGBA')
+    wireframe: bool | None = Field(default=None, description='Whether to render the mesh as a wireframe')
+    shading: MeshShading | None = Field(default=None, description='How the surface is lit')
+    max_level: int | None = Field(validation_alias=AliasChoices('max_level', 'maxLevel'), serialization_alias='maxLevel', default=None, description="The deepest octree level this layer may load, capping detail against the collection's declared `grid.levels`. A budget, not a choice of level: which level a viewer fetches still follows from the zoom. Null lets the viewer decide. Raising, lowering AND removing all work now: an omitted field keeps the cap, an explicit `null` removes it. That distinction used to be unavailable to a scalar -- the pickers escaped it by being lists, where `[]` is a value that says 'none'")
+    color_bys: tuple[MeshColorByInput, ...] | None = Field(validation_alias=AliasChoices('color_bys', 'colorBys'), serialization_alias='colorBys', default=None, description='The colourings this layer offers, in the order a picker should show them -- volume through a continuous colormap, cell type through a qualitative one -- instead of the flat `materialColor`. Each names a table reachable from this collection by a FIELD edge (author it with `createTableDataset(keyedBy: {kind: MESH_COLLECTION})`) and a column that table declares, because a colorBy naming an unrelated table is not a preference to hold onto until the edge shows up, it is a join nothing can execute. Which entry is drawn is `activeColorBy`; publishing a picker is not the same as choosing within it. Replaces the published picker wholesale: its order is the display order, so there is nothing to merge on. Pass `[]` to remove every colouring and fall back to `materialColor`')
+    active_color_by: int | None = Field(validation_alias=AliasChoices('active_color_by', 'activeColorBy'), serialization_alias='activeColorBy', default=None, description='Which entry of `colorBys` is drawn, as an index into it. Null draws the flat `materialColor` -- what having no colouring has always meant. Pass `null` to publish the picker and draw none of it; omit to leave the choice alone. Re-checked against the picker being written, never the stored one. If a new `colorBys` no longer holds the entry that was active, the layer falls back to `materialColor` -- name `activeColorBy` in the same call to point at another entry instead')
+    filter_bys: tuple[MeshFilterByInput, ...] | None = Field(validation_alias=AliasChoices('filter_bys', 'filterBys'), serialization_alias='filterBys', default=None, description="The filters this layer offers, in the order a picker should show them -- 'large cells', 'not debris' -- each keeping or dropping objects by a column of a table this collection's FIELD edge keys into. Which half of the rule applies follows from the column's declared role: `min`/`max` bounds over a measure column, an explicit `values` set over a categorical one. Two entries may share a column, because two ranges over one measure are two different rules. Which of them are actually applied is `activeFilterBys`. Replaces the published filters wholesale, as `colorBys` does. Pass `[]` to remove every rule and draw all objects")
+    active_filter_bys: tuple[int, ...] | None = Field(validation_alias=AliasChoices('active_filter_bys', 'activeFilterBys'), serialization_alias='activeFilterBys', default=None, description='Which entries of `filterBys` are applied, as indices into it. Several at once is the normal case -- they combine with AND, and an object is drawn when every active rule keeps it. Empty applies none of them, so everything draws. Re-checked against the filters being written: a new `filterBys` that no longer holds an applied rule drops it from this set rather than leaving it dangling')
+    blending: Blending | None = Field(default=None, description='Layer-level blend mode')
+    opacity: float | None = Field(default=None, description='Layer alpha for alpha-over compositing, from 0 (transparent) to 1 (opaque)')
+    visible: bool | None = Field(default=None, description='Whether the layer participates in compositing')
+    order: int | None = Field(default=None, description='Explicit z-index for back-to-front compositing')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class UpdatePointLayerInput(BaseModel):
+    """Retune a point layer after creation -- above all, switch or republish its colour picker"""
     id: ID
-    material_color: Optional[Tuple[int, ...]] = Field(alias='materialColor', default=None)
-    wireframe: Optional[bool] = None
-    color_by: Optional[MeshColorByInput] = Field(alias='colorBy', default=None)
-    blending: Optional[Blending] = None
-    opacity: Optional[float] = None
-    visible: Optional[bool] = None
-    order: Optional[int] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    color_bys: tuple[LabelColorByInput, ...] | None = Field(validation_alias=AliasChoices('color_bys', 'colorBys'), serialization_alias='colorBys', default=None)
+    active_color_by: int | None = Field(validation_alias=AliasChoices('active_color_by', 'activeColorBy'), serialization_alias='activeColorBy', default=None)
+    filter_bys: tuple[LabelFilterByInput, ...] | None = Field(validation_alias=AliasChoices('filter_bys', 'filterBys'), serialization_alias='filterBys', default=None)
+    active_filter_bys: tuple[int, ...] | None = Field(validation_alias=AliasChoices('active_filter_bys', 'activeFilterBys'), serialization_alias='activeFilterBys', default=None)
+    size_column: str | None = Field(validation_alias=AliasChoices('size_column', 'sizeColumn'), serialization_alias='sizeColumn', default=None)
+    point_size: float | None = Field(validation_alias=AliasChoices('point_size', 'pointSize'), serialization_alias='pointSize', default=None)
+    colormap: ColorMap | None = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateSceneInput(BaseModel):
     """Input for setting a scene's viewer preferences. Every field is optional and an omitted one is left alone, so a client may set one preference without restating the others"""
     id: ID = Field(description='The ID of the scene to update')
-    preferred_view: Optional[PreferredView] = Field(alias='preferredView', default=None)
-    background_color: Optional[Tuple[float, ...]] = Field(alias='backgroundColor', default=None)
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    preferred_view: PreferredView | None = Field(validation_alias=AliasChoices('preferred_view', 'preferredView'), serialization_alias='preferredView', default=None)
+    background_color: tuple[float, ...] | None = Field(validation_alias=AliasChoices('background_color', 'backgroundColor'), serialization_alias='backgroundColor', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class UpdateSparseDatasetInput(BaseModel):
+    """Input for renaming or redescribing a sparse dataset"""
+    id: ID
+    name: str | None = None
+    description: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateTableDatasetInput(BaseModel):
     """Input for renaming or redescribing a table dataset. These two fields are the whole of what is editable: the store, the declared columns and the coordinate system derived from them are fixed at creation, and a recomputation is a new table"""
     id: ID
-    name: Optional[str] = None
-    description: Optional[str] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    name: str | None = None
+    description: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateTransformationInput(BaseModel):
-    """Input for refining an edge's parameters. Bumps its version, which is what tells an ROI its chain has moved"""
+    """Input for refining an edge's parameters. The refinement is recorded in the edge's provenance, which is what tells an ROI its chain has moved"""
     id: ID
-    name: Optional[str] = None
-    scale: Optional[Tuple[float, ...]] = None
-    translation: Optional[Tuple[float, ...]] = None
-    affine: Optional[Tuple[Tuple[float, ...], ...]] = None
-    validity: Optional[PlacementValidity] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    name: str | None = None
+    scale: tuple[float, ...] | None = None
+    translation: tuple[float, ...] | None = None
+    affine: tuple[tuple[float, ...], ...] | None = None
+    validity: PlacementValidity | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ValueHistogramInput(ValueHistogramInputTrait, BaseModel):
     """Input type for a value histogram, which specifies the histogram of pixel values along certain dimensions to provide additional context about the distribution of pixel values in an image"""
-    histogram: Tuple[float, ...] = Field(description='The histogram of the pixel values (y values)')
-    bins: Tuple[float, ...] = Field(description='The bin indices of the histogram (x values)')
-    min: Optional[float] = Field(default=None, description='The minimum pixel value of the histogram')
-    max: Optional[float] = Field(default=None, description='The maximum pixel value of the histogram')
-    p1: Optional[float] = Field(default=None, description='The 1st percentile pixel value of the histogram')
-    p99: Optional[float] = Field(default=None, description='The 99th percentile pixel value of the histogram')
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    histogram: tuple[float, ...] = Field(description='The histogram of the pixel values (y values)')
+    bins: tuple[float, ...] = Field(description='The bin indices of the histogram (x values)')
+    min: float | None = Field(default=None, description='The minimum pixel value of the histogram')
+    max: float | None = Field(default=None, description='The maximum pixel value of the histogram')
+    p1: float | None = Field(default=None, description='The 1st percentile pixel value of the histogram')
+    p99: float | None = Field(default=None, description='The 99th percentile pixel value of the histogram')
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class Vec3Input(BaseModel):
     """A 3D vector representing a point or offset in space."""
-    x: Optional[float] = None
-    y: Optional[float] = None
-    z: Optional[float] = None
-    model_config = ConfigDict(frozen=True, extra='forbid', populate_by_name=True, use_enum_values=True)
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CameraState(MikroFetchable, BaseModel):
     """Where a viewer's camera is in a scene, and how it is looking at it. Carries a flat cross-section view and a volumetric projection view of one position, so a single pose serves both and `Scene.preferredView` picks which is used. Every number is read against the scene's world coordinate system, whose axes carry the units"""
     typename: Literal['CameraState'] = Field(alias='__typename', default='CameraState', exclude=True)
     position: Any
     "Where the camera is centred, keyed by the world's axis names. Keyed rather than a positional list because the world's axes are named and a tour through a timelapse moves in t as much as in z -- a list would silently depend on axis order. Axes the pose does not name are left wherever the viewer already had them."
-    cross_section_orientation: Optional[Tuple[float, ...]] = Field(default=None, alias='crossSectionOrientation')
+    cross_section_orientation: tuple[float, ...] | None = Field(default=None, alias='crossSectionOrientation')
     "The flat view's orientation, as a quaternion. Null to leave it to the viewer."
-    cross_section_scale: Optional[float] = Field(default=None, alias='crossSectionScale')
+    cross_section_scale: float | None = Field(default=None, alias='crossSectionScale')
     "The flat view's zoom, in world units per screen pixel. Null to leave it to the viewer."
-    projection_orientation: Optional[Tuple[float, ...]] = Field(default=None, alias='projectionOrientation')
+    projection_orientation: tuple[float, ...] | None = Field(default=None, alias='projectionOrientation')
     "The volumetric view's orientation, as a quaternion. Null to leave it to the viewer."
-    projection_scale: Optional[float] = Field(default=None, alias='projectionScale')
+    projection_scale: float | None = Field(default=None, alias='projectionScale')
     "The volumetric view's zoom, in world units per screen pixel. Null to leave it to the viewer."
     model_config = ConfigDict(frozen=True)
 
@@ -2076,8 +2414,8 @@ class Axis(MikroFetchable, BaseModel):
     order: int
     name: str
     type: AxisType
-    unit: Optional[Unit] = Field(default=None)
-    long_name: Optional[str] = Field(default=None, alias='longName')
+    unit: Unit | None = Field(default=None)
+    long_name: str | None = Field(default=None, alias='longName')
     model_config = ConfigDict(frozen=True)
 
     class Meta:
@@ -2275,6 +2613,26 @@ class FabriksAccessGrant(MikroFetchable, BaseModel):
         name = 'FabriksAccessGrant'
         type = 'FabriksAccessGrant'
 
+class SparseUploadGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for uploading a sparse store. Scoped to the prefix and permitted to read back and delete inside it, because the three arrays are written incrementally."""
+    typename: Literal['SparseUploadGrant'] = Field(alias='__typename', default='SparseUploadGrant', exclude=True)
+    access_key: str = Field(alias='accessKey')
+    secret_key: str = Field(alias='secretKey')
+    session_token: str = Field(alias='sessionToken')
+    path: str
+    key: str
+    bucket: str
+    expires_in: int = Field(alias='expiresIn')
+    max_bytes: int = Field(alias='maxBytes')
+    store: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for SparseUploadGrant"""
+        document = 'fragment SparseUploadGrant on SparseUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}'
+        name = 'SparseUploadGrant'
+        type = 'SparseUploadGrant'
+
 class FolderParent(BaseModel):
     """A folder is a collection of the things mikro stores. It mimics a folder in a file system and is the top-level container for organising data."""
     typename: Literal['Folder'] = Field(alias='__typename', default='Folder', exclude=True)
@@ -2287,8 +2645,8 @@ class Folder(MikroFetchable, BaseModel):
     typename: Literal['Folder'] = Field(alias='__typename', default='Folder', exclude=True)
     id: ID
     name: str
-    description: Optional[str] = Field(default=None)
-    parent: Optional[FolderParent] = Field(default=None)
+    description: str | None = Field(default=None)
+    parent: FolderParent | None = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
     class Meta:
@@ -2316,6 +2674,74 @@ class LayerLens(Lensable, BaseModel):
     id: ID
     model_config = ConfigDict(frozen=True)
 
+class LayerLabelRenderColorBysAt(BaseModel):
+    """One position along one named axis: which slice of a matrix a colouring reads"""
+    typename: Literal['AxisPosition'] = Field(alias='__typename', default='AxisPosition', exclude=True)
+    axis: str
+    value: int
+    model_config = ConfigDict(frozen=True)
+
+class LayerLabelRenderColorBysJoinPath(BaseModel):
+    """One hop of a join path: the column whose values identify rows of the next table. The target is not named here -- the next step names it, and which of its columns holds row identity is already declared on it"""
+    typename: Literal['JoinStep'] = Field(alias='__typename', default='JoinStep', exclude=True)
+    table: ID
+    column: str
+    model_config = ConfigDict(frozen=True)
+
+class LayerLabelRenderColorBys(BaseModel):
+    """One entry of a label layer's colour picker: colour the mask's objects by a column of the table its FIELD edge keys into, instead of by hashing their id. The table is named, never the join: which of its columns holds row identity is already declared there, and the edge that makes the lookup possible is already in the coordinate graph"""
+    typename: Literal['LabelColorBy'] = Field(alias='__typename', default='LabelColorBy', exclude=True)
+    kind: ColorSourceKind
+    table: ID | None = Field(default=None)
+    column: str | None = Field(default=None)
+    dataset: ID | None = Field(default=None)
+    at: tuple[LayerLabelRenderColorBysAt, ...]
+    join_path: tuple[LayerLabelRenderColorBysJoinPath, ...] = Field(alias='joinPath')
+    colormap: ColorMap | None = Field(default=None)
+    min: float | None = Field(default=None)
+    max: float | None = Field(default=None)
+    label: str | None = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+class LayerLabelRenderFilterBysJoinPath(BaseModel):
+    """One hop of a join path: the column whose values identify rows of the next table. The target is not named here -- the next step names it, and which of its columns holds row identity is already declared on it"""
+    typename: Literal['JoinStep'] = Field(alias='__typename', default='JoinStep', exclude=True)
+    table: ID
+    column: str
+    model_config = ConfigDict(frozen=True)
+
+class LayerLabelRenderFilterBys(BaseModel):
+    """One entry of a label layer's filter picker: draw only the objects whose row in the keyed table satisfies this rule. The sibling of `LabelColorBy` over the same FIELD edge -- same table, same column check -- deciding whether an object is drawn rather than what colour it takes"""
+    typename: Literal['LabelFilterBy'] = Field(alias='__typename', default='LabelFilterBy', exclude=True)
+    table: ID | None = Field(default=None)
+    column: str | None = Field(default=None)
+    join_path: tuple[LayerLabelRenderFilterBysJoinPath, ...] = Field(alias='joinPath')
+    min: float | None = Field(default=None)
+    max: float | None = Field(default=None)
+    values: tuple[str, ...] | None = Field(default=None)
+    exclude: bool
+    label: str | None = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+class LayerLabelRender(BaseModel):
+    """How a label layer's discrete object ids become color. Not a transfer function and not a node graph: a label map has one source, no compositing tree, and none of an intensity image's vocabulary -- contrast limits, gamma and colormaps are all meaningless over ids"""
+    typename: Literal['LabelRender'] = Field(alias='__typename', default='LabelRender', exclude=True)
+    intensity_axis: str | None = Field(default=None, alias='intensityAxis')
+    intensity_index: int = Field(alias='intensityIndex')
+    seed: int
+    background: int
+    opacity: float | None = Field(default=None)
+    contour: bool
+    contour_width: float | None = Field(default=None, alias='contourWidth')
+    selected: tuple[int, ...]
+    selection_color: tuple[int, ...] | None = Field(default=None, alias='selectionColor')
+    show_unselected: bool = Field(alias='showUnselected')
+    color_bys: tuple[LayerLabelRenderColorBys, ...] = Field(alias='colorBys')
+    active_color_by: int | None = Field(default=None, alias='activeColorBy')
+    filter_bys: tuple[LayerLabelRenderFilterBys, ...] = Field(alias='filterBys')
+    active_filter_bys: tuple[int, ...] = Field(alias='activeFilterBys')
+    model_config = ConfigDict(frozen=True)
+
 class LayerCollection(BaseModel):
     """An immutable, versioned collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
     typename: Literal['MeshCollection'] = Field(alias='__typename', default='MeshCollection', exclude=True)
@@ -2323,13 +2749,109 @@ class LayerCollection(BaseModel):
     version: str
     model_config = ConfigDict(frozen=True)
 
-class LayerColorby(BaseModel):
-    """Color a mesh collection's objects by a column of the table its FIELD edge keys into, instead of by the layer's flat material color. The same shape `LabelColorBy` carries, and the same relation -- a collection's ids reach a table exactly as a mask's pixel values do -- under a name that reads right on a mesh"""
-    typename: Literal['MeshColorBy'] = Field(alias='__typename', default='MeshColorBy', exclude=True)
+class LayerColorBysAt(BaseModel):
+    """One position along one named axis: which slice of a matrix a colouring reads"""
+    typename: Literal['AxisPosition'] = Field(alias='__typename', default='AxisPosition', exclude=True)
+    axis: str
+    value: int
+    model_config = ConfigDict(frozen=True)
+
+class LayerColorBysJoinPath(BaseModel):
+    """One hop of a join path: the column whose values identify rows of the next table. The target is not named here -- the next step names it, and which of its columns holds row identity is already declared on it"""
+    typename: Literal['JoinStep'] = Field(alias='__typename', default='JoinStep', exclude=True)
     table: ID
     column: str
-    colormap: Optional[ColorMap] = Field(default=None)
-    class_colors: Optional[Any] = Field(default=None, alias='classColors')
+    model_config = ConfigDict(frozen=True)
+
+class LayerColorBys(BaseModel):
+    """One entry of a mesh layer's picker: color the collection's objects by a column of the table its FIELD edge keys into, instead of by the layer's flat material color. The same shape `LabelColorBy` carries, and the same relation -- a collection's ids reach a table exactly as a mask's pixel values do -- plus the caption a picker needs"""
+    typename: Literal['MeshColorBy'] = Field(alias='__typename', default='MeshColorBy', exclude=True)
+    kind: ColorSourceKind
+    table: ID | None = Field(default=None)
+    column: str | None = Field(default=None)
+    dataset: ID | None = Field(default=None)
+    at: tuple[LayerColorBysAt, ...]
+    join_path: tuple[LayerColorBysJoinPath, ...] = Field(alias='joinPath')
+    colormap: ColorMap | None = Field(default=None)
+    min: float | None = Field(default=None)
+    max: float | None = Field(default=None)
+    label: str | None = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+class LayerFilterBysJoinPath(BaseModel):
+    """One hop of a join path: the column whose values identify rows of the next table. The target is not named here -- the next step names it, and which of its columns holds row identity is already declared on it"""
+    typename: Literal['JoinStep'] = Field(alias='__typename', default='JoinStep', exclude=True)
+    table: ID
+    column: str
+    model_config = ConfigDict(frozen=True)
+
+class LayerFilterBys(BaseModel):
+    """One entry of a mesh layer's filter picker: draw only the objects whose row in the keyed table satisfies this rule. The sibling of `MeshColorBy` over the same FIELD edge -- same table, same column check -- deciding whether an object is drawn rather than what colour it takes"""
+    typename: Literal['MeshFilterBy'] = Field(alias='__typename', default='MeshFilterBy', exclude=True)
+    table: ID | None = Field(default=None)
+    column: str | None = Field(default=None)
+    join_path: tuple[LayerFilterBysJoinPath, ...] = Field(alias='joinPath')
+    min: float | None = Field(default=None)
+    max: float | None = Field(default=None)
+    values: tuple[str, ...] | None = Field(default=None)
+    exclude: bool
+    label: str | None = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+class LayerTableDataset(HasParquestStoreTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class LayerColorBysAt(BaseModel):
+    """One position along one named axis: which slice of a matrix a colouring reads"""
+    typename: Literal['AxisPosition'] = Field(alias='__typename', default='AxisPosition', exclude=True)
+    axis: str
+    value: int
+    model_config = ConfigDict(frozen=True)
+
+class LayerColorBysJoinPath(BaseModel):
+    """One hop of a join path: the column whose values identify rows of the next table. The target is not named here -- the next step names it, and which of its columns holds row identity is already declared on it"""
+    typename: Literal['JoinStep'] = Field(alias='__typename', default='JoinStep', exclude=True)
+    table: ID
+    column: str
+    model_config = ConfigDict(frozen=True)
+
+class LayerColorBys(BaseModel):
+    """One entry of a label layer's colour picker: colour the mask's objects by a column of the table its FIELD edge keys into, instead of by hashing their id. The table is named, never the join: which of its columns holds row identity is already declared there, and the edge that makes the lookup possible is already in the coordinate graph"""
+    typename: Literal['LabelColorBy'] = Field(alias='__typename', default='LabelColorBy', exclude=True)
+    kind: ColorSourceKind
+    table: ID | None = Field(default=None)
+    column: str | None = Field(default=None)
+    dataset: ID | None = Field(default=None)
+    at: tuple[LayerColorBysAt, ...]
+    join_path: tuple[LayerColorBysJoinPath, ...] = Field(alias='joinPath')
+    colormap: ColorMap | None = Field(default=None)
+    min: float | None = Field(default=None)
+    max: float | None = Field(default=None)
+    label: str | None = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+class LayerFilterBysJoinPath(BaseModel):
+    """One hop of a join path: the column whose values identify rows of the next table. The target is not named here -- the next step names it, and which of its columns holds row identity is already declared on it"""
+    typename: Literal['JoinStep'] = Field(alias='__typename', default='JoinStep', exclude=True)
+    table: ID
+    column: str
+    model_config = ConfigDict(frozen=True)
+
+class LayerFilterBys(BaseModel):
+    """One entry of a label layer's filter picker: draw only the objects whose row in the keyed table satisfies this rule. The sibling of `LabelColorBy` over the same FIELD edge -- same table, same column check -- deciding whether an object is drawn rather than what colour it takes"""
+    typename: Literal['LabelFilterBy'] = Field(alias='__typename', default='LabelFilterBy', exclude=True)
+    table: ID | None = Field(default=None)
+    column: str | None = Field(default=None)
+    join_path: tuple[LayerFilterBysJoinPath, ...] = Field(alias='joinPath')
+    min: float | None = Field(default=None)
+    max: float | None = Field(default=None)
+    values: tuple[str, ...] | None = Field(default=None)
+    exclude: bool
+    label: str | None = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
 class LayerBase(BaseModel):
@@ -2357,28 +2879,56 @@ class LayerLabelLayer(LayerBase, BaseModel):
     """A layer that renders array (lens) data whose values are discrete object ids -- a segmentation or an instance map. It shares the image layer's source and the same coordinate-graph placement, and none of its render settings: contrast limits, gamma, colormaps and intensity projections are all meaningless over ids."""
     typename: Literal['LabelLayer'] = Field(alias='__typename', default='LabelLayer', exclude=True)
     lens: LayerLens
+    label_render: LayerLabelRender | None = Field(default=None, alias='labelRender')
+    "How this layer's object ids become color: the hashing, the transparent background id, contour-or-fill, the selection, and any `colorBy`"
     placement: PlacementState
-    "Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means two different things -- nobody has registered this data yet, or its geometry did not survive the operation that produced it and it can never be placed -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge. Derived, never stored"
+    "Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means three different things -- nobody has registered this data yet, its geometry did not survive the operation that produced it and it can never be placed, or it is registered per index and you have not said which index -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Pass the same `at` you would pass `pathToWorld` to be told about that coordinate. Derived, never stored"
     placement_validity: PlacementValidity = Field(alias='placementValidity')
-    "How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path"
+    "How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed, and when there is no path at all; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. A layer placed per index reports one of its scoped routes rather than UNKNOWN; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path"
 
 class LayerMeshLayer(LayerBase, BaseModel):
     """A layer that renders a 3D mesh (surface reconstruction / isosurface) placed and styled in a scene."""
     typename: Literal['MeshLayer'] = Field(alias='__typename', default='MeshLayer', exclude=True)
-    collection: Optional[LayerCollection] = Field(default=None)
+    collection: LayerCollection | None = Field(default=None)
     "The versioned, coordinate-system-anchored mesh collection this layer renders. Its geometry is fetched from the collection's Parquet catalog, not through this API"
-    material_color: Optional[Tuple[int, ...]] = Field(default=None, alias='materialColor')
+    material_color: tuple[int, ...] | None = Field(default=None, alias='materialColor')
     wireframe: bool
-    color_by: Optional[LayerColorby] = Field(default=None, alias='colorBy')
-    "Color the objects by a column of the table this collection's FIELD edge keys into, instead of by the flat `materialColor`. Null means the material color is what is drawn -- the distinction between a surface and a measurement rendered on one"
+    shading: MeshShading
+    max_level: int | None = Field(default=None, alias='maxLevel')
+    color_bys: tuple[LayerColorBys, ...] = Field(alias='colorBys')
+    "The colourings this layer offers, in the order a picker should show them. Each is a column of a table this collection's FIELD edge keys into, already checked to be reachable and to exist. Empty means there is nothing to pick and the material color is the rendering"
+    active_color_by: int | None = Field(default=None, alias='activeColorBy')
+    'Which entry of `colorBys` is drawn, as an index into it. Null means the flat `materialColor` is what is drawn -- the distinction between a surface and a measurement rendered on one'
+    filter_bys: tuple[LayerFilterBys, ...] = Field(alias='filterBys')
+    "The filters this layer offers, in the order a picker should show them. Each keeps or drops objects by a column of a table this collection's FIELD edge keys into, already checked to be reachable and to exist. Empty means nothing is offered and every object draws"
+    active_filter_bys: tuple[int, ...] = Field(alias='activeFilterBys')
+    'Which entries of `filterBys` are applied, as indices into it. They combine with AND: an object is drawn when every active rule keeps it. Empty applies none of them, so everything draws'
     placement: PlacementState
-    "Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means two different things -- nobody has registered this data yet, or its geometry did not survive the operation that produced it and it can never be placed -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge. Derived, never stored"
+    "Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means three different things -- nobody has registered this data yet, its geometry did not survive the operation that produced it and it can never be placed, or it is registered per index and you have not said which index -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Pass the same `at` you would pass `pathToWorld` to be told about that coordinate. Derived, never stored"
     placement_validity: PlacementValidity = Field(alias='placementValidity')
-    "How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path"
+    "How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed, and when there is no path at all; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. A layer placed per index reports one of its scoped routes rather than UNKNOWN; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path"
 
 class LayerPointLayer(LayerBase, BaseModel):
     """A layer that renders a point cloud (e.g. SMLM localisations, centroids) from a table dataset."""
     typename: Literal['PointLayer'] = Field(alias='__typename', default='PointLayer', exclude=True)
+    table_dataset: LayerTableDataset = Field(alias='tableDataset')
+    'The table dataset the points are drawn from. Its declared coordinate columns provide the coordinates and its own system provides the placement -- the column fields below are derived from its schema, never stored per layer'
+    x_column: str | None = Field(default=None, alias='xColumn')
+    "The coordinate column whose axis is named 'x', from the dataset's declared schema"
+    y_column: str | None = Field(default=None, alias='yColumn')
+    "The coordinate column whose axis is named 'y'"
+    z_column: str | None = Field(default=None, alias='zColumn')
+    "The coordinate column whose axis is named 'z', if any"
+    point_size: float | None = Field(default=None, alias='pointSize')
+    colormap: ColorMap | None = Field(default=None)
+    active_color_by: int | None = Field(default=None, alias='activeColorBy')
+    'Which entry of `colorBys` is drawn, as an index into it. Null means every point takes the flat colour -- the distinction between a position and a measurement drawn at one'
+    color_bys: tuple[LayerColorBys, ...] = Field(alias='colorBys')
+    "The colourings this layer offers, in the order a picker should show them. Each names a column of a table this layer's ids key into, or one slice of a sparse matrix they index, already checked to be reachable. Empty means there is nothing to pick"
+    active_filter_bys: tuple[int, ...] = Field(alias='activeFilterBys')
+    'Which entries of `filterBys` are applied, as indices into it. They combine with AND: a point is drawn when every active rule keeps it. Empty applies none of them, so everything draws'
+    filter_bys: tuple[LayerFilterBys, ...] = Field(alias='filterBys')
+    "The filters this layer offers, in the order a picker should show them. Each keeps or drops points by a column of a table this layer's ids key into. Empty means nothing is offered and every point draws"
 
 class LayerTrackLayer(LayerBase, BaseModel):
     """A layer that renders trajectories (e.g. particle/cell tracks) from a table dataset, grouped by its TRACK_ID column."""
@@ -2389,11 +2939,11 @@ class Slice(MikroFetchable, BaseModel):
     typename: Literal['Slice'] = Field(alias='__typename', default='Slice', exclude=True)
     axis: str
     "The name of the axis the slice acts on, e.g. 'x', 'y', 'z', 'c', or 't'"
-    start: Optional[int] = Field(default=None)
+    start: int | None = Field(default=None)
     'The starting index of the slice, or None to start from the beginning'
-    stop: Optional[int] = Field(default=None)
+    stop: int | None = Field(default=None)
     'The stopping index of the slice, or None to go to the end'
-    step: Optional[int] = Field(default=None)
+    step: int | None = Field(default=None)
     'The step size of the slice, or None to use the default step'
     model_config = ConfigDict(frozen=True)
 
@@ -2409,9 +2959,9 @@ class PhasorCalibration(MikroFetchable, BaseModel):
     id: ID
     axis: str
     harmonic: int
-    phase_offset: Optional[float] = Field(default=None, alias='phaseOffset')
-    modulation_factor: Optional[float] = Field(default=None, alias='modulationFactor')
-    reference: Optional[str] = Field(default=None)
+    phase_offset: float | None = Field(default=None, alias='phaseOffset')
+    modulation_factor: float | None = Field(default=None, alias='modulationFactor')
+    reference: str | None = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
     class Meta:
@@ -2431,11 +2981,11 @@ class PhasorHistogram(MikroFetchable, BaseModel):
     g_max: float = Field(alias='gMax')
     s_min: float = Field(alias='sMin')
     s_max: float = Field(alias='sMax')
-    total: Optional[int] = Field(default=None)
+    total: int | None = Field(default=None)
     calibrated: bool
-    counts: Tuple[float, ...]
+    counts: tuple[float, ...]
     'The flattened bins x bins (g, s) density, row-major with s outermost'
-    profile: Tuple[float, ...]
+    profile: tuple[float, ...]
     'The summed profile along the phasor axis (a decay for a MICROTIME axis, a spectrum for a SPECTRUM one), one value per bin'
     model_config = ConfigDict(frozen=True)
 
@@ -2444,6 +2994,29 @@ class PhasorHistogram(MikroFetchable, BaseModel):
         document = 'fragment PhasorHistogram on PhasorHistogram {\n  id\n  axis\n  harmonic\n  bins\n  gMin\n  gMax\n  sMin\n  sMax\n  total\n  calibrated\n  counts\n  profile\n  __typename\n}'
         name = 'PhasorHistogram'
         type = 'PhasorHistogram'
+
+class SparseAxisReferenceReferences(HasParquestStoreTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class SparseAxisReference(MikroFetchable, BaseModel):
+    """An axis whose positions are rows of a table. The sparse counterpart of `Column.references` -- the same statement said of an axis, because a matrix has no columns to hang it on -- and what lets a FIELD edge land beside it: a mask supplies one id, so the other axis has to be accounted for by its own identification"""
+    typename: Literal['SparseAxisReference'] = Field(alias='__typename', default='SparseAxisReference', exclude=True)
+    id: ID
+    axis: str
+    'The name of the identified axis'
+    references: SparseAxisReferenceReferences
+    "The table whose rows this axis' positions are. Keyed by its single INDEX coordinate column, which is where a position is looked up"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for SparseAxisReference"""
+        document = 'fragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}'
+        name = 'SparseAxisReference'
+        type = 'SparseAxisReference'
 
 class ZarrStore(HasZarrStoreAccessor, MikroFetchable, BaseModel):
     """No documentation"""
@@ -2513,12 +3086,12 @@ class FabriksStore(MikroFetchable, BaseModel):
     key: str
     bucket: str
     path: str
-    spec_version: Optional[str] = Field(default=None, alias='specVersion')
-    grid: Optional[Any] = Field(default=None)
-    encoding: Optional[Any] = Field(default=None)
-    axes: Optional[Tuple[str, ...]] = Field(default=None)
-    counts: Optional[Any] = Field(default=None)
-    files: Optional[Any] = Field(default=None)
+    spec_version: str | None = Field(default=None, alias='specVersion')
+    grid: Any | None = Field(default=None)
+    encoding: Any | None = Field(default=None)
+    axes: tuple[str, ...] | None = Field(default=None)
+    counts: Any | None = Field(default=None)
+    files: Any | None = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
     class Meta:
@@ -2527,13 +3100,57 @@ class FabriksStore(MikroFetchable, BaseModel):
         name = 'FabriksStore'
         type = 'FabriksStore'
 
+class SparseStoreLayouts(BaseModel):
+    """One stored layout of a sparse matrix: an anndata-spelled group under `layouts/<encoding>`, holding `data`, `indices` and `indptr`. Read it with two requests -- `indptr[i:i+2]` at the position, then the range those two offsets name in `indices` and `data`."""
+    typename: Literal['SparseLayout'] = Field(alias='__typename', default='SparseLayout', exclude=True)
+    path: str
+    "Where this layout sits inside the store's prefix, e.g. `layouts/csr_matrix`. A reader opens the group at this path, not the store root"
+    encoding: str
+    'The anndata encoding this layout declares: `csr_matrix` or `csc_matrix`. It names which axis `indptr` indexes, which is the whole of what the two layouts differ in'
+    encoding_version: str | None = Field(default=None, alias='encodingVersion')
+    'The version of that encoding, as the layout declares it'
+    indexed_axis: int = Field(alias='indexedAxis')
+    "Which axis of the store's `shape` this layout makes contiguous. Ask along an axis no layout compresses and there is no range to read at all, only a scan of everything"
+    index_order: tuple[int, ...] = Field(alias='indexOrder')
+    'The axes this layout did not compress, in the order `indices` was raveled over them. At rank two it has one member and says nothing; above it, unravel a returned position through this -- it is the one fact in the format that cannot be recovered from the bytes, so a wrong reading does not fail, it reads a different cell'
+    nnz: int
+    'How many nonzeros this layout holds. Read from the length of `data`, never declared'
+    dtype: str
+    'The dtype of the stored values'
+    chunks: Any | None = Field(default=None)
+    'The chunk length of each of `data`, `indices` and `indptr`. What decides the read cost: a chunk is the granularity at which bytes can be fetched, so a slice costs whole chunks -- measured on a 16 um matrix, one slice costs 0.95 ms at 32 768-element chunks and 23.55 ms at 4 Mi ones. Sized for one object-store request, where the cost is round trips rather than bytes and a chunk is also the unit the next lookup along an adjacent slice reuses'
+    range_readable: bool = Field(alias='rangeReadable')
+    'Whether a slice can be fetched as an exact byte range instead of as whole chunks -- true when every array is one uncompressed chunk, so `indptr` names byte offsets into the raw buffer. False is the ordinary case and not a defect: the default trades bytes for cache reuse, which is the better trade when the cost is requests'
+    model_config = ConfigDict(frozen=True)
+
+class SparseStore(MikroFetchable, BaseModel):
+    """A sparse matrix stored as an anndata-spelled zarr group behind the S3 datalayer: `data`, `indices` and `indptr`, with the encoding, shape and chunking read from the group itself rather than declared. Its `encoding` says which axis `indptr` indexes, and so which question it answers in one contiguous read -- ask the other and there is no range to read at all."""
+    typename: Literal['SparseStore'] = Field(alias='__typename', default='SparseStore', exclude=True)
+    id: ID
+    key: str
+    bucket: str
+    path: str
+    spec: str | None = Field(default=None)
+    'The version of the `sporadik` block this store was accepted under. A spec selects how every byte in the prefix is read, so an unknown one is refused rather than guessed at'
+    shape: tuple[int, ...] | None = Field(default=None)
+    'The shape of the matrix, as the root block declares it and every layout agrees. Two axes'
+    layouts: tuple[SparseStoreLayouts, ...]
+    "The stored layouts, one per `layouts/<encoding>` child. Which axis a layout's `indptr` indexes decides which question it answers in one contiguous read, so a store holding one layout offers one capability and a store holding both offers both. Empty while the store is unpopulated, which is the only state in which what it holds is unknown"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for SparseStore"""
+        document = 'fragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}'
+        name = 'SparseStore'
+        type = 'SparseStore'
+
 class TransformationChildBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
     id: ID
     kind: TransformKind
-    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    input_axes: tuple[str, ...] = Field(alias='inputAxes')
     "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
-    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    output_axes: tuple[str, ...] = Field(alias='outputAxes')
     "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
 
 class TransformationChildCatch(TransformationChildBase):
@@ -2542,20 +3159,16 @@ class TransformationChildCatch(TransformationChildBase):
     'A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters'
     id: ID
     kind: TransformKind
-    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    input_axes: tuple[str, ...] = Field(alias='inputAxes')
     "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
-    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    output_axes: tuple[str, ...] = Field(alias='outputAxes')
     "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
 
 class TransformationChildAffineTransformation(TransformationChildBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
-    affine: Tuple[Tuple[float, ...], ...]
+    affine: tuple[tuple[float, ...], ...]
     'The affine matrix, M x (N+1), rows outermost. The last column is the translation'
-
-class TransformationChildBijectionTransformation(TransformationChildBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
 
 class TransformationChildByDimensionTransformation(TransformationChildBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
@@ -2576,13 +3189,13 @@ class TransformationChildMapAxisTransformation(TransformationChildBase, Transfor
 class TransformationChildRotationTransformation(TransformationChildBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
-    affine: Tuple[Tuple[float, ...], ...]
+    affine: tuple[tuple[float, ...], ...]
     'The rotation matrix'
 
 class TransformationChildScaleTransformation(TransformationChildBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
-    scale: Tuple[float, ...]
+    scale: tuple[float, ...]
     "The per-axis scale factors, in the axis order of the input system, expressed in the units of the output system's axes (dimensionless between pixel systems, e.g. within a pyramid). Absolute, not relative to another level"
 
 class TransformationChildSequenceTransformation(TransformationChildBase, TransformationTrait, BaseModel):
@@ -2592,12 +3205,40 @@ class TransformationChildSequenceTransformation(TransformationChildBase, Transfo
 class TransformationChildTranslationTransformation(TransformationChildBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
-    translation: Tuple[float, ...]
+    translation: tuple[float, ...]
     'The per-axis offsets, in the axis order of the input system'
 
 class TransformationChildUnmappableTransformation(TransformationChildBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class ColumnOptionJoinStepTable(HasParquestStoreTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class ColumnOptionJoinStepColumn(BaseModel):
+    """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
+    typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class ColumnOptionJoinStep(MikroFetchable, BaseModel):
+    """One hop of a join path: the column whose values identify rows of the next table"""
+    typename: Literal['ColumnOptionJoinStep'] = Field(alias='__typename', default='ColumnOptionJoinStep', exclude=True)
+    table: ColumnOptionJoinStepTable
+    'The table this hop stands in'
+    column: ColumnOptionJoinStepColumn
+    'The column of it whose `references` identifies rows of the next table'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for ColumnOptionJoinStep"""
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}'
+        name = 'ColumnOptionJoinStep'
+        type = 'ColumnOptionJoinStep'
 
 class AnimationWaypoint(MikroFetchable, BaseModel):
     """One camera pose in a tour, and how the viewer travels to it"""
@@ -2626,10 +3267,10 @@ class CoordinateSystem(CoordinateSystemTrait, MikroFetchable, BaseModel):
     typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
     id: ID
     name: str
-    epoch: Optional[datetime] = Field(default=None)
+    epoch: datetime | None = Field(default=None)
     "The wall-clock instant this system's time axis has its origin at: `wall_clock = epoch + t * unit`. A property of the space, not of any composition over it. Meaningful only for a unit-carrying system with a TIME axis (a shared world space); null when the clock is unanchored -- the time axis is still a perfectly composable relative coordinate"
-    axes: Tuple[Axis, ...]
-    "The system's axes, in array order (slowest-varying first). RFC-5 requires them ordered by type: time, then channel and custom types, then space"
+    axes: tuple[Axis, ...]
+    "The system's axes, in the order the data has them: for a system backed by an array, its store's dimension order; for a table, its coordinate columns as declared. No ordering by type is imposed on either. What matters downstream is that the *spatial* axes are in array order, which is what the render axes are derived from"
     model_config = ConfigDict(frozen=True)
 
     class Meta:
@@ -2652,6 +3293,124 @@ class File(FileTrait, MikroFetchable, BaseModel):
         name = 'File'
         type = 'File'
 
+class SparseArray(MikroFetchable, BaseModel):
+    """One stored layout of a sparse matrix: a store, and which axis its `indptr` indexes. The `DataArray` of this world and deliberately thinner -- two layouts are the same space holding the same values in a different order, so unlike a pyramid level there is no coordinate system and no edge, because there is nothing spatial to state"""
+    typename: Literal['SparseArray'] = Field(alias='__typename', default='SparseArray', exclude=True)
+    id: ID
+    indexed_axis: int = Field(alias='indexedAxis')
+    "Which axis of the dataset this layout's `indptr` indexes, as a position in the declared axis order. Selecting one position along it is a single contiguous read; selecting along the other axis is a scan of everything, which is why a dataset that must answer both questions holds two of these"
+    indexed_axis_name: str | None = Field(default=None, alias='indexedAxisName')
+    "The name of the axis this layout indexes, from the dataset's declared order"
+    path: str
+    "Where this layout sits inside the store's prefix, e.g. `layouts/csr_matrix`. Open the group at this path, not at the store root"
+    store: SparseStore
+    'The store holding this layout. Both layouts of one matrix share it -- one matrix is one upload -- so `path` is what says which of them this is. Ask the store for an access grant and read the three arrays directly'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for SparseArray"""
+        document = 'fragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}'
+        name = 'SparseArray'
+        type = 'SparseArray'
+
+class ColorByOptionTable(HasParquestStoreTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class ColorByOptionSparseDataset(BaseModel):
+    """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class ColorByOptionColumn(BaseModel):
+    """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
+    typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
+    id: ID
+    name: str
+    dtype: str
+    role: ColumnRole
+    unit: Unit | None = Field(default=None)
+    long_name: str | None = Field(default=None, alias='longName')
+    description: str | None = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+class ColorByOption(MikroFetchable, BaseModel):
+    """One column a layer may be coloured or filtered by, and how it is reached. Both pickers read the same options: `colorBys` and `filterBys` turn on the same measure-vs-categorical split, so two lists would be two copies of one answer. Every option returned is one the mutation that publishes the picker accepts -- `createMeshLayer` over a collection, `createLabelLayer` over a lens -- and every column it omits is one that mutation refuses; that invariant is why this exists rather than a client filtering `attributePlans`, which walks a different set"""
+    typename: Literal['ColorByOption'] = Field(alias='__typename', default='ColorByOption', exclude=True)
+    table: ColorByOptionTable | None = Field(default=None)
+    "The table the value is read from. With an empty `joinPath` this is a table the source's ids key directly"
+    sparse_dataset: ColorByOptionSparseDataset | None = Field(default=None, alias='sparseDataset')
+    '(SPARSE) The matrix one slice of which is read, instead of a table column. Present exactly when `table` and `column` are null -- an option is one or the other, never both'
+    axes: tuple[str, ...]
+    "(SPARSE) The axes a position is named along -- the ones the matrix identifies itself, never the one the source's ids index. **Name a position along every one of them**: a rank-two matrix has one, a rank-three matrix two, and an `at` that names a different set is refused. **One option per matrix, never per position**: a matrix with 19 059 features has 19 059 of those, and the picker offers the axes while the client picks the positions out of the tables they reference, which it already holds access grants for. Offered when at least one of these axes has a stored layout, which is what makes the read one contiguous slice rather than a scan"
+    column: ColorByOptionColumn | None = Field(default=None)
+    'The column holding the value. Its `name` is what `colorBys`/`filterBys` take, and its `role`, `unit` and `dtype` are declared on the table'
+    control: ColumnControl
+    'Which control this column admits, derived from its role by the same rule the write path enforces: MEASURE takes a colormap and a `min`/`max` range, CATEGORICAL an explicit colour map and a `values` set'
+    join_path: tuple[ColumnOptionJoinStep, ...] = Field(alias='joinPath')
+    "The `references` hops from the table the source's ids land in to `table`. Empty is the direct case. Pass it back verbatim as `colorBys[].joinPath` to select this option"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for ColorByOption"""
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ColorByOption on ColorByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}'
+        name = 'ColorByOption'
+        type = 'ColorByOption'
+
+class FilterByOptionTable(HasParquestStoreTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class FilterByOptionSparseDataset(BaseModel):
+    """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class FilterByOptionColumn(BaseModel):
+    """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
+    typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
+    id: ID
+    name: str
+    dtype: str
+    role: ColumnRole
+    unit: Unit | None = Field(default=None)
+    long_name: str | None = Field(default=None, alias='longName')
+    description: str | None = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+class FilterByOption(MikroFetchable, BaseModel):
+    """One column a layer may be filtered by, and how it is reached. The same set the colour-options query returns, under the name that reads right where a rule is being authored: both pickers turn on the same measure-vs-categorical split, so the candidates are one answer and this is the second way to ask for it. Every option returned is one the mutation that publishes the picker accepts -- `createMeshLayer(filterBys:)` over a collection, `createLabelLayer(render: {filterBys: ...})` over a lens"""
+    typename: Literal['FilterByOption'] = Field(alias='__typename', default='FilterByOption', exclude=True)
+    table: FilterByOptionTable | None = Field(default=None)
+    "The table the value is read from. With an empty `joinPath` this is a table the source's ids key directly"
+    sparse_dataset: FilterByOptionSparseDataset | None = Field(default=None, alias='sparseDataset')
+    '(SPARSE) The matrix one slice of which is read, instead of a table column. Present exactly when `table` and `column` are null -- an option is one or the other, never both'
+    axes: tuple[str, ...]
+    "(SPARSE) The axes a position is named along -- the ones the matrix identifies itself, never the one the source's ids index. **Name a position along every one of them**: a rank-two matrix has one, a rank-three matrix two, and an `at` that names a different set is refused. **One option per matrix, never per position**: a matrix with 19 059 features has 19 059 of those, and the picker offers the axes while the client picks the positions out of the tables they reference, which it already holds access grants for. Offered when at least one of these axes has a stored layout, which is what makes the read one contiguous slice rather than a scan"
+    column: FilterByOptionColumn | None = Field(default=None)
+    'The column the rule is written against. Its `name` is what `filterBys` takes, and its `unit` is the unit a `min`/`max` bound is stated in'
+    control: ColumnControl
+    'Which rule this column admits, derived from its role by the same rule the write path enforces: MEASURE takes a `min`/`max` bound, CATEGORICAL an explicit `values` set. Passing the wrong one is refused at the boundary'
+    join_path: tuple[ColumnOptionJoinStep, ...] = Field(alias='joinPath')
+    'The `references` hops from the table the ids land in to `table`. Empty is the direct case. Pass it back verbatim as `filterBys[].joinPath` to write a rule against this column'
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for FilterByOption"""
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FilterByOption on FilterByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}'
+        name = 'FilterByOption'
+        type = 'FilterByOption'
+
 class AnnotationCoordinates(BaseModel):
     """A discrete coordinate an annotation is pinned to, e.g. a timepoint or a channel"""
     typename: Literal['Coordinate'] = Field(alias='__typename', default='Coordinate', exclude=True)
@@ -2661,12 +3420,12 @@ class AnnotationCoordinates(BaseModel):
     'The value along that coordinate'
     model_config = ConfigDict(frozen=True)
 
-class AnnotationIntrinsicbbox(BaseModel):
+class AnnotationIntrinsicBbox(BaseModel):
     """An axis-aligned bounding box, as a min and a max corner"""
     typename: Literal['BoundingBox'] = Field(alias='__typename', default='BoundingBox', exclude=True)
-    min: Tuple[float, ...]
+    min: tuple[float, ...]
     'The lower corner, in the coordinate order of the coordinate system'
-    max: Tuple[float, ...]
+    max: tuple[float, ...]
     'The upper corner, in the coordinate order of the coordinate system'
     model_config = ConfigDict(frozen=True)
 
@@ -2676,16 +3435,16 @@ class Annotation(MikroFetchable, BaseModel):
     id: str
     name: str
     kind: AnnotationKind
-    vectors: Tuple[Tuple[float, ...], ...]
-    coordinates: Tuple[AnnotationCoordinates, ...]
+    vectors: tuple[tuple[float, ...], ...]
+    coordinates: tuple[AnnotationCoordinates, ...]
     'The discrete coordinates this annotation is pinned to. A coordinate the annotation does not pin is one it spans'
-    coordinate_system: Optional[CoordinateSystem] = Field(default=None, alias='coordinateSystem')
+    coordinate_system: CoordinateSystem | None = Field(default=None, alias='coordinateSystem')
     "The coordinate system this annotation's vectors are expressed in: its collection's own system"
-    intrinsic_bbox: Optional[AnnotationIntrinsicbbox] = Field(default=None, alias='intrinsicBbox')
+    intrinsic_bbox: AnnotationIntrinsicBbox | None = Field(default=None, alias='intrinsicBbox')
     "The annotation's bounding box in the nearest intrinsic space its collection's chain reaches, derived from every corner of its geometry (an affine-transformed box is not a box: min/max alone gives a strictly too-small answer under rotation or shear). Intrinsic, not world: world is scene-owned, and one collection can sit in two scenes under two registrations. **Not always a dataset's pixel grid**: a registration, or a derivation that changes rank, is not something a box can be pushed across -- it says nothing about the axes it does not name, so there is no extent to give them -- and the box then stays in the collection's own drawing space. Boxes compare only within one frame, which is why the spatial filters require a collection or coordinate system alongside"
-    stroke_color: Optional[Tuple[int, ...]] = Field(default=None, alias='strokeColor')
+    stroke_color: tuple[int, ...] | None = Field(default=None, alias='strokeColor')
     'The stroke (outline) color of the geometry, as RGBA'
-    fill_color: Optional[Tuple[int, ...]] = Field(default=None, alias='fillColor')
+    fill_color: tuple[int, ...] | None = Field(default=None, alias='fillColor')
     'The fill color of the geometry, as RGBA, or null for no fill'
     stroke_width: float = Field(alias='strokeWidth')
     "The stroke width of the geometry, in the drawing space's units. One number for every direction, so it is a well-defined length only where that space's axes share a scale"
@@ -2699,13 +3458,13 @@ class Annotation(MikroFetchable, BaseModel):
         name = 'Annotation'
         type = 'Annotation'
 
-class ArrayDatasetDataarrays(DataArrayTrait, BaseModel):
+class ArrayDatasetDataArrays(DataArrayTrait, BaseModel):
     """One level of a dataset's resolution pyramid: a zarr-backed array, with its own voxel-index coordinate system and a stored edge into the dataset's intrinsic space"""
     typename: Literal['DataArray'] = Field(alias='__typename', default='DataArray', exclude=True)
     id: ID
     level: int
-    shape: Tuple[int, ...]
-    chunk_shape: Tuple[int, ...] = Field(alias='chunkShape')
+    shape: tuple[int, ...]
+    chunk_shape: tuple[int, ...] = Field(alias='chunkShape')
     store: ZarrStore
     model_config = ConfigDict(frozen=True)
 
@@ -2714,15 +3473,15 @@ class ArrayDataset(DatasetTrait, MikroFetchable, BaseModel):
     typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
     id: ID
     name: str
-    axis_names: Tuple[str, ...] = Field(alias='axisNames')
+    axis_names: tuple[str, ...] = Field(alias='axisNames')
     "The dataset's axis names, in array order. Derived from the axes of its intrinsic coordinate system"
-    shape: Tuple[int, ...]
+    shape: tuple[int, ...]
     "The dataset's shape: that of its level-0 array"
     multiscale: bool
     'Whether this dataset carries a resolution pyramid. Derived: true when it has more than one level'
-    intrinsic_system: Optional[CoordinateSystem] = Field(default=None, alias='intrinsicSystem')
+    intrinsic_system: CoordinateSystem | None = Field(default=None, alias='intrinsicSystem')
     "The dataset's INTRINSIC coordinate system: its level-0 pixel grid, the space every pyramid level and lens maps into and the space ROIs resolve against. Structural and unit-independent"
-    data_arrays: Tuple[ArrayDatasetDataarrays, ...] = Field(alias='dataArrays')
+    data_arrays: tuple[ArrayDatasetDataArrays, ...] = Field(alias='dataArrays')
     'The multiscale data arrays belonging to this dataset'
     model_config = ConfigDict(frozen=True)
 
@@ -2732,7 +3491,7 @@ class ArrayDataset(DatasetTrait, MikroFetchable, BaseModel):
         name = 'ArrayDataset'
         type = 'ArrayDataset'
 
-class LensDatasetDataarrays(DataArrayTrait, BaseModel):
+class LensDatasetDataArrays(DataArrayTrait, BaseModel):
     """One level of a dataset's resolution pyramid: a zarr-backed array, with its own voxel-index coordinate system and a stored edge into the dataset's intrinsic space"""
     typename: Literal['DataArray'] = Field(alias='__typename', default='DataArray', exclude=True)
     id: ID
@@ -2744,24 +3503,24 @@ class LensDataset(DatasetTrait, BaseModel):
     """A multi-dimensional array dataset. Its dimensions and their types live on the axes of its INTRINSIC (pixel grid) coordinate system; physical units live on the physical spaces it has edges into; its pyramid levels are DataArrays, each mapping into its grid"""
     typename: Literal['ArrayDataset'] = Field(alias='__typename', default='ArrayDataset', exclude=True)
     id: ID
-    axis_names: Tuple[str, ...] = Field(alias='axisNames')
+    axis_names: tuple[str, ...] = Field(alias='axisNames')
     "The dataset's axis names, in array order. Derived from the axes of its intrinsic coordinate system"
-    data_arrays: Tuple[LensDatasetDataarrays, ...] = Field(alias='dataArrays')
+    data_arrays: tuple[LensDatasetDataArrays, ...] = Field(alias='dataArrays')
     'The multiscale data arrays belonging to this dataset'
     model_config = ConfigDict(frozen=True)
 
-class LensRenderaxes(BaseModel):
+class LensRenderAxes(BaseModel):
     """Which axis of a data source maps to screen x, y, z, time and intensity. Derived from the axis types, never stored"""
     typename: Literal['RenderAxes'] = Field(alias='__typename', default='RenderAxes', exclude=True)
     x: str
     'The axis mapped to screen x: the last (fastest-varying) spatial axis'
     y: str
     'The axis mapped to screen y: the second-to-last spatial axis'
-    z: Optional[str] = Field(default=None)
+    z: str | None = Field(default=None)
     'The axis mapped to screen z: the third-to-last spatial axis, if the data is volumetric'
-    t: Optional[str] = Field(default=None)
+    t: str | None = Field(default=None)
     'The time axis, if the data has one'
-    intensity: Optional[str] = Field(default=None)
+    intensity: str | None = Field(default=None)
     'The channel axis, if the data has one'
     model_config = ConfigDict(frozen=True)
 
@@ -2770,15 +3529,15 @@ class Lens(Lensable, MikroFetchable, BaseModel):
     typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
     id: ID
     dataset: LensDataset
-    shape: Tuple[int, ...]
+    shape: tuple[int, ...]
     "The shape this lens' slices cut out of its dataset"
-    axis_names: Tuple[str, ...] = Field(alias='axisNames')
+    axis_names: tuple[str, ...] = Field(alias='axisNames')
     "The lens' axis names, in array order. A selection never drops or reorders an axis"
-    coordinate_system: Optional[CoordinateSystem] = Field(default=None, alias='coordinateSystem')
+    coordinate_system: CoordinateSystem | None = Field(default=None, alias='coordinateSystem')
     "The coordinate system the lens' selection is expressed in. A sliced lens owns one (the space its slices cut out, with the derived edge recording the shift); an unsliced lens selects everything, so this resolves to the dataset's INTRINSIC system"
-    render_axes: LensRenderaxes = Field(alias='renderAxes')
+    render_axes: LensRenderAxes = Field(alias='renderAxes')
     'Which axis of the data source maps to screen x, y, z, time and intensity. Derived from the axis types: spatial axes are in array order, so the last is x'
-    slices: Tuple[Slice, ...]
+    slices: tuple[Slice, ...]
     model_config = ConfigDict(frozen=True)
 
     class Meta:
@@ -2794,7 +3553,7 @@ class Scene(SceneTrait, MikroFetchable, BaseModel):
     id: ID
     preferred_view: PreferredView = Field(alias='preferredView')
     'How a viewer should open this scene: flat, volumetric, or its own choice. A preference, not a constraint -- nothing server-side reads it, and a viewer that cannot render volumes is not wrong to show the slice view'
-    background_color: Optional[Tuple[float, ...]] = Field(default=None, alias='backgroundColor')
+    background_color: tuple[float, ...] | None = Field(default=None, alias='backgroundColor')
     'The viewer background, as RGBA. Null lets the viewer use its own'
     world_coordinate_system: CoordinateSystem = Field(alias='worldCoordinateSystem')
     'The shared space this scene composes its layers over. Never owned by the scene: many scenes can share it, it outlives each of them, and deleting a scene never deletes it'
@@ -2806,170 +3565,111 @@ class Scene(SceneTrait, MikroFetchable, BaseModel):
         name = 'Scene'
         type = 'Scene'
 
-class TransformationSequencechildrenBase(BaseModel):
+class TransformationSequenceChildrenBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
     model_config = ConfigDict(frozen=True)
 
-class TransformationSequencechildrenBaseAffineTransformation(TransformationChildAffineTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+class TransformationSequenceChildrenBaseAffineTransformation(TransformationChildAffineTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
-class TransformationSequencechildrenBaseBijectionTransformation(TransformationChildBijectionTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
-
-class TransformationSequencechildrenBaseByDimensionTransformation(TransformationChildByDimensionTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+class TransformationSequenceChildrenBaseByDimensionTransformation(TransformationChildByDimensionTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
-class TransformationSequencechildrenBaseFieldTransformation(TransformationChildFieldTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+class TransformationSequenceChildrenBaseFieldTransformation(TransformationChildFieldTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
-class TransformationSequencechildrenBaseIdentityTransformation(TransformationChildIdentityTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+class TransformationSequenceChildrenBaseIdentityTransformation(TransformationChildIdentityTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
-class TransformationSequencechildrenBaseMapAxisTransformation(TransformationChildMapAxisTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+class TransformationSequenceChildrenBaseMapAxisTransformation(TransformationChildMapAxisTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
-class TransformationSequencechildrenBaseRotationTransformation(TransformationChildRotationTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+class TransformationSequenceChildrenBaseRotationTransformation(TransformationChildRotationTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
-class TransformationSequencechildrenBaseScaleTransformation(TransformationChildScaleTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+class TransformationSequenceChildrenBaseScaleTransformation(TransformationChildScaleTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
-class TransformationSequencechildrenBaseSequenceTransformation(TransformationChildSequenceTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+class TransformationSequenceChildrenBaseSequenceTransformation(TransformationChildSequenceTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
     """An ordered composition of child transformations, applied first to last"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
-class TransformationSequencechildrenBaseTranslationTransformation(TransformationChildTranslationTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+class TransformationSequenceChildrenBaseTranslationTransformation(TransformationChildTranslationTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
-class TransformationSequencechildrenBaseUnmappableTransformation(TransformationChildUnmappableTransformation, TransformationSequencechildrenBase, TransformationTrait, BaseModel):
+class TransformationSequenceChildrenBaseUnmappableTransformation(TransformationChildUnmappableTransformation, TransformationSequenceChildrenBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
-class TransformationSequencechildrenBaseCatchAll(TransformationSequencechildrenBase, BaseModel):
-    """Catch all class for TransformationSequencechildrenBase"""
+class TransformationSequenceChildrenBaseCatchAll(TransformationSequenceChildrenBase, BaseModel):
+    """Catch all class for TransformationSequenceChildrenBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
-class TransformationBydimensionchildrenBase(BaseModel):
+class TransformationByDimensionChildrenBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
     model_config = ConfigDict(frozen=True)
 
-class TransformationBydimensionchildrenBaseAffineTransformation(TransformationChildAffineTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+class TransformationByDimensionChildrenBaseAffineTransformation(TransformationChildAffineTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
-class TransformationBydimensionchildrenBaseBijectionTransformation(TransformationChildBijectionTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
-
-class TransformationBydimensionchildrenBaseByDimensionTransformation(TransformationChildByDimensionTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+class TransformationByDimensionChildrenBaseByDimensionTransformation(TransformationChildByDimensionTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
-class TransformationBydimensionchildrenBaseFieldTransformation(TransformationChildFieldTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+class TransformationByDimensionChildrenBaseFieldTransformation(TransformationChildFieldTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
-class TransformationBydimensionchildrenBaseIdentityTransformation(TransformationChildIdentityTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+class TransformationByDimensionChildrenBaseIdentityTransformation(TransformationChildIdentityTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
-class TransformationBydimensionchildrenBaseMapAxisTransformation(TransformationChildMapAxisTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+class TransformationByDimensionChildrenBaseMapAxisTransformation(TransformationChildMapAxisTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
-class TransformationBydimensionchildrenBaseRotationTransformation(TransformationChildRotationTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+class TransformationByDimensionChildrenBaseRotationTransformation(TransformationChildRotationTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
-class TransformationBydimensionchildrenBaseScaleTransformation(TransformationChildScaleTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+class TransformationByDimensionChildrenBaseScaleTransformation(TransformationChildScaleTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
-class TransformationBydimensionchildrenBaseSequenceTransformation(TransformationChildSequenceTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+class TransformationByDimensionChildrenBaseSequenceTransformation(TransformationChildSequenceTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
     """An ordered composition of child transformations, applied first to last"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
-class TransformationBydimensionchildrenBaseTranslationTransformation(TransformationChildTranslationTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+class TransformationByDimensionChildrenBaseTranslationTransformation(TransformationChildTranslationTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
-class TransformationBydimensionchildrenBaseUnmappableTransformation(TransformationChildUnmappableTransformation, TransformationBydimensionchildrenBase, TransformationTrait, BaseModel):
+class TransformationByDimensionChildrenBaseUnmappableTransformation(TransformationChildUnmappableTransformation, TransformationByDimensionChildrenBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
-class TransformationBydimensionchildrenBaseCatchAll(TransformationBydimensionchildrenBase, BaseModel):
-    """Catch all class for TransformationBydimensionchildrenBase"""
-    typename: str = Field(alias='__typename', exclude=True)
-
-class TransformationBijectionchildrenBase(BaseModel):
-    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
-    model_config = ConfigDict(frozen=True)
-
-class TransformationBijectionchildrenBaseAffineTransformation(TransformationChildAffineTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
-    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
-    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
-
-class TransformationBijectionchildrenBaseBijectionTransformation(TransformationChildBijectionTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
-
-class TransformationBijectionchildrenBaseByDimensionTransformation(TransformationChildByDimensionTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
-    """A composition of child transformations, each acting on a named subset of the axes"""
-    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
-
-class TransformationBijectionchildrenBaseFieldTransformation(TransformationChildFieldTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
-    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
-    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
-
-class TransformationBijectionchildrenBaseIdentityTransformation(TransformationChildIdentityTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
-    """The identity map: input and output coordinates are the same"""
-    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
-
-class TransformationBijectionchildrenBaseMapAxisTransformation(TransformationChildMapAxisTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
-    """A permutation of axes, mapping each input axis to an output axis by name"""
-    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
-
-class TransformationBijectionchildrenBaseRotationTransformation(TransformationChildRotationTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
-    """A rotation, given as an orthonormal matrix"""
-    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
-
-class TransformationBijectionchildrenBaseScaleTransformation(TransformationChildScaleTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
-    """A per-axis multiplication, with one entry per input axis"""
-    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
-
-class TransformationBijectionchildrenBaseSequenceTransformation(TransformationChildSequenceTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
-    """An ordered composition of child transformations, applied first to last"""
-    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
-
-class TransformationBijectionchildrenBaseTranslationTransformation(TransformationChildTranslationTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
-    """A per-axis offset, with one entry per input axis"""
-    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
-
-class TransformationBijectionchildrenBaseUnmappableTransformation(TransformationChildUnmappableTransformation, TransformationBijectionchildrenBase, TransformationTrait, BaseModel):
-    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
-    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
-
-class TransformationBijectionchildrenBaseCatchAll(TransformationBijectionchildrenBase, BaseModel):
-    """Catch all class for TransformationBijectionchildrenBase"""
+class TransformationByDimensionChildrenBaseCatchAll(TransformationByDimensionChildrenBase, BaseModel):
+    """Catch all class for TransformationByDimensionChildrenBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
 class TransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
     id: ID
     kind: TransformKind
-    name: Optional[str] = Field(default=None)
+    name: str | None = Field(default=None)
     version: int
-    input: Optional[CoordinateSystem] = Field(default=None)
-    output: Optional[CoordinateSystem] = Field(default=None)
+    "How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did"
+    input: CoordinateSystem | None = Field(default=None)
+    output: CoordinateSystem | None = Field(default=None)
 
 class TransformationCatch(TransformationBase):
     """Catch all class for TransformationBase"""
@@ -2977,37 +3677,32 @@ class TransformationCatch(TransformationBase):
     'A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters'
     id: ID
     kind: TransformKind
-    name: Optional[str] = Field(default=None)
+    name: str | None = Field(default=None)
     version: int
-    input: Optional[CoordinateSystem] = Field(default=None)
-    output: Optional[CoordinateSystem] = Field(default=None)
+    "How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did"
+    input: CoordinateSystem | None = Field(default=None)
+    output: CoordinateSystem | None = Field(default=None)
 
 class TransformationAffineTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
-    affine: Tuple[Tuple[float, ...], ...]
+    affine: tuple[tuple[float, ...], ...]
     'The affine matrix, M x (N+1), rows outermost. The last column is the translation'
-
-class TransformationBijectionTransformation(TransformationBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
-    bijection_children: Tuple[Union[Annotated[Union[TransformationBijectionchildrenBaseAffineTransformation, TransformationBijectionchildrenBaseBijectionTransformation, TransformationBijectionchildrenBaseByDimensionTransformation, TransformationBijectionchildrenBaseFieldTransformation, TransformationBijectionchildrenBaseIdentityTransformation, TransformationBijectionchildrenBaseMapAxisTransformation, TransformationBijectionchildrenBaseRotationTransformation, TransformationBijectionchildrenBaseScaleTransformation, TransformationBijectionchildrenBaseSequenceTransformation, TransformationBijectionchildrenBaseTranslationTransformation, TransformationBijectionchildrenBaseUnmappableTransformation], Field(discriminator='typename')], TransformationBijectionchildrenBaseCatchAll], ...] = Field(alias='bijectionChildren')
-    'The forward transformation (order 0) and its inverse (order 1)'
 
 class TransformationByDimensionTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
-    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    input_axes: tuple[str, ...] = Field(alias='inputAxes')
     "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
-    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    output_axes: tuple[str, ...] = Field(alias='outputAxes')
     "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
-    by_dimension_children: Tuple[Union[Annotated[Union[TransformationBydimensionchildrenBaseAffineTransformation, TransformationBydimensionchildrenBaseBijectionTransformation, TransformationBydimensionchildrenBaseByDimensionTransformation, TransformationBydimensionchildrenBaseFieldTransformation, TransformationBydimensionchildrenBaseIdentityTransformation, TransformationBydimensionchildrenBaseMapAxisTransformation, TransformationBydimensionchildrenBaseRotationTransformation, TransformationBydimensionchildrenBaseScaleTransformation, TransformationBydimensionchildrenBaseSequenceTransformation, TransformationBydimensionchildrenBaseTranslationTransformation, TransformationBydimensionchildrenBaseUnmappableTransformation], Field(discriminator='typename')], TransformationBydimensionchildrenBaseCatchAll], ...] = Field(alias='byDimensionChildren')
+    by_dimension_children: tuple[Annotated[TransformationByDimensionChildrenBaseAffineTransformation | TransformationByDimensionChildrenBaseByDimensionTransformation | TransformationByDimensionChildrenBaseFieldTransformation | TransformationByDimensionChildrenBaseIdentityTransformation | TransformationByDimensionChildrenBaseMapAxisTransformation | TransformationByDimensionChildrenBaseRotationTransformation | TransformationByDimensionChildrenBaseScaleTransformation | TransformationByDimensionChildrenBaseSequenceTransformation | TransformationByDimensionChildrenBaseTranslationTransformation | TransformationByDimensionChildrenBaseUnmappableTransformation, Field(discriminator='typename')] | TransformationByDimensionChildrenBaseCatchAll, ...] = Field(alias='byDimensionChildren')
     'The child transformations. Each carries the `inputAxes` and `outputAxes` it acts on'
 
 class TransformationFieldTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
-    field: Optional[CoordinateSystem] = Field(default=None)
+    field: CoordinateSystem | None = Field(default=None)
     "The coordinate system of the array whose values are this map. Its value axis says what they mean: COORDINATE for absolute positions, DISPLACEMENT for offsets, none at all for a scalar array whose single value is a position. Equal to `input` when the array's own pixels are the map, as for a label mask keying a table of objects"
 
 class TransformationIdentityTransformation(TransformationBase, TransformationTrait, BaseModel):
@@ -3017,48 +3712,74 @@ class TransformationIdentityTransformation(TransformationBase, TransformationTra
 class TransformationMapAxisTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
-    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    input_axes: tuple[str, ...] = Field(alias='inputAxes')
     'The names of the input axes, positionally matched to `outputAxes`'
-    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    output_axes: tuple[str, ...] = Field(alias='outputAxes')
     'The names of the output axes, positionally matched to `inputAxes`'
 
 class TransformationRotationTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
-    affine: Tuple[Tuple[float, ...], ...]
+    affine: tuple[tuple[float, ...], ...]
     'The rotation matrix'
 
 class TransformationScaleTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
-    scale: Tuple[float, ...]
+    scale: tuple[float, ...]
     "The per-axis scale factors, in the axis order of the input system, expressed in the units of the output system's axes (dimensionless between pixel systems, e.g. within a pyramid). Absolute, not relative to another level"
 
 class TransformationSequenceTransformation(TransformationBase, TransformationTrait, BaseModel):
     """An ordered composition of child transformations, applied first to last"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
-    sequence_children: Tuple[Union[Annotated[Union[TransformationSequencechildrenBaseAffineTransformation, TransformationSequencechildrenBaseBijectionTransformation, TransformationSequencechildrenBaseByDimensionTransformation, TransformationSequencechildrenBaseFieldTransformation, TransformationSequencechildrenBaseIdentityTransformation, TransformationSequencechildrenBaseMapAxisTransformation, TransformationSequencechildrenBaseRotationTransformation, TransformationSequencechildrenBaseScaleTransformation, TransformationSequencechildrenBaseSequenceTransformation, TransformationSequencechildrenBaseTranslationTransformation, TransformationSequencechildrenBaseUnmappableTransformation], Field(discriminator='typename')], TransformationSequencechildrenBaseCatchAll], ...] = Field(alias='sequenceChildren')
+    sequence_children: tuple[Annotated[TransformationSequenceChildrenBaseAffineTransformation | TransformationSequenceChildrenBaseByDimensionTransformation | TransformationSequenceChildrenBaseFieldTransformation | TransformationSequenceChildrenBaseIdentityTransformation | TransformationSequenceChildrenBaseMapAxisTransformation | TransformationSequenceChildrenBaseRotationTransformation | TransformationSequenceChildrenBaseScaleTransformation | TransformationSequenceChildrenBaseSequenceTransformation | TransformationSequenceChildrenBaseTranslationTransformation | TransformationSequenceChildrenBaseUnmappableTransformation, Field(discriminator='typename')] | TransformationSequenceChildrenBaseCatchAll, ...] = Field(alias='sequenceChildren')
     'The child transformations, applied first to last. They omit their own input and output: the sequence supplies them'
 
 class TransformationTranslationTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
-    translation: Tuple[float, ...]
+    translation: tuple[float, ...]
     'The per-axis offsets, in the axis order of the input system'
 
 class TransformationUnmappableTransformation(TransformationBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
+class SparseDataset(MikroFetchable, BaseModel):
+    """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
+    id: ID
+    name: str
+    description: str | None = Field(default=None)
+    axis_names: tuple[str, ...] = Field(alias='axisNames')
+    "The matrix's axis names, in the order its stores' `shape` is written"
+    shape: tuple[int, ...]
+    'The shape of the matrix, read off its stores rather than declared. Every layout of one dataset holds the same shape'
+    indexable_axes: tuple[str, ...] = Field(alias='indexableAxes')
+    'The axes this dataset can select a single position along in one contiguous read -- one per stored layout. An axis absent here is one it holds, but can only answer about by scanning every byte, so a surface needing that answer will not offer this dataset'
+    arrays: tuple[SparseArray, ...]
+    "The stored layouts, one per axis a store's `indptr` indexes. One is legal and offers one capability"
+    axis_references: tuple[SparseAxisReference, ...] = Field(alias='axisReferences')
+    'The axes identified by a table rather than by a keying source'
+    coordinate_system: CoordinateSystem = Field(alias='coordinateSystem')
+    "The coordinate system whose axes are this matrix's two enumerations. Owned by the dataset, and the space a FIELD edge lands in"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for SparseDataset"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}'
+        name = 'SparseDataset'
+        type = 'SparseDataset'
+
 class AnnotationCollection(MikroFetchable, BaseModel):
     """A named set of human-drawn annotations, owning the coordinate system they are drawn in. The CRUD counterpart of a table dataset's machine-produced rows: shapes a person draws and edits, sharing one drawing space and one registration story"""
     typename: Literal['AnnotationCollection'] = Field(alias='__typename', default='AnnotationCollection', exclude=True)
     id: ID
     name: str
-    description: Optional[str] = Field(default=None)
+    description: str | None = Field(default=None)
     coordinate_system: CoordinateSystem = Field(alias='coordinateSystem')
     "The coordinate system the annotations' vectors are expressed in. The collection owns it; `derivedFrom` relates it to whatever the shapes are drawn over"
-    annotations: Tuple[Annotation, ...]
+    annotations: tuple[Annotation, ...]
     'The annotations in this collection'
     model_config = ConfigDict(frozen=True)
 
@@ -3073,10 +3794,10 @@ class Animation(MikroFetchable, BaseModel):
     typename: Literal['Animation'] = Field(alias='__typename', default='Animation', exclude=True)
     id: ID
     name: str
-    description: Optional[str] = Field(default=None)
+    description: str | None = Field(default=None)
     scene: Scene
     'The scene this tour flies through'
-    waypoints: Tuple[AnimationWaypoint, ...]
+    waypoints: tuple[AnimationWaypoint, ...]
     'The poses the viewer pans through, in tour order'
     model_config = ConfigDict(frozen=True)
 
@@ -3091,8 +3812,6 @@ class SceneSnapshot(MikroFetchable, BaseModel):
     typename: Literal['SceneSnapshot'] = Field(alias='__typename', default='SceneSnapshot', exclude=True)
     id: ID
     name: str
-    major_color: Optional[Tuple[float, ...]] = Field(default=None, alias='majorColor')
-    'The dominant color of the image, for tinting a placeholder while it loads'
     scene: Scene
     'The composition this is a picture of'
     store: MediaStore
@@ -3101,60 +3820,56 @@ class SceneSnapshot(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for SceneSnapshot"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  majorColor\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}'
         name = 'SceneSnapshot'
         type = 'SceneSnapshot'
 
-class MeshCollectionDerivedfromBase(BaseModel):
+class MeshCollectionDerivedFromBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
     model_config = ConfigDict(frozen=True)
 
-class MeshCollectionDerivedfromBaseAffineTransformation(TransformationAffineTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+class MeshCollectionDerivedFromBaseAffineTransformation(TransformationAffineTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
-class MeshCollectionDerivedfromBaseBijectionTransformation(TransformationBijectionTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
-
-class MeshCollectionDerivedfromBaseByDimensionTransformation(TransformationByDimensionTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+class MeshCollectionDerivedFromBaseByDimensionTransformation(TransformationByDimensionTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
-class MeshCollectionDerivedfromBaseFieldTransformation(TransformationFieldTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+class MeshCollectionDerivedFromBaseFieldTransformation(TransformationFieldTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
-class MeshCollectionDerivedfromBaseIdentityTransformation(TransformationIdentityTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+class MeshCollectionDerivedFromBaseIdentityTransformation(TransformationIdentityTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
-class MeshCollectionDerivedfromBaseMapAxisTransformation(TransformationMapAxisTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+class MeshCollectionDerivedFromBaseMapAxisTransformation(TransformationMapAxisTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
-class MeshCollectionDerivedfromBaseRotationTransformation(TransformationRotationTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+class MeshCollectionDerivedFromBaseRotationTransformation(TransformationRotationTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
-class MeshCollectionDerivedfromBaseScaleTransformation(TransformationScaleTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+class MeshCollectionDerivedFromBaseScaleTransformation(TransformationScaleTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
-class MeshCollectionDerivedfromBaseSequenceTransformation(TransformationSequenceTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+class MeshCollectionDerivedFromBaseSequenceTransformation(TransformationSequenceTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """An ordered composition of child transformations, applied first to last"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
-class MeshCollectionDerivedfromBaseTranslationTransformation(TransformationTranslationTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+class MeshCollectionDerivedFromBaseTranslationTransformation(TransformationTranslationTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
-class MeshCollectionDerivedfromBaseUnmappableTransformation(TransformationUnmappableTransformation, MeshCollectionDerivedfromBase, TransformationTrait, BaseModel):
+class MeshCollectionDerivedFromBaseUnmappableTransformation(TransformationUnmappableTransformation, MeshCollectionDerivedFromBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
-class MeshCollectionDerivedfromBaseCatchAll(MeshCollectionDerivedfromBase, BaseModel):
-    """Catch all class for MeshCollectionDerivedfromBase"""
+class MeshCollectionDerivedFromBaseCatchAll(MeshCollectionDerivedFromBase, BaseModel):
+    """Catch all class for MeshCollectionDerivedFromBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
 class MeshCollection(MikroFetchable, BaseModel):
@@ -3171,79 +3886,75 @@ class MeshCollection(MikroFetchable, BaseModel):
     "The coordinate system the collection's vertices are expressed in. The collection owns it; `derivedFrom` relates it to the data the meshes were extracted from"
     store: FabriksStore
     'The **fabriks store** holding this collection: one prefix with `fabriks.json`, both catalogs and every octree level. Ask it for a single access grant and you can read all of it -- the manifest, the indexes and the geometry. Its `grid` and `encoding` were read from that manifest rather than declared through this API, so they describe what was actually written. Never null: a collection whose bytes are not addressable is not a collection'
-    derived_from: Tuple[Union[Annotated[Union[MeshCollectionDerivedfromBaseAffineTransformation, MeshCollectionDerivedfromBaseBijectionTransformation, MeshCollectionDerivedfromBaseByDimensionTransformation, MeshCollectionDerivedfromBaseFieldTransformation, MeshCollectionDerivedfromBaseIdentityTransformation, MeshCollectionDerivedfromBaseMapAxisTransformation, MeshCollectionDerivedfromBaseRotationTransformation, MeshCollectionDerivedfromBaseScaleTransformation, MeshCollectionDerivedfromBaseSequenceTransformation, MeshCollectionDerivedfromBaseTranslationTransformation, MeshCollectionDerivedfromBaseUnmappableTransformation], Field(discriminator='typename')], MeshCollectionDerivedfromBaseCatchAll], ...] = Field(alias='derivedFrom')
+    derived_from: tuple[Annotated[MeshCollectionDerivedFromBaseAffineTransformation | MeshCollectionDerivedFromBaseByDimensionTransformation | MeshCollectionDerivedFromBaseFieldTransformation | MeshCollectionDerivedFromBaseIdentityTransformation | MeshCollectionDerivedFromBaseMapAxisTransformation | MeshCollectionDerivedFromBaseRotationTransformation | MeshCollectionDerivedFromBaseScaleTransformation | MeshCollectionDerivedFromBaseSequenceTransformation | MeshCollectionDerivedFromBaseTranslationTransformation | MeshCollectionDerivedFromBaseUnmappableTransformation, Field(discriminator='typename')] | MeshCollectionDerivedFromBaseCatchAll, ...] = Field(alias='derivedFrom')
     "Every edge from this collection's space back into data the meshes were extracted from, in declared order -- the first is the primary parent, the one that places it. An identity when the meshes are in that grid as-is, a scale when they came off a downsampled one, UNMAPPABLE where the lineage is recorded but no geometry is claimed. Empty for a mesh derived from no data at all. The same relation a derived dataset's `derivedFrom` records"
     model_config = ConfigDict(frozen=True)
 
     class Meta:
         """Meta class for MeshCollection"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
         name = 'MeshCollection'
         type = 'MeshCollection'
 
 class TableDatasetColumns(BaseModel):
     """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
-    typename: Literal['TableDatasetColumn'] = Field(alias='__typename', default='TableDatasetColumn', exclude=True)
+    typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
     id: ID
     order: int
     name: str
     dtype: str
-    role: TableColumnRole
-    axis_type: Optional[AxisType] = Field(default=None, alias='axisType')
-    unit: Optional[Unit] = Field(default=None)
-    long_name: Optional[str] = Field(default=None, alias='longName')
+    role: ColumnRole
+    axis_type: AxisType | None = Field(default=None, alias='axisType')
+    unit: Unit | None = Field(default=None)
+    long_name: str | None = Field(default=None, alias='longName')
     model_config = ConfigDict(frozen=True)
 
-class TableDatasetDerivedfromBase(BaseModel):
+class TableDatasetDerivedFromBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
     model_config = ConfigDict(frozen=True)
 
-class TableDatasetDerivedfromBaseAffineTransformation(TransformationAffineTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+class TableDatasetDerivedFromBaseAffineTransformation(TransformationAffineTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
-class TableDatasetDerivedfromBaseBijectionTransformation(TransformationBijectionTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
-
-class TableDatasetDerivedfromBaseByDimensionTransformation(TransformationByDimensionTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+class TableDatasetDerivedFromBaseByDimensionTransformation(TransformationByDimensionTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
-class TableDatasetDerivedfromBaseFieldTransformation(TransformationFieldTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+class TableDatasetDerivedFromBaseFieldTransformation(TransformationFieldTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
-class TableDatasetDerivedfromBaseIdentityTransformation(TransformationIdentityTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+class TableDatasetDerivedFromBaseIdentityTransformation(TransformationIdentityTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
-class TableDatasetDerivedfromBaseMapAxisTransformation(TransformationMapAxisTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+class TableDatasetDerivedFromBaseMapAxisTransformation(TransformationMapAxisTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
-class TableDatasetDerivedfromBaseRotationTransformation(TransformationRotationTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+class TableDatasetDerivedFromBaseRotationTransformation(TransformationRotationTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
-class TableDatasetDerivedfromBaseScaleTransformation(TransformationScaleTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+class TableDatasetDerivedFromBaseScaleTransformation(TransformationScaleTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
-class TableDatasetDerivedfromBaseSequenceTransformation(TransformationSequenceTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+class TableDatasetDerivedFromBaseSequenceTransformation(TransformationSequenceTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """An ordered composition of child transformations, applied first to last"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
-class TableDatasetDerivedfromBaseTranslationTransformation(TransformationTranslationTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+class TableDatasetDerivedFromBaseTranslationTransformation(TransformationTranslationTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
-class TableDatasetDerivedfromBaseUnmappableTransformation(TransformationUnmappableTransformation, TableDatasetDerivedfromBase, TransformationTrait, BaseModel):
+class TableDatasetDerivedFromBaseUnmappableTransformation(TransformationUnmappableTransformation, TableDatasetDerivedFromBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
-class TableDatasetDerivedfromBaseCatchAll(TableDatasetDerivedfromBase, BaseModel):
-    """Catch all class for TableDatasetDerivedfromBase"""
+class TableDatasetDerivedFromBaseCatchAll(TableDatasetDerivedFromBase, BaseModel):
+    """Catch all class for TableDatasetDerivedFromBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
 class TableDataset(HasParquestStoreTrait, MikroFetchable, BaseModel):
@@ -3251,16 +3962,16 @@ class TableDataset(HasParquestStoreTrait, MikroFetchable, BaseModel):
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
-    description: Optional[str] = Field(default=None)
+    description: str | None = Field(default=None)
     store: ParquetStore
     'The Parquet store holding the rows. Request an access grant from it and read the Parquet directly'
-    columns: Tuple[TableDatasetColumns, ...]
+    columns: tuple[TableDatasetColumns, ...]
     "The declared column schema, in order. The COORDINATE columns are the axes of this table's coordinate system"
     coordinate_system: CoordinateSystem = Field(alias='coordinateSystem')
     "The coordinate system this table owns. Its axes are the table's coordinate columns (or a single INDEX axis for a pure measurement table)"
-    derived_from: Tuple[Union[Annotated[Union[TableDatasetDerivedfromBaseAffineTransformation, TableDatasetDerivedfromBaseBijectionTransformation, TableDatasetDerivedfromBaseByDimensionTransformation, TableDatasetDerivedfromBaseFieldTransformation, TableDatasetDerivedfromBaseIdentityTransformation, TableDatasetDerivedfromBaseMapAxisTransformation, TableDatasetDerivedfromBaseRotationTransformation, TableDatasetDerivedfromBaseScaleTransformation, TableDatasetDerivedfromBaseSequenceTransformation, TableDatasetDerivedfromBaseTranslationTransformation, TableDatasetDerivedfromBaseUnmappableTransformation], Field(discriminator='typename')], TableDatasetDerivedfromBaseCatchAll], ...] = Field(alias='derivedFrom')
+    derived_from: tuple[Annotated[TableDatasetDerivedFromBaseAffineTransformation | TableDatasetDerivedFromBaseByDimensionTransformation | TableDatasetDerivedFromBaseFieldTransformation | TableDatasetDerivedFromBaseIdentityTransformation | TableDatasetDerivedFromBaseMapAxisTransformation | TableDatasetDerivedFromBaseRotationTransformation | TableDatasetDerivedFromBaseScaleTransformation | TableDatasetDerivedFromBaseSequenceTransformation | TableDatasetDerivedFromBaseTranslationTransformation | TableDatasetDerivedFromBaseUnmappableTransformation, Field(discriminator='typename')] | TableDatasetDerivedFromBaseCatchAll, ...] = Field(alias='derivedFrom')
     "Every edge from this table's space back into data it was computed from, in declared order -- the first is the primary parent, the one that places it. UNMAPPABLE where the lineage is recorded but no geometry is claimed; empty for a freestanding table. The same relation a derived dataset's `derivedFrom` records"
-    axis_names: Tuple[str, ...] = Field(alias='axisNames')
+    axis_names: tuple[str, ...] = Field(alias='axisNames')
     "The table's axis names, in order. Derived from the coordinate columns"
     provenance_metadata: Any = Field(alias='provenanceMetadata')
     'How this table was produced: the run, its parameters and its inputs'
@@ -3268,7 +3979,7 @@ class TableDataset(HasParquestStoreTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for TableDataset"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}'
         name = 'TableDataset'
         type = 'TableDataset'
 
@@ -3280,7 +3991,6 @@ class CreateAnimationMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateAnimation """
         input: CreateAnimationInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateAnimation """
@@ -3294,7 +4004,6 @@ class UpdateAnimationMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for UpdateAnimation """
         input: UpdateAnimationInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateAnimation """
@@ -3308,7 +4017,6 @@ class DeleteAnimationMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for DeleteAnimation """
         input: DeleteAnimationInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for DeleteAnimation """
@@ -3322,7 +4030,6 @@ class CreateAnnotationMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateAnnotation """
         input: CreateAnnotationInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateAnnotation """
@@ -3330,13 +4037,12 @@ class CreateAnnotationMutation(BaseModel):
 
 class CreateAnnotationsMutation(BaseModel):
     """No documentation found for this operation."""
-    create_annotations: Tuple[Annotation, ...] = Field(alias='createAnnotations')
+    create_annotations: tuple[Annotation, ...] = Field(alias='createAnnotations')
     'Draw many annotations in one call, into a collection or onto a scene (exactly one of the two, same semantics as createAnnotation). The transform chain and version resolve once for the whole batch, and the rows insert in bulk'
 
     class Arguments(BaseModel):
         """Arguments for CreateAnnotations """
         input: CreateAnnotationsInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateAnnotations """
@@ -3350,7 +4056,6 @@ class UpdateAnnotationMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for UpdateAnnotation """
         input: UpdateAnnotationInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateAnnotation """
@@ -3364,7 +4069,6 @@ class DeleteAnnotationMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for DeleteAnnotation """
         input: DeleteAnnotationInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for DeleteAnnotation """
@@ -3378,7 +4082,6 @@ class CreateAnnotationCollectionMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateAnnotationCollection """
         input: CreateAnnotationCollectionInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateAnnotationCollection """
@@ -3392,7 +4095,6 @@ class DeleteAnnotationCollectionMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for DeleteAnnotationCollection """
         input: DeleteAnnotationCollectionInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for DeleteAnnotationCollection """
@@ -3406,7 +4108,6 @@ class CreateArrayDatasetMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateArrayDataset """
         input: CreateArrayDatasetInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateArrayDataset """
@@ -3420,7 +4121,6 @@ class CreateCoordinateSystemMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateCoordinateSystem """
         input: CreateCoordinateSystemInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateCoordinateSystem """
@@ -3434,7 +4134,6 @@ class UpdateCoordinateSystemMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for UpdateCoordinateSystem """
         input: UpdateCoordinateSystemInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateCoordinateSystem """
@@ -3448,7 +4147,6 @@ class DeleteCoordinateSystemMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for DeleteCoordinateSystem """
         input: DeleteCoordinateSystemInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for DeleteCoordinateSystem """
@@ -3456,13 +4154,12 @@ class DeleteCoordinateSystemMutation(BaseModel):
 
 class ClearCoordinateSystemMutation(BaseModel):
     """No documentation found for this operation."""
-    clear_coordinate_system: Tuple[ID, ...] = Field(alias='clearCoordinateSystem')
+    clear_coordinate_system: tuple[ID, ...] = Field(alias='clearCoordinateSystem')
     "Delete every registration INTO a shared space in one call, returning the deleted edge ids. The space, the scenes over it (their layers drop to UNREGISTERED) and the space's own claims into wider spaces all survive. Guarded by the space's creator: clearing a space is the space-owner's act"
 
     class Arguments(BaseModel):
         """Arguments for ClearCoordinateSystem """
         input: ClearCoordinateSystemInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for ClearCoordinateSystem """
@@ -3470,13 +4167,12 @@ class ClearCoordinateSystemMutation(BaseModel):
 
 class DeleteRegistrationMutation(BaseModel):
     """No documentation found for this operation."""
-    delete_registration: Tuple[ID, ...] = Field(alias='deleteRegistration')
+    delete_registration: tuple[ID, ...] = Field(alias='deleteRegistration')
     "Un-register a source from a space by naming the source and the space rather than the edge. Deletes every edge from the source's space into that one -- rivals are allowed, so there is no single edge to mean -- and returns their ids. An UNMAPPABLE declaration is not a placement and is never matched"
 
     class Arguments(BaseModel):
         """Arguments for DeleteRegistration """
         input: DeleteRegistrationInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for DeleteRegistration """
@@ -3490,7 +4186,6 @@ class RequestBigfileUploadMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for RequestBigfileUpload """
         input: RequestBigFileUploadInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestBigfileUpload """
@@ -3504,7 +4199,6 @@ class FinishBigfileUploadMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for FinishBigfileUpload """
         input: FinishBigFileUploadInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for FinishBigfileUpload """
@@ -3518,7 +4212,6 @@ class RequestBigfileAccessMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for RequestBigfileAccess """
         input: RequestBigFileAccessInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestBigfileAccess """
@@ -3532,21 +4225,21 @@ class RequestFabriksUploadMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for RequestFabriksUpload """
         input: RequestFabriksUploadInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestFabriksUpload """
         document = 'fragment FabriksUploadGrant on FabriksUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestFabriksUpload($input: RequestFabriksUploadInput!) {\n  requestFabriksUpload(input: $input) {\n    ...FabriksUploadGrant\n    __typename\n  }\n}'
 
 class FinishFabriksUploadMutation(BaseModel):
-    """ protocol, not a formality, and the store it returns carries the grid and encoding it read."""
+    """ Reads the store's `fabriks.json` and refuses a prefix without one -- which is exactly what an
+ interrupted upload looks like, since the manifest is written last. So this is the completion
+ protocol, not a formality, and the store it returns carries the grid and encoding it read."""
     finish_fabriks_upload: FabriksStore = Field(alias='finishFabriksUpload')
     "Finalize a fabriks upload. This reads the store's `fabriks.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last"
 
     class Arguments(BaseModel):
         """Arguments for FinishFabriksUpload """
         input: FinishFabriksUploadInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for FinishFabriksUpload """
@@ -3560,7 +4253,6 @@ class RequestFabriksAccessMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for RequestFabriksAccess """
         input: RequestFabriksAccessInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestFabriksAccess """
@@ -3574,7 +4266,6 @@ class RequestMediaUploadMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for RequestMediaUpload """
         input: RequestMediaUploadInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestMediaUpload """
@@ -3588,7 +4279,6 @@ class FinishMediaUploadMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for FinishMediaUpload """
         input: FinishMediaUploadInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for FinishMediaUpload """
@@ -3602,7 +4292,6 @@ class RequestMediaAccessMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for RequestMediaAccess """
         input: RequestMediaAccessInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestMediaAccess """
@@ -3616,7 +4305,6 @@ class RequestParquetUploadMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for RequestParquetUpload """
         input: RequestParquetUploadInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestParquetUpload """
@@ -3630,7 +4318,6 @@ class FinishParquetUploadMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for FinishParquetUpload """
         input: FinishParquetUploadInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for FinishParquetUpload """
@@ -3644,11 +4331,36 @@ class RequestParquetAccessMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for RequestParquetAccess """
         input: RequestParquetAccessInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestParquetAccess """
         document = 'fragment ParquetAccessGrant on ParquetAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestParquetAccess($input: RequestParquetAccessInput!) {\n  requestParquetAccess(input: $input) {\n    ...ParquetAccessGrant\n    __typename\n  }\n}'
+
+class RequestSparseUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+    request_sparse_upload: SparseUploadGrant = Field(alias='requestSparseUpload')
+    "Request an upload grant for a sparse store. The grant covers the whole prefix, so one request authorizes the group's metadata and all three of its arrays. It declares nothing about the matrix: the group states its encoding, shape and chunking, and the server reads them when the upload is finished"
+
+    class Arguments(BaseModel):
+        """Arguments for RequestSparseUpload """
+        input: RequestSparseUploadInput
+
+    class Meta:
+        """Meta class for RequestSparseUpload """
+        document = 'fragment SparseUploadGrant on SparseUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestSparseUpload($input: RequestSparseUploadInput!) {\n  requestSparseUpload(input: $input) {\n    ...SparseUploadGrant\n    __typename\n  }\n}'
+
+class FinishSparseUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+    finish_sparse_upload: SparseStore = Field(alias='finishSparseUpload')
+    "Finalize a sparse upload, which is when the group's own metadata is read. A missing encoding, a missing array, or an `indptr` whose length contradicts the declared shape are all refused here -- that is what an interrupted upload looks like, and catching it now beats a reader discovering it later"
+
+    class Arguments(BaseModel):
+        """Arguments for FinishSparseUpload """
+        input: FinishSparseUploadInput
+
+    class Meta:
+        """Meta class for FinishSparseUpload """
+        document = 'fragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nmutation FinishSparseUpload($input: FinishSparseUploadInput!) {\n  finishSparseUpload(input: $input) {\n    ...SparseStore\n    __typename\n  }\n}'
 
 class RequestZarrUploadMutation(BaseModel):
     """No documentation found for this operation."""
@@ -3658,7 +4370,6 @@ class RequestZarrUploadMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for RequestZarrUpload """
         input: RequestZarrUploadInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestZarrUpload """
@@ -3672,7 +4383,6 @@ class FinishZarrUploadMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for FinishZarrUpload """
         input: FinishZarrUploadInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for FinishZarrUpload """
@@ -3686,7 +4396,6 @@ class RequestZarrAccessMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for RequestZarrAccess """
         input: RequestZarrAccessInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RequestZarrAccess """
@@ -3700,7 +4409,6 @@ class FromFileLikeMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for FromFileLike """
         input: FromFileLike
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for FromFileLike """
@@ -3714,7 +4422,6 @@ class CreateFolderMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateFolder """
         input: CreateFolderInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateFolder """
@@ -3728,7 +4435,6 @@ class EnsureFolderMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for EnsureFolder """
         input: CreateFolderInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for EnsureFolder """
@@ -3742,7 +4448,6 @@ class UpdateFolderMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for UpdateFolder """
         input: ChangeFolderInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateFolder """
@@ -3756,7 +4461,6 @@ class RevertFolderMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for RevertFolder """
         input: RevertInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for RevertFolder """
@@ -3770,11 +4474,10 @@ class CreateLayerMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateLayer """
         input: CreateLayerInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    colorBy {\n      table\n      column\n      colormap\n      classColors\n    }\n    placement\n    placementValidity\n  }\n  __typename\n}\n\nmutation CreateLayer($input: CreateLayerInput!) {\n  createLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateLayer($input: CreateLayerInput!) {\n  createLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateLabelLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -3784,11 +4487,10 @@ class CreateLabelLayerMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateLabelLayer """
         input: CreateLabelLayerInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateLabelLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    colorBy {\n      table\n      column\n      colormap\n      classColors\n    }\n    placement\n    placementValidity\n  }\n  __typename\n}\n\nmutation CreateLabelLayer($input: CreateLabelLayerInput!) {\n  createLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateLabelLayer($input: CreateLabelLayerInput!) {\n  createLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateMeshLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -3798,11 +4500,10 @@ class CreateMeshLayerMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateMeshLayer """
         input: CreateMeshLayerInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateMeshLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    colorBy {\n      table\n      column\n      colormap\n      classColors\n    }\n    placement\n    placementValidity\n  }\n  __typename\n}\n\nmutation CreateMeshLayer($input: CreateMeshLayerInput!) {\n  createMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateMeshLayer($input: CreateMeshLayerInput!) {\n  createMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class UpdateMeshLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -3812,11 +4513,54 @@ class UpdateMeshLayerMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for UpdateMeshLayer """
         input: UpdateMeshLayerInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateMeshLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    colorBy {\n      table\n      column\n      colormap\n      classColors\n    }\n    placement\n    placementValidity\n  }\n  __typename\n}\n\nmutation UpdateMeshLayer($input: UpdateMeshLayerInput!) {\n  updateMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateMeshLayer($input: UpdateMeshLayerInput!) {\n  updateMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class UpdateLabelLayerMutation(BaseModel):
+    """ Retune a label layer after creation -- above all, switch or republish its colour picker.
+ The server has had this mutation since the picker landed; no document ever asked for it,
+ which is why a label layer's colouring was write-once-at-create from Python."""
+    update_label_layer: LayerLabelLayer = Field(alias='updateLabelLayer')
+    "Update a label layer's render settings -- the selection, contour, hashing seed or `colorBy`. A patch: what is not sent keeps its current value"
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateLabelLayer """
+        input: UpdateLabelLayerInput
+
+    class Meta:
+        """Meta class for UpdateLabelLayer """
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateLabelLayer($input: UpdateLabelLayerInput!) {\n  updateLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class CreatePointLayerMutation(BaseModel):
+    """ A point cloud drawn from a table dataset's coordinate columns. Its objects ARE
+ rows of that table, so a colouring by one of its own columns needs no FIELD
+ edge — which is the one way this layer differs from the other two kinds."""
+    create_point_layer: LayerPointLayer = Field(alias='createPointLayer')
+    'Create a layer that renders a point cloud (e.g. SMLM localisations, centroids) from columns of a table'
+
+    class Arguments(BaseModel):
+        """Arguments for CreatePointLayer """
+        input: CreatePointLayerInput
+
+    class Meta:
+        """Meta class for CreatePointLayer """
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreatePointLayer($input: CreatePointLayerInput!) {\n  createPointLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class UpdatePointLayerMutation(BaseModel):
+    """ Retune it afterwards — above all, switch or republish its colour picker. The
+ pickers are replaced wholesale: `[]` clears, an omitted field leaves alone."""
+    update_point_layer: LayerPointLayer = Field(alias='updatePointLayer')
+    'Retune a point layer after creation -- above all, switch or republish its colour picker.'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdatePointLayer """
+        input: UpdatePointLayerInput
+
+    class Meta:
+        """Meta class for UpdatePointLayer """
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdatePointLayer($input: UpdatePointLayerInput!) {\n  updatePointLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateLensMutation(BaseModel):
     """No documentation found for this operation."""
@@ -3826,7 +4570,6 @@ class CreateLensMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateLens """
         input: CreateLensInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateLens """
@@ -3840,11 +4583,10 @@ class CreateMeshCollectionMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateMeshCollection """
         input: CreateMeshCollectionInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateMeshCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMeshCollection($input: CreateMeshCollectionInput!) {\n  createMeshCollection(input: $input) {\n    ...MeshCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateMeshCollection($input: CreateMeshCollectionInput!) {\n  createMeshCollection(input: $input) {\n    ...MeshCollection\n    __typename\n  }\n}'
 
 class DeleteMeshCollectionMutation(BaseModel):
     """No documentation found for this operation."""
@@ -3854,7 +4596,6 @@ class DeleteMeshCollectionMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for DeleteMeshCollection """
         input: DeleteMeshCollectionInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for DeleteMeshCollection """
@@ -3868,11 +4609,10 @@ class CreatePhasorLayerMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreatePhasorLayer """
         input: CreatePhasorLayerInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreatePhasorLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    colorBy {\n      table\n      column\n      colormap\n      classColors\n    }\n    placement\n    placementValidity\n  }\n  __typename\n}\n\nmutation CreatePhasorLayer($input: CreatePhasorLayerInput!) {\n  createPhasorLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreatePhasorLayer($input: CreatePhasorLayerInput!) {\n  createPhasorLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreatePhasorHistogramMutation(BaseModel):
     """No documentation found for this operation."""
@@ -3882,7 +4622,6 @@ class CreatePhasorHistogramMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreatePhasorHistogram """
         input: CreatePhasorHistogramInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreatePhasorHistogram """
@@ -3896,7 +4635,6 @@ class CreatePhasorCalibrationMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreatePhasorCalibration """
         input: CreatePhasorCalibrationInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreatePhasorCalibration """
@@ -3910,7 +4648,6 @@ class CreateSceneMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateScene """
         input: CreateSceneInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateScene """
@@ -3924,7 +4661,6 @@ class CreateSceneFromCoordinateSystemMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateSceneFromCoordinateSystem """
         input: CreateSceneFromCoordinateSystemInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateSceneFromCoordinateSystem """
@@ -3938,7 +4674,6 @@ class UpdateSceneMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for UpdateScene """
         input: UpdateSceneInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateScene """
@@ -3952,7 +4687,6 @@ class ClearSceneMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for ClearScene """
         input: ClearSceneInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for ClearScene """
@@ -3966,7 +4700,6 @@ class DeleteSceneMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for DeleteScene """
         input: DeleteSceneInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for DeleteScene """
@@ -3980,11 +4713,10 @@ class CreateSceneSnapshotMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateSceneSnapshot """
         input: SceneSnapshotInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateSceneSnapshot """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  majorColor\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSceneSnapshot($input: SceneSnapshotInput!) {\n  createSceneSnapshot(input: $input) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSceneSnapshot($input: SceneSnapshotInput!) {\n  createSceneSnapshot(input: $input) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
 
 class DeleteSceneSnapshotMutation(BaseModel):
     """No documentation found for this operation."""
@@ -3994,7 +4726,6 @@ class DeleteSceneSnapshotMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for DeleteSceneSnapshot """
         input: DeleteSceneSnapshotInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for DeleteSceneSnapshot """
@@ -4008,11 +4739,49 @@ class PinSceneSnapshotMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for PinSceneSnapshot """
         input: PinSceneSnapshotInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for PinSceneSnapshot """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  majorColor\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nmutation PinSceneSnapshot($input: PinSceneSnapshotInput!) {\n  pinSceneSnapshot(input: $input) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nmutation PinSceneSnapshot($input: PinSceneSnapshotInput!) {\n  pinSceneSnapshot(input: $input) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+
+class CreateSparseDatasetMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_sparse_dataset: SparseDataset = Field(alias='createSparseDataset')
+    "Create a sparse dataset from one uploaded sparse store, which holds the matrix in one or more layouts. A sparse matrix is a grid of numbers with no row labels and no column labels, so **every axis says what its positions are** through its own `identifiedBy` -- a source whose own contents are the ids (which authors a FIELD edge, and is what makes the matrix reachable from a layer over that source), or the table whose rows they are (which authors a foreign key and no edge). Carried on the axis, identified-exactly-once is a property of the input rather than a rule this enforces. Nothing about the matrix itself is declared: the spec, the shape, each layout's encoding and its chunking were read from the store when its upload was finished, and are checked against these axes rather than taken from them"
+
+    class Arguments(BaseModel):
+        """Arguments for CreateSparseDataset """
+        input: CreateSparseDatasetInput
+
+    class Meta:
+        """Meta class for CreateSparseDataset """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation CreateSparseDataset($input: CreateSparseDatasetInput!) {\n  createSparseDataset(input: $input) {\n    ...SparseDataset\n    __typename\n  }\n}'
+
+class UpdateSparseDatasetMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_sparse_dataset: SparseDataset = Field(alias='updateSparseDataset')
+    'Rename a sparse dataset or redescribe it -- the whole of what is editable. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateSparseDataset """
+        input: UpdateSparseDatasetInput
+
+    class Meta:
+        """Meta class for UpdateSparseDataset """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateSparseDataset($input: UpdateSparseDatasetInput!) {\n  updateSparseDataset(input: $input) {\n    ...SparseDataset\n    __typename\n  }\n}'
+
+class DeleteSparseDatasetMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_sparse_dataset: ID = Field(alias='deleteSparseDataset')
+    'Delete an existing sparse dataset'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteSparseDataset """
+        input: DeleteSparseDatasetInput
+
+    class Meta:
+        """Meta class for DeleteSparseDataset """
+        document = 'mutation DeleteSparseDataset($input: DeleteSparseDatasetInput!) {\n  deleteSparseDataset(input: $input)\n}'
 
 class CreateTableDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -4022,11 +4791,10 @@ class CreateTableDatasetMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for CreateTableDataset """
         input: CreateTableDatasetInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation CreateTableDataset($input: CreateTableDatasetInput!) {\n  createTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation CreateTableDataset($input: CreateTableDatasetInput!) {\n  createTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class UpdateTableDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -4036,11 +4804,10 @@ class UpdateTableDatasetMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for UpdateTableDataset """
         input: UpdateTableDatasetInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation UpdateTableDataset($input: UpdateTableDatasetInput!) {\n  updateTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation UpdateTableDataset($input: UpdateTableDatasetInput!) {\n  updateTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class DeleteTableDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -4050,143 +4817,132 @@ class DeleteTableDatasetMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for DeleteTableDataset """
         input: DeleteTableDatasetInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for DeleteTableDataset """
         document = 'mutation DeleteTableDataset($input: DeleteTableDatasetInput!) {\n  deleteTableDataset(input: $input)\n}'
 
-class CreateTransformationMutationCreatetransformationBase(BaseModel):
+class CreateTransformationMutationCreateTransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
     model_config = ConfigDict(frozen=True)
 
-class CreateTransformationMutationCreatetransformationBaseAffineTransformation(TransformationAffineTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+class CreateTransformationMutationCreateTransformationBaseAffineTransformation(TransformationAffineTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
-class CreateTransformationMutationCreatetransformationBaseBijectionTransformation(TransformationBijectionTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
-
-class CreateTransformationMutationCreatetransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+class CreateTransformationMutationCreateTransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
-class CreateTransformationMutationCreatetransformationBaseFieldTransformation(TransformationFieldTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+class CreateTransformationMutationCreateTransformationBaseFieldTransformation(TransformationFieldTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
-class CreateTransformationMutationCreatetransformationBaseIdentityTransformation(TransformationIdentityTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+class CreateTransformationMutationCreateTransformationBaseIdentityTransformation(TransformationIdentityTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
-class CreateTransformationMutationCreatetransformationBaseMapAxisTransformation(TransformationMapAxisTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+class CreateTransformationMutationCreateTransformationBaseMapAxisTransformation(TransformationMapAxisTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
-class CreateTransformationMutationCreatetransformationBaseRotationTransformation(TransformationRotationTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+class CreateTransformationMutationCreateTransformationBaseRotationTransformation(TransformationRotationTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
-class CreateTransformationMutationCreatetransformationBaseScaleTransformation(TransformationScaleTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+class CreateTransformationMutationCreateTransformationBaseScaleTransformation(TransformationScaleTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
-class CreateTransformationMutationCreatetransformationBaseSequenceTransformation(TransformationSequenceTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+class CreateTransformationMutationCreateTransformationBaseSequenceTransformation(TransformationSequenceTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """An ordered composition of child transformations, applied first to last"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
-class CreateTransformationMutationCreatetransformationBaseTranslationTransformation(TransformationTranslationTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+class CreateTransformationMutationCreateTransformationBaseTranslationTransformation(TransformationTranslationTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
-class CreateTransformationMutationCreatetransformationBaseUnmappableTransformation(TransformationUnmappableTransformation, CreateTransformationMutationCreatetransformationBase, TransformationTrait, BaseModel):
+class CreateTransformationMutationCreateTransformationBaseUnmappableTransformation(TransformationUnmappableTransformation, CreateTransformationMutationCreateTransformationBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
-class CreateTransformationMutationCreatetransformationBaseCatchAll(CreateTransformationMutationCreatetransformationBase, BaseModel):
-    """Catch all class for CreateTransformationMutationCreatetransformationBase"""
+class CreateTransformationMutationCreateTransformationBaseCatchAll(CreateTransformationMutationCreateTransformationBase, BaseModel):
+    """Catch all class for CreateTransformationMutationCreateTransformationBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
 class CreateTransformationMutation(BaseModel):
     """No documentation found for this operation."""
-    create_transformation: Union[Annotated[Union[CreateTransformationMutationCreatetransformationBaseAffineTransformation, CreateTransformationMutationCreatetransformationBaseBijectionTransformation, CreateTransformationMutationCreatetransformationBaseByDimensionTransformation, CreateTransformationMutationCreatetransformationBaseFieldTransformation, CreateTransformationMutationCreatetransformationBaseIdentityTransformation, CreateTransformationMutationCreatetransformationBaseMapAxisTransformation, CreateTransformationMutationCreatetransformationBaseRotationTransformation, CreateTransformationMutationCreatetransformationBaseScaleTransformation, CreateTransformationMutationCreatetransformationBaseSequenceTransformation, CreateTransformationMutationCreatetransformationBaseTranslationTransformation, CreateTransformationMutationCreatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], CreateTransformationMutationCreatetransformationBaseCatchAll] = Field(alias='createTransformation')
+    create_transformation: Annotated[CreateTransformationMutationCreateTransformationBaseAffineTransformation | CreateTransformationMutationCreateTransformationBaseByDimensionTransformation | CreateTransformationMutationCreateTransformationBaseFieldTransformation | CreateTransformationMutationCreateTransformationBaseIdentityTransformation | CreateTransformationMutationCreateTransformationBaseMapAxisTransformation | CreateTransformationMutationCreateTransformationBaseRotationTransformation | CreateTransformationMutationCreateTransformationBaseScaleTransformation | CreateTransformationMutationCreateTransformationBaseSequenceTransformation | CreateTransformationMutationCreateTransformationBaseTranslationTransformation | CreateTransformationMutationCreateTransformationBaseUnmappableTransformation, Field(discriminator='typename')] | CreateTransformationMutationCreateTransformationBaseCatchAll = Field(alias='createTransformation')
     'Create one edge of the coordinate graph, mapping an input coordinate system to an output one. This is where registration lives'
 
     class Arguments(BaseModel):
         """Arguments for CreateTransformation """
         input: CreateTransformationInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateTransformation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nmutation CreateTransformation($input: CreateTransformationInput!) {\n  createTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nmutation CreateTransformation($input: CreateTransformationInput!) {\n  createTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
 
-class UpdateTransformationMutationUpdatetransformationBase(BaseModel):
+class UpdateTransformationMutationUpdateTransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
     model_config = ConfigDict(frozen=True)
 
-class UpdateTransformationMutationUpdatetransformationBaseAffineTransformation(TransformationAffineTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+class UpdateTransformationMutationUpdateTransformationBaseAffineTransformation(TransformationAffineTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
-class UpdateTransformationMutationUpdatetransformationBaseBijectionTransformation(TransformationBijectionTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
-
-class UpdateTransformationMutationUpdatetransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+class UpdateTransformationMutationUpdateTransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
-class UpdateTransformationMutationUpdatetransformationBaseFieldTransformation(TransformationFieldTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+class UpdateTransformationMutationUpdateTransformationBaseFieldTransformation(TransformationFieldTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
-class UpdateTransformationMutationUpdatetransformationBaseIdentityTransformation(TransformationIdentityTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+class UpdateTransformationMutationUpdateTransformationBaseIdentityTransformation(TransformationIdentityTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
-class UpdateTransformationMutationUpdatetransformationBaseMapAxisTransformation(TransformationMapAxisTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+class UpdateTransformationMutationUpdateTransformationBaseMapAxisTransformation(TransformationMapAxisTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
-class UpdateTransformationMutationUpdatetransformationBaseRotationTransformation(TransformationRotationTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+class UpdateTransformationMutationUpdateTransformationBaseRotationTransformation(TransformationRotationTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
-class UpdateTransformationMutationUpdatetransformationBaseScaleTransformation(TransformationScaleTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+class UpdateTransformationMutationUpdateTransformationBaseScaleTransformation(TransformationScaleTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
-class UpdateTransformationMutationUpdatetransformationBaseSequenceTransformation(TransformationSequenceTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+class UpdateTransformationMutationUpdateTransformationBaseSequenceTransformation(TransformationSequenceTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """An ordered composition of child transformations, applied first to last"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
-class UpdateTransformationMutationUpdatetransformationBaseTranslationTransformation(TransformationTranslationTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+class UpdateTransformationMutationUpdateTransformationBaseTranslationTransformation(TransformationTranslationTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
-class UpdateTransformationMutationUpdatetransformationBaseUnmappableTransformation(TransformationUnmappableTransformation, UpdateTransformationMutationUpdatetransformationBase, TransformationTrait, BaseModel):
+class UpdateTransformationMutationUpdateTransformationBaseUnmappableTransformation(TransformationUnmappableTransformation, UpdateTransformationMutationUpdateTransformationBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
-class UpdateTransformationMutationUpdatetransformationBaseCatchAll(UpdateTransformationMutationUpdatetransformationBase, BaseModel):
-    """Catch all class for UpdateTransformationMutationUpdatetransformationBase"""
+class UpdateTransformationMutationUpdateTransformationBaseCatchAll(UpdateTransformationMutationUpdateTransformationBase, BaseModel):
+    """Catch all class for UpdateTransformationMutationUpdateTransformationBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
 class UpdateTransformationMutation(BaseModel):
     """No documentation found for this operation."""
-    update_transformation: Union[Annotated[Union[UpdateTransformationMutationUpdatetransformationBaseAffineTransformation, UpdateTransformationMutationUpdatetransformationBaseBijectionTransformation, UpdateTransformationMutationUpdatetransformationBaseByDimensionTransformation, UpdateTransformationMutationUpdatetransformationBaseFieldTransformation, UpdateTransformationMutationUpdatetransformationBaseIdentityTransformation, UpdateTransformationMutationUpdatetransformationBaseMapAxisTransformation, UpdateTransformationMutationUpdatetransformationBaseRotationTransformation, UpdateTransformationMutationUpdatetransformationBaseScaleTransformation, UpdateTransformationMutationUpdatetransformationBaseSequenceTransformation, UpdateTransformationMutationUpdatetransformationBaseTranslationTransformation, UpdateTransformationMutationUpdatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], UpdateTransformationMutationUpdatetransformationBaseCatchAll] = Field(alias='updateTransformation')
+    update_transformation: Annotated[UpdateTransformationMutationUpdateTransformationBaseAffineTransformation | UpdateTransformationMutationUpdateTransformationBaseByDimensionTransformation | UpdateTransformationMutationUpdateTransformationBaseFieldTransformation | UpdateTransformationMutationUpdateTransformationBaseIdentityTransformation | UpdateTransformationMutationUpdateTransformationBaseMapAxisTransformation | UpdateTransformationMutationUpdateTransformationBaseRotationTransformation | UpdateTransformationMutationUpdateTransformationBaseScaleTransformation | UpdateTransformationMutationUpdateTransformationBaseSequenceTransformation | UpdateTransformationMutationUpdateTransformationBaseTranslationTransformation | UpdateTransformationMutationUpdateTransformationBaseUnmappableTransformation, Field(discriminator='typename')] | UpdateTransformationMutationUpdateTransformationBaseCatchAll = Field(alias='updateTransformation')
     "Refine a transformation's parameters, bumping its version"
 
     class Arguments(BaseModel):
         """Arguments for UpdateTransformation """
         input: UpdateTransformationInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateTransformation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nmutation UpdateTransformation($input: UpdateTransformationInput!) {\n  updateTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nmutation UpdateTransformation($input: UpdateTransformationInput!) {\n  updateTransformation(input: $input) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class DeleteTransformationMutation(BaseModel):
     """No documentation found for this operation."""
@@ -4196,7 +4952,6 @@ class DeleteTransformationMutation(BaseModel):
     class Arguments(BaseModel):
         """Arguments for DeleteTransformation """
         input: DeleteTransformationInput
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for DeleteTransformation """
@@ -4210,7 +4965,6 @@ class GetAnimationQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetAnimation """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetAnimation """
@@ -4218,14 +4972,13 @@ class GetAnimationQuery(BaseModel):
 
 class GetAnimationsQuery(BaseModel):
     """No documentation found for this operation."""
-    animations: Tuple[Animation, ...]
+    animations: tuple[Animation, ...]
     'List animations (named camera tours through a scene)'
 
     class Arguments(BaseModel):
         """Arguments for GetAnimations """
-        filters: Optional[AnimationFilter] = Field(default=None)
-        pagination: Optional[OffsetPaginationInput] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        filters: AnimationFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
 
     class Meta:
         """Meta class for GetAnimations """
@@ -4240,16 +4993,15 @@ class SearchAnimationsQueryOptions(BaseModel):
 
 class SearchAnimationsQuery(BaseModel):
     """No documentation found for this operation."""
-    options: Tuple[SearchAnimationsQueryOptions, ...]
+    options: tuple[SearchAnimationsQueryOptions, ...]
     'List animations (named camera tours through a scene)'
 
     class Arguments(BaseModel):
         """Arguments for SearchAnimations """
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-        limit: Optional[int] = Field(default=None)
-        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchAnimations """
@@ -4263,7 +5015,6 @@ class GetAnnotationQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetAnnotation """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetAnnotation """
@@ -4271,14 +5022,13 @@ class GetAnnotationQuery(BaseModel):
 
 class GetAnnotationsQuery(BaseModel):
     """No documentation found for this operation."""
-    annotations: Tuple[Annotation, ...]
+    annotations: tuple[Annotation, ...]
     "List annotations (human-drawn shapes, each in its collection's coordinate system)"
 
     class Arguments(BaseModel):
         """Arguments for GetAnnotations """
-        filters: Optional[AnnotationFilter] = Field(default=None)
-        pagination: Optional[OffsetPaginationInput] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        filters: AnnotationFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
 
     class Meta:
         """Meta class for GetAnnotations """
@@ -4292,7 +5042,6 @@ class GetAnnotationCollectionQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetAnnotationCollection """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetAnnotationCollection """
@@ -4300,14 +5049,13 @@ class GetAnnotationCollectionQuery(BaseModel):
 
 class GetAnnotationCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
-    annotation_collections: Tuple[AnnotationCollection, ...] = Field(alias='annotationCollections')
+    annotation_collections: tuple[AnnotationCollection, ...] = Field(alias='annotationCollections')
     'List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)'
 
     class Arguments(BaseModel):
         """Arguments for GetAnnotationCollections """
-        filters: Optional[AnnotationCollectionFilter] = Field(default=None)
-        pagination: Optional[OffsetPaginationInput] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        filters: AnnotationCollectionFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
 
     class Meta:
         """Meta class for GetAnnotationCollections """
@@ -4322,16 +5070,15 @@ class SearchAnnotationCollectionsQueryOptions(BaseModel):
 
 class SearchAnnotationCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
-    options: Tuple[SearchAnnotationCollectionsQueryOptions, ...]
+    options: tuple[SearchAnnotationCollectionsQueryOptions, ...]
     'List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)'
 
     class Arguments(BaseModel):
         """Arguments for SearchAnnotationCollections """
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-        limit: Optional[int] = Field(default=None)
-        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchAnnotationCollections """
@@ -4345,7 +5092,6 @@ class GetArrayDatasetQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetArrayDataset """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetArrayDataset """
@@ -4353,14 +5099,13 @@ class GetArrayDatasetQuery(BaseModel):
 
 class GetArrayDatasetsQuery(BaseModel):
     """No documentation found for this operation."""
-    array_datasets: Tuple[ArrayDataset, ...] = Field(alias='arrayDatasets')
+    array_datasets: tuple[ArrayDataset, ...] = Field(alias='arrayDatasets')
     'List array datasets (N-dimensional arrays with named dimensions and anchored metadata)'
 
     class Arguments(BaseModel):
         """Arguments for GetArrayDatasets """
-        filters: Optional[ArrayDatasetFilter] = Field(default=None)
-        pagination: Optional[OffsetPaginationInput] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        filters: ArrayDatasetFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
 
     class Meta:
         """Meta class for GetArrayDatasets """
@@ -4375,308 +5120,409 @@ class SearchArrayDatasetsQueryOptions(DatasetTrait, BaseModel):
 
 class SearchArrayDatasetsQuery(BaseModel):
     """No documentation found for this operation."""
-    options: Tuple[SearchArrayDatasetsQueryOptions, ...]
+    options: tuple[SearchArrayDatasetsQueryOptions, ...]
     'List array datasets (N-dimensional arrays with named dimensions and anchored metadata)'
 
     class Arguments(BaseModel):
         """Arguments for SearchArrayDatasets """
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-        limit: Optional[int] = Field(default=None)
-        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchArrayDatasets """
         document = 'query SearchArrayDatasets($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: arrayDatasets(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
-class AttributePlansQueryAttributeplansEdgeInput(CoordinateSystemTrait, BaseModel):
+class AttributePlansQueryAttributePlansEdgeInput(CoordinateSystemTrait, BaseModel):
     """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
     typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
     id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansEdgeOutput(CoordinateSystemTrait, BaseModel):
+class AttributePlansQueryAttributePlansEdgeOutput(CoordinateSystemTrait, BaseModel):
     """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
     typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
     id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansEdge(TransformationTrait, BaseModel):
+class AttributePlansQueryAttributePlansEdge(TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
     id: ID
     kind: TransformKind
-    name: Optional[str] = Field(default=None)
+    name: str | None = Field(default=None)
     version: int
+    "How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did"
     validity: PlacementValidity
     "How much this map is actually known: VALIDATED for a map the server derived (or one someone checked), INFERRED for numbers read from metadata, MANUAL for an authored registration, UNKNOWN for one its author marked as a guess. A layer's validity is the weakest edge on its path to world"
-    input_axes: Tuple[str, ...] = Field(alias='inputAxes')
+    input_axes: tuple[str, ...] = Field(alias='inputAxes')
     "The names of the input axes this edge's parameters are ordered by. `scale`, `translation` and the columns of `affine` follow this order -- which is the input system's axis order, NOT the reading layer's axis names, and the two differ often enough that indexing the arrays against them silently misplaces them. A BY_DIMENSION edge names only the subset of axes it acts on; the axes it does not name are the ones it leaves untouched"
-    output_axes: Tuple[str, ...] = Field(alias='outputAxes')
+    output_axes: tuple[str, ...] = Field(alias='outputAxes')
     "The names of the output axes this edge produces. For a rank-changing BY_DIMENSION edge (placing a (c,y,x) dataset into a (t,z,y,x) world) this is the subset it maps onto; the world's other axes are untouched"
-    input: Optional[AttributePlansQueryAttributeplansEdgeInput] = Field(default=None)
-    output: Optional[AttributePlansQueryAttributeplansEdgeOutput] = Field(default=None)
+    input: AttributePlansQueryAttributePlansEdgeInput | None = Field(default=None)
+    output: AttributePlansQueryAttributePlansEdgeOutput | None = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansTable(HasParquestStoreTrait, BaseModel):
+class AttributePlansQueryAttributePlansTable(HasParquestStoreTrait, BaseModel):
     """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
     typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
     id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBase(BaseModel):
+class AttributePlansQueryAttributePlansSparseDataset(BaseModel):
+    """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansPathTransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
     id: ID
     kind: TransformKind
     version: int
+    "How many times this edge has been written, counting the row that created it -- so a new edge reads 1. Only comparison is meaningful: this and the edge's `id` together are the cache key for anything derived from the edge, and a change means refetch. It counts the same provenance rows `provenanceEntries` lists, so the audit trail and the token cannot disagree; a rename moves it too, which errs towards refetching something that did not change rather than trusting something that did"
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBaseAffineTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+class AttributePlansQueryAttributePlansPathTransformationBaseAffineTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBaseBijectionTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
-
-class AttributePlansQueryAttributeplansPathTransformationBaseByDimensionTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+class AttributePlansQueryAttributePlansPathTransformationBaseByDimensionTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBaseFieldTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+class AttributePlansQueryAttributePlansPathTransformationBaseFieldTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBaseIdentityTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+class AttributePlansQueryAttributePlansPathTransformationBaseIdentityTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBaseMapAxisTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+class AttributePlansQueryAttributePlansPathTransformationBaseMapAxisTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBaseRotationTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+class AttributePlansQueryAttributePlansPathTransformationBaseRotationTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBaseScaleTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+class AttributePlansQueryAttributePlansPathTransformationBaseScaleTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBaseSequenceTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+class AttributePlansQueryAttributePlansPathTransformationBaseSequenceTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """An ordered composition of child transformations, applied first to last"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBaseTranslationTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+class AttributePlansQueryAttributePlansPathTransformationBaseTranslationTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBaseUnmappableTransformation(AttributePlansQueryAttributeplansPathTransformationBase, TransformationTrait, BaseModel):
+class AttributePlansQueryAttributePlansPathTransformationBaseUnmappableTransformation(AttributePlansQueryAttributePlansPathTransformationBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
-class AttributePlansQueryAttributeplansPathTransformationBaseCatchAll(AttributePlansQueryAttributeplansPathTransformationBase, BaseModel):
-    """Catch all class for AttributePlansQueryAttributeplansPathTransformationBase"""
+class AttributePlansQueryAttributePlansPathTransformationBaseCatchAll(AttributePlansQueryAttributePlansPathTransformationBase, BaseModel):
+    """Catch all class for AttributePlansQueryAttributePlansPathTransformationBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
-class AttributePlansQueryAttributeplansPath(BaseModel):
-    """One step of a placement path: a transformation edge, plus whether it is traversed against its stored direction. The server returns the steps; composing them into a matrix is the client's job (invert the flagged ones first)"""
+class AttributePlansQueryAttributePlansPath(BaseModel):
+    """One step of a placement path: a transformation edge, plus whether it is traversed against its stored direction. Each step carries its own map, its own `validity` and its own `invariance`, which is what this shape is for -- a client that only wants the composed answer should ask the layer for `asAffine` instead of composing these itself"""
     typename: Literal['PlacementStep'] = Field(alias='__typename', default='PlacementStep', exclude=True)
     inverted: bool
-    'True when the edge is traversed output-to-input; the client must invert it before composing'
-    transformation: Union[Annotated[Union[AttributePlansQueryAttributeplansPathTransformationBaseAffineTransformation, AttributePlansQueryAttributeplansPathTransformationBaseBijectionTransformation, AttributePlansQueryAttributeplansPathTransformationBaseByDimensionTransformation, AttributePlansQueryAttributeplansPathTransformationBaseFieldTransformation, AttributePlansQueryAttributeplansPathTransformationBaseIdentityTransformation, AttributePlansQueryAttributeplansPathTransformationBaseMapAxisTransformation, AttributePlansQueryAttributeplansPathTransformationBaseRotationTransformation, AttributePlansQueryAttributeplansPathTransformationBaseScaleTransformation, AttributePlansQueryAttributeplansPathTransformationBaseSequenceTransformation, AttributePlansQueryAttributeplansPathTransformationBaseTranslationTransformation, AttributePlansQueryAttributeplansPathTransformationBaseUnmappableTransformation], Field(discriminator='typename')], AttributePlansQueryAttributeplansPathTransformationBaseCatchAll]
+    'True when the edge is traversed output-to-input, so its map must be inverted before composing. Only ever set on a step that has an inverse -- a rank-changing edge and a warp field are never offered backwards'
+    transformation: Annotated[AttributePlansQueryAttributePlansPathTransformationBaseAffineTransformation | AttributePlansQueryAttributePlansPathTransformationBaseByDimensionTransformation | AttributePlansQueryAttributePlansPathTransformationBaseFieldTransformation | AttributePlansQueryAttributePlansPathTransformationBaseIdentityTransformation | AttributePlansQueryAttributePlansPathTransformationBaseMapAxisTransformation | AttributePlansQueryAttributePlansPathTransformationBaseRotationTransformation | AttributePlansQueryAttributePlansPathTransformationBaseScaleTransformation | AttributePlansQueryAttributePlansPathTransformationBaseSequenceTransformation | AttributePlansQueryAttributePlansPathTransformationBaseTranslationTransformation | AttributePlansQueryAttributePlansPathTransformationBaseUnmappableTransformation, Field(discriminator='typename')] | AttributePlansQueryAttributePlansPathTransformationBaseCatchAll
     'The transformation edge this step walks along'
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansSampleSystem(CoordinateSystemTrait, BaseModel):
+class AttributePlansQueryAttributePlansSampleSystem(CoordinateSystemTrait, BaseModel):
     """A named coordinate space: a node in the transformation graph. Its axes are ordered, and that order is the order of the array's dimensions"""
     typename: Literal['CoordinateSystem'] = Field(alias='__typename', default='CoordinateSystem', exclude=True)
     id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansSampleBase(BaseModel):
+class AttributePlansQueryAttributePlansSampleBase(BaseModel):
     """The first half of a plan: where the id comes from. Two substrates implement it, and they differ only in where the answer was materialised -- per pixel in an array, or per geometry row in a mesh collection. Everything a worker needs to bind the lookup is here on the interface; only the store differs, so select it through an `... on ArraySample` / `... on MeshSample` fragment. Either way the plan never says what the id *is* -- the client owns that, because it already has it"""
-    consumes: Tuple[str, ...]
+    consumes: tuple[str, ...]
     "The axes the point is resolved against, in the field system's axis order, e.g. ['y', 'x'] -- what you index an array with, or what your pick resolved for a collection"
-    produces: Tuple[str, ...]
+    produces: tuple[str, ...]
     "The axis names the resulting id produces, per-edge: two sibling edges off one mask may name their produced axis differently (`i`, `label_id`), so always zip the value against THIS edge's names, never a shared key set"
-    passthrough: Tuple[str, ...]
+    passthrough: tuple[str, ...]
     "The axes the edge did not consume, e.g. ['t']: their coordinates pass through by name and join the produced values as lookup keys"
-    system: AttributePlansQueryAttributeplansSampleSystem
+    system: AttributePlansQueryAttributePlansSampleSystem
     "The coordinate system whose contents are the map. Equal to the queried system when the thing's own contents are the map (a label mask, a mesh collection); a different, array-backed system when the map is a separate field. `consumes` is stated in this system's axis order"
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansSampleBaseArraySample(AttributePlansQueryAttributeplansSampleBase, BaseModel):
+class AttributePlansQueryAttributePlansSampleBaseArraySample(AttributePlansQueryAttributePlansSampleBase, BaseModel):
     """An array whose values are the map: sample it at the point's coordinates. The client that is already rendering the array reads the value from the chunk it already has; a headless worker fetches it through the store's access grant. Either way the plan never says what is in the array -- the client owns pixels"""
     typename: Literal['ArraySample'] = Field(alias='__typename', default='ArraySample', exclude=True)
     store: ZarrStore
     'The zarr store holding the array (the level-0 store for an intrinsic system). Ask it for an accessGrant to actually read chunks -- credentials never appear in a plan'
 
-class AttributePlansQueryAttributeplansSampleBaseMeshSample(AttributePlansQueryAttributeplansSampleBase, BaseModel):
+class AttributePlansQueryAttributePlansSampleBaseMeshSample(AttributePlansQueryAttributePlansSampleBase, BaseModel):
     """A mesh collection whose geometry carries the ids. **Nothing is sampled at a coordinate here**: an id rides on the geometry row, so a client that picked a surface is already holding one and goes straight to the lookup -- the mesh case of the rule that makes a plan worth caching, that it never costs a round-trip. `consumes` names the axes that pick resolved rather than axes to index anything with. The store is named for a headless worker that did not do the picking and must read the object catalog itself"""
     typename: Literal['MeshSample'] = Field(alias='__typename', default='MeshSample', exclude=True)
     store: FabriksStore
     'The fabriks store holding the collection -- its manifest, both catalogs and every octree level. Ask it for an accessGrant; one grant covers the whole prefix'
 
-class AttributePlansQueryAttributeplansSampleBaseCatchAll(AttributePlansQueryAttributeplansSampleBase, BaseModel):
-    """Catch all class for AttributePlansQueryAttributeplansSampleBase"""
+class AttributePlansQueryAttributePlansSampleBaseCatchAll(AttributePlansQueryAttributePlansSampleBase, BaseModel):
+    """Catch all class for AttributePlansQueryAttributePlansSampleBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
-class AttributePlansQueryAttributeplansLookupStore(HasParquetStoreAccesor, BaseModel):
+class AttributePlansQueryAttributePlansLookupStore(HasParquetStoreAccesor, BaseModel):
     """No documentation"""
     typename: Literal['ParquetStore'] = Field(alias='__typename', default='ParquetStore', exclude=True)
     id: ID
     key: str
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansLookupKeycolumnsColumn(BaseModel):
+class AttributePlansQueryAttributePlansLookupSparseArrayStore(BaseModel):
+    """A sparse matrix stored as an anndata-spelled zarr group behind the S3 datalayer: `data`, `indices` and `indptr`, with the encoding, shape and chunking read from the group itself rather than declared. Its `encoding` says which axis `indptr` indexes, and so which question it answers in one contiguous read -- ask the other and there is no range to read at all."""
+    typename: Literal['SparseStore'] = Field(alias='__typename', default='SparseStore', exclude=True)
+    id: ID
+    key: str
+    spec: str | None = Field(default=None)
+    'The version of the `sporadik` block this store was accepted under. A spec selects how every byte in the prefix is read, so an unknown one is refused rather than guessed at'
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansLookupSparseArray(BaseModel):
+    """One stored layout of a sparse matrix: a store, and which axis its `indptr` indexes. The `DataArray` of this world and deliberately thinner -- two layouts are the same space holding the same values in a different order, so unlike a pyramid level there is no coordinate system and no edge, because there is nothing spatial to state"""
+    typename: Literal['SparseArray'] = Field(alias='__typename', default='SparseArray', exclude=True)
+    id: ID
+    path: str
+    "Where this layout sits inside the store's prefix, e.g. `layouts/csr_matrix`. Open the group at this path, not at the store root"
+    indexed_axis: int = Field(alias='indexedAxis')
+    "Which axis of the dataset this layout's `indptr` indexes, as a position in the declared axis order. Selecting one position along it is a single contiguous read; selecting along the other axis is a scan of everything, which is why a dataset that must answer both questions holds two of these"
+    store: AttributePlansQueryAttributePlansLookupSparseArrayStore
+    'The store holding this layout. Both layouts of one matrix share it -- one matrix is one upload -- so `path` is what says which of them this is. Ask the store for an access grant and read the three arrays directly'
+    model_config = ConfigDict(frozen=True)
+
+class AttributePlansQueryAttributePlansLookupKeyColumnsColumn(BaseModel):
     """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
-    typename: Literal['TableDatasetColumn'] = Field(alias='__typename', default='TableDatasetColumn', exclude=True)
+    typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
     name: str
     dtype: str
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansLookupKeycolumns(BaseModel):
+class AttributePlansQueryAttributePlansLookupKeyColumns(BaseModel):
     """One key binding of a lookup: the sampled or passthrough value named `axis` binds the parquet column `column`. For a depth-1 plan the two names coincide by construction (a coordinate column and its derived axis are the same fact), but the worker should always bind by this pair: values live under axis names, columns live in a file, and the plan is the bridge"""
     typename: Literal['PlanKeyColumn'] = Field(alias='__typename', default='PlanKeyColumn', exclude=True)
     axis: str
     'The name the worker holds the value under: a passthrough axis of the sampled array (e.g. `t`) or an axis the sample produced (e.g. `i`)'
-    column: AttributePlansQueryAttributeplansLookupKeycolumnsColumn
+    column: AttributePlansQueryAttributePlansLookupKeyColumnsColumn
     'The declared coordinate column this value binds, carrying the parquet column name and its dtype'
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansLookupAttributes(BaseModel):
+class AttributePlansQueryAttributePlansLookupAttributes(BaseModel):
     """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
-    typename: Literal['TableDatasetColumn'] = Field(alias='__typename', default='TableDatasetColumn', exclude=True)
+    typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
     name: str
     dtype: str
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplansLookup(BaseModel):
+class AttributePlansQueryAttributePlansLookup(BaseModel):
     """The duckdb half of a plan: look the sampled value up in the parquet. Bind order for `sql` is the parquet path/URL first (the read_parquet argument, supplied by the worker from its own access grant), then the key values in `keyColumns` order. Do not assume one row per point: (t, i) uniqueness is a convention no unique index backs, so the worker gets rows, plural"""
     typename: Literal['LookupStep'] = Field(alias='__typename', default='LookupStep', exclude=True)
-    sql: str
-    'The parameterized DuckDB statement: identifiers from validated declared columns and quoted, values as `?` placeholders, never interpolated. Bind the parquet path first, then the key values in `keyColumns` order. A non-duckdb consumer ignores this and reads `keyColumns` + `attributes` instead'
-    store: AttributePlansQueryAttributeplansLookupStore
-    'The parquet store holding the rows. Ask it for an accessGrant to actually read it -- credentials and locations never appear in a plan'
-    key_columns: Tuple[AttributePlansQueryAttributeplansLookupKeycolumns, ...] = Field(alias='keyColumns')
-    'The key bindings, in bind order: each names the value the worker holds (by axis name) and the parquet column it binds'
-    attributes: Tuple[AttributePlansQueryAttributeplansLookupAttributes, ...]
-    "What the SQL selects -- every declared non-coordinate column, never `*`. A column whose `references` names another table holds row ids of that table; following them is the client's choice, one more lookup away"
+    kind: str
+    'Which shape this lookup is: `TABLE` for a row of a parquet, `SPARSE` for a slice of a matrix. The fields of the other shape are null -- a flat discriminator rather than an interface, which over these two would carry nothing in common'
+    sql: str | None = Field(default=None)
+    '(TABLE) The parameterized DuckDB statement: identifiers from validated declared columns and quoted, values as `?` placeholders, never interpolated. Bind the parquet path first, then the key values in `keyColumns` order. A non-duckdb consumer ignores this and reads `keyColumns` + `attributes` instead'
+    store: AttributePlansQueryAttributePlansLookupStore | None = Field(default=None)
+    '(TABLE) The parquet store holding the rows. Ask it for an accessGrant to actually read it -- credentials and locations never appear in a plan'
+    sparse_array: AttributePlansQueryAttributePlansLookupSparseArray | None = Field(default=None, alias='sparseArray')
+    '(SPARSE) The layout to read. Ask its `store` for an accessGrant, open the group at its `path` -- both layouts of a matrix live in one prefix, so the store alone does not say which -- then make two reads: `indptr[i:i+2]` at the id, and the range those two offsets name in `indices` and `data`. There is no SQL and no database in the path'
+    key_axis: str | None = Field(default=None, alias='keyAxis')
+    "(SPARSE) The axis the sampled id is bound to -- what `keyColumns` is for a table. **Always the axis that layout's `indptr` indexes**, which is what makes the read one contiguous range; a plan is published over a layout where that holds, or not at all"
+    value_axes: tuple[str, ...] = Field(alias='valueAxes')
+    "(SPARSE) What comes back is indexed by: every position along these axes that carries a value. **Not keys** -- the client supplies nothing for them and receives all of them, which is what makes this one object's whole profile. One axis at rank two, so a returned position is a single coordinate and a row of the table that axis references; two at rank three, where a position is raveled and unravels through `sparseArray.indexOrder` into one coordinate per entry here, in order"
+    key_columns: tuple[AttributePlansQueryAttributePlansLookupKeyColumns, ...] = Field(alias='keyColumns')
+    '(TABLE) The key bindings, in bind order: each names the value the worker holds (by axis name) and the parquet column it binds'
+    attributes: tuple[AttributePlansQueryAttributePlansLookupAttributes, ...]
+    "(TABLE) What the SQL selects -- every declared non-coordinate column, never `*`. A column whose `references` names another table holds row ids of that table; following them is the client's choice, one more lookup away"
     model_config = ConfigDict(frozen=True)
 
-class AttributePlansQueryAttributeplans(BaseModel):
+class AttributePlansQueryAttributePlans(BaseModel):
     """One executable answer to 'what is under this point?': map the point along `path` if the plan is not rooted where you probed, sample the field array, then look the value up in the table's parquet. Plans are discovered across the fact component -- probe a source image and the plans of the instance mask derived from it are found through the derivation edge -- but never through a registration: which claims compose is a scene's say-so, and this query has no scene. A plan takes no coordinate -- it is the same plan for every point, so fetch it once, cache it, and execute per hover locally with zero round-trips. attributePlans returns instructions, never attributes: anything that wants values runs the plan"""
     typename: Literal['AttributePlan'] = Field(alias='__typename', default='AttributePlan', exclude=True)
-    edge: AttributePlansQueryAttributeplansEdge
+    edge: AttributePlansQueryAttributePlansEdge
     "The FIELD edge this plan was built from. The plan's cache key is this edge's (id, version) together with every `path` step's transformation (id, version): the stores and columns of a table are written once, so a deleted or version-bumped edge -- the FIELD, or any step on the way to it -- is the only thing that can stale a cached plan"
-    table: AttributePlansQueryAttributeplansTable
+    table: AttributePlansQueryAttributePlansTable | None = Field(default=None)
     'The table the plan lands in: the home of the attributes, its columns and their `references`'
-    path: Tuple[AttributePlansQueryAttributeplansPath, ...]
+    sparse_dataset: AttributePlansQueryAttributePlansSparseDataset | None = Field(default=None, alias='sparseDataset')
+    'The matrix the plan lands in, when `lookup.kind` is SPARSE. One or the other, never both'
+    path: tuple[AttributePlansQueryAttributePlansPath, ...]
     "The steps from the PROBED system to this plan's root (the FIELD edge's input system -- equal to `sample.system` when the mask's own pixels are the map). Empty when the plan is rooted where you probed. Compose in order, inverting the flagged steps, to map a probed-space point into the space `consumes` and `passthrough` are stated in -- the same contract as `pathToWorld`. The path crosses derivations, levels, lenses and physical spaces, never a registration"
-    sample: Union[Annotated[Union[AttributePlansQueryAttributeplansSampleBaseArraySample, AttributePlansQueryAttributeplansSampleBaseMeshSample], Field(discriminator='typename')], AttributePlansQueryAttributeplansSampleBaseCatchAll]
+    sample: Annotated[AttributePlansQueryAttributePlansSampleBaseArraySample | AttributePlansQueryAttributePlansSampleBaseMeshSample, Field(discriminator='typename')] | AttributePlansQueryAttributePlansSampleBaseCatchAll
     'Where the id comes from: an `ArraySample` to read at the (path-mapped) point, or a `MeshSample` whose id the client already picked'
-    lookup: AttributePlansQueryAttributeplansLookup
+    lookup: AttributePlansQueryAttributePlansLookup
     'The duckdb half: look the id up in the parquet'
     model_config = ConfigDict(frozen=True)
 
 class AttributePlansQuery(BaseModel):
-    """ one exception -- it spreads the whole store fragment, for the codegen reason noted below."""
-    attribute_plans: Tuple[AttributePlansQueryAttributeplans, ...] = Field(alias='attributePlans')
+    """ Every attribute plan reachable from one system: one per FIELD edge landing on a table.
+
+ A plan is instructions, never attributes -- map along `path`, get the id from the sample
+ step (read the array for an ArraySample, use the picked mesh id for a MeshSample), then
+ look it up in the parquet -- and it takes no coordinate, so a client fetches it
+ once and executes it per hover locally. This selection is deliberately lean: the ids and
+ axis lists that say *which* map was found, plus the SQL and key columns a worker needs to
+ run it. Anything wanting the full table metadata queries it by id. The sample step is the
+ one exception -- it spreads the whole store fragment, for the codegen reason noted below."""
+    attribute_plans: tuple[AttributePlansQueryAttributePlans, ...] = Field(alias='attributePlans')
     'Every attribute plan reachable from one system: one per FIELD edge landing on a table, discovered across the fact component -- probe a source image and the plans of the instance mask derived from it come back, each carrying the `path` of steps from the probed system to its root. Registrations are never crossed (no scene, no world). A plan is instructions, never attributes -- map along the path, sample this array, look the value up in this parquet -- and takes no coordinate, so a client fetches it once and executes it per hover against the chunks it is already rendering. Cache it against the FIELD edge plus every path step (ids and versions); `maxDepth` bounds the discovery. The server reads no store and composes nothing'
 
     class Arguments(BaseModel):
         """Arguments for AttributePlans """
         system: ID
-        max_depth: Optional[int] = Field(alias='maxDepth', default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        max_depth: int | None = Field(validation_alias=AliasChoices('max_depth', 'maxDepth'), serialization_alias='maxDepth', default=None)
 
     class Meta:
         """Meta class for AttributePlans """
-        document = 'fragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nquery AttributePlans($system: ID!, $maxDepth: Int) {\n  attributePlans(system: $system, maxDepth: $maxDepth) {\n    edge {\n      id\n      kind\n      name\n      version\n      validity\n      inputAxes\n      outputAxes\n      input {\n        id\n        name\n        __typename\n      }\n      output {\n        id\n        name\n        __typename\n      }\n      __typename\n    }\n    table {\n      id\n      name\n      __typename\n    }\n    path {\n      inverted\n      transformation {\n        id\n        kind\n        version\n        __typename\n      }\n      __typename\n    }\n    sample {\n      consumes\n      produces\n      passthrough\n      system {\n        id\n        name\n        __typename\n      }\n      ... on ArraySample {\n        store {\n          ...ZarrStore\n        }\n      }\n      ... on MeshSample {\n        store {\n          ...FabriksStore\n        }\n      }\n      __typename\n    }\n    lookup {\n      sql\n      store {\n        id\n        key\n        __typename\n      }\n      keyColumns {\n        axis\n        column {\n          name\n          dtype\n          __typename\n        }\n        __typename\n      }\n      attributes {\n        name\n        dtype\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nquery AttributePlans($system: ID!, $maxDepth: Int) {\n  attributePlans(system: $system, maxDepth: $maxDepth) {\n    edge {\n      id\n      kind\n      name\n      version\n      validity\n      inputAxes\n      outputAxes\n      input {\n        id\n        name\n        __typename\n      }\n      output {\n        id\n        name\n        __typename\n      }\n      __typename\n    }\n    table {\n      id\n      name\n      __typename\n    }\n    sparseDataset {\n      id\n      name\n      __typename\n    }\n    path {\n      inverted\n      transformation {\n        id\n        kind\n        version\n        __typename\n      }\n      __typename\n    }\n    sample {\n      consumes\n      produces\n      passthrough\n      system {\n        id\n        name\n        __typename\n      }\n      ... on ArraySample {\n        store {\n          ...ZarrStore\n        }\n      }\n      ... on MeshSample {\n        store {\n          ...FabriksStore\n        }\n      }\n      __typename\n    }\n    lookup {\n      kind\n      sql\n      store {\n        id\n        key\n        __typename\n      }\n      sparseArray {\n        id\n        path\n        indexedAxis\n        store {\n          id\n          key\n          spec\n          __typename\n        }\n        __typename\n      }\n      keyAxis\n      valueAxes\n      keyColumns {\n        axis\n        column {\n          name\n          dtype\n          __typename\n        }\n        __typename\n      }\n      attributes {\n        name\n        dtype\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}'
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBase(BaseModel):
+class LabelColorByOptionsQuery(BaseModel):
+    """ Rooted on a lens -- what a label layer over that lens can be coloured by."""
+    label_color_by_options: tuple[ColorByOption, ...] = Field(alias='labelColorByOptions')
+    "Every column a mask's objects can be coloured or filtered by: `colorByOptions` rooted on the lens a label layer renders instead of on a mesh collection, and the same answer for the same reason -- a mask's pixel values dereference into a table by exactly the FIELD edge a collection's ids do, so the walk, the measure-vs-categorical rule and the `joinPath` to pass back are one. **The set this returns is exactly the set `createLabelLayer(render: {colorBys: ...})` and `filterBys` accept.** The columns' *values* are not here: a picker wanting a class list or a numeric range reads them from the parquet it already has an `accessGrant` for"
+
+    class Arguments(BaseModel):
+        """Arguments for LabelColorByOptions """
+        lens: ID
+        filters: ColumnOptionFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+        max_join_depth: Annotated[int | None, GraphQLDefault('1')] = Field(validation_alias=AliasChoices('max_join_depth', 'maxJoinDepth'), serialization_alias='maxJoinDepth', default=None)
+
+    class Meta:
+        """Meta class for LabelColorByOptions """
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ColorByOption on ColorByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery LabelColorByOptions($lens: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  labelColorByOptions(\n    lens: $lens\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...ColorByOption\n    __typename\n  }\n}'
+
+class LabelFilterByOptionsQuery(BaseModel):
+    """No documentation found for this operation."""
+    label_filter_by_options: tuple[FilterByOption, ...] = Field(alias='labelFilterByOptions')
+    "Every column a mask's objects can be filtered by -- **the same set `labelColorByOptions` returns**, under the name that reads right where a rule is being authored. One relation, one walk, two names, exactly as `filterByOptions` pairs with `colorByOptions` over a collection: what differs is what a control *means*, since MEASURE takes a `min`/`max` bound here and a colormap there. Everything returned is something `createLabelLayer(render: {filterBys: ...})` accepts"
+
+    class Arguments(BaseModel):
+        """Arguments for LabelFilterByOptions """
+        lens: ID
+        filters: ColumnOptionFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+        max_join_depth: Annotated[int | None, GraphQLDefault('1')] = Field(validation_alias=AliasChoices('max_join_depth', 'maxJoinDepth'), serialization_alias='maxJoinDepth', default=None)
+
+    class Meta:
+        """Meta class for LabelFilterByOptions """
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FilterByOption on FilterByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery LabelFilterByOptions($lens: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  labelFilterByOptions(\n    lens: $lens\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...FilterByOption\n    __typename\n  }\n}'
+
+class ColorByOptionsQuery(BaseModel):
+    """ Rooted on a mesh collection -- the same walk and the same answer for a mesh layer."""
+    color_by_options: tuple[ColorByOption, ...] = Field(alias='colorByOptions')
+    "Every column a mesh collection's objects can be coloured or filtered by: one entry per (joinPath, table, column), with the control its declared role admits. **The set this returns is exactly the set `createMeshLayer(colorBys:)` and `filterBys` accept** -- same reachability walk, same measure-vs-categorical rule -- which is what makes it an options query rather than a suggestion. Distinct from `attributePlans`, which answers a different question (how to execute a lookup per hover) over a different set: it walks the whole fact component and returns plans rooted at a source mask that mesh ids cannot execute, drops tables the write path accepts, and fails outright on a storeless array. Both pickers read these same options, because both branch on the same split. `joinPath` follows `references` from table to table -- pass an option's path back verbatim to select it. The columns' *values* are not here: a picker wanting a class list or a numeric range reads them from the parquet it already has an `accessGrant` for"
+
+    class Arguments(BaseModel):
+        """Arguments for ColorByOptions """
+        mesh_collection: ID = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection')
+        filters: ColumnOptionFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+        max_join_depth: Annotated[int | None, GraphQLDefault('1')] = Field(validation_alias=AliasChoices('max_join_depth', 'maxJoinDepth'), serialization_alias='maxJoinDepth', default=None)
+
+    class Meta:
+        """Meta class for ColorByOptions """
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ColorByOption on ColorByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery ColorByOptions($meshCollection: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  colorByOptions(\n    meshCollection: $meshCollection\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...ColorByOption\n    __typename\n  }\n}'
+
+class FilterByOptionsQuery(BaseModel):
+    """No documentation found for this operation."""
+    filter_by_options: tuple[FilterByOption, ...] = Field(alias='filterByOptions')
+    "Every column a mesh collection's objects can be filtered by -- **the same set `colorByOptions` returns**, under the name that reads right where a rule is being authored. One relation, one walk, two names: a colouring and a rule reach the same column through the same join and branch on the same measure-vs-categorical split, so two different sets would mean one of them was wrong. What differs is what a control *means*: MEASURE takes a `min`/`max` bound here and a colormap there. Same arguments, same `joinPath` to pass back, same invariant -- everything returned is something `createMeshLayer(filterBys:)` accepts"
+
+    class Arguments(BaseModel):
+        """Arguments for FilterByOptions """
+        mesh_collection: ID = Field(validation_alias=AliasChoices('mesh_collection', 'meshCollection'), serialization_alias='meshCollection')
+        filters: ColumnOptionFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+        max_join_depth: Annotated[int | None, GraphQLDefault('1')] = Field(validation_alias=AliasChoices('max_join_depth', 'maxJoinDepth'), serialization_alias='maxJoinDepth', default=None)
+
+    class Meta:
+        """Meta class for FilterByOptions """
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FilterByOption on FilterByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery FilterByOptions($meshCollection: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  filterByOptions(\n    meshCollection: $meshCollection\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...FilterByOption\n    __typename\n  }\n}'
+
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
     model_config = ConfigDict(frozen=True)
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseAffineTransformation(TransformationAffineTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseAffineTransformation(TransformationAffineTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseBijectionTransformation(TransformationBijectionTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
-
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseByDimensionTransformation(TransformationByDimensionTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseByDimensionTransformation(TransformationByDimensionTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
     typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseFieldTransformation(TransformationFieldTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseFieldTransformation(TransformationFieldTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
     typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseIdentityTransformation(TransformationIdentityTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseIdentityTransformation(TransformationIdentityTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """The identity map: input and output coordinates are the same"""
     typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseMapAxisTransformation(TransformationMapAxisTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseMapAxisTransformation(TransformationMapAxisTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A permutation of axes, mapping each input axis to an output axis by name"""
     typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseRotationTransformation(TransformationRotationTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseRotationTransformation(TransformationRotationTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A rotation, given as an orthonormal matrix"""
     typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseScaleTransformation(TransformationScaleTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseScaleTransformation(TransformationScaleTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A per-axis multiplication, with one entry per input axis"""
     typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseSequenceTransformation(TransformationSequenceTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseSequenceTransformation(TransformationSequenceTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """An ordered composition of child transformations, applied first to last"""
     typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseTranslationTransformation(TransformationTranslationTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseTranslationTransformation(TransformationTranslationTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A per-axis offset, with one entry per input axis"""
     typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseUnmappableTransformation(TransformationUnmappableTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBase, TransformationTrait, BaseModel):
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseUnmappableTransformation(TransformationUnmappableTransformation, GetCoordinateGraphQueryCoordinateGraphTransformationsBase, TransformationTrait, BaseModel):
     """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
     typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
 
-class GetCoordinateGraphQueryCoordinategraphTransformationsBaseCatchAll(GetCoordinateGraphQueryCoordinategraphTransformationsBase, BaseModel):
-    """Catch all class for GetCoordinateGraphQueryCoordinategraphTransformationsBase"""
+class GetCoordinateGraphQueryCoordinateGraphTransformationsBaseCatchAll(GetCoordinateGraphQueryCoordinateGraphTransformationsBase, BaseModel):
+    """Catch all class for GetCoordinateGraphQueryCoordinateGraphTransformationsBase"""
     typename: str = Field(alias='__typename', exclude=True)
 
-class GetCoordinateGraphQueryCoordinategraph(BaseModel):
+class GetCoordinateGraphQueryCoordinateGraph(BaseModel):
     """The connected component of the coordinate graph around one system: every coordinate system it relates to, and every top-level edge between them. Reachability is undirected -- an edge pointing *into* the system you started from (the edge into a physical space, say) relates to it just as much as one pointing out -- but every edge is returned in its true stored direction, so composing a path is still the client's job and still needs the inversions flagged"""
     typename: Literal['CoordinateGraph'] = Field(alias='__typename', default='CoordinateGraph', exclude=True)
     root: CoordinateSystem
     'The coordinate system the walk started from'
-    systems: Tuple[CoordinateSystem, ...]
+    systems: tuple[CoordinateSystem, ...]
     'Every coordinate system reachable from the root, the root included, ordered by ID'
-    transformations: Tuple[Union[Annotated[Union[GetCoordinateGraphQueryCoordinategraphTransformationsBaseAffineTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseBijectionTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseByDimensionTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseFieldTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseIdentityTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseMapAxisTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseRotationTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseScaleTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseSequenceTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseTranslationTransformation, GetCoordinateGraphQueryCoordinategraphTransformationsBaseUnmappableTransformation], Field(discriminator='typename')], GetCoordinateGraphQueryCoordinategraphTransformationsBaseCatchAll], ...]
-    'Every top-level edge with both endpoints in `systems`, ordered by ID. The children of a SEQUENCE / BY_DIMENSION / BIJECTION wrapper are not listed here; they hang off their wrapper'
+    transformations: tuple[Annotated[GetCoordinateGraphQueryCoordinateGraphTransformationsBaseAffineTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseByDimensionTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseFieldTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseIdentityTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseMapAxisTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseRotationTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseScaleTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseSequenceTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseTranslationTransformation | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseUnmappableTransformation, Field(discriminator='typename')] | GetCoordinateGraphQueryCoordinateGraphTransformationsBaseCatchAll, ...]
+    'Every top-level edge with both endpoints in `systems`, ordered by ID. The children of a SEQUENCE / BY_DIMENSION wrapper are not listed here; they hang off their wrapper'
     model_config = ConfigDict(frozen=True)
 
 class GetCoordinateGraphQuery(BaseModel):
     """No documentation found for this operation."""
-    coordinate_graph: GetCoordinateGraphQueryCoordinategraph = Field(alias='coordinateGraph')
+    coordinate_graph: GetCoordinateGraphQueryCoordinateGraph = Field(alias='coordinateGraph')
     "Walk the coordinate graph out from one system: every coordinate system it reaches and every top-level edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not"
 
     class Arguments(BaseModel):
         """Arguments for GetCoordinateGraph """
-        coordinate_system: ID = Field(alias='coordinateSystem')
-        max_depth: Optional[int] = Field(alias='maxDepth', default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        coordinate_system: ID = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem')
+        max_depth: int | None = Field(validation_alias=AliasChoices('max_depth', 'maxDepth'), serialization_alias='maxDepth', default=None)
 
     class Meta:
         """Meta class for GetCoordinateGraph """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetCoordinateGraph($coordinateSystem: ID!, $maxDepth: Int) {\n  coordinateGraph(coordinateSystem: $coordinateSystem, maxDepth: $maxDepth) {\n    root {\n      ...CoordinateSystem\n      __typename\n    }\n    systems {\n      ...CoordinateSystem\n      __typename\n    }\n    transformations {\n      ...Transformation\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetCoordinateGraph($coordinateSystem: ID!, $maxDepth: Int) {\n  coordinateGraph(coordinateSystem: $coordinateSystem, maxDepth: $maxDepth) {\n    root {\n      ...CoordinateSystem\n      __typename\n    }\n    systems {\n      ...CoordinateSystem\n      __typename\n    }\n    transformations {\n      ...Transformation\n      __typename\n    }\n    __typename\n  }\n}'
 
 class GetCoordinateSystemQuery(BaseModel):
     """No documentation found for this operation."""
@@ -4686,7 +5532,6 @@ class GetCoordinateSystemQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetCoordinateSystem """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetCoordinateSystem """
@@ -4694,14 +5539,13 @@ class GetCoordinateSystemQuery(BaseModel):
 
 class GetCoordinateSystemsQuery(BaseModel):
     """No documentation found for this operation."""
-    coordinate_systems: Tuple[CoordinateSystem, ...] = Field(alias='coordinateSystems')
+    coordinate_systems: tuple[CoordinateSystem, ...] = Field(alias='coordinateSystems')
     'List coordinate systems (the nodes of the RFC-5 coordinate graph)'
 
     class Arguments(BaseModel):
         """Arguments for GetCoordinateSystems """
-        filters: Optional[CoordinateSystemFilter] = Field(default=None)
-        pagination: Optional[OffsetPaginationInput] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        filters: CoordinateSystemFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
 
     class Meta:
         """Meta class for GetCoordinateSystems """
@@ -4716,16 +5560,15 @@ class SearchCoordinateSystemsQueryOptions(CoordinateSystemTrait, BaseModel):
 
 class SearchCoordinateSystemsQuery(BaseModel):
     """No documentation found for this operation."""
-    options: Tuple[SearchCoordinateSystemsQueryOptions, ...]
+    options: tuple[SearchCoordinateSystemsQueryOptions, ...]
     'List coordinate systems (the nodes of the RFC-5 coordinate graph)'
 
     class Arguments(BaseModel):
         """Arguments for SearchCoordinateSystems """
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-        limit: Optional[int] = Field(default=None)
-        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchCoordinateSystems """
@@ -4739,7 +5582,6 @@ class GetFileQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetFile """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetFile """
@@ -4754,16 +5596,15 @@ class SearchFilesQueryOptions(FileTrait, BaseModel):
 
 class SearchFilesQuery(BaseModel):
     """No documentation found for this operation."""
-    options: Tuple[SearchFilesQueryOptions, ...]
+    options: tuple[SearchFilesQueryOptions, ...]
     'List files (raw microscopy files such as .czi or .ome.tiff)'
 
     class Arguments(BaseModel):
         """Arguments for SearchFiles """
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-        limit: Optional[int] = Field(default=None)
-        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchFiles """
@@ -4777,7 +5618,6 @@ class GetFolderQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetFolder """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetFolder """
@@ -4792,20 +5632,114 @@ class SearchFoldersQueryOptions(BaseModel):
 
 class SearchFoldersQuery(BaseModel):
     """No documentation found for this operation."""
-    options: Tuple[SearchFoldersQueryOptions, ...]
+    options: tuple[SearchFoldersQueryOptions, ...]
     'List folders (collections of images, files and tables)'
 
     class Arguments(BaseModel):
         """Arguments for SearchFolders """
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-        limit: Optional[int] = Field(default=None)
-        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchFolders """
         document = 'query SearchFolders($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: folders(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
+class GetLayerQueryLayerBase(BaseModel):
+    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind (ImageLayer, AnnotationLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings."""
+    model_config = ConfigDict(frozen=True)
+
+class GetLayerQueryLayerBaseAnnotationLayer(LayerAnnotationLayer, GetLayerQueryLayerBase, BaseModel):
+    """A layer that renders an annotation collection's drawn shapes (polygons, boxes, ellipses, lines, paths) in a scene. One layer per collection: per-shape styling lives on the annotations themselves."""
+    typename: Literal['AnnotationLayer'] = Field(alias='__typename', default='AnnotationLayer', exclude=True)
+
+class GetLayerQueryLayerBaseImageLayer(LayerImageLayer, GetLayerQueryLayerBase, BaseModel):
+    """A layer that renders array (lens) data as an alpha-blended image. Its rendering is described entirely by the composable render graph; its placement, entirely by the coordinate graph."""
+    typename: Literal['ImageLayer'] = Field(alias='__typename', default='ImageLayer', exclude=True)
+
+class GetLayerQueryLayerBaseLabelLayer(LayerLabelLayer, GetLayerQueryLayerBase, BaseModel):
+    """A layer that renders array (lens) data whose values are discrete object ids -- a segmentation or an instance map. It shares the image layer's source and the same coordinate-graph placement, and none of its render settings: contrast limits, gamma, colormaps and intensity projections are all meaningless over ids."""
+    typename: Literal['LabelLayer'] = Field(alias='__typename', default='LabelLayer', exclude=True)
+
+class GetLayerQueryLayerBaseMeshLayer(LayerMeshLayer, GetLayerQueryLayerBase, BaseModel):
+    """A layer that renders a 3D mesh (surface reconstruction / isosurface) placed and styled in a scene."""
+    typename: Literal['MeshLayer'] = Field(alias='__typename', default='MeshLayer', exclude=True)
+
+class GetLayerQueryLayerBasePointLayer(LayerPointLayer, GetLayerQueryLayerBase, BaseModel):
+    """A layer that renders a point cloud (e.g. SMLM localisations, centroids) from a table dataset."""
+    typename: Literal['PointLayer'] = Field(alias='__typename', default='PointLayer', exclude=True)
+
+class GetLayerQueryLayerBaseTrackLayer(LayerTrackLayer, GetLayerQueryLayerBase, BaseModel):
+    """A layer that renders trajectories (e.g. particle/cell tracks) from a table dataset, grouped by its TRACK_ID column."""
+    typename: Literal['TrackLayer'] = Field(alias='__typename', default='TrackLayer', exclude=True)
+
+class GetLayerQueryLayerBaseCatchAll(GetLayerQueryLayerBase, BaseModel):
+    """Catch all class for GetLayerQueryLayerBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class GetLayerQuery(BaseModel):
+    """ Read a layer back. The server has had `layer` and `layers` all along; no document ever
+ asked for them, so the only way to see a layer's current picker from Python was to fire
+ `updateLabelLayer` with an empty payload and read the mutation's return value -- a write
+ used as a read, which `sparse_live.py` did precisely because this file was missing."""
+    layer: Annotated[GetLayerQueryLayerBaseAnnotationLayer | GetLayerQueryLayerBaseImageLayer | GetLayerQueryLayerBaseLabelLayer | GetLayerQueryLayerBaseMeshLayer | GetLayerQueryLayerBasePointLayer | GetLayerQueryLayerBaseTrackLayer, Field(discriminator='typename')] | GetLayerQueryLayerBaseCatchAll
+    'Get a single layer by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetLayer """
+        id: ID
+
+    class Meta:
+        """Meta class for GetLayer """
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nquery GetLayer($id: ID!) {\n  layer(id: $id) {\n    ...Layer\n    __typename\n  }\n}'
+
+class LayersQueryLayersBase(BaseModel):
+    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind (ImageLayer, AnnotationLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings."""
+    model_config = ConfigDict(frozen=True)
+
+class LayersQueryLayersBaseAnnotationLayer(LayerAnnotationLayer, LayersQueryLayersBase, BaseModel):
+    """A layer that renders an annotation collection's drawn shapes (polygons, boxes, ellipses, lines, paths) in a scene. One layer per collection: per-shape styling lives on the annotations themselves."""
+    typename: Literal['AnnotationLayer'] = Field(alias='__typename', default='AnnotationLayer', exclude=True)
+
+class LayersQueryLayersBaseImageLayer(LayerImageLayer, LayersQueryLayersBase, BaseModel):
+    """A layer that renders array (lens) data as an alpha-blended image. Its rendering is described entirely by the composable render graph; its placement, entirely by the coordinate graph."""
+    typename: Literal['ImageLayer'] = Field(alias='__typename', default='ImageLayer', exclude=True)
+
+class LayersQueryLayersBaseLabelLayer(LayerLabelLayer, LayersQueryLayersBase, BaseModel):
+    """A layer that renders array (lens) data whose values are discrete object ids -- a segmentation or an instance map. It shares the image layer's source and the same coordinate-graph placement, and none of its render settings: contrast limits, gamma, colormaps and intensity projections are all meaningless over ids."""
+    typename: Literal['LabelLayer'] = Field(alias='__typename', default='LabelLayer', exclude=True)
+
+class LayersQueryLayersBaseMeshLayer(LayerMeshLayer, LayersQueryLayersBase, BaseModel):
+    """A layer that renders a 3D mesh (surface reconstruction / isosurface) placed and styled in a scene."""
+    typename: Literal['MeshLayer'] = Field(alias='__typename', default='MeshLayer', exclude=True)
+
+class LayersQueryLayersBasePointLayer(LayerPointLayer, LayersQueryLayersBase, BaseModel):
+    """A layer that renders a point cloud (e.g. SMLM localisations, centroids) from a table dataset."""
+    typename: Literal['PointLayer'] = Field(alias='__typename', default='PointLayer', exclude=True)
+
+class LayersQueryLayersBaseTrackLayer(LayerTrackLayer, LayersQueryLayersBase, BaseModel):
+    """A layer that renders trajectories (e.g. particle/cell tracks) from a table dataset, grouped by its TRACK_ID column."""
+    typename: Literal['TrackLayer'] = Field(alias='__typename', default='TrackLayer', exclude=True)
+
+class LayersQueryLayersBaseCatchAll(LayersQueryLayersBase, BaseModel):
+    """Catch all class for LayersQueryLayersBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class LayersQuery(BaseModel):
+    """ No `ordering` variable, matching every other list query here: turms cannot parse a list
+ literal as a variable default, and the server's `ordering` already defaults to `[]`."""
+    layers: tuple[Annotated[LayersQueryLayersBaseAnnotationLayer | LayersQueryLayersBaseImageLayer | LayersQueryLayersBaseLabelLayer | LayersQueryLayersBaseMeshLayer | LayersQueryLayersBasePointLayer | LayersQueryLayersBaseTrackLayer, Field(discriminator='typename')] | LayersQueryLayersBaseCatchAll, ...]
+    'List layers placed in scenes (a heterogeneous list of layer kinds)'
+
+    class Arguments(BaseModel):
+        """Arguments for Layers """
+        filters: LayerFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+
+    class Meta:
+        """Meta class for Layers """
+        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nquery Layers($filters: LayerFilter, $pagination: OffsetPaginationInput) {\n  layers(filters: $filters, pagination: $pagination) {\n    ...Layer\n    __typename\n  }\n}'
 
 class GetLensQuery(BaseModel):
     """No documentation found for this operation."""
@@ -4815,7 +5749,6 @@ class GetLensQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetLens """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetLens """
@@ -4829,26 +5762,24 @@ class GetMeshCollectionQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetMeshCollection """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetMeshCollection """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollection($id: ID!) {\n  meshCollection(id: $id) {\n    ...MeshCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollection($id: ID!) {\n  meshCollection(id: $id) {\n    ...MeshCollection\n    __typename\n  }\n}'
 
 class GetMeshCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
-    mesh_collections: Tuple[MeshCollection, ...] = Field(alias='meshCollections')
+    mesh_collections: tuple[MeshCollection, ...] = Field(alias='meshCollections')
     'List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)'
 
     class Arguments(BaseModel):
         """Arguments for GetMeshCollections """
-        filters: Optional[MeshCollectionFilter] = Field(default=None)
-        pagination: Optional[OffsetPaginationInput] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        filters: MeshCollectionFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
 
     class Meta:
         """Meta class for GetMeshCollections """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollections($filters: MeshCollectionFilter, $pagination: OffsetPaginationInput) {\n  meshCollections(filters: $filters, pagination: $pagination) {\n    ...MeshCollection\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment MeshCollection on MeshCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...FabriksStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nquery GetMeshCollections($filters: MeshCollectionFilter, $pagination: OffsetPaginationInput) {\n  meshCollections(filters: $filters, pagination: $pagination) {\n    ...MeshCollection\n    __typename\n  }\n}'
 
 class SearchMeshCollectionsQueryOptions(BaseModel):
     """An immutable, versioned collection of meshes, stored as one fabriks prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating meshes through GraphQL"""
@@ -4859,16 +5790,15 @@ class SearchMeshCollectionsQueryOptions(BaseModel):
 
 class SearchMeshCollectionsQuery(BaseModel):
     """No documentation found for this operation."""
-    options: Tuple[SearchMeshCollectionsQueryOptions, ...]
+    options: tuple[SearchMeshCollectionsQueryOptions, ...]
     'List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)'
 
     class Arguments(BaseModel):
         """Arguments for SearchMeshCollections """
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-        limit: Optional[int] = Field(default=None)
-        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchMeshCollections """
@@ -4882,7 +5812,6 @@ class GetSceneQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetScene """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetScene """
@@ -4897,16 +5826,15 @@ class SearchScenesQueryOptions(SceneTrait, BaseModel):
 
 class SearchScenesQuery(BaseModel):
     """No documentation found for this operation."""
-    options: Tuple[SearchScenesQueryOptions, ...]
+    options: tuple[SearchScenesQueryOptions, ...]
     'List scenes (compositions of layers over array datasets)'
 
     class Arguments(BaseModel):
         """Arguments for SearchScenes """
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-        limit: Optional[int] = Field(default=None)
-        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchScenes """
@@ -4920,26 +5848,24 @@ class GetSceneSnapshotQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetSceneSnapshot """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetSceneSnapshot """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  majorColor\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nquery GetSceneSnapshot($id: ID!) {\n  sceneSnapshot(id: $id) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nquery GetSceneSnapshot($id: ID!) {\n  sceneSnapshot(id: $id) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
 
 class GetSceneSnapshotsQuery(BaseModel):
     """No documentation found for this operation."""
-    scene_snapshots: Tuple[SceneSnapshot, ...] = Field(alias='sceneSnapshots')
+    scene_snapshots: tuple[SceneSnapshot, ...] = Field(alias='sceneSnapshots')
     'List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)'
 
     class Arguments(BaseModel):
         """Arguments for GetSceneSnapshots """
-        filters: Optional[SceneSnapshotFilter] = Field(default=None)
-        pagination: Optional[OffsetPaginationInput] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        filters: SceneSnapshotFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
 
     class Meta:
         """Meta class for GetSceneSnapshots """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  majorColor\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nquery GetSceneSnapshots($filters: SceneSnapshotFilter, $pagination: OffsetPaginationInput) {\n  sceneSnapshots(filters: $filters, pagination: $pagination) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment MediaStore on MediaStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Scene on Scene {\n  name\n  id\n  preferredView\n  backgroundColor\n  worldCoordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nfragment SceneSnapshot on SceneSnapshot {\n  id\n  name\n  scene {\n    ...Scene\n    __typename\n  }\n  store {\n    ...MediaStore\n    __typename\n  }\n  __typename\n}\n\nquery GetSceneSnapshots($filters: SceneSnapshotFilter, $pagination: OffsetPaginationInput) {\n  sceneSnapshots(filters: $filters, pagination: $pagination) {\n    ...SceneSnapshot\n    __typename\n  }\n}'
 
 class SearchSceneSnapshotsQueryOptions(BaseModel):
     """A pre-rendered picture of a composition: every layer of the scene, blended. Clients use snapshots to preview without compositing the layers themselves. A picture of the scene, not of any one dataset in it -- though `ArrayDataset.latestSnapshot` will offer one of these where the scene's only anchored dataset is that dataset, since then the picture shows it and nothing else"""
@@ -4950,20 +5876,53 @@ class SearchSceneSnapshotsQueryOptions(BaseModel):
 
 class SearchSceneSnapshotsQuery(BaseModel):
     """No documentation found for this operation."""
-    options: Tuple[SearchSceneSnapshotsQueryOptions, ...]
+    options: tuple[SearchSceneSnapshotsQueryOptions, ...]
     'List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)'
 
     class Arguments(BaseModel):
         """Arguments for SearchSceneSnapshots """
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-        limit: Optional[int] = Field(default=None)
-        offset: Annotated[Optional[int], GraphQLDefault('0')] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+        limit: int | None = Field(default=None)
+        offset: Annotated[int | None, GraphQLDefault('0')] = Field(default=None)
 
     class Meta:
         """Meta class for SearchSceneSnapshots """
         document = 'query SearchSceneSnapshots($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: sceneSnapshots(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
+
+class GetSparseDatasetQuery(BaseModel):
+    """No documentation found for this operation."""
+    sparse_dataset: SparseDataset = Field(alias='sparseDataset')
+    'Get a single sparse dataset by ID'
+
+    class Arguments(BaseModel):
+        """Arguments for GetSparseDataset """
+        id: ID
+
+    class Meta:
+        """Meta class for GetSparseDataset """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment SparseStore on SparseStore {\n  id\n  key\n  bucket\n  path\n  spec\n  shape\n  layouts {\n    path\n    encoding\n    encodingVersion\n    indexedAxis\n    indexOrder\n    nnz\n    dtype\n    chunks\n    rangeReadable\n    __typename\n  }\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment SparseArray on SparseArray {\n  id\n  indexedAxis\n  indexedAxisName\n  path\n  store {\n    ...SparseStore\n    __typename\n  }\n  __typename\n}\n\nfragment SparseAxisReference on SparseAxisReference {\n  id\n  axis\n  references {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment SparseDataset on SparseDataset {\n  id\n  name\n  description\n  axisNames\n  shape\n  indexableAxes\n  arrays {\n    ...SparseArray\n    __typename\n  }\n  axisReferences {\n    ...SparseAxisReference\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  __typename\n}\n\nquery GetSparseDataset($id: ID!) {\n  sparseDataset(id: $id) {\n    ...SparseDataset\n    __typename\n  }\n}'
+
+class SearchSparseDatasetsQueryOptions(BaseModel):
+    """A sparse matrix over two enumerated axes -- objects on one, features on the other -- stored as anndata-spelled zarr groups. It exists because a colouring names one *column*, so a colourable measurement is a column of a table: right for a few hundred features and impossible for a transcriptome, where a feature stops being a schema fact and becomes a data one. **Each axis is identified exactly once**, by its own `identifiedBy` -- a source whose contents are the ids, or the table whose rows the positions are. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset"""
+    typename: Literal['SparseDataset'] = Field(alias='__typename', default='SparseDataset', exclude=True)
+    value: ID
+    label: str
+    model_config = ConfigDict(frozen=True)
+
+class SearchSparseDatasetsQuery(BaseModel):
+    """No documentation found for this operation."""
+    options: tuple[SearchSparseDatasetsQueryOptions, ...]
+    'List sparse datasets (matrices over two enumerated axes, stored as anndata-spelled zarr groups)'
+
+    class Arguments(BaseModel):
+        """Arguments for SearchSparseDatasets """
+        search: str | None = Field(default=None)
+        values: list[ID] | None = Field(default=None)
+
+    class Meta:
+        """Meta class for SearchSparseDatasets """
+        document = 'query SearchSparseDatasets($search: String, $values: [ID!]) {\n  options: sparseDatasets(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetTableDatasetQuery(BaseModel):
     """No documentation found for this operation."""
@@ -4973,26 +5932,24 @@ class GetTableDatasetQuery(BaseModel):
     class Arguments(BaseModel):
         """Arguments for GetTableDataset """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDataset($id: ID!) {\n  tableDataset(id: $id) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDataset($id: ID!) {\n  tableDataset(id: $id) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class GetTableDatasetsQuery(BaseModel):
     """No documentation found for this operation."""
-    table_datasets: Tuple[TableDataset, ...] = Field(alias='tableDatasets')
+    table_datasets: tuple[TableDataset, ...] = Field(alias='tableDatasets')
     'List table datasets (Parquet-backed tables of scientific records: measurements, localizations, expression levels)'
 
     class Arguments(BaseModel):
         """Arguments for GetTableDatasets """
-        filters: Optional[TableDatasetFilter] = Field(default=None)
-        pagination: Optional[OffsetPaginationInput] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        filters: TableDatasetFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
 
     class Meta:
         """Meta class for GetTableDatasets """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDatasets($filters: TableDatasetFilter, $pagination: OffsetPaginationInput) {\n  tableDatasets(filters: $filters, pagination: $pagination) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDatasets($filters: TableDatasetFilter, $pagination: OffsetPaginationInput) {\n  tableDatasets(filters: $filters, pagination: $pagination) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class GetTransformationQueryTransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
@@ -5001,10 +5958,6 @@ class GetTransformationQueryTransformationBase(BaseModel):
 class GetTransformationQueryTransformationBaseAffineTransformation(TransformationAffineTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
-
-class GetTransformationQueryTransformationBaseBijectionTransformation(TransformationBijectionTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
 
 class GetTransformationQueryTransformationBaseByDimensionTransformation(TransformationByDimensionTransformation, GetTransformationQueryTransformationBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
@@ -5048,17 +6001,16 @@ class GetTransformationQueryTransformationBaseCatchAll(GetTransformationQueryTra
 
 class GetTransformationQuery(BaseModel):
     """No documentation found for this operation."""
-    transformation: Union[Annotated[Union[GetTransformationQueryTransformationBaseAffineTransformation, GetTransformationQueryTransformationBaseBijectionTransformation, GetTransformationQueryTransformationBaseByDimensionTransformation, GetTransformationQueryTransformationBaseFieldTransformation, GetTransformationQueryTransformationBaseIdentityTransformation, GetTransformationQueryTransformationBaseMapAxisTransformation, GetTransformationQueryTransformationBaseRotationTransformation, GetTransformationQueryTransformationBaseScaleTransformation, GetTransformationQueryTransformationBaseSequenceTransformation, GetTransformationQueryTransformationBaseTranslationTransformation, GetTransformationQueryTransformationBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationQueryTransformationBaseCatchAll]
+    transformation: Annotated[GetTransformationQueryTransformationBaseAffineTransformation | GetTransformationQueryTransformationBaseByDimensionTransformation | GetTransformationQueryTransformationBaseFieldTransformation | GetTransformationQueryTransformationBaseIdentityTransformation | GetTransformationQueryTransformationBaseMapAxisTransformation | GetTransformationQueryTransformationBaseRotationTransformation | GetTransformationQueryTransformationBaseScaleTransformation | GetTransformationQueryTransformationBaseSequenceTransformation | GetTransformationQueryTransformationBaseTranslationTransformation | GetTransformationQueryTransformationBaseUnmappableTransformation, Field(discriminator='typename')] | GetTransformationQueryTransformationBaseCatchAll
     'Get a single transformation by ID'
 
     class Arguments(BaseModel):
         """Arguments for GetTransformation """
         id: ID
-        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetTransformation """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetTransformation($id: ID!) {\n  transformation(id: $id) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetTransformation($id: ID!) {\n  transformation(id: $id) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class GetTransformationsQueryTransformationsBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
@@ -5067,10 +6019,6 @@ class GetTransformationsQueryTransformationsBase(BaseModel):
 class GetTransformationsQueryTransformationsBaseAffineTransformation(TransformationAffineTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """A general affine map, given as an M x (N+1) matrix with rows outermost"""
     typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
-
-class GetTransformationsQueryTransformationsBaseBijectionTransformation(TransformationBijectionTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
-    """A pair of child transformations giving an explicit forward and inverse map"""
-    typename: Literal['BijectionTransformation'] = Field(alias='__typename', default='BijectionTransformation', exclude=True)
 
 class GetTransformationsQueryTransformationsBaseByDimensionTransformation(TransformationByDimensionTransformation, GetTransformationsQueryTransformationsBase, TransformationTrait, BaseModel):
     """A composition of child transformations, each acting on a named subset of the axes"""
@@ -5114,25 +6062,24 @@ class GetTransformationsQueryTransformationsBaseCatchAll(GetTransformationsQuery
 
 class GetTransformationsQuery(BaseModel):
     """No documentation found for this operation."""
-    transformations: Tuple[Union[Annotated[Union[GetTransformationsQueryTransformationsBaseAffineTransformation, GetTransformationsQueryTransformationsBaseBijectionTransformation, GetTransformationsQueryTransformationsBaseByDimensionTransformation, GetTransformationsQueryTransformationsBaseFieldTransformation, GetTransformationsQueryTransformationsBaseIdentityTransformation, GetTransformationsQueryTransformationsBaseMapAxisTransformation, GetTransformationsQueryTransformationsBaseRotationTransformation, GetTransformationsQueryTransformationsBaseScaleTransformation, GetTransformationsQueryTransformationsBaseSequenceTransformation, GetTransformationsQueryTransformationsBaseTranslationTransformation, GetTransformationsQueryTransformationsBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationsQueryTransformationsBaseCatchAll], ...]
+    transformations: tuple[Annotated[GetTransformationsQueryTransformationsBaseAffineTransformation | GetTransformationsQueryTransformationsBaseByDimensionTransformation | GetTransformationsQueryTransformationsBaseFieldTransformation | GetTransformationsQueryTransformationsBaseIdentityTransformation | GetTransformationsQueryTransformationsBaseMapAxisTransformation | GetTransformationsQueryTransformationsBaseRotationTransformation | GetTransformationsQueryTransformationsBaseScaleTransformation | GetTransformationsQueryTransformationsBaseSequenceTransformation | GetTransformationsQueryTransformationsBaseTranslationTransformation | GetTransformationsQueryTransformationsBaseUnmappableTransformation, Field(discriminator='typename')] | GetTransformationsQueryTransformationsBaseCatchAll, ...]
     'List transformations (the directed edges of the coordinate graph). Compose them client-side; the server never resolves a path to world, because the same dataset can sit in two scenes under two registrations'
 
     class Arguments(BaseModel):
         """Arguments for GetTransformations """
-        filters: Optional[TransformationFilter] = Field(default=None)
-        pagination: Optional[OffsetPaginationInput] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        filters: TransformationFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
 
     class Meta:
         """Meta class for GetTransformations """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on BijectionTransformation {\n    bijectionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetTransformations($filters: TransformationFilter, $pagination: OffsetPaginationInput) {\n  transformations(filters: $filters, pagination: $pagination) {\n    ...Transformation\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nquery GetTransformations($filters: TransformationFilter, $pagination: OffsetPaginationInput) {\n  transformations(filters: $filters, pagination: $pagination) {\n    ...Transformation\n    __typename\n  }\n}'
 
 class WatchFilesSubscriptionFiles(BaseModel):
     """No documentation"""
     typename: Literal['FileEvent'] = Field(alias='__typename', default='FileEvent', exclude=True)
-    create: Optional[File] = Field(default=None)
-    delete: Optional[ID] = Field(default=None)
-    update: Optional[File] = Field(default=None)
+    create: File | None = Field(default=None)
+    delete: ID | None = Field(default=None)
+    update: File | None = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
 class WatchFilesSubscription(BaseModel):
@@ -5142,14 +6089,13 @@ class WatchFilesSubscription(BaseModel):
 
     class Arguments(BaseModel):
         """Arguments for WatchFiles """
-        folder: Optional[ID] = Field(default=None)
-        model_config = ConfigDict(populate_by_name=True)
+        folder: ID | None = Field(default=None)
 
     class Meta:
         """Meta class for WatchFiles """
         document = 'fragment BigFileStore on BigFileStore {\n  id\n  key\n  bucket\n  path\n  presignedUrl\n  __typename\n}\n\nfragment File on File {\n  id\n  name\n  store {\n    ...BigFileStore\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchFiles($folder: ID) {\n  files(folder: $folder) {\n    create {\n      ...File\n      __typename\n    }\n    delete\n    update {\n      ...File\n      __typename\n    }\n    __typename\n  }\n}'
 
-async def acreate_animation(scene: IDCoercible, name: str, waypoints: Iterable[AnimationWaypointInput], description: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Animation:
+async def acreate_animation(scene: IDCoercible, name: str, waypoints: Iterable[AnimationWaypointInput], description: str | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Animation:
     """CreateAnimation 
 
 Author a named camera tour of a scene
@@ -5164,8 +6110,8 @@ Args:
 Returns:
     Animation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['scene'] = scene
     _input['name'] = name
     if description is not UNSET:
@@ -5174,7 +6120,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateAnimationMutation, variables, rath=rath)).create_animation
 
-def create_animation(scene: IDCoercible, name: str, waypoints: Iterable[AnimationWaypointInput], description: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Animation:
+def create_animation(scene: IDCoercible, name: str, waypoints: Iterable[AnimationWaypointInput], description: str | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Animation:
     """CreateAnimation 
 
 Author a named camera tour of a scene
@@ -5189,8 +6135,8 @@ Args:
 Returns:
     Animation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['scene'] = scene
     _input['name'] = name
     if description is not UNSET:
@@ -5199,7 +6145,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateAnimationMutation, variables, rath=rath).create_animation
 
-async def aupdate_animation(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, waypoints: Union[Optional[Iterable[AnimationWaypointInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Animation:
+async def aupdate_animation(id: IDCoercible, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, waypoints: Iterable[AnimationWaypointInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Animation:
     """UpdateAnimation 
 
 Re-author a camera tour: rename it, or replace its stops
@@ -5214,8 +6160,8 @@ Args:
 Returns:
     Animation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if name is not UNSET:
         _input['name'] = name
@@ -5226,7 +6172,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(UpdateAnimationMutation, variables, rath=rath)).update_animation
 
-def update_animation(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, waypoints: Union[Optional[Iterable[AnimationWaypointInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Animation:
+def update_animation(id: IDCoercible, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, waypoints: Iterable[AnimationWaypointInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Animation:
     """UpdateAnimation 
 
 Re-author a camera tour: rename it, or replace its stops
@@ -5241,8 +6187,8 @@ Args:
 Returns:
     Animation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if name is not UNSET:
         _input['name'] = name
@@ -5253,7 +6199,7 @@ Returns:
     variables['input'] = _input
     return execute(UpdateAnimationMutation, variables, rath=rath).update_animation
 
-async def adelete_animation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+async def adelete_animation(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteAnimation 
 
 Delete an existing camera tour
@@ -5265,13 +6211,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return (await aexecute(DeleteAnimationMutation, variables, rath=rath)).delete_animation
 
-def delete_animation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+def delete_animation(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteAnimation 
 
 Delete an existing camera tour
@@ -5283,13 +6229,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return execute(DeleteAnimationMutation, variables, rath=rath).delete_animation
 
-async def acreate_annotation(kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, fill_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, scene: Union[Optional[IDCoercible], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, coordinates: Union[Optional[Iterable[CoordinateInput]], UnsetType]=UNSET, stroke_width: Union[Optional[float], UnsetType]=UNSET, filled: Union[Optional[bool], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Annotation:
+async def acreate_annotation(kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Annotation:
     """CreateAnnotation 
 
 Draw an annotation into a collection, or onto a scene (exactly one of the two). Drawing on a scene finds its annotation collection or mints it on first use: a coordinate system copying the world's axes, an identity registration into the world, and one annotation layer
@@ -5311,8 +6257,8 @@ Args:
 Returns:
     Annotation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['kind'] = kind
     _input['vectors'] = vectors
     if stroke_color is not UNSET:
@@ -5336,7 +6282,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateAnnotationMutation, variables, rath=rath)).create_annotation
 
-def create_annotation(kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, fill_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, collection: Union[Optional[IDCoercible], UnsetType]=UNSET, scene: Union[Optional[IDCoercible], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, coordinates: Union[Optional[Iterable[CoordinateInput]], UnsetType]=UNSET, stroke_width: Union[Optional[float], UnsetType]=UNSET, filled: Union[Optional[bool], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Annotation:
+def create_annotation(kind: AnnotationKind, vectors: Iterable[ThreeDVector], stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Annotation:
     """CreateAnnotation 
 
 Draw an annotation into a collection, or onto a scene (exactly one of the two). Drawing on a scene finds its annotation collection or mints it on first use: a coordinate system copying the world's axes, an identity registration into the world, and one annotation layer
@@ -5358,8 +6304,8 @@ Args:
 Returns:
     Annotation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['kind'] = kind
     _input['vectors'] = vectors
     if stroke_color is not UNSET:
@@ -5383,7 +6329,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateAnnotationMutation, variables, rath=rath).create_annotation
 
-async def acreate_annotations(annotations: Iterable[AnnotationSpecInput], collection: Union[Optional[IDCoercible], UnsetType]=UNSET, scene: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Annotation, ...]:
+async def acreate_annotations(annotations: Iterable[AnnotationSpecInput], collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotation, ...]:
     """CreateAnnotations 
 
 Draw many annotations in one call, into a collection or onto a scene (exactly one of the two, same semantics as createAnnotation). The transform chain and version resolve once for the whole batch, and the rows insert in bulk
@@ -5395,10 +6341,10 @@ Args:
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[Annotation]
+    list[Annotation]
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if collection is not UNSET:
         _input['collection'] = collection
     if scene is not UNSET:
@@ -5407,7 +6353,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateAnnotationsMutation, variables, rath=rath)).create_annotations
 
-def create_annotations(annotations: Iterable[AnnotationSpecInput], collection: Union[Optional[IDCoercible], UnsetType]=UNSET, scene: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Annotation, ...]:
+def create_annotations(annotations: Iterable[AnnotationSpecInput], collection: IDCoercible | None | UnsetType=UNSET, scene: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotation, ...]:
     """CreateAnnotations 
 
 Draw many annotations in one call, into a collection or onto a scene (exactly one of the two, same semantics as createAnnotation). The transform chain and version resolve once for the whole batch, and the rows insert in bulk
@@ -5419,10 +6365,10 @@ Args:
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[Annotation]
+    list[Annotation]
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if collection is not UNSET:
         _input['collection'] = collection
     if scene is not UNSET:
@@ -5431,7 +6377,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateAnnotationsMutation, variables, rath=rath).create_annotations
 
-async def aupdate_annotation(id: IDCoercible, kind: Union[Optional[AnnotationKind], UnsetType]=UNSET, vectors: Union[Optional[Iterable[ThreeDVector]], UnsetType]=UNSET, stroke_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, fill_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, coordinates: Union[Optional[Iterable[CoordinateInput]], UnsetType]=UNSET, stroke_width: Union[Optional[float], UnsetType]=UNSET, filled: Union[Optional[bool], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Annotation:
+async def aupdate_annotation(id: IDCoercible, kind: AnnotationKind | None | UnsetType=UNSET, vectors: Iterable[ThreeDVector] | None | UnsetType=UNSET, stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Annotation:
     """UpdateAnnotation 
 
 Edit an annotation: name, kind, vectors, pins or styling. New vectors re-derive the bounding box against the current transform chain
@@ -5452,8 +6398,8 @@ Args:
 Returns:
     Annotation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if kind is not UNSET:
         _input['kind'] = kind
     if vectors is not UNSET:
@@ -5476,7 +6422,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(UpdateAnnotationMutation, variables, rath=rath)).update_annotation
 
-def update_annotation(id: IDCoercible, kind: Union[Optional[AnnotationKind], UnsetType]=UNSET, vectors: Union[Optional[Iterable[ThreeDVector]], UnsetType]=UNSET, stroke_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, fill_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, coordinates: Union[Optional[Iterable[CoordinateInput]], UnsetType]=UNSET, stroke_width: Union[Optional[float], UnsetType]=UNSET, filled: Union[Optional[bool], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Annotation:
+def update_annotation(id: IDCoercible, kind: AnnotationKind | None | UnsetType=UNSET, vectors: Iterable[ThreeDVector] | None | UnsetType=UNSET, stroke_color: Iterable[int] | None | UnsetType=UNSET, fill_color: Iterable[int] | None | UnsetType=UNSET, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, coordinates: Iterable[CoordinateInput] | None | UnsetType=UNSET, stroke_width: float | None | UnsetType=UNSET, filled: bool | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Annotation:
     """UpdateAnnotation 
 
 Edit an annotation: name, kind, vectors, pins or styling. New vectors re-derive the bounding box against the current transform chain
@@ -5497,8 +6443,8 @@ Args:
 Returns:
     Annotation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if kind is not UNSET:
         _input['kind'] = kind
     if vectors is not UNSET:
@@ -5521,7 +6467,7 @@ Returns:
     variables['input'] = _input
     return execute(UpdateAnnotationMutation, variables, rath=rath).update_annotation
 
-async def adelete_annotation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+async def adelete_annotation(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteAnnotation 
 
 Delete an existing annotation
@@ -5533,13 +6479,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return (await aexecute(DeleteAnnotationMutation, variables, rath=rath)).delete_annotation
 
-def delete_annotation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+def delete_annotation(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteAnnotation 
 
 Delete an existing annotation
@@ -5551,13 +6497,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return execute(DeleteAnnotationMutation, variables, rath=rath).delete_annotation
 
-async def acreate_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+async def acreate_annotation_collection(name: str, axes: Iterable[AxisInput | str], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> AnnotationCollection:
     """CreateAnnotationCollection 
 
 Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
@@ -5574,8 +6520,8 @@ Args:
 Returns:
     AnnotationCollection
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     if description is not UNSET:
         _input['description'] = description
@@ -5589,7 +6535,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateAnnotationCollectionMutation, variables, rath=rath)).create_annotation_collection
 
-def create_annotation_collection(name: str, axes: Iterable[Union[AxisInput, str]], description: Union[Optional[str], UnsetType]=UNSET, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+def create_annotation_collection(name: str, axes: Iterable[AxisInput | str], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> AnnotationCollection:
     """CreateAnnotationCollection 
 
 Create an annotation collection explicitly, in a coordinate system of its own, optionally derived from the system the shapes are drawn over. The common path -- drawing on a scene -- goes through createAnnotation instead, which mints the scene's collection on first use
@@ -5606,8 +6552,8 @@ Args:
 Returns:
     AnnotationCollection
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     if description is not UNSET:
         _input['description'] = description
@@ -5621,7 +6567,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateAnnotationCollectionMutation, variables, rath=rath).create_annotation_collection
 
-async def adelete_annotation_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+async def adelete_annotation_collection(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteAnnotationCollection 
 
 Delete an annotation collection. Its coordinate system, its annotations and its layers cascade with it
@@ -5633,13 +6579,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return (await aexecute(DeleteAnnotationCollectionMutation, variables, rath=rath)).delete_annotation_collection
 
-def delete_annotation_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+def delete_annotation_collection(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteAnnotationCollection 
 
 Delete an annotation collection. Its coordinate system, its annotations and its layers cascade with it
@@ -5651,13 +6597,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return execute(DeleteAnnotationCollectionMutation, variables, rath=rath).delete_annotation_collection
 
-async def acreate_array_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], folder: Union[Optional[IDCoercible], UnsetType]=UNSET, anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ArrayDataset:
+async def acreate_array_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> ArrayDataset:
     """CreateArrayDataset 
 
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
@@ -5676,8 +6622,8 @@ Args:
 Returns:
     ArrayDataset
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['data'] = data
     _input['scales'] = scales
     _input['name'] = name
@@ -5693,7 +6639,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateArrayDatasetMutation, variables, rath=rath)).create_array_dataset
 
-def create_array_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[Union[AxisInput, str]], folder: Union[Optional[IDCoercible], UnsetType]=UNSET, anchors: Union[Optional[Iterable[CoordinateAnchorInput]], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ArrayDataset:
+def create_array_dataset(data: ArrayCoercible, scales: Iterable[ScaleInput], name: str, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, anchors: Iterable[CoordinateAnchorInput] | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> ArrayDataset:
     """CreateArrayDataset 
 
 Create a new dataset from array-like data with optional coordinate anchors and OME metadata
@@ -5712,8 +6658,8 @@ Args:
 Returns:
     ArrayDataset
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['data'] = data
     _input['scales'] = scales
     _input['name'] = name
@@ -5729,7 +6675,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateArrayDatasetMutation, variables, rath=rath).create_array_dataset
 
-async def acreate_coordinate_system(name: str, axes: Iterable[PhysicalAxisInput], registrations: Iterable[RegistrationPathInput], epoch: Union[Optional[datetime], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+async def acreate_coordinate_system(name: str, axes: Iterable[PhysicalAxisInput], registrations: Iterable[RegistrationPathInput], epoch: datetime | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> CoordinateSystem:
     """CreateCoordinateSystem 
 
 Create a SHARED coordinate system (an ownerless space) and, in one call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it
@@ -5744,8 +6690,8 @@ Args:
 Returns:
     CoordinateSystem
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     _input['axes'] = axes
     if epoch is not UNSET:
@@ -5754,7 +6700,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateCoordinateSystemMutation, variables, rath=rath)).create_coordinate_system
 
-def create_coordinate_system(name: str, axes: Iterable[PhysicalAxisInput], registrations: Iterable[RegistrationPathInput], epoch: Union[Optional[datetime], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+def create_coordinate_system(name: str, axes: Iterable[PhysicalAxisInput], registrations: Iterable[RegistrationPathInput], epoch: datetime | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> CoordinateSystem:
     """CreateCoordinateSystem 
 
 Create a SHARED coordinate system (an ownerless space) and, in one call, author the edges registering any number of sources (datasets, table datasets, mesh collections, coordinate systems) into it
@@ -5769,8 +6715,8 @@ Args:
 Returns:
     CoordinateSystem
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     _input['axes'] = axes
     if epoch is not UNSET:
@@ -5779,7 +6725,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateCoordinateSystemMutation, variables, rath=rath).create_coordinate_system
 
-async def aupdate_coordinate_system(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+async def aupdate_coordinate_system(id: IDCoercible, name: str | None | UnsetType=UNSET, epoch: datetime | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> CoordinateSystem:
     """UpdateCoordinateSystem 
 
 Rename a shared coordinate system or anchor its clock. Shared spaces only -- an owned system's name is its container's business, and where data sits is an edge (updateTransformation), not a property of the space
@@ -5793,8 +6739,8 @@ Args:
 Returns:
     CoordinateSystem
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if name is not UNSET:
         _input['name'] = name
@@ -5803,7 +6749,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(UpdateCoordinateSystemMutation, variables, rath=rath)).update_coordinate_system
 
-def update_coordinate_system(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+def update_coordinate_system(id: IDCoercible, name: str | None | UnsetType=UNSET, epoch: datetime | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> CoordinateSystem:
     """UpdateCoordinateSystem 
 
 Rename a shared coordinate system or anchor its clock. Shared spaces only -- an owned system's name is its container's business, and where data sits is an edge (updateTransformation), not a property of the space
@@ -5817,8 +6763,8 @@ Args:
 Returns:
     CoordinateSystem
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if name is not UNSET:
         _input['name'] = name
@@ -5827,7 +6773,7 @@ Returns:
     variables['input'] = _input
     return execute(UpdateCoordinateSystemMutation, variables, rath=rath).update_coordinate_system
 
-async def adelete_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+async def adelete_coordinate_system(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteCoordinateSystem 
 
 Delete an unused shared coordinate system. Refused while any scene is rooted in it or any transformation edge touches it. This is the only door a shared space leaves through -- deleting a scene never deletes one. Other system kinds cascade with their owner and cannot be deleted directly
@@ -5839,13 +6785,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return (await aexecute(DeleteCoordinateSystemMutation, variables, rath=rath)).delete_coordinate_system
 
-def delete_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+def delete_coordinate_system(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteCoordinateSystem 
 
 Delete an unused shared coordinate system. Refused while any scene is rooted in it or any transformation edge touches it. This is the only door a shared space leaves through -- deleting a scene never deletes one. Other system kinds cascade with their owner and cannot be deleted directly
@@ -5857,13 +6803,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return execute(DeleteCoordinateSystemMutation, variables, rath=rath).delete_coordinate_system
 
-async def aclear_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Tuple[ID, ...]:
+async def aclear_coordinate_system(id: IDCoercible, rath: MikroNextRath | None=None) -> tuple[ID, ...]:
     """ClearCoordinateSystem 
 
 Delete every registration INTO a shared space in one call, returning the deleted edge ids. The space, the scenes over it (their layers drop to UNREGISTERED) and the space's own claims into wider spaces all survive. Guarded by the space's creator: clearing a space is the space-owner's act
@@ -5873,15 +6819,15 @@ Args:
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[ID]
+    list[ID]
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return (await aexecute(ClearCoordinateSystemMutation, variables, rath=rath)).clear_coordinate_system
 
-def clear_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Tuple[ID, ...]:
+def clear_coordinate_system(id: IDCoercible, rath: MikroNextRath | None=None) -> tuple[ID, ...]:
     """ClearCoordinateSystem 
 
 Delete every registration INTO a shared space in one call, returning the deleted edge ids. The space, the scenes over it (their layers drop to UNREGISTERED) and the space's own claims into wider spaces all survive. Guarded by the space's creator: clearing a space is the space-owner's act
@@ -5891,15 +6837,15 @@ Args:
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[ID]
+    list[ID]
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return execute(ClearCoordinateSystemMutation, variables, rath=rath).clear_coordinate_system
 
-async def adelete_registration(world: IDCoercible, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, table_dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, mesh_collection: Union[Optional[IDCoercible], UnsetType]=UNSET, annotation_collection: Union[Optional[IDCoercible], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[ID, ...]:
+async def adelete_registration(world: IDCoercible, dataset: IDCoercible | None | UnsetType=UNSET, table_dataset: IDCoercible | None | UnsetType=UNSET, mesh_collection: IDCoercible | None | UnsetType=UNSET, annotation_collection: IDCoercible | None | UnsetType=UNSET, coordinate_system: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[ID, ...]:
     """DeleteRegistration 
 
 Un-register a source from a space by naming the source and the space rather than the edge. Deletes every edge from the source's space into that one -- rivals are allowed, so there is no single edge to mean -- and returns their ids. An UNMAPPABLE declaration is not a placement and is never matched
@@ -5914,10 +6860,10 @@ Args:
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[ID]
+    list[ID]
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if dataset is not UNSET:
         _input['dataset'] = dataset
     if table_dataset is not UNSET:
@@ -5932,7 +6878,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(DeleteRegistrationMutation, variables, rath=rath)).delete_registration
 
-def delete_registration(world: IDCoercible, dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, table_dataset: Union[Optional[IDCoercible], UnsetType]=UNSET, mesh_collection: Union[Optional[IDCoercible], UnsetType]=UNSET, annotation_collection: Union[Optional[IDCoercible], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[ID, ...]:
+def delete_registration(world: IDCoercible, dataset: IDCoercible | None | UnsetType=UNSET, table_dataset: IDCoercible | None | UnsetType=UNSET, mesh_collection: IDCoercible | None | UnsetType=UNSET, annotation_collection: IDCoercible | None | UnsetType=UNSET, coordinate_system: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[ID, ...]:
     """DeleteRegistration 
 
 Un-register a source from a space by naming the source and the space rather than the edge. Deletes every edge from the source's space into that one -- rivals are allowed, so there is no single edge to mean -- and returns their ids. An UNMAPPABLE declaration is not a placement and is never matched
@@ -5947,10 +6893,10 @@ Args:
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[ID]
+    list[ID]
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if dataset is not UNSET:
         _input['dataset'] = dataset
     if table_dataset is not UNSET:
@@ -5965,7 +6911,7 @@ Returns:
     variables['input'] = _input
     return execute(DeleteRegistrationMutation, variables, rath=rath).delete_registration
 
-async def arequest_bigfile_upload(original_file_name: str, file_size: Union[Optional[int], UnsetType]=UNSET, content_type: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> BigFileUploadGrant:
+async def arequest_bigfile_upload(original_file_name: str, file_size: int | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> BigFileUploadGrant:
     """RequestBigfileUpload 
 
 Request an upload grant for a big file store
@@ -5981,8 +6927,8 @@ Args:
 Returns:
     BigFileUploadGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['originalFileName'] = original_file_name
     if file_size is not UNSET:
         _input['fileSize'] = file_size
@@ -5995,7 +6941,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(RequestBigfileUploadMutation, variables, rath=rath)).request_bigfile_upload
 
-def request_bigfile_upload(original_file_name: str, file_size: Union[Optional[int], UnsetType]=UNSET, content_type: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> BigFileUploadGrant:
+def request_bigfile_upload(original_file_name: str, file_size: int | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> BigFileUploadGrant:
     """RequestBigfileUpload 
 
 Request an upload grant for a big file store
@@ -6011,8 +6957,8 @@ Args:
 Returns:
     BigFileUploadGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['originalFileName'] = original_file_name
     if file_size is not UNSET:
         _input['fileSize'] = file_size
@@ -6025,7 +6971,7 @@ Returns:
     variables['input'] = _input
     return execute(RequestBigfileUploadMutation, variables, rath=rath).request_bigfile_upload
 
-async def afinish_bigfile_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> BigFileStore:
+async def afinish_bigfile_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> BigFileStore:
     """FinishBigfileUpload 
 
 Finalize a big file upload after the client has written the object
@@ -6038,14 +6984,14 @@ Args:
 Returns:
     BigFileStore
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     _input['valid'] = valid
     variables['input'] = _input
     return (await aexecute(FinishBigfileUploadMutation, variables, rath=rath)).finish_bigfile_upload
 
-def finish_bigfile_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> BigFileStore:
+def finish_bigfile_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> BigFileStore:
     """FinishBigfileUpload 
 
 Finalize a big file upload after the client has written the object
@@ -6058,14 +7004,14 @@ Args:
 Returns:
     BigFileStore
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     _input['valid'] = valid
     variables['input'] = _input
     return execute(FinishBigfileUploadMutation, variables, rath=rath).finish_bigfile_upload
 
-async def arequest_bigfile_access(store_id: str, rath: Optional[MikroNextRath]=None) -> BigFileAccessGrant:
+async def arequest_bigfile_access(store_id: str, rath: MikroNextRath | None=None) -> BigFileAccessGrant:
     """RequestBigfileAccess 
 
 Request temporary S3 read credentials for a big file
@@ -6077,13 +7023,13 @@ Args:
 Returns:
     BigFileAccessGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     variables['input'] = _input
     return (await aexecute(RequestBigfileAccessMutation, variables, rath=rath)).request_bigfile_access
 
-def request_bigfile_access(store_id: str, rath: Optional[MikroNextRath]=None) -> BigFileAccessGrant:
+def request_bigfile_access(store_id: str, rath: MikroNextRath | None=None) -> BigFileAccessGrant:
     """RequestBigfileAccess 
 
 Request temporary S3 read credentials for a big file
@@ -6095,13 +7041,13 @@ Args:
 Returns:
     BigFileAccessGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     variables['input'] = _input
     return execute(RequestBigfileAccessMutation, variables, rath=rath).request_bigfile_access
 
-async def arequest_fabriks_upload(host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> FabriksUploadGrant:
+async def arequest_fabriks_upload(host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> FabriksUploadGrant:
     """RequestFabriksUpload 
 
 Request an upload grant for a fabriks store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
@@ -6114,8 +7060,8 @@ Args:
 Returns:
     FabriksUploadGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if host is not UNSET:
         _input['host'] = host
     if port is not UNSET:
@@ -6123,7 +7069,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(RequestFabriksUploadMutation, variables, rath=rath)).request_fabriks_upload
 
-def request_fabriks_upload(host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> FabriksUploadGrant:
+def request_fabriks_upload(host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> FabriksUploadGrant:
     """RequestFabriksUpload 
 
 Request an upload grant for a fabriks store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
@@ -6136,8 +7082,8 @@ Args:
 Returns:
     FabriksUploadGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if host is not UNSET:
         _input['host'] = host
     if port is not UNSET:
@@ -6145,8 +7091,10 @@ Returns:
     variables['input'] = _input
     return execute(RequestFabriksUploadMutation, variables, rath=rath).request_fabriks_upload
 
-async def afinish_fabriks_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> FabriksStore:
+async def afinish_fabriks_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> FabriksStore:
     """FinishFabriksUpload 
+ Reads the store's `fabriks.json` and refuses a prefix without one -- which is exactly what an
+ interrupted upload looks like, since the manifest is written last. So this is the completion
  protocol, not a formality, and the store it returns carries the grid and encoding it read.
 
 Args:
@@ -6157,15 +7105,17 @@ Args:
 Returns:
     FabriksStore
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     _input['valid'] = valid
     variables['input'] = _input
     return (await aexecute(FinishFabriksUploadMutation, variables, rath=rath)).finish_fabriks_upload
 
-def finish_fabriks_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> FabriksStore:
+def finish_fabriks_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> FabriksStore:
     """FinishFabriksUpload 
+ Reads the store's `fabriks.json` and refuses a prefix without one -- which is exactly what an
+ interrupted upload looks like, since the manifest is written last. So this is the completion
  protocol, not a formality, and the store it returns carries the grid and encoding it read.
 
 Args:
@@ -6176,14 +7126,14 @@ Args:
 Returns:
     FabriksStore
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     _input['valid'] = valid
     variables['input'] = _input
     return execute(FinishFabriksUploadMutation, variables, rath=rath).finish_fabriks_upload
 
-async def arequest_fabriks_access(store_id: str, rath: Optional[MikroNextRath]=None) -> FabriksAccessGrant:
+async def arequest_fabriks_access(store_id: str, rath: MikroNextRath | None=None) -> FabriksAccessGrant:
     """RequestFabriksAccess 
 
 Request temporary S3 read credentials covering a fabriks store's whole prefix
@@ -6195,13 +7145,13 @@ Args:
 Returns:
     FabriksAccessGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     variables['input'] = _input
     return (await aexecute(RequestFabriksAccessMutation, variables, rath=rath)).request_fabriks_access
 
-def request_fabriks_access(store_id: str, rath: Optional[MikroNextRath]=None) -> FabriksAccessGrant:
+def request_fabriks_access(store_id: str, rath: MikroNextRath | None=None) -> FabriksAccessGrant:
     """RequestFabriksAccess 
 
 Request temporary S3 read credentials covering a fabriks store's whole prefix
@@ -6213,13 +7163,13 @@ Args:
 Returns:
     FabriksAccessGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     variables['input'] = _input
     return execute(RequestFabriksAccessMutation, variables, rath=rath).request_fabriks_access
 
-async def arequest_media_upload(original_file_name: str, file_size: Union[Optional[int], UnsetType]=UNSET, content_type: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MediaUploadGrant:
+async def arequest_media_upload(original_file_name: str, file_size: int | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> MediaUploadGrant:
     """RequestMediaUpload 
 
 Upload media and return a URL for access
@@ -6233,8 +7183,8 @@ Args:
 Returns:
     MediaUploadGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['originalFileName'] = original_file_name
     if file_size is not UNSET:
         _input['fileSize'] = file_size
@@ -6243,7 +7193,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(RequestMediaUploadMutation, variables, rath=rath)).request_media_upload
 
-def request_media_upload(original_file_name: str, file_size: Union[Optional[int], UnsetType]=UNSET, content_type: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MediaUploadGrant:
+def request_media_upload(original_file_name: str, file_size: int | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> MediaUploadGrant:
     """RequestMediaUpload 
 
 Upload media and return a URL for access
@@ -6257,8 +7207,8 @@ Args:
 Returns:
     MediaUploadGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['originalFileName'] = original_file_name
     if file_size is not UNSET:
         _input['fileSize'] = file_size
@@ -6267,7 +7217,7 @@ Returns:
     variables['input'] = _input
     return execute(RequestMediaUploadMutation, variables, rath=rath).request_media_upload
 
-async def afinish_media_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> MediaStore:
+async def afinish_media_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> MediaStore:
     """FinishMediaUpload 
 
 Finalize a media upload after the client has written the object
@@ -6280,14 +7230,14 @@ Args:
 Returns:
     MediaStore
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     _input['valid'] = valid
     variables['input'] = _input
     return (await aexecute(FinishMediaUploadMutation, variables, rath=rath)).finish_media_upload
 
-def finish_media_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> MediaStore:
+def finish_media_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> MediaStore:
     """FinishMediaUpload 
 
 Finalize a media upload after the client has written the object
@@ -6300,14 +7250,14 @@ Args:
 Returns:
     MediaStore
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     _input['valid'] = valid
     variables['input'] = _input
     return execute(FinishMediaUploadMutation, variables, rath=rath).finish_media_upload
 
-async def arequest_media_access(store_id: str, rath: Optional[MikroNextRath]=None) -> MediaAccessGrant:
+async def arequest_media_access(store_id: str, rath: MikroNextRath | None=None) -> MediaAccessGrant:
     """RequestMediaAccess 
 
 Request temporary S3 read credentials for a media file
@@ -6319,13 +7269,13 @@ Args:
 Returns:
     MediaAccessGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     variables['input'] = _input
     return (await aexecute(RequestMediaAccessMutation, variables, rath=rath)).request_media_access
 
-def request_media_access(store_id: str, rath: Optional[MikroNextRath]=None) -> MediaAccessGrant:
+def request_media_access(store_id: str, rath: MikroNextRath | None=None) -> MediaAccessGrant:
     """RequestMediaAccess 
 
 Request temporary S3 read credentials for a media file
@@ -6337,13 +7287,13 @@ Args:
 Returns:
     MediaAccessGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     variables['input'] = _input
     return execute(RequestMediaAccessMutation, variables, rath=rath).request_media_access
 
-async def arequest_parquet_upload(content_type: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ParquetUploadGrant:
+async def arequest_parquet_upload(content_type: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> ParquetUploadGrant:
     """RequestParquetUpload 
 
 Request an upload grant for a Parquet store
@@ -6357,8 +7307,8 @@ Args:
 Returns:
     ParquetUploadGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if content_type is not UNSET:
         _input['contentType'] = content_type
     if host is not UNSET:
@@ -6368,7 +7318,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(RequestParquetUploadMutation, variables, rath=rath)).request_parquet_upload
 
-def request_parquet_upload(content_type: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ParquetUploadGrant:
+def request_parquet_upload(content_type: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> ParquetUploadGrant:
     """RequestParquetUpload 
 
 Request an upload grant for a Parquet store
@@ -6382,8 +7332,8 @@ Args:
 Returns:
     ParquetUploadGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if content_type is not UNSET:
         _input['contentType'] = content_type
     if host is not UNSET:
@@ -6393,7 +7343,7 @@ Returns:
     variables['input'] = _input
     return execute(RequestParquetUploadMutation, variables, rath=rath).request_parquet_upload
 
-async def afinish_parquet_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> ParquetStore:
+async def afinish_parquet_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> ParquetStore:
     """FinishParquetUpload 
 
 Finalize a Parquet upload after the client has written the object
@@ -6406,14 +7356,14 @@ Args:
 Returns:
     ParquetStore
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     _input['valid'] = valid
     variables['input'] = _input
     return (await aexecute(FinishParquetUploadMutation, variables, rath=rath)).finish_parquet_upload
 
-def finish_parquet_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> ParquetStore:
+def finish_parquet_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> ParquetStore:
     """FinishParquetUpload 
 
 Finalize a Parquet upload after the client has written the object
@@ -6426,14 +7376,14 @@ Args:
 Returns:
     ParquetStore
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     _input['valid'] = valid
     variables['input'] = _input
     return execute(FinishParquetUploadMutation, variables, rath=rath).finish_parquet_upload
 
-async def arequest_parquet_access(store_id: str, rath: Optional[MikroNextRath]=None) -> ParquetAccessGrant:
+async def arequest_parquet_access(store_id: str, rath: MikroNextRath | None=None) -> ParquetAccessGrant:
     """RequestParquetAccess 
 
 Request temporary S3 read credentials for a Parquet file
@@ -6445,13 +7395,13 @@ Args:
 Returns:
     ParquetAccessGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     variables['input'] = _input
     return (await aexecute(RequestParquetAccessMutation, variables, rath=rath)).request_parquet_access
 
-def request_parquet_access(store_id: str, rath: Optional[MikroNextRath]=None) -> ParquetAccessGrant:
+def request_parquet_access(store_id: str, rath: MikroNextRath | None=None) -> ParquetAccessGrant:
     """RequestParquetAccess 
 
 Request temporary S3 read credentials for a Parquet file
@@ -6463,13 +7413,97 @@ Args:
 Returns:
     ParquetAccessGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     variables['input'] = _input
     return execute(RequestParquetAccessMutation, variables, rath=rath).request_parquet_access
 
-async def arequest_zarr_upload(shape: Union[Optional[Iterable[int]], UnsetType]=UNSET, chunks: Union[Optional[Iterable[int]], UnsetType]=UNSET, version: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ZarrUploadGrant:
+async def arequest_sparse_upload(host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> SparseUploadGrant:
+    """RequestSparseUpload 
+
+Request an upload grant for a sparse store. The grant covers the whole prefix, so one request authorizes the group's metadata and all three of its arrays. It declares nothing about the matrix: the group states its encoding, shape and chunking, and the server reads them when the upload is finished
+
+Args:
+    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SparseUploadGrant
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    if host is not UNSET:
+        _input['host'] = host
+    if port is not UNSET:
+        _input['port'] = port
+    variables['input'] = _input
+    return (await aexecute(RequestSparseUploadMutation, variables, rath=rath)).request_sparse_upload
+
+def request_sparse_upload(host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> SparseUploadGrant:
+    """RequestSparseUpload 
+
+Request an upload grant for a sparse store. The grant covers the whole prefix, so one request authorizes the group's metadata and all three of its arrays. It declares nothing about the matrix: the group states its encoding, shape and chunking, and the server reads them when the upload is finished
+
+Args:
+    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SparseUploadGrant
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    if host is not UNSET:
+        _input['host'] = host
+    if port is not UNSET:
+        _input['port'] = port
+    variables['input'] = _input
+    return execute(RequestSparseUploadMutation, variables, rath=rath).request_sparse_upload
+
+async def afinish_sparse_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> SparseStore:
+    """FinishSparseUpload 
+
+Finalize a sparse upload, which is when the group's own metadata is read. A missing encoding, a missing array, or an `indptr` whose length contradicts the declared shape are all refused here -- that is what an interrupted upload looks like, and catching it now beats a reader discovering it later
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    valid: The `Boolean` scalar type represents `true` or `false`. (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SparseStore
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return (await aexecute(FinishSparseUploadMutation, variables, rath=rath)).finish_sparse_upload
+
+def finish_sparse_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> SparseStore:
+    """FinishSparseUpload 
+
+Finalize a sparse upload, which is when the group's own metadata is read. A missing encoding, a missing array, or an `indptr` whose length contradicts the declared shape are all refused here -- that is what an interrupted upload looks like, and catching it now beats a reader discovering it later
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    valid: The `Boolean` scalar type represents `true` or `false`. (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SparseStore
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return execute(FinishSparseUploadMutation, variables, rath=rath).finish_sparse_upload
+
+async def arequest_zarr_upload(shape: Iterable[int] | None | UnsetType=UNSET, chunks: Iterable[int] | None | UnsetType=UNSET, version: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> ZarrUploadGrant:
     """RequestZarrUpload 
 
 Request an upload grant for a Zarr store
@@ -6485,8 +7519,8 @@ Args:
 Returns:
     ZarrUploadGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if shape is not UNSET:
         _input['shape'] = shape
     if chunks is not UNSET:
@@ -6500,7 +7534,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(RequestZarrUploadMutation, variables, rath=rath)).request_zarr_upload
 
-def request_zarr_upload(shape: Union[Optional[Iterable[int]], UnsetType]=UNSET, chunks: Union[Optional[Iterable[int]], UnsetType]=UNSET, version: Union[Optional[str], UnsetType]=UNSET, host: Union[Optional[str], UnsetType]=UNSET, port: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> ZarrUploadGrant:
+def request_zarr_upload(shape: Iterable[int] | None | UnsetType=UNSET, chunks: Iterable[int] | None | UnsetType=UNSET, version: str | None | UnsetType=UNSET, host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> ZarrUploadGrant:
     """RequestZarrUpload 
 
 Request an upload grant for a Zarr store
@@ -6516,8 +7550,8 @@ Args:
 Returns:
     ZarrUploadGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     if shape is not UNSET:
         _input['shape'] = shape
     if chunks is not UNSET:
@@ -6531,7 +7565,7 @@ Returns:
     variables['input'] = _input
     return execute(RequestZarrUploadMutation, variables, rath=rath).request_zarr_upload
 
-async def afinish_zarr_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> ZarrStore:
+async def afinish_zarr_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> ZarrStore:
     """FinishZarrUpload 
 
 Finalize a Zarr upload after the client has written the object
@@ -6544,14 +7578,14 @@ Args:
 Returns:
     ZarrStore
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     _input['valid'] = valid
     variables['input'] = _input
     return (await aexecute(FinishZarrUploadMutation, variables, rath=rath)).finish_zarr_upload
 
-def finish_zarr_upload(store_id: str, valid: bool, rath: Optional[MikroNextRath]=None) -> ZarrStore:
+def finish_zarr_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> ZarrStore:
     """FinishZarrUpload 
 
 Finalize a Zarr upload after the client has written the object
@@ -6564,14 +7598,14 @@ Args:
 Returns:
     ZarrStore
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     _input['valid'] = valid
     variables['input'] = _input
     return execute(FinishZarrUploadMutation, variables, rath=rath).finish_zarr_upload
 
-async def arequest_zarr_access(store_id: str, rath: Optional[MikroNextRath]=None) -> ZarrAccessGrant:
+async def arequest_zarr_access(store_id: str, rath: MikroNextRath | None=None) -> ZarrAccessGrant:
     """RequestZarrAccess 
 
 Request temporary S3 read credentials for a Zarr store
@@ -6583,13 +7617,13 @@ Args:
 Returns:
     ZarrAccessGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     variables['input'] = _input
     return (await aexecute(RequestZarrAccessMutation, variables, rath=rath)).request_zarr_access
 
-def request_zarr_access(store_id: str, rath: Optional[MikroNextRath]=None) -> ZarrAccessGrant:
+def request_zarr_access(store_id: str, rath: MikroNextRath | None=None) -> ZarrAccessGrant:
     """RequestZarrAccess 
 
 Request temporary S3 read credentials for a Zarr store
@@ -6601,13 +7635,13 @@ Args:
 Returns:
     ZarrAccessGrant
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['storeId'] = store_id
     variables['input'] = _input
     return execute(RequestZarrAccessMutation, variables, rath=rath).request_zarr_access
 
-async def afrom_file_like(file: ImageFileCoercible, file_name: str, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, export_of: Union[Optional[Iterable[ExportOfInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
+async def afrom_file_like(file: ImageFileCoercible, file_name: str, folder: IDCoercible | None | UnsetType=UNSET, export_of: Iterable[ExportOfInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> File:
     """FromFileLike 
 
 Create a file from file-like data
@@ -6622,8 +7656,8 @@ Args:
 Returns:
     File
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['file'] = file
     _input['fileName'] = file_name
     if folder is not UNSET:
@@ -6633,7 +7667,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(FromFileLikeMutation, variables, rath=rath)).from_file_like
 
-def from_file_like(file: ImageFileCoercible, file_name: str, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, export_of: Union[Optional[Iterable[ExportOfInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> File:
+def from_file_like(file: ImageFileCoercible, file_name: str, folder: IDCoercible | None | UnsetType=UNSET, export_of: Iterable[ExportOfInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> File:
     """FromFileLike 
 
 Create a file from file-like data
@@ -6648,8 +7682,8 @@ Args:
 Returns:
     File
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['file'] = file
     _input['fileName'] = file_name
     if folder is not UNSET:
@@ -6659,7 +7693,7 @@ Returns:
     variables['input'] = _input
     return execute(FromFileLikeMutation, variables, rath=rath).from_file_like
 
-async def acreate_folder(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+async def acreate_folder(name: str, parent: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Folder:
     """CreateFolder 
 
 Create a new folder to organize data
@@ -6672,15 +7706,15 @@ Args:
 Returns:
     Folder
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     if parent is not UNSET:
         _input['parent'] = parent
     variables['input'] = _input
     return (await aexecute(CreateFolderMutation, variables, rath=rath)).create_folder
 
-def create_folder(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+def create_folder(name: str, parent: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Folder:
     """CreateFolder 
 
 Create a new folder to organize data
@@ -6693,15 +7727,15 @@ Args:
 Returns:
     Folder
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     if parent is not UNSET:
         _input['parent'] = parent
     variables['input'] = _input
     return execute(CreateFolderMutation, variables, rath=rath).create_folder
 
-async def aensure_folder(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+async def aensure_folder(name: str, parent: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Folder:
     """EnsureFolder 
 
 Create a new folder to organize data
@@ -6714,15 +7748,15 @@ Args:
 Returns:
     Folder
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     if parent is not UNSET:
         _input['parent'] = parent
     variables['input'] = _input
     return (await aexecute(EnsureFolderMutation, variables, rath=rath)).ensure_folder
 
-def ensure_folder(name: str, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+def ensure_folder(name: str, parent: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Folder:
     """EnsureFolder 
 
 Create a new folder to organize data
@@ -6735,15 +7769,15 @@ Args:
 Returns:
     Folder
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     if parent is not UNSET:
         _input['parent'] = parent
     variables['input'] = _input
     return execute(EnsureFolderMutation, variables, rath=rath).ensure_folder
 
-async def aupdate_folder(name: str, id: IDCoercible, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+async def aupdate_folder(name: str, id: IDCoercible, parent: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Folder:
     """UpdateFolder 
 
 Update folder metadata
@@ -6757,8 +7791,8 @@ Args:
 Returns:
     Folder
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     if parent is not UNSET:
         _input['parent'] = parent
@@ -6766,7 +7800,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(UpdateFolderMutation, variables, rath=rath)).update_folder
 
-def update_folder(name: str, id: IDCoercible, parent: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Folder:
+def update_folder(name: str, id: IDCoercible, parent: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Folder:
     """UpdateFolder 
 
 Update folder metadata
@@ -6780,8 +7814,8 @@ Args:
 Returns:
     Folder
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     if parent is not UNSET:
         _input['parent'] = parent
@@ -6789,7 +7823,7 @@ Returns:
     variables['input'] = _input
     return execute(UpdateFolderMutation, variables, rath=rath).update_folder
 
-async def arevert_folder(id: IDCoercible, history_id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Folder:
+async def arevert_folder(id: IDCoercible, history_id: IDCoercible, rath: MikroNextRath | None=None) -> Folder:
     """RevertFolder 
 
 Revert folder to a previous version
@@ -6802,14 +7836,14 @@ Args:
 Returns:
     Folder
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     _input['historyId'] = history_id
     variables['input'] = _input
     return (await aexecute(RevertFolderMutation, variables, rath=rath)).revert_folder
 
-def revert_folder(id: IDCoercible, history_id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Folder:
+def revert_folder(id: IDCoercible, history_id: IDCoercible, rath: MikroNextRath | None=None) -> Folder:
     """RevertFolder 
 
 Revert folder to a previous version
@@ -6822,14 +7856,14 @@ Args:
 Returns:
     Folder
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     _input['historyId'] = history_id
     variables['input'] = _input
     return execute(RevertFolderMutation, variables, rath=rath).revert_folder
 
-async def acreate_layer(lens: IDCoercible, scene: IDCoercible, render_graph: LayerRenderGraphInput, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerImageLayer:
+async def acreate_layer(lens: IDCoercible, scene: IDCoercible, render_graph: LayerRenderGraphInput, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerImageLayer:
     """CreateLayer 
 
 Create a new layer from an existing lens with optional affine transformation and colormap settings
@@ -6847,8 +7881,8 @@ Args:
 Returns:
     LayerImageLayer
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['lens'] = lens
     _input['scene'] = scene
     if blending is not UNSET:
@@ -6863,7 +7897,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateLayerMutation, variables, rath=rath)).create_layer
 
-def create_layer(lens: IDCoercible, scene: IDCoercible, render_graph: LayerRenderGraphInput, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerImageLayer:
+def create_layer(lens: IDCoercible, scene: IDCoercible, render_graph: LayerRenderGraphInput, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerImageLayer:
     """CreateLayer 
 
 Create a new layer from an existing lens with optional affine transformation and colormap settings
@@ -6881,8 +7915,8 @@ Args:
 Returns:
     LayerImageLayer
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['lens'] = lens
     _input['scene'] = scene
     if blending is not UNSET:
@@ -6897,7 +7931,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateLayerMutation, variables, rath=rath).create_layer
 
-async def acreate_label_layer(lens: IDCoercible, scene: IDCoercible, render: Union[Optional[LabelRenderInput], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerLabelLayer:
+async def acreate_label_layer(lens: IDCoercible, scene: IDCoercible, render: LabelRenderInput | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerLabelLayer:
     """CreateLabelLayer 
 
 Create a label layer that renders an instance / segmentation map -- an array whose values are discrete object ids. Its own layer kind, not an image layer: ids take a hashed colour, a transparent background value and an optional `colorBy` over the table they key into, and none of an image's contrast limits, gamma or colormaps
@@ -6905,7 +7939,7 @@ Create a label layer that renders an instance / segmentation map -- an array who
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    render: How a label layer's discrete object ids become color. Every field is optional; omitted ones keep their current value on an update, and take their default on a create
+    render: How a label layer's discrete object ids become color. OMITTED fields keep their current value on an update and take their default on a create; an explicit `null` CLEARS the ones whose null means something, which is what tells 'leave the colouring alone' apart from 'draw none of it'
     opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     visible: The `Boolean` scalar type represents `true` or `false`.
     order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
@@ -6914,8 +7948,8 @@ Args:
 Returns:
     LayerLabelLayer
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['lens'] = lens
     _input['scene'] = scene
     if render is not UNSET:
@@ -6929,7 +7963,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateLabelLayerMutation, variables, rath=rath)).create_label_layer
 
-def create_label_layer(lens: IDCoercible, scene: IDCoercible, render: Union[Optional[LabelRenderInput], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerLabelLayer:
+def create_label_layer(lens: IDCoercible, scene: IDCoercible, render: LabelRenderInput | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerLabelLayer:
     """CreateLabelLayer 
 
 Create a label layer that renders an instance / segmentation map -- an array whose values are discrete object ids. Its own layer kind, not an image layer: ids take a hashed colour, a transparent background value and an optional `colorBy` over the table they key into, and none of an image's contrast limits, gamma or colormaps
@@ -6937,7 +7971,7 @@ Create a label layer that renders an instance / segmentation map -- an array who
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    render: How a label layer's discrete object ids become color. Every field is optional; omitted ones keep their current value on an update, and take their default on a create
+    render: How a label layer's discrete object ids become color. OMITTED fields keep their current value on an update and take their default on a create; an explicit `null` CLEARS the ones whose null means something, which is what tells 'leave the colouring alone' apart from 'draw none of it'
     opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     visible: The `Boolean` scalar type represents `true` or `false`.
     order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
@@ -6946,8 +7980,8 @@ Args:
 Returns:
     LayerLabelLayer
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['lens'] = lens
     _input['scene'] = scene
     if render is not UNSET:
@@ -6961,7 +7995,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateLabelLayerMutation, variables, rath=rath).create_label_layer
 
-async def acreate_mesh_layer(scene: IDCoercible, mesh_collection: IDCoercible, material_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, wireframe: Union[Optional[bool], UnsetType]=UNSET, color_by: Union[Optional[MeshColorByInput], UnsetType]=UNSET, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerMeshLayer:
+async def acreate_mesh_layer(scene: IDCoercible, mesh_collection: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, wireframe: bool | None | UnsetType=UNSET, shading: MeshShading | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[MeshColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[MeshFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerMeshLayer:
     """CreateMeshLayer 
 
 Create a layer that renders a 3D mesh (surface reconstruction / isosurface) in a scene
@@ -6971,7 +8005,12 @@ Args:
     mesh_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     material_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     wireframe: The `Boolean` scalar type represents `true` or `false`.
-    color_by: Color a mesh collection's objects by a column of the table its FIELD edge keys into, instead of by the layer's flat material color
+    shading: MeshShading
+    max_level: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    color_bys: Color a mesh collection's objects by a column of the table its FIELD edge keys into, instead of by the layer's flat material color (required) (list)
+    active_color_by: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    filter_bys: Draw only the objects whose row in a table this collection's FIELD edge keys into satisfies this rule. Which half applies follows from the column's declared role -- bounds for a measure column, an explicit value set for a categorical one (required) (list)
+    active_filter_bys: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     blending: Blending
     opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     visible: The `Boolean` scalar type represents `true` or `false`.
@@ -6981,16 +8020,26 @@ Args:
 Returns:
     LayerMeshLayer
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['scene'] = scene
     _input['meshCollection'] = mesh_collection
     if material_color is not UNSET:
         _input['materialColor'] = material_color
     if wireframe is not UNSET:
         _input['wireframe'] = wireframe
-    if color_by is not UNSET:
-        _input['colorBy'] = color_by
+    if shading is not UNSET:
+        _input['shading'] = shading
+    if max_level is not UNSET:
+        _input['maxLevel'] = max_level
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
     if blending is not UNSET:
         _input['blending'] = blending
     if opacity is not UNSET:
@@ -7002,7 +8051,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateMeshLayerMutation, variables, rath=rath)).create_mesh_layer
 
-def create_mesh_layer(scene: IDCoercible, mesh_collection: IDCoercible, material_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, wireframe: Union[Optional[bool], UnsetType]=UNSET, color_by: Union[Optional[MeshColorByInput], UnsetType]=UNSET, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerMeshLayer:
+def create_mesh_layer(scene: IDCoercible, mesh_collection: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, wireframe: bool | None | UnsetType=UNSET, shading: MeshShading | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[MeshColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[MeshFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerMeshLayer:
     """CreateMeshLayer 
 
 Create a layer that renders a 3D mesh (surface reconstruction / isosurface) in a scene
@@ -7012,7 +8061,12 @@ Args:
     mesh_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     material_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     wireframe: The `Boolean` scalar type represents `true` or `false`.
-    color_by: Color a mesh collection's objects by a column of the table its FIELD edge keys into, instead of by the layer's flat material color
+    shading: MeshShading
+    max_level: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    color_bys: Color a mesh collection's objects by a column of the table its FIELD edge keys into, instead of by the layer's flat material color (required) (list)
+    active_color_by: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    filter_bys: Draw only the objects whose row in a table this collection's FIELD edge keys into satisfies this rule. Which half applies follows from the column's declared role -- bounds for a measure column, an explicit value set for a categorical one (required) (list)
+    active_filter_bys: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
     blending: Blending
     opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
     visible: The `Boolean` scalar type represents `true` or `false`.
@@ -7022,16 +8076,26 @@ Args:
 Returns:
     LayerMeshLayer
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['scene'] = scene
     _input['meshCollection'] = mesh_collection
     if material_color is not UNSET:
         _input['materialColor'] = material_color
     if wireframe is not UNSET:
         _input['wireframe'] = wireframe
-    if color_by is not UNSET:
-        _input['colorBy'] = color_by
+    if shading is not UNSET:
+        _input['shading'] = shading
+    if max_level is not UNSET:
+        _input['maxLevel'] = max_level
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
     if blending is not UNSET:
         _input['blending'] = blending
     if opacity is not UNSET:
@@ -7043,34 +8107,49 @@ Returns:
     variables['input'] = _input
     return execute(CreateMeshLayerMutation, variables, rath=rath).create_mesh_layer
 
-async def aupdate_mesh_layer(id: IDCoercible, material_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, wireframe: Union[Optional[bool], UnsetType]=UNSET, color_by: Union[Optional[MeshColorByInput], UnsetType]=UNSET, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerMeshLayer:
+async def aupdate_mesh_layer(id: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, wireframe: bool | None | UnsetType=UNSET, shading: MeshShading | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[MeshColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[MeshFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerMeshLayer:
     """UpdateMeshLayer 
 
 Retune how a mesh layer is drawn: its material, wireframe, compositing, and which table column colours its objects. A patch -- an omitted field keeps its value
 
 Args:
-    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    material_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
-    wireframe: The `Boolean` scalar type represents `true` or `false`.
-    color_by: Color a mesh collection's objects by a column of the table its FIELD edge keys into, instead of by the layer's flat material color
-    blending: Blending
-    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
-    visible: The `Boolean` scalar type represents `true` or `false`.
-    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    id: The ID of the mesh layer to update
+    material_color: Material (surface) color of the mesh, as RGBA
+    wireframe: Whether to render the mesh as a wireframe
+    shading: How the surface is lit
+    max_level: The deepest octree level this layer may load, capping detail against the collection's declared `grid.levels`. A budget, not a choice of level: which level a viewer fetches still follows from the zoom. Null lets the viewer decide. Raising, lowering AND removing all work now: an omitted field keeps the cap, an explicit `null` removes it. That distinction used to be unavailable to a scalar -- the pickers escaped it by being lists, where `[]` is a value that says 'none'
+    color_bys: The colourings this layer offers, in the order a picker should show them -- volume through a continuous colormap, cell type through a qualitative one -- instead of the flat `materialColor`. Each names a table reachable from this collection by a FIELD edge (author it with `createTableDataset(keyedBy: {kind: MESH_COLLECTION})`) and a column that table declares, because a colorBy naming an unrelated table is not a preference to hold onto until the edge shows up, it is a join nothing can execute. Which entry is drawn is `activeColorBy`; publishing a picker is not the same as choosing within it. Replaces the published picker wholesale: its order is the display order, so there is nothing to merge on. Pass `[]` to remove every colouring and fall back to `materialColor`
+    active_color_by: Which entry of `colorBys` is drawn, as an index into it. Null draws the flat `materialColor` -- what having no colouring has always meant. Pass `null` to publish the picker and draw none of it; omit to leave the choice alone. Re-checked against the picker being written, never the stored one. If a new `colorBys` no longer holds the entry that was active, the layer falls back to `materialColor` -- name `activeColorBy` in the same call to point at another entry instead
+    filter_bys: The filters this layer offers, in the order a picker should show them -- 'large cells', 'not debris' -- each keeping or dropping objects by a column of a table this collection's FIELD edge keys into. Which half of the rule applies follows from the column's declared role: `min`/`max` bounds over a measure column, an explicit `values` set over a categorical one. Two entries may share a column, because two ranges over one measure are two different rules. Which of them are actually applied is `activeFilterBys`. Replaces the published filters wholesale, as `colorBys` does. Pass `[]` to remove every rule and draw all objects
+    active_filter_bys: Which entries of `filterBys` are applied, as indices into it. Several at once is the normal case -- they combine with AND, and an object is drawn when every active rule keeps it. Empty applies none of them, so everything draws. Re-checked against the filters being written: a new `filterBys` that no longer holds an applied rule drops it from this set rather than leaving it dangling
+    blending: Layer-level blend mode
+    opacity: Layer alpha for alpha-over compositing, from 0 (transparent) to 1 (opaque)
+    visible: Whether the layer participates in compositing
+    order: Explicit z-index for back-to-front compositing
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
     LayerMeshLayer
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if material_color is not UNSET:
         _input['materialColor'] = material_color
     if wireframe is not UNSET:
         _input['wireframe'] = wireframe
-    if color_by is not UNSET:
-        _input['colorBy'] = color_by
+    if shading is not UNSET:
+        _input['shading'] = shading
+    if max_level is not UNSET:
+        _input['maxLevel'] = max_level
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
     if blending is not UNSET:
         _input['blending'] = blending
     if opacity is not UNSET:
@@ -7082,34 +8161,49 @@ Returns:
     variables['input'] = _input
     return (await aexecute(UpdateMeshLayerMutation, variables, rath=rath)).update_mesh_layer
 
-def update_mesh_layer(id: IDCoercible, material_color: Union[Optional[Iterable[int]], UnsetType]=UNSET, wireframe: Union[Optional[bool], UnsetType]=UNSET, color_by: Union[Optional[MeshColorByInput], UnsetType]=UNSET, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerMeshLayer:
+def update_mesh_layer(id: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, wireframe: bool | None | UnsetType=UNSET, shading: MeshShading | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[MeshColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[MeshFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerMeshLayer:
     """UpdateMeshLayer 
 
 Retune how a mesh layer is drawn: its material, wireframe, compositing, and which table column colours its objects. A patch -- an omitted field keeps its value
 
 Args:
-    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-    material_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
-    wireframe: The `Boolean` scalar type represents `true` or `false`.
-    color_by: Color a mesh collection's objects by a column of the table its FIELD edge keys into, instead of by the layer's flat material color
-    blending: Blending
-    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
-    visible: The `Boolean` scalar type represents `true` or `false`.
-    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    id: The ID of the mesh layer to update
+    material_color: Material (surface) color of the mesh, as RGBA
+    wireframe: Whether to render the mesh as a wireframe
+    shading: How the surface is lit
+    max_level: The deepest octree level this layer may load, capping detail against the collection's declared `grid.levels`. A budget, not a choice of level: which level a viewer fetches still follows from the zoom. Null lets the viewer decide. Raising, lowering AND removing all work now: an omitted field keeps the cap, an explicit `null` removes it. That distinction used to be unavailable to a scalar -- the pickers escaped it by being lists, where `[]` is a value that says 'none'
+    color_bys: The colourings this layer offers, in the order a picker should show them -- volume through a continuous colormap, cell type through a qualitative one -- instead of the flat `materialColor`. Each names a table reachable from this collection by a FIELD edge (author it with `createTableDataset(keyedBy: {kind: MESH_COLLECTION})`) and a column that table declares, because a colorBy naming an unrelated table is not a preference to hold onto until the edge shows up, it is a join nothing can execute. Which entry is drawn is `activeColorBy`; publishing a picker is not the same as choosing within it. Replaces the published picker wholesale: its order is the display order, so there is nothing to merge on. Pass `[]` to remove every colouring and fall back to `materialColor`
+    active_color_by: Which entry of `colorBys` is drawn, as an index into it. Null draws the flat `materialColor` -- what having no colouring has always meant. Pass `null` to publish the picker and draw none of it; omit to leave the choice alone. Re-checked against the picker being written, never the stored one. If a new `colorBys` no longer holds the entry that was active, the layer falls back to `materialColor` -- name `activeColorBy` in the same call to point at another entry instead
+    filter_bys: The filters this layer offers, in the order a picker should show them -- 'large cells', 'not debris' -- each keeping or dropping objects by a column of a table this collection's FIELD edge keys into. Which half of the rule applies follows from the column's declared role: `min`/`max` bounds over a measure column, an explicit `values` set over a categorical one. Two entries may share a column, because two ranges over one measure are two different rules. Which of them are actually applied is `activeFilterBys`. Replaces the published filters wholesale, as `colorBys` does. Pass `[]` to remove every rule and draw all objects
+    active_filter_bys: Which entries of `filterBys` are applied, as indices into it. Several at once is the normal case -- they combine with AND, and an object is drawn when every active rule keeps it. Empty applies none of them, so everything draws. Re-checked against the filters being written: a new `filterBys` that no longer holds an applied rule drops it from this set rather than leaving it dangling
+    blending: Layer-level blend mode
+    opacity: Layer alpha for alpha-over compositing, from 0 (transparent) to 1 (opaque)
+    visible: Whether the layer participates in compositing
+    order: Explicit z-index for back-to-front compositing
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
     LayerMeshLayer
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if material_color is not UNSET:
         _input['materialColor'] = material_color
     if wireframe is not UNSET:
         _input['wireframe'] = wireframe
-    if color_by is not UNSET:
-        _input['colorBy'] = color_by
+    if shading is not UNSET:
+        _input['shading'] = shading
+    if max_level is not UNSET:
+        _input['maxLevel'] = max_level
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
     if blending is not UNSET:
         _input['blending'] = blending
     if opacity is not UNSET:
@@ -7121,7 +8215,279 @@ Returns:
     variables['input'] = _input
     return execute(UpdateMeshLayerMutation, variables, rath=rath).update_mesh_layer
 
-async def acreate_lens(dataset: IDCoercible, slices: Iterable[SliceInput], rath: Optional[MikroNextRath]=None) -> Lens:
+async def aupdate_label_layer(id: IDCoercible, render: LabelRenderInput | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerLabelLayer:
+    """UpdateLabelLayer 
+ Retune a label layer after creation -- above all, switch or republish its colour picker.
+ The server has had this mutation since the picker landed; no document ever asked for it,
+ which is why a label layer's colouring was write-once-at-create from Python.
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    render: How a label layer's discrete object ids become color. OMITTED fields keep their current value on an update and take their default on a create; an explicit `null` CLEARS the ones whose null means something, which is what tells 'leave the colouring alone' apart from 'draw none of it'
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerLabelLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    if render is not UNSET:
+        _input['render'] = render
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(UpdateLabelLayerMutation, variables, rath=rath)).update_label_layer
+
+def update_label_layer(id: IDCoercible, render: LabelRenderInput | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerLabelLayer:
+    """UpdateLabelLayer 
+ Retune a label layer after creation -- above all, switch or republish its colour picker.
+ The server has had this mutation since the picker landed; no document ever asked for it,
+ which is why a label layer's colouring was write-once-at-create from Python.
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    render: How a label layer's discrete object ids become color. OMITTED fields keep their current value on an update and take their default on a create; an explicit `null` CLEARS the ones whose null means something, which is what tells 'leave the colouring alone' apart from 'draw none of it'
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerLabelLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    if render is not UNSET:
+        _input['render'] = render
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(UpdateLabelLayerMutation, variables, rath=rath).update_label_layer
+
+async def acreate_point_layer(scene: IDCoercible, table_dataset: IDCoercible, color_bys: Iterable[LabelColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[LabelFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, size_column: str | None | UnsetType=UNSET, color_column: str | None | UnsetType=UNSET, point_size: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerPointLayer:
+    """CreatePointLayer 
+ A point cloud drawn from a table dataset's coordinate columns. Its objects ARE
+ rows of that table, so a colouring by one of its own columns needs no FIELD
+ edge — which is the one way this layer differs from the other two kinds.
+
+Args:
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    table_dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    color_bys: One entry of a label layer's colour picker: colour objects by a column of the table this mask's FIELD edge keys into, instead of by hashing their id (required) (list)
+    active_color_by: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    filter_bys: One entry of a label layer's filter picker: draw only the objects whose row in a table this mask's FIELD edge keys into satisfies this rule. Which half applies follows from the column's declared role -- bounds for a measure column, an explicit value set for a categorical one (required) (list)
+    active_filter_bys: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    size_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    color_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    point_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerPointLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['scene'] = scene
+    _input['tableDataset'] = table_dataset
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
+    if size_column is not UNSET:
+        _input['sizeColumn'] = size_column
+    if color_column is not UNSET:
+        _input['colorColumn'] = color_column
+    if point_size is not UNSET:
+        _input['pointSize'] = point_size
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(CreatePointLayerMutation, variables, rath=rath)).create_point_layer
+
+def create_point_layer(scene: IDCoercible, table_dataset: IDCoercible, color_bys: Iterable[LabelColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[LabelFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, size_column: str | None | UnsetType=UNSET, color_column: str | None | UnsetType=UNSET, point_size: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerPointLayer:
+    """CreatePointLayer 
+ A point cloud drawn from a table dataset's coordinate columns. Its objects ARE
+ rows of that table, so a colouring by one of its own columns needs no FIELD
+ edge — which is the one way this layer differs from the other two kinds.
+
+Args:
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    table_dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    color_bys: One entry of a label layer's colour picker: colour objects by a column of the table this mask's FIELD edge keys into, instead of by hashing their id (required) (list)
+    active_color_by: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    filter_bys: One entry of a label layer's filter picker: draw only the objects whose row in a table this mask's FIELD edge keys into satisfies this rule. Which half applies follows from the column's declared role -- bounds for a measure column, an explicit value set for a categorical one (required) (list)
+    active_filter_bys: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    size_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    color_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    point_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerPointLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['scene'] = scene
+    _input['tableDataset'] = table_dataset
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
+    if size_column is not UNSET:
+        _input['sizeColumn'] = size_column
+    if color_column is not UNSET:
+        _input['colorColumn'] = color_column
+    if point_size is not UNSET:
+        _input['pointSize'] = point_size
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(CreatePointLayerMutation, variables, rath=rath).create_point_layer
+
+async def aupdate_point_layer(id: IDCoercible, color_bys: Iterable[LabelColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[LabelFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, size_column: str | None | UnsetType=UNSET, point_size: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerPointLayer:
+    """UpdatePointLayer 
+ Retune it afterwards — above all, switch or republish its colour picker. The
+ pickers are replaced wholesale: `[]` clears, an omitted field leaves alone.
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    color_bys: One entry of a label layer's colour picker: colour objects by a column of the table this mask's FIELD edge keys into, instead of by hashing their id (required) (list)
+    active_color_by: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    filter_bys: One entry of a label layer's filter picker: draw only the objects whose row in a table this mask's FIELD edge keys into satisfies this rule. Which half applies follows from the column's declared role -- bounds for a measure column, an explicit value set for a categorical one (required) (list)
+    active_filter_bys: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    size_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    point_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerPointLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
+    if size_column is not UNSET:
+        _input['sizeColumn'] = size_column
+    if point_size is not UNSET:
+        _input['pointSize'] = point_size
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(UpdatePointLayerMutation, variables, rath=rath)).update_point_layer
+
+def update_point_layer(id: IDCoercible, color_bys: Iterable[LabelColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[LabelFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, size_column: str | None | UnsetType=UNSET, point_size: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerPointLayer:
+    """UpdatePointLayer 
+ Retune it afterwards — above all, switch or republish its colour picker. The
+ pickers are replaced wholesale: `[]` clears, an omitted field leaves alone.
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    color_bys: One entry of a label layer's colour picker: colour objects by a column of the table this mask's FIELD edge keys into, instead of by hashing their id (required) (list)
+    active_color_by: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    filter_bys: One entry of a label layer's filter picker: draw only the objects whose row in a table this mask's FIELD edge keys into satisfies this rule. Which half applies follows from the column's declared role -- bounds for a measure column, an explicit value set for a categorical one (required) (list)
+    active_filter_bys: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    size_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    point_size: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerPointLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
+    if size_column is not UNSET:
+        _input['sizeColumn'] = size_column
+    if point_size is not UNSET:
+        _input['pointSize'] = point_size
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(UpdatePointLayerMutation, variables, rath=rath).update_point_layer
+
+async def acreate_lens(dataset: IDCoercible, slices: Iterable[SliceInput], rath: MikroNextRath | None=None) -> Lens:
     """CreateLens 
 
 Create a new lens from an existing dataset and slicing constraints
@@ -7134,14 +8500,14 @@ Args:
 Returns:
     Lens
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['dataset'] = dataset
     _input['slices'] = slices
     variables['input'] = _input
     return (await aexecute(CreateLensMutation, variables, rath=rath)).create_lens
 
-def create_lens(dataset: IDCoercible, slices: Iterable[SliceInput], rath: Optional[MikroNextRath]=None) -> Lens:
+def create_lens(dataset: IDCoercible, slices: Iterable[SliceInput], rath: MikroNextRath | None=None) -> Lens:
     """CreateLens 
 
 Create a new lens from an existing dataset and slicing constraints
@@ -7154,14 +8520,14 @@ Args:
 Returns:
     Lens
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['dataset'] = dataset
     _input['slices'] = slices
     variables['input'] = _input
     return execute(CreateLensMutation, variables, rath=rath).create_lens
 
-async def acreate_mesh_collection(version: str, store: FabriksCoercible, axes: Iterable[Union[AxisInput, str]], folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+async def acreate_mesh_collection(version: str, store: FabriksCoercible, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> MeshCollection:
     """CreateMeshCollection 
 
 Register an immutable, versioned mesh collection against a coordinate system
@@ -7179,8 +8545,8 @@ Args:
 Returns:
     MeshCollection
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['version'] = version
     _input['store'] = store
     _input['axes'] = axes
@@ -7195,7 +8561,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateMeshCollectionMutation, variables, rath=rath)).create_mesh_collection
 
-def create_mesh_collection(version: str, store: FabriksCoercible, axes: Iterable[Union[AxisInput, str]], folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, provenance_metadata: Union[Optional[Any], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+def create_mesh_collection(version: str, store: FabriksCoercible, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> MeshCollection:
     """CreateMeshCollection 
 
 Register an immutable, versioned mesh collection against a coordinate system
@@ -7213,8 +8579,8 @@ Args:
 Returns:
     MeshCollection
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['version'] = version
     _input['store'] = store
     _input['axes'] = axes
@@ -7229,7 +8595,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateMeshCollectionMutation, variables, rath=rath).create_mesh_collection
 
-async def adelete_mesh_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+async def adelete_mesh_collection(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteMeshCollection 
 
 Delete an existing mesh collection
@@ -7241,13 +8607,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return (await aexecute(DeleteMeshCollectionMutation, variables, rath=rath)).delete_mesh_collection
 
-def delete_mesh_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+def delete_mesh_collection(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteMeshCollection 
 
 Delete an existing mesh collection
@@ -7259,13 +8625,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return execute(DeleteMeshCollectionMutation, variables, rath=rath).delete_mesh_collection
 
-async def acreate_phasor_layer(lens: IDCoercible, scene: IDCoercible, phasor_axis: Union[Optional[str], UnsetType]=UNSET, intensity_axis: Union[Optional[str], UnsetType]=UNSET, intensity_index: Union[Optional[int], UnsetType]=UNSET, harmonic: Union[Optional[int], UnsetType]=UNSET, transfer: Union[Optional[PhasorTransferInput], UnsetType]=UNSET, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerImageLayer:
+async def acreate_phasor_layer(lens: IDCoercible, scene: IDCoercible, phasor_axis: str | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, harmonic: int | None | UnsetType=UNSET, transfer: PhasorTransferInput | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerImageLayer:
     """CreatePhasorLayer 
 
 Create a layer that reduces one axis of a lens to a phasor and colors each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube
@@ -7287,8 +8653,8 @@ Args:
 Returns:
     LayerImageLayer
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['lens'] = lens
     _input['scene'] = scene
     if phasor_axis is not UNSET:
@@ -7312,7 +8678,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreatePhasorLayerMutation, variables, rath=rath)).create_phasor_layer
 
-def create_phasor_layer(lens: IDCoercible, scene: IDCoercible, phasor_axis: Union[Optional[str], UnsetType]=UNSET, intensity_axis: Union[Optional[str], UnsetType]=UNSET, intensity_index: Union[Optional[int], UnsetType]=UNSET, harmonic: Union[Optional[int], UnsetType]=UNSET, transfer: Union[Optional[PhasorTransferInput], UnsetType]=UNSET, blending: Union[Optional[Blending], UnsetType]=UNSET, opacity: Union[Optional[float], UnsetType]=UNSET, visible: Union[Optional[bool], UnsetType]=UNSET, order: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> LayerImageLayer:
+def create_phasor_layer(lens: IDCoercible, scene: IDCoercible, phasor_axis: str | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, harmonic: int | None | UnsetType=UNSET, transfer: PhasorTransferInput | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerImageLayer:
     """CreatePhasorLayer 
 
 Create a layer that reduces one axis of a lens to a phasor and colors each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube
@@ -7334,8 +8700,8 @@ Args:
 Returns:
     LayerImageLayer
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['lens'] = lens
     _input['scene'] = scene
     if phasor_axis is not UNSET:
@@ -7359,7 +8725,7 @@ Returns:
     variables['input'] = _input
     return execute(CreatePhasorLayerMutation, variables, rath=rath).create_phasor_layer
 
-async def acreate_phasor_histogram(axis: str, counts: Iterable[float], dataset: IDCoercible, harmonic: Union[Optional[int], UnsetType]=UNSET, bins: Union[Optional[int], UnsetType]=UNSET, g_min: Union[Optional[float], UnsetType]=UNSET, g_max: Union[Optional[float], UnsetType]=UNSET, s_min: Union[Optional[float], UnsetType]=UNSET, s_max: Union[Optional[float], UnsetType]=UNSET, total: Union[Optional[int], UnsetType]=UNSET, calibrated: Union[Optional[bool], UnsetType]=UNSET, profile: Union[Optional[Iterable[float]], UnsetType]=UNSET, axis_anchors: Union[Optional[Iterable[AxisAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> PhasorHistogram:
+async def acreate_phasor_histogram(axis: str, counts: Iterable[float], dataset: IDCoercible, harmonic: int | None | UnsetType=UNSET, bins: int | None | UnsetType=UNSET, g_min: float | None | UnsetType=UNSET, g_max: float | None | UnsetType=UNSET, s_min: float | None | UnsetType=UNSET, s_max: float | None | UnsetType=UNSET, total: int | None | UnsetType=UNSET, calibrated: bool | None | UnsetType=UNSET, profile: Iterable[float] | None | UnsetType=UNSET, axis_anchors: Iterable[AxisAnchorInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> PhasorHistogram:
     """CreatePhasorHistogram 
 
 Attach a phasor distribution (the 2D g/s density at one axis and harmonic) to a dataset, so a client can range a phasor overlay without reading the cube
@@ -7383,8 +8749,8 @@ Args:
 Returns:
     PhasorHistogram
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['axis'] = axis
     _input['counts'] = counts
     if harmonic is not UNSET:
@@ -7411,7 +8777,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreatePhasorHistogramMutation, variables, rath=rath)).create_phasor_histogram
 
-def create_phasor_histogram(axis: str, counts: Iterable[float], dataset: IDCoercible, harmonic: Union[Optional[int], UnsetType]=UNSET, bins: Union[Optional[int], UnsetType]=UNSET, g_min: Union[Optional[float], UnsetType]=UNSET, g_max: Union[Optional[float], UnsetType]=UNSET, s_min: Union[Optional[float], UnsetType]=UNSET, s_max: Union[Optional[float], UnsetType]=UNSET, total: Union[Optional[int], UnsetType]=UNSET, calibrated: Union[Optional[bool], UnsetType]=UNSET, profile: Union[Optional[Iterable[float]], UnsetType]=UNSET, axis_anchors: Union[Optional[Iterable[AxisAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> PhasorHistogram:
+def create_phasor_histogram(axis: str, counts: Iterable[float], dataset: IDCoercible, harmonic: int | None | UnsetType=UNSET, bins: int | None | UnsetType=UNSET, g_min: float | None | UnsetType=UNSET, g_max: float | None | UnsetType=UNSET, s_min: float | None | UnsetType=UNSET, s_max: float | None | UnsetType=UNSET, total: int | None | UnsetType=UNSET, calibrated: bool | None | UnsetType=UNSET, profile: Iterable[float] | None | UnsetType=UNSET, axis_anchors: Iterable[AxisAnchorInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> PhasorHistogram:
     """CreatePhasorHistogram 
 
 Attach a phasor distribution (the 2D g/s density at one axis and harmonic) to a dataset, so a client can range a phasor overlay without reading the cube
@@ -7435,8 +8801,8 @@ Args:
 Returns:
     PhasorHistogram
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['axis'] = axis
     _input['counts'] = counts
     if harmonic is not UNSET:
@@ -7463,7 +8829,7 @@ Returns:
     variables['input'] = _input
     return execute(CreatePhasorHistogramMutation, variables, rath=rath).create_phasor_histogram
 
-async def acreate_phasor_calibration(axis: str, dataset: IDCoercible, harmonic: Union[Optional[int], UnsetType]=UNSET, phase_offset: Union[Optional[float], UnsetType]=UNSET, modulation_factor: Union[Optional[float], UnsetType]=UNSET, reference: Union[Optional[str], UnsetType]=UNSET, axis_anchors: Union[Optional[Iterable[AxisAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> PhasorCalibration:
+async def acreate_phasor_calibration(axis: str, dataset: IDCoercible, harmonic: int | None | UnsetType=UNSET, phase_offset: float | None | UnsetType=UNSET, modulation_factor: float | None | UnsetType=UNSET, reference: str | None | UnsetType=UNSET, axis_anchors: Iterable[AxisAnchorInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> PhasorCalibration:
     """CreatePhasorCalibration 
 
 Attach an instrument-response correction to a dataset, taking a raw phasor to a calibrated one
@@ -7481,8 +8847,8 @@ Args:
 Returns:
     PhasorCalibration
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['axis'] = axis
     if harmonic is not UNSET:
         _input['harmonic'] = harmonic
@@ -7498,7 +8864,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreatePhasorCalibrationMutation, variables, rath=rath)).create_phasor_calibration
 
-def create_phasor_calibration(axis: str, dataset: IDCoercible, harmonic: Union[Optional[int], UnsetType]=UNSET, phase_offset: Union[Optional[float], UnsetType]=UNSET, modulation_factor: Union[Optional[float], UnsetType]=UNSET, reference: Union[Optional[str], UnsetType]=UNSET, axis_anchors: Union[Optional[Iterable[AxisAnchorInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> PhasorCalibration:
+def create_phasor_calibration(axis: str, dataset: IDCoercible, harmonic: int | None | UnsetType=UNSET, phase_offset: float | None | UnsetType=UNSET, modulation_factor: float | None | UnsetType=UNSET, reference: str | None | UnsetType=UNSET, axis_anchors: Iterable[AxisAnchorInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> PhasorCalibration:
     """CreatePhasorCalibration 
 
 Attach an instrument-response correction to a dataset, taking a raw phasor to a calibrated one
@@ -7516,8 +8882,8 @@ Args:
 Returns:
     PhasorCalibration
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['axis'] = axis
     if harmonic is not UNSET:
         _input['harmonic'] = harmonic
@@ -7533,7 +8899,7 @@ Returns:
     variables['input'] = _input
     return execute(CreatePhasorCalibrationMutation, variables, rath=rath).create_phasor_calibration
 
-async def acreate_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, axes: Union[Optional[Iterable[PhysicalAxisInput]], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, default_for: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+async def acreate_scene(name: str, blending: Blending | None | UnsetType=UNSET, preferred_view: PreferredView | None | UnsetType=UNSET, background_color: Iterable[float] | None | UnsetType=UNSET, axes: Iterable[PhysicalAxisInput] | None | UnsetType=UNSET, epoch: datetime | None | UnsetType=UNSET, coordinate_system: IDCoercible | None | UnsetType=UNSET, default_for: Iterable[IDCoercible] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Scene:
     """CreateScene 
 
 Create a new scene over a world coordinate system: an adopted existing system, or an ordinary SHARED one created for it (never owned by the scene -- it outlives it)
@@ -7552,8 +8918,8 @@ Args:
 Returns:
     Scene
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     if blending is not UNSET:
         _input['blending'] = blending
@@ -7572,7 +8938,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateSceneMutation, variables, rath=rath)).create_scene
 
-def create_scene(name: str, blending: Union[Optional[Blending], UnsetType]=UNSET, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, axes: Union[Optional[Iterable[PhysicalAxisInput]], UnsetType]=UNSET, epoch: Union[Optional[datetime], UnsetType]=UNSET, coordinate_system: Union[Optional[IDCoercible], UnsetType]=UNSET, default_for: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+def create_scene(name: str, blending: Blending | None | UnsetType=UNSET, preferred_view: PreferredView | None | UnsetType=UNSET, background_color: Iterable[float] | None | UnsetType=UNSET, axes: Iterable[PhysicalAxisInput] | None | UnsetType=UNSET, epoch: datetime | None | UnsetType=UNSET, coordinate_system: IDCoercible | None | UnsetType=UNSET, default_for: Iterable[IDCoercible] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Scene:
     """CreateScene 
 
 Create a new scene over a world coordinate system: an adopted existing system, or an ordinary SHARED one created for it (never owned by the scene -- it outlives it)
@@ -7591,8 +8957,8 @@ Args:
 Returns:
     Scene
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     if blending is not UNSET:
         _input['blending'] = blending
@@ -7611,7 +8977,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateSceneMutation, variables, rath=rath).create_scene
 
-async def acreate_scene_from_coordinate_system(coordinate_system: IDCoercible, policy: ScenePolicyInput, name: Union[Optional[str], UnsetType]=UNSET, default_for: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+async def acreate_scene_from_coordinate_system(coordinate_system: IDCoercible, policy: ScenePolicyInput, name: str | None | UnsetType=UNSET, default_for: Iterable[IDCoercible] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Scene:
     """CreateSceneFromCoordinateSystem 
 
 Bootstrap a renderable scene over an existing coordinate system: a shared space (its registered sources become layers, up to the policy's nchildren) or an owned system such as a dataset's intrinsic grid or a physical space (the container's own data becomes the layer). The scene adopts the system as its world; no edges are authored. This is how a dataset is staged -- pass `intrinsicSystem` to render in pixels, or a physical space it is registered into to render at physical scale
@@ -7626,8 +8992,8 @@ Args:
 Returns:
     Scene
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['coordinateSystem'] = coordinate_system
     if name is not UNSET:
         _input['name'] = name
@@ -7637,7 +9003,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateSceneFromCoordinateSystemMutation, variables, rath=rath)).create_scene_from_coordinate_system
 
-def create_scene_from_coordinate_system(coordinate_system: IDCoercible, policy: ScenePolicyInput, name: Union[Optional[str], UnsetType]=UNSET, default_for: Union[Optional[Iterable[IDCoercible]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+def create_scene_from_coordinate_system(coordinate_system: IDCoercible, policy: ScenePolicyInput, name: str | None | UnsetType=UNSET, default_for: Iterable[IDCoercible] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Scene:
     """CreateSceneFromCoordinateSystem 
 
 Bootstrap a renderable scene over an existing coordinate system: a shared space (its registered sources become layers, up to the policy's nchildren) or an owned system such as a dataset's intrinsic grid or a physical space (the container's own data becomes the layer). The scene adopts the system as its world; no edges are authored. This is how a dataset is staged -- pass `intrinsicSystem` to render in pixels, or a physical space it is registered into to render at physical scale
@@ -7652,8 +9018,8 @@ Args:
 Returns:
     Scene
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['coordinateSystem'] = coordinate_system
     if name is not UNSET:
         _input['name'] = name
@@ -7663,7 +9029,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateSceneFromCoordinateSystemMutation, variables, rath=rath).create_scene_from_coordinate_system
 
-async def aupdate_scene(id: IDCoercible, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+async def aupdate_scene(id: IDCoercible, preferred_view: PreferredView | None | UnsetType=UNSET, background_color: Iterable[float] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Scene:
     """UpdateScene 
 
 Set a scene's viewer preferences: how a client should open it
@@ -7677,8 +9043,8 @@ Args:
 Returns:
     Scene
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if preferred_view is not UNSET:
         _input['preferredView'] = preferred_view
@@ -7687,7 +9053,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(UpdateSceneMutation, variables, rath=rath)).update_scene
 
-def update_scene(id: IDCoercible, preferred_view: Union[Optional[PreferredView], UnsetType]=UNSET, background_color: Union[Optional[Iterable[float]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Scene:
+def update_scene(id: IDCoercible, preferred_view: PreferredView | None | UnsetType=UNSET, background_color: Iterable[float] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Scene:
     """UpdateScene 
 
 Set a scene's viewer preferences: how a client should open it
@@ -7701,8 +9067,8 @@ Args:
 Returns:
     Scene
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if preferred_view is not UNSET:
         _input['preferredView'] = preferred_view
@@ -7711,7 +9077,7 @@ Returns:
     variables['input'] = _input
     return execute(UpdateSceneMutation, variables, rath=rath).update_scene
 
-async def aclear_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Scene:
+async def aclear_scene(id: IDCoercible, rath: MikroNextRath | None=None) -> Scene:
     """ClearScene 
 
 Delete every layer of a scene, keeping the scene itself. A pure view-state reset: no coordinate system, registration or dataset is touched, and other scenes over the same space never notice
@@ -7723,13 +9089,13 @@ Args:
 Returns:
     Scene
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return (await aexecute(ClearSceneMutation, variables, rath=rath)).clear_scene
 
-def clear_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Scene:
+def clear_scene(id: IDCoercible, rath: MikroNextRath | None=None) -> Scene:
     """ClearScene 
 
 Delete every layer of a scene, keeping the scene itself. A pure view-state reset: no coordinate system, registration or dataset is touched, and other scenes over the same space never notice
@@ -7741,13 +9107,13 @@ Args:
 Returns:
     Scene
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return execute(ClearSceneMutation, variables, rath=rath).clear_scene
 
-async def adelete_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+async def adelete_scene(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteScene 
 
 Delete an existing scene
@@ -7759,13 +9125,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return (await aexecute(DeleteSceneMutation, variables, rath=rath)).delete_scene
 
-def delete_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+def delete_scene(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteScene 
 
 Delete an existing scene
@@ -7777,13 +9143,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return execute(DeleteSceneMutation, variables, rath=rath).delete_scene
 
-async def acreate_scene_snapshot(file: ImageFileCoercible, scene: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+async def acreate_scene_snapshot(file: ImageFileCoercible, scene: IDCoercible, name: str | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> SceneSnapshot:
     """CreateSceneSnapshot 
 
 Adopt an uploaded media file as a pre-rendered picture of a scene
@@ -7797,8 +9163,8 @@ Args:
 Returns:
     SceneSnapshot
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['file'] = file
     _input['scene'] = scene
     if name is not UNSET:
@@ -7806,7 +9172,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateSceneSnapshotMutation, variables, rath=rath)).create_scene_snapshot
 
-def create_scene_snapshot(file: ImageFileCoercible, scene: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+def create_scene_snapshot(file: ImageFileCoercible, scene: IDCoercible, name: str | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> SceneSnapshot:
     """CreateSceneSnapshot 
 
 Adopt an uploaded media file as a pre-rendered picture of a scene
@@ -7820,8 +9186,8 @@ Args:
 Returns:
     SceneSnapshot
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['file'] = file
     _input['scene'] = scene
     if name is not UNSET:
@@ -7829,7 +9195,7 @@ Returns:
     variables['input'] = _input
     return execute(CreateSceneSnapshotMutation, variables, rath=rath).create_scene_snapshot
 
-async def adelete_scene_snapshot(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+async def adelete_scene_snapshot(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteSceneSnapshot 
 
 Delete an existing scene snapshot
@@ -7841,13 +9207,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return (await aexecute(DeleteSceneSnapshotMutation, variables, rath=rath)).delete_scene_snapshot
 
-def delete_scene_snapshot(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+def delete_scene_snapshot(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteSceneSnapshot 
 
 Delete an existing scene snapshot
@@ -7859,13 +9225,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return execute(DeleteSceneSnapshotMutation, variables, rath=rath).delete_scene_snapshot
 
-async def apin_scene_snapshot(id: IDCoercible, pin: bool, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+async def apin_scene_snapshot(id: IDCoercible, pin: bool, rath: MikroNextRath | None=None) -> SceneSnapshot:
     """PinSceneSnapshot 
 
 Pin a scene snapshot for quick access
@@ -7878,14 +9244,14 @@ Args:
 Returns:
     SceneSnapshot
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     _input['pin'] = pin
     variables['input'] = _input
     return (await aexecute(PinSceneSnapshotMutation, variables, rath=rath)).pin_scene_snapshot
 
-def pin_scene_snapshot(id: IDCoercible, pin: bool, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+def pin_scene_snapshot(id: IDCoercible, pin: bool, rath: MikroNextRath | None=None) -> SceneSnapshot:
     """PinSceneSnapshot 
 
 Pin a scene snapshot for quick access
@@ -7898,38 +9264,36 @@ Args:
 Returns:
     SceneSnapshot
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     _input['pin'] = pin
     variables['input'] = _input
     return execute(PinSceneSnapshotMutation, variables, rath=rath).pin_scene_snapshot
 
-async def acreate_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
-    """CreateTableDataset 
+async def acreate_sparse_dataset(name: str, store: SporadikCoercible, axes: Iterable[SparseAxisInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> SparseDataset:
+    """CreateSparseDataset 
 
-Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
+Create a sparse dataset from one uploaded sparse store, which holds the matrix in one or more layouts. A sparse matrix is a grid of numbers with no row labels and no column labels, so **every axis says what its positions are** through its own `identifiedBy` -- a source whose own contents are the ids (which authors a FIELD edge, and is what makes the matrix reachable from a layer over that source), or the table whose rows they are (which authors a foreign key and no edge). Carried on the axis, identified-exactly-once is a property of the input rather than a rule this enforces. Nothing about the matrix itself is declared: the spec, the shape, each layout's encoding and its chunking were read from the store when its upload was finished, and are checked against these axes rather than taken from them
 
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
-    data: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
-    columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and becomes an axis of the table's space; a COORDINATE or ATTRIBUTE column may state the unit its values are in (required) (list) (required)
+    store: A reference to an uploaded **sporadik store**: one prefix holding one child per axis made contiguous, under `layouts/axis{k}`, each an anndata-spelled sparse group of `data`, `indices` and `indptr`. Named for the wire format the way `FabriksLike` is. Request it with `requestSparseUpload`, write the layouts, land the `sporadik` block last, then `finishSparseUpload` -- which reads that block and refuses a prefix without one, because zarr fills a missing chunk rather than failing and a torn upload is otherwise indistinguishable from a finished one. A dataset registered this way declares no encoding, no shape and no chunking: the server reads them from the artifact, so they cannot be stated wrong (required)
+    axes: One axis of a sparse matrix, and what its positions **are**. `identifiedBy` is a list because fan-in is real -- a nucleus mask and a cell mask may key the same axis, one edge each -- and it may not be empty: an axis nothing identifies is not a lax dataset, it is one no source could ever key. There is no `type` field: both axes of a sparse matrix enumerate and neither has a metric, so INDEX is the only thing it could ever be (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
-    keyed_by: A source whose own contents are the ids this table is indexed by, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. It authors the FIELD edge in the direction the map actually runs -- source -> table rows -- which is the direction attributePlans discovers, and the opposite of the lineage `derivedFrom` records (required) (list)
-    validate_schema: The `Boolean` scalar type represents `true` or `false`. (required)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    TableDataset
+    SparseDataset
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
-    _input['data'] = data
-    _input['columns'] = columns
+    _input['store'] = store
+    _input['axes'] = axes
     if description is not UNSET:
         _input['description'] = description
     if folder is not UNSET:
@@ -7938,13 +9302,164 @@ Returns:
         _input['derivedFrom'] = derived_from
     if source_files is not UNSET:
         _input['sourceFiles'] = source_files
-    if keyed_by is not UNSET:
-        _input['keyedBy'] = keyed_by
-    _input['validateSchema'] = validate_schema
+    variables['input'] = _input
+    return (await aexecute(CreateSparseDatasetMutation, variables, rath=rath)).create_sparse_dataset
+
+def create_sparse_dataset(name: str, store: SporadikCoercible, axes: Iterable[SparseAxisInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> SparseDataset:
+    """CreateSparseDataset 
+
+Create a sparse dataset from one uploaded sparse store, which holds the matrix in one or more layouts. A sparse matrix is a grid of numbers with no row labels and no column labels, so **every axis says what its positions are** through its own `identifiedBy` -- a source whose own contents are the ids (which authors a FIELD edge, and is what makes the matrix reachable from a layer over that source), or the table whose rows they are (which authors a foreign key and no edge). Carried on the axis, identified-exactly-once is a property of the input rather than a rule this enforces. Nothing about the matrix itself is declared: the spec, the shape, each layout's encoding and its chunking were read from the store when its upload was finished, and are checked against these axes rather than taken from them
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    store: A reference to an uploaded **sporadik store**: one prefix holding one child per axis made contiguous, under `layouts/axis{k}`, each an anndata-spelled sparse group of `data`, `indices` and `indptr`. Named for the wire format the way `FabriksLike` is. Request it with `requestSparseUpload`, write the layouts, land the `sporadik` block last, then `finishSparseUpload` -- which reads that block and refuses a prefix without one, because zarr fills a missing chunk rather than failing and a torn upload is otherwise indistinguishable from a finished one. A dataset registered this way declares no encoding, no shape and no chunking: the server reads them from the artifact, so they cannot be stated wrong (required)
+    axes: One axis of a sparse matrix, and what its positions **are**. `identifiedBy` is a list because fan-in is real -- a nucleus mask and a cell mask may key the same axis, one edge each -- and it may not be empty: an axis nothing identifies is not a lax dataset, it is one no source could ever key. There is no `type` field: both axes of a sparse matrix enumerate and neither has a metric, so INDEX is the only thing it could ever be (required) (list) (required)
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SparseDataset
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['name'] = name
+    _input['store'] = store
+    _input['axes'] = axes
+    if description is not UNSET:
+        _input['description'] = description
+    if folder is not UNSET:
+        _input['folder'] = folder
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
+    variables['input'] = _input
+    return execute(CreateSparseDatasetMutation, variables, rath=rath).create_sparse_dataset
+
+async def aupdate_sparse_dataset(id: IDCoercible, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> SparseDataset:
+    """UpdateSparseDataset 
+
+Rename a sparse dataset or redescribe it -- the whole of what is editable. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SparseDataset
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    variables['input'] = _input
+    return (await aexecute(UpdateSparseDatasetMutation, variables, rath=rath)).update_sparse_dataset
+
+def update_sparse_dataset(id: IDCoercible, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> SparseDataset:
+    """UpdateSparseDataset 
+
+Rename a sparse dataset or redescribe it -- the whole of what is editable. Its stores, axes and coordinate system are fixed at creation; a recomputation is a new dataset
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SparseDataset
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    if name is not UNSET:
+        _input['name'] = name
+    if description is not UNSET:
+        _input['description'] = description
+    variables['input'] = _input
+    return execute(UpdateSparseDatasetMutation, variables, rath=rath).update_sparse_dataset
+
+async def adelete_sparse_dataset(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
+    """DeleteSparseDataset 
+
+Delete an existing sparse dataset
+
+Args:
+    id: The ID of the sparse dataset to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteSparseDatasetMutation, variables, rath=rath)).delete_sparse_dataset
+
+def delete_sparse_dataset(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
+    """DeleteSparseDataset 
+
+Delete an existing sparse dataset
+
+Args:
+    id: The ID of the sparse dataset to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteSparseDatasetMutation, variables, rath=rath).delete_sparse_dataset
+
+async def acreate_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[ColumnInput], axes: Iterable[TableAxisInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> TableDataset:
+    """CreateTableDataset 
+
+Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
+
+Args:
+    name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    data: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
+    columns: One column of the table. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A COORDINATE column is an axis and is declared in `axes` as well, which is where its type and its identification live (required) (list) (required)
+    axes: One axis of the table's own space: which Parquet column it is, what kind of position it holds, and what those positions **are**. The list's order is the axis order, so the space is stated rather than derived by filtering a column list. `identifiedBy` replaces the old sibling `keyedBy`: there the axis a source keyed was matched by subtraction inside the server, correct and invisible, and here the pairing is the input's own shape. It is a list because fan-in is real -- a nucleus mask and a cell mask may key one axis, one edge each -- and it may be empty, because a localization table's `x` axis is identified by nothing and should be (required) (list) (required)
+    description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    TableDataset
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['name'] = name
+    _input['data'] = data
+    _input['columns'] = columns
+    _input['axes'] = axes
+    if description is not UNSET:
+        _input['description'] = description
+    if folder is not UNSET:
+        _input['folder'] = folder
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
     variables['input'] = _input
     return (await aexecute(CreateTableDatasetMutation, variables, rath=rath)).create_table_dataset
 
-def create_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[TableColumnInput], validate_schema: bool, description: Union[Optional[str], UnsetType]=UNSET, folder: Union[Optional[IDCoercible], UnsetType]=UNSET, derived_from: Union[Optional[Iterable[DerivedFromInput]], UnsetType]=UNSET, source_files: Union[Optional[Iterable[SourceFileInput]], UnsetType]=UNSET, keyed_by: Union[Optional[Iterable[KeyedByInput]], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+def create_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[ColumnInput], axes: Iterable[TableAxisInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> TableDataset:
     """CreateTableDataset 
 
 Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
@@ -7952,23 +9467,23 @@ Create a table dataset from a Parquet store. Its declared coordinate columns bec
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     data: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
-    columns: One declared column of a table dataset: its name, dtype, and role. A COORDINATE column also carries an axis type and becomes an axis of the table's space; a COORDINATE or ATTRIBUTE column may state the unit its values are in (required) (list) (required)
+    columns: One column of the table. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A COORDINATE column is an axis and is declared in `axes` as well, which is where its type and its identification live (required) (list) (required)
+    axes: One axis of the table's own space: which Parquet column it is, what kind of position it holds, and what those positions **are**. The list's order is the axis order, so the space is stated rather than derived by filtering a column list. `identifiedBy` replaces the old sibling `keyedBy`: there the axis a source keyed was matched by subtraction inside the server, correct and invisible, and here the pairing is the input's own shape. It is a list because fan-in is real -- a nucleus mask and a cell mask may key one axis, one edge each -- and it may be empty, because a localization table's `x` axis is identified by nothing and should be (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
     source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
-    keyed_by: A source whose own contents are the ids this table is indexed by, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. It authors the FIELD edge in the direction the map actually runs -- source -> table rows -- which is the direction attributePlans discovers, and the opposite of the lineage `derivedFrom` records (required) (list)
-    validate_schema: The `Boolean` scalar type represents `true` or `false`. (required)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
     TableDataset
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['name'] = name
     _input['data'] = data
     _input['columns'] = columns
+    _input['axes'] = axes
     if description is not UNSET:
         _input['description'] = description
     if folder is not UNSET:
@@ -7977,13 +9492,10 @@ Returns:
         _input['derivedFrom'] = derived_from
     if source_files is not UNSET:
         _input['sourceFiles'] = source_files
-    if keyed_by is not UNSET:
-        _input['keyedBy'] = keyed_by
-    _input['validateSchema'] = validate_schema
     variables['input'] = _input
     return execute(CreateTableDatasetMutation, variables, rath=rath).create_table_dataset
 
-async def aupdate_table_dataset(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+async def aupdate_table_dataset(id: IDCoercible, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> TableDataset:
     """UpdateTableDataset 
 
 Rename a table dataset or redescribe it -- the whole of what is editable. Its store, columns and coordinate system are fixed at creation; a recomputation is a new table
@@ -7997,8 +9509,8 @@ Args:
 Returns:
     TableDataset
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if name is not UNSET:
         _input['name'] = name
@@ -8007,7 +9519,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(UpdateTableDatasetMutation, variables, rath=rath)).update_table_dataset
 
-def update_table_dataset(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, description: Union[Optional[str], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> TableDataset:
+def update_table_dataset(id: IDCoercible, name: str | None | UnsetType=UNSET, description: str | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> TableDataset:
     """UpdateTableDataset 
 
 Rename a table dataset or redescribe it -- the whole of what is editable. Its store, columns and coordinate system are fixed at creation; a recomputation is a new table
@@ -8021,8 +9533,8 @@ Args:
 Returns:
     TableDataset
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if name is not UNSET:
         _input['name'] = name
@@ -8031,7 +9543,7 @@ Returns:
     variables['input'] = _input
     return execute(UpdateTableDatasetMutation, variables, rath=rath).update_table_dataset
 
-async def adelete_table_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+async def adelete_table_dataset(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteTableDataset 
 
 Delete an existing table dataset
@@ -8043,13 +9555,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return (await aexecute(DeleteTableDatasetMutation, variables, rath=rath)).delete_table_dataset
 
-def delete_table_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+def delete_table_dataset(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteTableDataset 
 
 Delete an existing table dataset
@@ -8061,13 +9573,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return execute(DeleteTableDatasetMutation, variables, rath=rath).delete_table_dataset
 
-async def acreate_transformation(input: IDCoercible, output: IDCoercible, transform: TransformInput, name: Union[Optional[str], UnsetType]=UNSET, validity: Union[Optional[PlacementValidity], UnsetType]=UNSET, value_relation: Union[Optional[ValueRelation], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[CreateTransformationMutationCreatetransformationBaseAffineTransformation, CreateTransformationMutationCreatetransformationBaseBijectionTransformation, CreateTransformationMutationCreatetransformationBaseByDimensionTransformation, CreateTransformationMutationCreatetransformationBaseFieldTransformation, CreateTransformationMutationCreatetransformationBaseIdentityTransformation, CreateTransformationMutationCreatetransformationBaseMapAxisTransformation, CreateTransformationMutationCreatetransformationBaseRotationTransformation, CreateTransformationMutationCreatetransformationBaseScaleTransformation, CreateTransformationMutationCreatetransformationBaseSequenceTransformation, CreateTransformationMutationCreatetransformationBaseTranslationTransformation, CreateTransformationMutationCreatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], CreateTransformationMutationCreatetransformationBaseCatchAll]:
+async def acreate_transformation(input: IDCoercible, output: IDCoercible, transform: TransformInput, name: str | None | UnsetType=UNSET, validity: PlacementValidity | None | UnsetType=UNSET, value_relation: ValueRelation | None | UnsetType=UNSET, selector: SelectorInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Annotated[CreateTransformationMutationCreateTransformationBaseAffineTransformation | CreateTransformationMutationCreateTransformationBaseByDimensionTransformation | CreateTransformationMutationCreateTransformationBaseFieldTransformation | CreateTransformationMutationCreateTransformationBaseIdentityTransformation | CreateTransformationMutationCreateTransformationBaseMapAxisTransformation | CreateTransformationMutationCreateTransformationBaseRotationTransformation | CreateTransformationMutationCreateTransformationBaseScaleTransformation | CreateTransformationMutationCreateTransformationBaseSequenceTransformation | CreateTransformationMutationCreateTransformationBaseTranslationTransformation | CreateTransformationMutationCreateTransformationBaseUnmappableTransformation, Field(discriminator='typename')] | CreateTransformationMutationCreateTransformationBaseCatchAll:
     """CreateTransformation 
 
 Create one edge of the coordinate graph, mapping an input coordinate system to an output one. This is where registration lives
@@ -8079,13 +9591,14 @@ Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     validity: PlacementValidity
     value_relation: ValueRelation
+    selector: Where along one axis a transformation applies: the map holds at that index and makes no claim elsewhere
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
     Transformation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['input'] = input
     _input['output'] = output
     _input['transform'] = transform
@@ -8095,10 +9608,12 @@ Returns:
         _input['validity'] = validity
     if value_relation is not UNSET:
         _input['valueRelation'] = value_relation
+    if selector is not UNSET:
+        _input['selector'] = selector
     variables['input'] = _input
     return (await aexecute(CreateTransformationMutation, variables, rath=rath)).create_transformation
 
-def create_transformation(input: IDCoercible, output: IDCoercible, transform: TransformInput, name: Union[Optional[str], UnsetType]=UNSET, validity: Union[Optional[PlacementValidity], UnsetType]=UNSET, value_relation: Union[Optional[ValueRelation], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[CreateTransformationMutationCreatetransformationBaseAffineTransformation, CreateTransformationMutationCreatetransformationBaseBijectionTransformation, CreateTransformationMutationCreatetransformationBaseByDimensionTransformation, CreateTransformationMutationCreatetransformationBaseFieldTransformation, CreateTransformationMutationCreatetransformationBaseIdentityTransformation, CreateTransformationMutationCreatetransformationBaseMapAxisTransformation, CreateTransformationMutationCreatetransformationBaseRotationTransformation, CreateTransformationMutationCreatetransformationBaseScaleTransformation, CreateTransformationMutationCreatetransformationBaseSequenceTransformation, CreateTransformationMutationCreatetransformationBaseTranslationTransformation, CreateTransformationMutationCreatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], CreateTransformationMutationCreatetransformationBaseCatchAll]:
+def create_transformation(input: IDCoercible, output: IDCoercible, transform: TransformInput, name: str | None | UnsetType=UNSET, validity: PlacementValidity | None | UnsetType=UNSET, value_relation: ValueRelation | None | UnsetType=UNSET, selector: SelectorInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Annotated[CreateTransformationMutationCreateTransformationBaseAffineTransformation | CreateTransformationMutationCreateTransformationBaseByDimensionTransformation | CreateTransformationMutationCreateTransformationBaseFieldTransformation | CreateTransformationMutationCreateTransformationBaseIdentityTransformation | CreateTransformationMutationCreateTransformationBaseMapAxisTransformation | CreateTransformationMutationCreateTransformationBaseRotationTransformation | CreateTransformationMutationCreateTransformationBaseScaleTransformation | CreateTransformationMutationCreateTransformationBaseSequenceTransformation | CreateTransformationMutationCreateTransformationBaseTranslationTransformation | CreateTransformationMutationCreateTransformationBaseUnmappableTransformation, Field(discriminator='typename')] | CreateTransformationMutationCreateTransformationBaseCatchAll:
     """CreateTransformation 
 
 Create one edge of the coordinate graph, mapping an input coordinate system to an output one. This is where registration lives
@@ -8110,13 +9625,14 @@ Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     validity: PlacementValidity
     value_relation: ValueRelation
+    selector: Where along one axis a transformation applies: the map holds at that index and makes no claim elsewhere
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
     Transformation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['input'] = input
     _input['output'] = output
     _input['transform'] = transform
@@ -8126,10 +9642,12 @@ Returns:
         _input['validity'] = validity
     if value_relation is not UNSET:
         _input['valueRelation'] = value_relation
+    if selector is not UNSET:
+        _input['selector'] = selector
     variables['input'] = _input
     return execute(CreateTransformationMutation, variables, rath=rath).create_transformation
 
-async def aupdate_transformation(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, scale: Union[Optional[Iterable[float]], UnsetType]=UNSET, translation: Union[Optional[Iterable[float]], UnsetType]=UNSET, affine: Union[Optional[Iterable[Iterable[float]]], UnsetType]=UNSET, validity: Union[Optional[PlacementValidity], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[UpdateTransformationMutationUpdatetransformationBaseAffineTransformation, UpdateTransformationMutationUpdatetransformationBaseBijectionTransformation, UpdateTransformationMutationUpdatetransformationBaseByDimensionTransformation, UpdateTransformationMutationUpdatetransformationBaseFieldTransformation, UpdateTransformationMutationUpdatetransformationBaseIdentityTransformation, UpdateTransformationMutationUpdatetransformationBaseMapAxisTransformation, UpdateTransformationMutationUpdatetransformationBaseRotationTransformation, UpdateTransformationMutationUpdatetransformationBaseScaleTransformation, UpdateTransformationMutationUpdatetransformationBaseSequenceTransformation, UpdateTransformationMutationUpdatetransformationBaseTranslationTransformation, UpdateTransformationMutationUpdatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], UpdateTransformationMutationUpdatetransformationBaseCatchAll]:
+async def aupdate_transformation(id: IDCoercible, name: str | None | UnsetType=UNSET, scale: Iterable[float] | None | UnsetType=UNSET, translation: Iterable[float] | None | UnsetType=UNSET, affine: Iterable[Iterable[float]] | None | UnsetType=UNSET, validity: PlacementValidity | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Annotated[UpdateTransformationMutationUpdateTransformationBaseAffineTransformation | UpdateTransformationMutationUpdateTransformationBaseByDimensionTransformation | UpdateTransformationMutationUpdateTransformationBaseFieldTransformation | UpdateTransformationMutationUpdateTransformationBaseIdentityTransformation | UpdateTransformationMutationUpdateTransformationBaseMapAxisTransformation | UpdateTransformationMutationUpdateTransformationBaseRotationTransformation | UpdateTransformationMutationUpdateTransformationBaseScaleTransformation | UpdateTransformationMutationUpdateTransformationBaseSequenceTransformation | UpdateTransformationMutationUpdateTransformationBaseTranslationTransformation | UpdateTransformationMutationUpdateTransformationBaseUnmappableTransformation, Field(discriminator='typename')] | UpdateTransformationMutationUpdateTransformationBaseCatchAll:
     """UpdateTransformation 
 
 Refine a transformation's parameters, bumping its version
@@ -8146,8 +9664,8 @@ Args:
 Returns:
     Transformation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if name is not UNSET:
         _input['name'] = name
@@ -8162,7 +9680,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(UpdateTransformationMutation, variables, rath=rath)).update_transformation
 
-def update_transformation(id: IDCoercible, name: Union[Optional[str], UnsetType]=UNSET, scale: Union[Optional[Iterable[float]], UnsetType]=UNSET, translation: Union[Optional[Iterable[float]], UnsetType]=UNSET, affine: Union[Optional[Iterable[Iterable[float]]], UnsetType]=UNSET, validity: Union[Optional[PlacementValidity], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[UpdateTransformationMutationUpdatetransformationBaseAffineTransformation, UpdateTransformationMutationUpdatetransformationBaseBijectionTransformation, UpdateTransformationMutationUpdatetransformationBaseByDimensionTransformation, UpdateTransformationMutationUpdatetransformationBaseFieldTransformation, UpdateTransformationMutationUpdatetransformationBaseIdentityTransformation, UpdateTransformationMutationUpdatetransformationBaseMapAxisTransformation, UpdateTransformationMutationUpdatetransformationBaseRotationTransformation, UpdateTransformationMutationUpdatetransformationBaseScaleTransformation, UpdateTransformationMutationUpdatetransformationBaseSequenceTransformation, UpdateTransformationMutationUpdatetransformationBaseTranslationTransformation, UpdateTransformationMutationUpdatetransformationBaseUnmappableTransformation], Field(discriminator='typename')], UpdateTransformationMutationUpdatetransformationBaseCatchAll]:
+def update_transformation(id: IDCoercible, name: str | None | UnsetType=UNSET, scale: Iterable[float] | None | UnsetType=UNSET, translation: Iterable[float] | None | UnsetType=UNSET, affine: Iterable[Iterable[float]] | None | UnsetType=UNSET, validity: PlacementValidity | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Annotated[UpdateTransformationMutationUpdateTransformationBaseAffineTransformation | UpdateTransformationMutationUpdateTransformationBaseByDimensionTransformation | UpdateTransformationMutationUpdateTransformationBaseFieldTransformation | UpdateTransformationMutationUpdateTransformationBaseIdentityTransformation | UpdateTransformationMutationUpdateTransformationBaseMapAxisTransformation | UpdateTransformationMutationUpdateTransformationBaseRotationTransformation | UpdateTransformationMutationUpdateTransformationBaseScaleTransformation | UpdateTransformationMutationUpdateTransformationBaseSequenceTransformation | UpdateTransformationMutationUpdateTransformationBaseTranslationTransformation | UpdateTransformationMutationUpdateTransformationBaseUnmappableTransformation, Field(discriminator='typename')] | UpdateTransformationMutationUpdateTransformationBaseCatchAll:
     """UpdateTransformation 
 
 Refine a transformation's parameters, bumping its version
@@ -8179,8 +9697,8 @@ Args:
 Returns:
     Transformation
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     if name is not UNSET:
         _input['name'] = name
@@ -8195,7 +9713,7 @@ Returns:
     variables['input'] = _input
     return execute(UpdateTransformationMutation, variables, rath=rath).update_transformation
 
-async def adelete_transformation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+async def adelete_transformation(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteTransformation 
 
 Delete an existing transformation
@@ -8207,13 +9725,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return (await aexecute(DeleteTransformationMutation, variables, rath=rath)).delete_transformation
 
-def delete_transformation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ID:
+def delete_transformation(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
     """DeleteTransformation 
 
 Delete an existing transformation
@@ -8225,13 +9743,13 @@ Args:
 Returns:
     ID
 """
-    variables: Dict[str, Any] = {}
-    _input: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
     _input['id'] = id
     variables['input'] = _input
     return execute(DeleteTransformationMutation, variables, rath=rath).delete_transformation
 
-async def aget_animation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Animation:
+async def aget_animation(id: IDCoercible, rath: MikroNextRath | None=None) -> Animation:
     """GetAnimation 
 
 Get a single animation by ID
@@ -8243,11 +9761,11 @@ Args:
 Returns:
     Animation
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetAnimationQuery, variables, rath=rath)).animation
 
-def get_animation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Animation:
+def get_animation(id: IDCoercible, rath: MikroNextRath | None=None) -> Animation:
     """GetAnimation 
 
 Get a single animation by ID
@@ -8259,66 +9777,66 @@ Args:
 Returns:
     Animation
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetAnimationQuery, variables, rath=rath).animation
 
-async def aget_animations(filters: Union[Optional[AnimationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Animation, ...]:
+async def aget_animations(filters: AnimationFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Animation, ...]:
     """GetAnimations 
 
 List animations (named camera tours through a scene)
 
 Args:
-    filters (Optional[AnimationFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (AnimationFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[Animation]
+    list[Animation]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return (await aexecute(GetAnimationsQuery, variables, rath=rath)).animations
 
-def get_animations(filters: Union[Optional[AnimationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Animation, ...]:
+def get_animations(filters: AnimationFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Animation, ...]:
     """GetAnimations 
 
 List animations (named camera tours through a scene)
 
 Args:
-    filters (Optional[AnimationFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (AnimationFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[Animation]
+    list[Animation]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return execute(GetAnimationsQuery, variables, rath=rath).animations
 
-async def asearch_animations(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchAnimationsQueryOptions, ...]:
+async def asearch_animations(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchAnimationsQueryOptions, ...]:
     """SearchAnimations 
 
 List animations (named camera tours through a scene)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchAnimationsQueryAnimations]
+    list[SearchAnimationsQueryAnimations]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -8329,22 +9847,22 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchAnimationsQuery, variables, rath=rath)).options
 
-def search_animations(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchAnimationsQueryOptions, ...]:
+def search_animations(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchAnimationsQueryOptions, ...]:
     """SearchAnimations 
 
 List animations (named camera tours through a scene)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchAnimationsQueryAnimations]
+    list[SearchAnimationsQueryAnimations]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -8355,7 +9873,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchAnimationsQuery, variables, rath=rath).options
 
-async def aget_annotation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Annotation:
+async def aget_annotation(id: IDCoercible, rath: MikroNextRath | None=None) -> Annotation:
     """GetAnnotation 
 
 Get a single annotation by ID
@@ -8367,11 +9885,11 @@ Args:
 Returns:
     Annotation
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetAnnotationQuery, variables, rath=rath)).annotation
 
-def get_annotation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Annotation:
+def get_annotation(id: IDCoercible, rath: MikroNextRath | None=None) -> Annotation:
     """GetAnnotation 
 
 Get a single annotation by ID
@@ -8383,51 +9901,51 @@ Args:
 Returns:
     Annotation
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetAnnotationQuery, variables, rath=rath).annotation
 
-async def aget_annotations(filters: Union[Optional[AnnotationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Annotation, ...]:
+async def aget_annotations(filters: AnnotationFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotation, ...]:
     """GetAnnotations 
 
 List annotations (human-drawn shapes, each in its collection's coordinate system)
 
 Args:
-    filters (Optional[AnnotationFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (AnnotationFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[Annotation]
+    list[Annotation]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return (await aexecute(GetAnnotationsQuery, variables, rath=rath)).annotations
 
-def get_annotations(filters: Union[Optional[AnnotationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Annotation, ...]:
+def get_annotations(filters: AnnotationFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotation, ...]:
     """GetAnnotations 
 
 List annotations (human-drawn shapes, each in its collection's coordinate system)
 
 Args:
-    filters (Optional[AnnotationFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (AnnotationFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[Annotation]
+    list[Annotation]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return execute(GetAnnotationsQuery, variables, rath=rath).annotations
 
-async def aget_annotation_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+async def aget_annotation_collection(id: IDCoercible, rath: MikroNextRath | None=None) -> AnnotationCollection:
     """GetAnnotationCollection 
 
 Get a single annotation collection by ID
@@ -8439,11 +9957,11 @@ Args:
 Returns:
     AnnotationCollection
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetAnnotationCollectionQuery, variables, rath=rath)).annotation_collection
 
-def get_annotation_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> AnnotationCollection:
+def get_annotation_collection(id: IDCoercible, rath: MikroNextRath | None=None) -> AnnotationCollection:
     """GetAnnotationCollection 
 
 Get a single annotation collection by ID
@@ -8455,66 +9973,66 @@ Args:
 Returns:
     AnnotationCollection
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetAnnotationCollectionQuery, variables, rath=rath).annotation_collection
 
-async def aget_annotation_collections(filters: Union[Optional[AnnotationCollectionFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[AnnotationCollection, ...]:
+async def aget_annotation_collections(filters: AnnotationCollectionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[AnnotationCollection, ...]:
     """GetAnnotationCollections 
 
 List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)
 
 Args:
-    filters (Optional[AnnotationCollectionFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (AnnotationCollectionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[AnnotationCollection]
+    list[AnnotationCollection]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return (await aexecute(GetAnnotationCollectionsQuery, variables, rath=rath)).annotation_collections
 
-def get_annotation_collections(filters: Union[Optional[AnnotationCollectionFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[AnnotationCollection, ...]:
+def get_annotation_collections(filters: AnnotationCollectionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[AnnotationCollection, ...]:
     """GetAnnotationCollections 
 
 List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)
 
 Args:
-    filters (Optional[AnnotationCollectionFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (AnnotationCollectionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[AnnotationCollection]
+    list[AnnotationCollection]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return execute(GetAnnotationCollectionsQuery, variables, rath=rath).annotation_collections
 
-async def asearch_annotation_collections(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchAnnotationCollectionsQueryOptions, ...]:
+async def asearch_annotation_collections(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchAnnotationCollectionsQueryOptions, ...]:
     """SearchAnnotationCollections 
 
 List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchAnnotationCollectionsQueryAnnotationcollections]
+    list[SearchAnnotationCollectionsQueryAnnotationCollections]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -8525,22 +10043,22 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchAnnotationCollectionsQuery, variables, rath=rath)).options
 
-def search_annotation_collections(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchAnnotationCollectionsQueryOptions, ...]:
+def search_annotation_collections(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchAnnotationCollectionsQueryOptions, ...]:
     """SearchAnnotationCollections 
 
 List annotation collections (named sets of human-drawn shapes, each owning the coordinate system they are drawn in)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchAnnotationCollectionsQueryAnnotationcollections]
+    list[SearchAnnotationCollectionsQueryAnnotationCollections]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -8551,7 +10069,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchAnnotationCollectionsQuery, variables, rath=rath).options
 
-async def aget_array_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ArrayDataset:
+async def aget_array_dataset(id: IDCoercible, rath: MikroNextRath | None=None) -> ArrayDataset:
     """GetArrayDataset 
 
 Get a single array dataset by ID
@@ -8563,11 +10081,11 @@ Args:
 Returns:
     ArrayDataset
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetArrayDatasetQuery, variables, rath=rath)).array_dataset
 
-def get_array_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> ArrayDataset:
+def get_array_dataset(id: IDCoercible, rath: MikroNextRath | None=None) -> ArrayDataset:
     """GetArrayDataset 
 
 Get a single array dataset by ID
@@ -8579,66 +10097,66 @@ Args:
 Returns:
     ArrayDataset
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetArrayDatasetQuery, variables, rath=rath).array_dataset
 
-async def aget_array_datasets(filters: Union[Optional[ArrayDatasetFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[ArrayDataset, ...]:
+async def aget_array_datasets(filters: ArrayDatasetFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[ArrayDataset, ...]:
     """GetArrayDatasets 
 
 List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
 
 Args:
-    filters (Optional[ArrayDatasetFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (ArrayDatasetFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[ArrayDataset]
+    list[ArrayDataset]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return (await aexecute(GetArrayDatasetsQuery, variables, rath=rath)).array_datasets
 
-def get_array_datasets(filters: Union[Optional[ArrayDatasetFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[ArrayDataset, ...]:
+def get_array_datasets(filters: ArrayDatasetFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[ArrayDataset, ...]:
     """GetArrayDatasets 
 
 List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
 
 Args:
-    filters (Optional[ArrayDatasetFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (ArrayDatasetFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[ArrayDataset]
+    list[ArrayDataset]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return execute(GetArrayDatasetsQuery, variables, rath=rath).array_datasets
 
-async def asearch_array_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchArrayDatasetsQueryOptions, ...]:
+async def asearch_array_datasets(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchArrayDatasetsQueryOptions, ...]:
     """SearchArrayDatasets 
 
 List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchArrayDatasetsQueryArraydatasets]
+    list[SearchArrayDatasetsQueryArrayDatasets]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -8649,22 +10167,22 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchArrayDatasetsQuery, variables, rath=rath)).options
 
-def search_array_datasets(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchArrayDatasetsQueryOptions, ...]:
+def search_array_datasets(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchArrayDatasetsQueryOptions, ...]:
     """SearchArrayDatasets 
 
 List array datasets (N-dimensional arrays with named dimensions and anchored metadata)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchArrayDatasetsQueryArraydatasets]
+    list[SearchArrayDatasetsQueryArrayDatasets]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -8675,81 +10193,293 @@ Returns:
         variables['offset'] = offset
     return execute(SearchArrayDatasetsQuery, variables, rath=rath).options
 
-async def aattribute_plans(system: IDCoercible, max_depth: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[AttributePlansQueryAttributeplans, ...]:
+async def aattribute_plans(system: IDCoercible, max_depth: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[AttributePlansQueryAttributePlans, ...]:
     """AttributePlans 
+ Every attribute plan reachable from one system: one per FIELD edge landing on a table.
+
+ A plan is instructions, never attributes -- map along `path`, get the id from the sample
+ step (read the array for an ArraySample, use the picked mesh id for a MeshSample), then
+ look it up in the parquet -- and it takes no coordinate, so a client fetches it
+ once and executes it per hover locally. This selection is deliberately lean: the ids and
+ axis lists that say *which* map was found, plus the SQL and key columns a worker needs to
+ run it. Anything wanting the full table metadata queries it by id. The sample step is the
  one exception -- it spreads the whole store fragment, for the codegen reason noted below.
 
 Args:
     system (ID): No description
-    max_depth (Optional[int], optional): No description. 
+    max_depth (int | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[AttributePlansQueryAttributeplans]
+    list[AttributePlansQueryAttributePlans]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['system'] = system
     if max_depth is not UNSET:
         variables['maxDepth'] = max_depth
     return (await aexecute(AttributePlansQuery, variables, rath=rath)).attribute_plans
 
-def attribute_plans(system: IDCoercible, max_depth: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[AttributePlansQueryAttributeplans, ...]:
+def attribute_plans(system: IDCoercible, max_depth: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[AttributePlansQueryAttributePlans, ...]:
     """AttributePlans 
+ Every attribute plan reachable from one system: one per FIELD edge landing on a table.
+
+ A plan is instructions, never attributes -- map along `path`, get the id from the sample
+ step (read the array for an ArraySample, use the picked mesh id for a MeshSample), then
+ look it up in the parquet -- and it takes no coordinate, so a client fetches it
+ once and executes it per hover locally. This selection is deliberately lean: the ids and
+ axis lists that say *which* map was found, plus the SQL and key columns a worker needs to
+ run it. Anything wanting the full table metadata queries it by id. The sample step is the
  one exception -- it spreads the whole store fragment, for the codegen reason noted below.
 
 Args:
     system (ID): No description
-    max_depth (Optional[int], optional): No description. 
+    max_depth (int | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[AttributePlansQueryAttributeplans]
+    list[AttributePlansQueryAttributePlans]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['system'] = system
     if max_depth is not UNSET:
         variables['maxDepth'] = max_depth
     return execute(AttributePlansQuery, variables, rath=rath).attribute_plans
 
-async def aget_coordinate_graph(coordinate_system: IDCoercible, max_depth: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> GetCoordinateGraphQueryCoordinategraph:
+async def alabel_color_by_options(lens: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[ColorByOption, ...]:
+    """LabelColorByOptions 
+ Rooted on a lens -- what a label layer over that lens can be coloured by.
+
+Args:
+    lens (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[ColorByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['lens'] = lens
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return (await aexecute(LabelColorByOptionsQuery, variables, rath=rath)).label_color_by_options
+
+def label_color_by_options(lens: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[ColorByOption, ...]:
+    """LabelColorByOptions 
+ Rooted on a lens -- what a label layer over that lens can be coloured by.
+
+Args:
+    lens (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[ColorByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['lens'] = lens
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return execute(LabelColorByOptionsQuery, variables, rath=rath).label_color_by_options
+
+async def alabel_filter_by_options(lens: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[FilterByOption, ...]:
+    """LabelFilterByOptions 
+
+Every column a mask's objects can be filtered by -- **the same set `labelColorByOptions` returns**, under the name that reads right where a rule is being authored. One relation, one walk, two names, exactly as `filterByOptions` pairs with `colorByOptions` over a collection: what differs is what a control *means*, since MEASURE takes a `min`/`max` bound here and a colormap there. Everything returned is something `createLabelLayer(render: {filterBys: ...})` accepts
+
+Args:
+    lens (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[FilterByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['lens'] = lens
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return (await aexecute(LabelFilterByOptionsQuery, variables, rath=rath)).label_filter_by_options
+
+def label_filter_by_options(lens: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[FilterByOption, ...]:
+    """LabelFilterByOptions 
+
+Every column a mask's objects can be filtered by -- **the same set `labelColorByOptions` returns**, under the name that reads right where a rule is being authored. One relation, one walk, two names, exactly as `filterByOptions` pairs with `colorByOptions` over a collection: what differs is what a control *means*, since MEASURE takes a `min`/`max` bound here and a colormap there. Everything returned is something `createLabelLayer(render: {filterBys: ...})` accepts
+
+Args:
+    lens (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[FilterByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['lens'] = lens
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return execute(LabelFilterByOptionsQuery, variables, rath=rath).label_filter_by_options
+
+async def acolor_by_options(mesh_collection: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[ColorByOption, ...]:
+    """ColorByOptions 
+ Rooted on a mesh collection -- the same walk and the same answer for a mesh layer.
+
+Args:
+    mesh_collection (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[ColorByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['meshCollection'] = mesh_collection
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return (await aexecute(ColorByOptionsQuery, variables, rath=rath)).color_by_options
+
+def color_by_options(mesh_collection: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[ColorByOption, ...]:
+    """ColorByOptions 
+ Rooted on a mesh collection -- the same walk and the same answer for a mesh layer.
+
+Args:
+    mesh_collection (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[ColorByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['meshCollection'] = mesh_collection
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return execute(ColorByOptionsQuery, variables, rath=rath).color_by_options
+
+async def afilter_by_options(mesh_collection: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[FilterByOption, ...]:
+    """FilterByOptions 
+
+Every column a mesh collection's objects can be filtered by -- **the same set `colorByOptions` returns**, under the name that reads right where a rule is being authored. One relation, one walk, two names: a colouring and a rule reach the same column through the same join and branch on the same measure-vs-categorical split, so two different sets would mean one of them was wrong. What differs is what a control *means*: MEASURE takes a `min`/`max` bound here and a colormap there. Same arguments, same `joinPath` to pass back, same invariant -- everything returned is something `createMeshLayer(filterBys:)` accepts
+
+Args:
+    mesh_collection (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[FilterByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['meshCollection'] = mesh_collection
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return (await aexecute(FilterByOptionsQuery, variables, rath=rath)).filter_by_options
+
+def filter_by_options(mesh_collection: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[FilterByOption, ...]:
+    """FilterByOptions 
+
+Every column a mesh collection's objects can be filtered by -- **the same set `colorByOptions` returns**, under the name that reads right where a rule is being authored. One relation, one walk, two names: a colouring and a rule reach the same column through the same join and branch on the same measure-vs-categorical split, so two different sets would mean one of them was wrong. What differs is what a control *means*: MEASURE takes a `min`/`max` bound here and a colormap there. Same arguments, same `joinPath` to pass back, same invariant -- everything returned is something `createMeshLayer(filterBys:)` accepts
+
+Args:
+    mesh_collection (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[FilterByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['meshCollection'] = mesh_collection
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return execute(FilterByOptionsQuery, variables, rath=rath).filter_by_options
+
+async def aget_coordinate_graph(coordinate_system: IDCoercible, max_depth: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> GetCoordinateGraphQueryCoordinateGraph:
     """GetCoordinateGraph 
 
 Walk the coordinate graph out from one system: every coordinate system it reaches and every top-level edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not
 
 Args:
     coordinate_system (ID): No description
-    max_depth (Optional[int], optional): No description. 
+    max_depth (int | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    GetCoordinateGraphQueryCoordinategraph
+    GetCoordinateGraphQueryCoordinateGraph
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['coordinateSystem'] = coordinate_system
     if max_depth is not UNSET:
         variables['maxDepth'] = max_depth
     return (await aexecute(GetCoordinateGraphQuery, variables, rath=rath)).coordinate_graph
 
-def get_coordinate_graph(coordinate_system: IDCoercible, max_depth: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> GetCoordinateGraphQueryCoordinategraph:
+def get_coordinate_graph(coordinate_system: IDCoercible, max_depth: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> GetCoordinateGraphQueryCoordinateGraph:
     """GetCoordinateGraph 
 
 Walk the coordinate graph out from one system: every coordinate system it reaches and every top-level edge between them. Reachability is undirected (an edge pointing into the system relates to it as much as one pointing out), the edges keep their true direction, and nothing is composed -- what the list queries cannot answer is 'which edges relate to *this* one', because relatedness is transitive and a filter is not
 
 Args:
     coordinate_system (ID): No description
-    max_depth (Optional[int], optional): No description. 
+    max_depth (int | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    GetCoordinateGraphQueryCoordinategraph
+    GetCoordinateGraphQueryCoordinateGraph
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['coordinateSystem'] = coordinate_system
     if max_depth is not UNSET:
         variables['maxDepth'] = max_depth
     return execute(GetCoordinateGraphQuery, variables, rath=rath).coordinate_graph
 
-async def aget_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+async def aget_coordinate_system(id: IDCoercible, rath: MikroNextRath | None=None) -> CoordinateSystem:
     """GetCoordinateSystem 
 
 Get a single coordinate system by ID
@@ -8761,11 +10491,11 @@ Args:
 Returns:
     CoordinateSystem
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetCoordinateSystemQuery, variables, rath=rath)).coordinate_system
 
-def get_coordinate_system(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> CoordinateSystem:
+def get_coordinate_system(id: IDCoercible, rath: MikroNextRath | None=None) -> CoordinateSystem:
     """GetCoordinateSystem 
 
 Get a single coordinate system by ID
@@ -8777,66 +10507,66 @@ Args:
 Returns:
     CoordinateSystem
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetCoordinateSystemQuery, variables, rath=rath).coordinate_system
 
-async def aget_coordinate_systems(filters: Union[Optional[CoordinateSystemFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[CoordinateSystem, ...]:
+async def aget_coordinate_systems(filters: CoordinateSystemFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[CoordinateSystem, ...]:
     """GetCoordinateSystems 
 
 List coordinate systems (the nodes of the RFC-5 coordinate graph)
 
 Args:
-    filters (Optional[CoordinateSystemFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (CoordinateSystemFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[CoordinateSystem]
+    list[CoordinateSystem]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return (await aexecute(GetCoordinateSystemsQuery, variables, rath=rath)).coordinate_systems
 
-def get_coordinate_systems(filters: Union[Optional[CoordinateSystemFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[CoordinateSystem, ...]:
+def get_coordinate_systems(filters: CoordinateSystemFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[CoordinateSystem, ...]:
     """GetCoordinateSystems 
 
 List coordinate systems (the nodes of the RFC-5 coordinate graph)
 
 Args:
-    filters (Optional[CoordinateSystemFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (CoordinateSystemFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[CoordinateSystem]
+    list[CoordinateSystem]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return execute(GetCoordinateSystemsQuery, variables, rath=rath).coordinate_systems
 
-async def asearch_coordinate_systems(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchCoordinateSystemsQueryOptions, ...]:
+async def asearch_coordinate_systems(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchCoordinateSystemsQueryOptions, ...]:
     """SearchCoordinateSystems 
 
 List coordinate systems (the nodes of the RFC-5 coordinate graph)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchCoordinateSystemsQueryCoordinatesystems]
+    list[SearchCoordinateSystemsQueryCoordinateSystems]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -8847,22 +10577,22 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchCoordinateSystemsQuery, variables, rath=rath)).options
 
-def search_coordinate_systems(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchCoordinateSystemsQueryOptions, ...]:
+def search_coordinate_systems(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchCoordinateSystemsQueryOptions, ...]:
     """SearchCoordinateSystems 
 
 List coordinate systems (the nodes of the RFC-5 coordinate graph)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchCoordinateSystemsQueryCoordinatesystems]
+    list[SearchCoordinateSystemsQueryCoordinateSystems]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -8873,7 +10603,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchCoordinateSystemsQuery, variables, rath=rath).options
 
-async def aget_file(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> File:
+async def aget_file(id: IDCoercible, rath: MikroNextRath | None=None) -> File:
     """GetFile 
 
 Get a single file by ID
@@ -8885,11 +10615,11 @@ Args:
 Returns:
     File
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetFileQuery, variables, rath=rath)).file
 
-def get_file(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> File:
+def get_file(id: IDCoercible, rath: MikroNextRath | None=None) -> File:
     """GetFile 
 
 Get a single file by ID
@@ -8901,26 +10631,26 @@ Args:
 Returns:
     File
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetFileQuery, variables, rath=rath).file
 
-async def asearch_files(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFilesQueryOptions, ...]:
+async def asearch_files(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchFilesQueryOptions, ...]:
     """SearchFiles 
 
 List files (raw microscopy files such as .czi or .ome.tiff)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchFilesQueryFiles]
+    list[SearchFilesQueryFiles]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -8931,22 +10661,22 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchFilesQuery, variables, rath=rath)).options
 
-def search_files(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFilesQueryOptions, ...]:
+def search_files(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchFilesQueryOptions, ...]:
     """SearchFiles 
 
 List files (raw microscopy files such as .czi or .ome.tiff)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchFilesQueryFiles]
+    list[SearchFilesQueryFiles]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -8957,7 +10687,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchFilesQuery, variables, rath=rath).options
 
-async def aget_folder(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Folder:
+async def aget_folder(id: IDCoercible, rath: MikroNextRath | None=None) -> Folder:
     """GetFolder 
 
 Get a single folder by ID
@@ -8969,11 +10699,11 @@ Args:
 Returns:
     Folder
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetFolderQuery, variables, rath=rath)).folder
 
-def get_folder(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Folder:
+def get_folder(id: IDCoercible, rath: MikroNextRath | None=None) -> Folder:
     """GetFolder 
 
 Get a single folder by ID
@@ -8985,26 +10715,26 @@ Args:
 Returns:
     Folder
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetFolderQuery, variables, rath=rath).folder
 
-async def asearch_folders(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFoldersQueryOptions, ...]:
+async def asearch_folders(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchFoldersQueryOptions, ...]:
     """SearchFolders 
 
 List folders (collections of images, files and tables)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchFoldersQueryFolders]
+    list[SearchFoldersQueryFolders]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -9015,22 +10745,22 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchFoldersQuery, variables, rath=rath)).options
 
-def search_folders(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchFoldersQueryOptions, ...]:
+def search_folders(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchFoldersQueryOptions, ...]:
     """SearchFolders 
 
 List folders (collections of images, files and tables)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchFoldersQueryFolders]
+    list[SearchFoldersQueryFolders]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -9041,7 +10771,83 @@ Returns:
         variables['offset'] = offset
     return execute(SearchFoldersQuery, variables, rath=rath).options
 
-async def aget_lens(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Lens:
+async def aget_layer(id: IDCoercible, rath: MikroNextRath | None=None) -> Annotated[GetLayerQueryLayerBaseAnnotationLayer | GetLayerQueryLayerBaseImageLayer | GetLayerQueryLayerBaseLabelLayer | GetLayerQueryLayerBaseMeshLayer | GetLayerQueryLayerBasePointLayer | GetLayerQueryLayerBaseTrackLayer, Field(discriminator='typename')] | GetLayerQueryLayerBaseCatchAll:
+    """GetLayer 
+ Read a layer back. The server has had `layer` and `layers` all along; no document ever
+ asked for them, so the only way to see a layer's current picker from Python was to fire
+ `updateLabelLayer` with an empty payload and read the mutation's return value -- a write
+ used as a read, which `sparse_live.py` did precisely because this file was missing.
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Layer
+"""
+    variables: dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetLayerQuery, variables, rath=rath)).layer
+
+def get_layer(id: IDCoercible, rath: MikroNextRath | None=None) -> Annotated[GetLayerQueryLayerBaseAnnotationLayer | GetLayerQueryLayerBaseImageLayer | GetLayerQueryLayerBaseLabelLayer | GetLayerQueryLayerBaseMeshLayer | GetLayerQueryLayerBasePointLayer | GetLayerQueryLayerBaseTrackLayer, Field(discriminator='typename')] | GetLayerQueryLayerBaseCatchAll:
+    """GetLayer 
+ Read a layer back. The server has had `layer` and `layers` all along; no document ever
+ asked for them, so the only way to see a layer's current picker from Python was to fire
+ `updateLabelLayer` with an empty payload and read the mutation's return value -- a write
+ used as a read, which `sparse_live.py` did precisely because this file was missing.
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    Layer
+"""
+    variables: dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetLayerQuery, variables, rath=rath).layer
+
+async def alayers(filters: LayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotated[LayersQueryLayersBaseAnnotationLayer | LayersQueryLayersBaseImageLayer | LayersQueryLayersBaseLabelLayer | LayersQueryLayersBaseMeshLayer | LayersQueryLayersBasePointLayer | LayersQueryLayersBaseTrackLayer, Field(discriminator='typename')] | LayersQueryLayersBaseCatchAll, ...]:
+    """Layers 
+ No `ordering` variable, matching every other list query here: turms cannot parse a list
+ literal as a variable default, and the server's `ordering` already defaults to `[]`.
+
+Args:
+    filters (LayerFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[Layer]
+"""
+    variables: dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return (await aexecute(LayersQuery, variables, rath=rath)).layers
+
+def layers(filters: LayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotated[LayersQueryLayersBaseAnnotationLayer | LayersQueryLayersBaseImageLayer | LayersQueryLayersBaseLabelLayer | LayersQueryLayersBaseMeshLayer | LayersQueryLayersBasePointLayer | LayersQueryLayersBaseTrackLayer, Field(discriminator='typename')] | LayersQueryLayersBaseCatchAll, ...]:
+    """Layers 
+ No `ordering` variable, matching every other list query here: turms cannot parse a list
+ literal as a variable default, and the server's `ordering` already defaults to `[]`.
+
+Args:
+    filters (LayerFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[Layer]
+"""
+    variables: dict[str, Any] = {}
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    return execute(LayersQuery, variables, rath=rath).layers
+
+async def aget_lens(id: IDCoercible, rath: MikroNextRath | None=None) -> Lens:
     """GetLens 
 
 Get a single lens by ID
@@ -9053,11 +10859,11 @@ Args:
 Returns:
     Lens
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetLensQuery, variables, rath=rath)).lens
 
-def get_lens(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Lens:
+def get_lens(id: IDCoercible, rath: MikroNextRath | None=None) -> Lens:
     """GetLens 
 
 Get a single lens by ID
@@ -9069,11 +10875,11 @@ Args:
 Returns:
     Lens
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetLensQuery, variables, rath=rath).lens
 
-async def aget_mesh_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+async def aget_mesh_collection(id: IDCoercible, rath: MikroNextRath | None=None) -> MeshCollection:
     """GetMeshCollection 
 
 Get a single mesh collection by ID
@@ -9085,11 +10891,11 @@ Args:
 Returns:
     MeshCollection
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetMeshCollectionQuery, variables, rath=rath)).mesh_collection
 
-def get_mesh_collection(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> MeshCollection:
+def get_mesh_collection(id: IDCoercible, rath: MikroNextRath | None=None) -> MeshCollection:
     """GetMeshCollection 
 
 Get a single mesh collection by ID
@@ -9101,66 +10907,66 @@ Args:
 Returns:
     MeshCollection
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetMeshCollectionQuery, variables, rath=rath).mesh_collection
 
-async def aget_mesh_collections(filters: Union[Optional[MeshCollectionFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[MeshCollection, ...]:
+async def aget_mesh_collections(filters: MeshCollectionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[MeshCollection, ...]:
     """GetMeshCollections 
 
 List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
 
 Args:
-    filters (Optional[MeshCollectionFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (MeshCollectionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[MeshCollection]
+    list[MeshCollection]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return (await aexecute(GetMeshCollectionsQuery, variables, rath=rath)).mesh_collections
 
-def get_mesh_collections(filters: Union[Optional[MeshCollectionFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[MeshCollection, ...]:
+def get_mesh_collections(filters: MeshCollectionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[MeshCollection, ...]:
     """GetMeshCollections 
 
 List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
 
 Args:
-    filters (Optional[MeshCollectionFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (MeshCollectionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[MeshCollection]
+    list[MeshCollection]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return execute(GetMeshCollectionsQuery, variables, rath=rath).mesh_collections
 
-async def asearch_mesh_collections(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchMeshCollectionsQueryOptions, ...]:
+async def asearch_mesh_collections(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchMeshCollectionsQueryOptions, ...]:
     """SearchMeshCollections 
 
 List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchMeshCollectionsQueryMeshcollections]
+    list[SearchMeshCollectionsQueryMeshCollections]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -9171,22 +10977,22 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchMeshCollectionsQuery, variables, rath=rath)).options
 
-def search_mesh_collections(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchMeshCollectionsQueryOptions, ...]:
+def search_mesh_collections(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchMeshCollectionsQueryOptions, ...]:
     """SearchMeshCollections 
 
 List mesh collections (immutable, versioned Parquet-backed mesh sets, each in a coordinate system of its own)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchMeshCollectionsQueryMeshcollections]
+    list[SearchMeshCollectionsQueryMeshCollections]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -9197,7 +11003,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchMeshCollectionsQuery, variables, rath=rath).options
 
-async def aget_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Scene:
+async def aget_scene(id: IDCoercible, rath: MikroNextRath | None=None) -> Scene:
     """GetScene 
 
 Get a single scene by ID
@@ -9209,11 +11015,11 @@ Args:
 Returns:
     Scene
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetSceneQuery, variables, rath=rath)).scene
 
-def get_scene(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Scene:
+def get_scene(id: IDCoercible, rath: MikroNextRath | None=None) -> Scene:
     """GetScene 
 
 Get a single scene by ID
@@ -9225,26 +11031,26 @@ Args:
 Returns:
     Scene
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetSceneQuery, variables, rath=rath).scene
 
-async def asearch_scenes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchScenesQueryOptions, ...]:
+async def asearch_scenes(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchScenesQueryOptions, ...]:
     """SearchScenes 
 
 List scenes (compositions of layers over array datasets)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchScenesQueryScenes]
+    list[SearchScenesQueryScenes]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -9255,22 +11061,22 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchScenesQuery, variables, rath=rath)).options
 
-def search_scenes(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchScenesQueryOptions, ...]:
+def search_scenes(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchScenesQueryOptions, ...]:
     """SearchScenes 
 
 List scenes (compositions of layers over array datasets)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchScenesQueryScenes]
+    list[SearchScenesQueryScenes]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -9281,7 +11087,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchScenesQuery, variables, rath=rath).options
 
-async def aget_scene_snapshot(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+async def aget_scene_snapshot(id: IDCoercible, rath: MikroNextRath | None=None) -> SceneSnapshot:
     """GetSceneSnapshot 
 
 Get a single scene snapshot by ID
@@ -9293,11 +11099,11 @@ Args:
 Returns:
     SceneSnapshot
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetSceneSnapshotQuery, variables, rath=rath)).scene_snapshot
 
-def get_scene_snapshot(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> SceneSnapshot:
+def get_scene_snapshot(id: IDCoercible, rath: MikroNextRath | None=None) -> SceneSnapshot:
     """GetSceneSnapshot 
 
 Get a single scene snapshot by ID
@@ -9309,66 +11115,66 @@ Args:
 Returns:
     SceneSnapshot
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetSceneSnapshotQuery, variables, rath=rath).scene_snapshot
 
-async def aget_scene_snapshots(filters: Union[Optional[SceneSnapshotFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SceneSnapshot, ...]:
+async def aget_scene_snapshots(filters: SceneSnapshotFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SceneSnapshot, ...]:
     """GetSceneSnapshots 
 
 List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)
 
 Args:
-    filters (Optional[SceneSnapshotFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (SceneSnapshotFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SceneSnapshot]
+    list[SceneSnapshot]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return (await aexecute(GetSceneSnapshotsQuery, variables, rath=rath)).scene_snapshots
 
-def get_scene_snapshots(filters: Union[Optional[SceneSnapshotFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SceneSnapshot, ...]:
+def get_scene_snapshots(filters: SceneSnapshotFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SceneSnapshot, ...]:
     """GetSceneSnapshots 
 
 List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)
 
 Args:
-    filters (Optional[SceneSnapshotFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (SceneSnapshotFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SceneSnapshot]
+    list[SceneSnapshot]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return execute(GetSceneSnapshotsQuery, variables, rath=rath).scene_snapshots
 
-async def asearch_scene_snapshots(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSceneSnapshotsQueryOptions, ...]:
+async def asearch_scene_snapshots(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchSceneSnapshotsQueryOptions, ...]:
     """SearchSceneSnapshots 
 
 List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchSceneSnapshotsQueryScenesnapshots]
+    list[SearchSceneSnapshotsQuerySceneSnapshots]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -9379,22 +11185,22 @@ Returns:
         variables['offset'] = offset
     return (await aexecute(SearchSceneSnapshotsQuery, variables, rath=rath)).options
 
-def search_scene_snapshots(search: Union[Optional[str], UnsetType]=UNSET, values: Union[Optional[List[IDCoercible]], UnsetType]=UNSET, limit: Union[Optional[int], UnsetType]=UNSET, offset: Union[Optional[int], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[SearchSceneSnapshotsQueryOptions, ...]:
+def search_scene_snapshots(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, limit: int | None | UnsetType=UNSET, offset: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchSceneSnapshotsQueryOptions, ...]:
     """SearchSceneSnapshots 
 
 List scene snapshots (pre-rendered pictures of a composition, for previewing it without compositing the layers)
 
 Args:
-    search (Optional[str], optional): No description. 
-    values (Optional[List[ID]], optional): No description. 
-    limit (Optional[int], optional): No description. 
-    offset (Optional[int], optional): No description. Defaults to 0
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    limit (int | None, optional): No description. 
+    offset (int | None, optional): No description. Defaults to 0
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[SearchSceneSnapshotsQueryScenesnapshots]
+    list[SearchSceneSnapshotsQuerySceneSnapshots]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if search is not UNSET:
         variables['search'] = search
     if values is not UNSET:
@@ -9405,7 +11211,79 @@ Returns:
         variables['offset'] = offset
     return execute(SearchSceneSnapshotsQuery, variables, rath=rath).options
 
-async def aget_table_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> TableDataset:
+async def aget_sparse_dataset(id: IDCoercible, rath: MikroNextRath | None=None) -> SparseDataset:
+    """GetSparseDataset 
+
+Get a single sparse dataset by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SparseDataset
+"""
+    variables: dict[str, Any] = {}
+    variables['id'] = id
+    return (await aexecute(GetSparseDatasetQuery, variables, rath=rath)).sparse_dataset
+
+def get_sparse_dataset(id: IDCoercible, rath: MikroNextRath | None=None) -> SparseDataset:
+    """GetSparseDataset 
+
+Get a single sparse dataset by ID
+
+Args:
+    id (ID): No description
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    SparseDataset
+"""
+    variables: dict[str, Any] = {}
+    variables['id'] = id
+    return execute(GetSparseDatasetQuery, variables, rath=rath).sparse_dataset
+
+async def asearch_sparse_datasets(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchSparseDatasetsQueryOptions, ...]:
+    """SearchSparseDatasets 
+
+List sparse datasets (matrices over two enumerated axes, stored as anndata-spelled zarr groups)
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[SearchSparseDatasetsQuerySparseDatasets]
+"""
+    variables: dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    return (await aexecute(SearchSparseDatasetsQuery, variables, rath=rath)).options
+
+def search_sparse_datasets(search: str | None | UnsetType=UNSET, values: list[IDCoercible] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[SearchSparseDatasetsQueryOptions, ...]:
+    """SearchSparseDatasets 
+
+List sparse datasets (matrices over two enumerated axes, stored as anndata-spelled zarr groups)
+
+Args:
+    search (str | None, optional): No description. 
+    values (list[ID] | None, optional): No description. 
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[SearchSparseDatasetsQuerySparseDatasets]
+"""
+    variables: dict[str, Any] = {}
+    if search is not UNSET:
+        variables['search'] = search
+    if values is not UNSET:
+        variables['values'] = values
+    return execute(SearchSparseDatasetsQuery, variables, rath=rath).options
+
+async def aget_table_dataset(id: IDCoercible, rath: MikroNextRath | None=None) -> TableDataset:
     """GetTableDataset 
 
 Get a single table dataset by ID
@@ -9417,11 +11295,11 @@ Args:
 Returns:
     TableDataset
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetTableDatasetQuery, variables, rath=rath)).table_dataset
 
-def get_table_dataset(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> TableDataset:
+def get_table_dataset(id: IDCoercible, rath: MikroNextRath | None=None) -> TableDataset:
     """GetTableDataset 
 
 Get a single table dataset by ID
@@ -9433,51 +11311,51 @@ Args:
 Returns:
     TableDataset
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetTableDatasetQuery, variables, rath=rath).table_dataset
 
-async def aget_table_datasets(filters: Union[Optional[TableDatasetFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[TableDataset, ...]:
+async def aget_table_datasets(filters: TableDatasetFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[TableDataset, ...]:
     """GetTableDatasets 
 
 List table datasets (Parquet-backed tables of scientific records: measurements, localizations, expression levels)
 
 Args:
-    filters (Optional[TableDatasetFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (TableDatasetFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[TableDataset]
+    list[TableDataset]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return (await aexecute(GetTableDatasetsQuery, variables, rath=rath)).table_datasets
 
-def get_table_datasets(filters: Union[Optional[TableDatasetFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[TableDataset, ...]:
+def get_table_datasets(filters: TableDatasetFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[TableDataset, ...]:
     """GetTableDatasets 
 
 List table datasets (Parquet-backed tables of scientific records: measurements, localizations, expression levels)
 
 Args:
-    filters (Optional[TableDatasetFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (TableDatasetFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[TableDataset]
+    list[TableDataset]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return execute(GetTableDatasetsQuery, variables, rath=rath).table_datasets
 
-async def aget_transformation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[GetTransformationQueryTransformationBaseAffineTransformation, GetTransformationQueryTransformationBaseBijectionTransformation, GetTransformationQueryTransformationBaseByDimensionTransformation, GetTransformationQueryTransformationBaseFieldTransformation, GetTransformationQueryTransformationBaseIdentityTransformation, GetTransformationQueryTransformationBaseMapAxisTransformation, GetTransformationQueryTransformationBaseRotationTransformation, GetTransformationQueryTransformationBaseScaleTransformation, GetTransformationQueryTransformationBaseSequenceTransformation, GetTransformationQueryTransformationBaseTranslationTransformation, GetTransformationQueryTransformationBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationQueryTransformationBaseCatchAll]:
+async def aget_transformation(id: IDCoercible, rath: MikroNextRath | None=None) -> Annotated[GetTransformationQueryTransformationBaseAffineTransformation | GetTransformationQueryTransformationBaseByDimensionTransformation | GetTransformationQueryTransformationBaseFieldTransformation | GetTransformationQueryTransformationBaseIdentityTransformation | GetTransformationQueryTransformationBaseMapAxisTransformation | GetTransformationQueryTransformationBaseRotationTransformation | GetTransformationQueryTransformationBaseScaleTransformation | GetTransformationQueryTransformationBaseSequenceTransformation | GetTransformationQueryTransformationBaseTranslationTransformation | GetTransformationQueryTransformationBaseUnmappableTransformation, Field(discriminator='typename')] | GetTransformationQueryTransformationBaseCatchAll:
     """GetTransformation 
 
 Get a single transformation by ID
@@ -9489,11 +11367,11 @@ Args:
 Returns:
     Transformation
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return (await aexecute(GetTransformationQuery, variables, rath=rath)).transformation
 
-def get_transformation(id: IDCoercible, rath: Optional[MikroNextRath]=None) -> Union[Annotated[Union[GetTransformationQueryTransformationBaseAffineTransformation, GetTransformationQueryTransformationBaseBijectionTransformation, GetTransformationQueryTransformationBaseByDimensionTransformation, GetTransformationQueryTransformationBaseFieldTransformation, GetTransformationQueryTransformationBaseIdentityTransformation, GetTransformationQueryTransformationBaseMapAxisTransformation, GetTransformationQueryTransformationBaseRotationTransformation, GetTransformationQueryTransformationBaseScaleTransformation, GetTransformationQueryTransformationBaseSequenceTransformation, GetTransformationQueryTransformationBaseTranslationTransformation, GetTransformationQueryTransformationBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationQueryTransformationBaseCatchAll]:
+def get_transformation(id: IDCoercible, rath: MikroNextRath | None=None) -> Annotated[GetTransformationQueryTransformationBaseAffineTransformation | GetTransformationQueryTransformationBaseByDimensionTransformation | GetTransformationQueryTransformationBaseFieldTransformation | GetTransformationQueryTransformationBaseIdentityTransformation | GetTransformationQueryTransformationBaseMapAxisTransformation | GetTransformationQueryTransformationBaseRotationTransformation | GetTransformationQueryTransformationBaseScaleTransformation | GetTransformationQueryTransformationBaseSequenceTransformation | GetTransformationQueryTransformationBaseTranslationTransformation | GetTransformationQueryTransformationBaseUnmappableTransformation, Field(discriminator='typename')] | GetTransformationQueryTransformationBaseCatchAll:
     """GetTransformation 
 
 Get a single transformation by ID
@@ -9505,81 +11383,81 @@ Args:
 Returns:
     Transformation
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     variables['id'] = id
     return execute(GetTransformationQuery, variables, rath=rath).transformation
 
-async def aget_transformations(filters: Union[Optional[TransformationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Union[Annotated[Union[GetTransformationsQueryTransformationsBaseAffineTransformation, GetTransformationsQueryTransformationsBaseBijectionTransformation, GetTransformationsQueryTransformationsBaseByDimensionTransformation, GetTransformationsQueryTransformationsBaseFieldTransformation, GetTransformationsQueryTransformationsBaseIdentityTransformation, GetTransformationsQueryTransformationsBaseMapAxisTransformation, GetTransformationsQueryTransformationsBaseRotationTransformation, GetTransformationsQueryTransformationsBaseScaleTransformation, GetTransformationsQueryTransformationsBaseSequenceTransformation, GetTransformationsQueryTransformationsBaseTranslationTransformation, GetTransformationsQueryTransformationsBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationsQueryTransformationsBaseCatchAll], ...]:
+async def aget_transformations(filters: TransformationFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotated[GetTransformationsQueryTransformationsBaseAffineTransformation | GetTransformationsQueryTransformationsBaseByDimensionTransformation | GetTransformationsQueryTransformationsBaseFieldTransformation | GetTransformationsQueryTransformationsBaseIdentityTransformation | GetTransformationsQueryTransformationsBaseMapAxisTransformation | GetTransformationsQueryTransformationsBaseRotationTransformation | GetTransformationsQueryTransformationsBaseScaleTransformation | GetTransformationsQueryTransformationsBaseSequenceTransformation | GetTransformationsQueryTransformationsBaseTranslationTransformation | GetTransformationsQueryTransformationsBaseUnmappableTransformation, Field(discriminator='typename')] | GetTransformationsQueryTransformationsBaseCatchAll, ...]:
     """GetTransformations 
 
 List transformations (the directed edges of the coordinate graph). Compose them client-side; the server never resolves a path to world, because the same dataset can sit in two scenes under two registrations
 
 Args:
-    filters (Optional[TransformationFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (TransformationFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[Transformation]
+    list[Transformation]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return (await aexecute(GetTransformationsQuery, variables, rath=rath)).transformations
 
-def get_transformations(filters: Union[Optional[TransformationFilter], UnsetType]=UNSET, pagination: Union[Optional[OffsetPaginationInput], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Tuple[Union[Annotated[Union[GetTransformationsQueryTransformationsBaseAffineTransformation, GetTransformationsQueryTransformationsBaseBijectionTransformation, GetTransformationsQueryTransformationsBaseByDimensionTransformation, GetTransformationsQueryTransformationsBaseFieldTransformation, GetTransformationsQueryTransformationsBaseIdentityTransformation, GetTransformationsQueryTransformationsBaseMapAxisTransformation, GetTransformationsQueryTransformationsBaseRotationTransformation, GetTransformationsQueryTransformationsBaseScaleTransformation, GetTransformationsQueryTransformationsBaseSequenceTransformation, GetTransformationsQueryTransformationsBaseTranslationTransformation, GetTransformationsQueryTransformationsBaseUnmappableTransformation], Field(discriminator='typename')], GetTransformationsQueryTransformationsBaseCatchAll], ...]:
+def get_transformations(filters: TransformationFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotated[GetTransformationsQueryTransformationsBaseAffineTransformation | GetTransformationsQueryTransformationsBaseByDimensionTransformation | GetTransformationsQueryTransformationsBaseFieldTransformation | GetTransformationsQueryTransformationsBaseIdentityTransformation | GetTransformationsQueryTransformationsBaseMapAxisTransformation | GetTransformationsQueryTransformationsBaseRotationTransformation | GetTransformationsQueryTransformationsBaseScaleTransformation | GetTransformationsQueryTransformationsBaseSequenceTransformation | GetTransformationsQueryTransformationsBaseTranslationTransformation | GetTransformationsQueryTransformationsBaseUnmappableTransformation, Field(discriminator='typename')] | GetTransformationsQueryTransformationsBaseCatchAll, ...]:
     """GetTransformations 
 
 List transformations (the directed edges of the coordinate graph). Compose them client-side; the server never resolves a path to world, because the same dataset can sit in two scenes under two registrations
 
 Args:
-    filters (Optional[TransformationFilter], optional): No description. 
-    pagination (Optional[OffsetPaginationInput], optional): No description. 
+    filters (TransformationFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    List[Transformation]
+    list[Transformation]
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if filters is not UNSET:
         variables['filters'] = filters
     if pagination is not UNSET:
         variables['pagination'] = pagination
     return execute(GetTransformationsQuery, variables, rath=rath).transformations
 
-async def awatch_files(folder: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> AsyncIterator[WatchFilesSubscriptionFiles]:
+async def awatch_files(folder: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> AsyncIterator[WatchFilesSubscriptionFiles]:
     """WatchFiles 
 
 Subscribe to real-time file updates
 
 Args:
-    folder (Optional[ID], optional): No description. 
+    folder (ID | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
     WatchFilesSubscriptionFiles
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if folder is not UNSET:
         variables['folder'] = folder
     async for event in asubscribe(WatchFilesSubscription, variables, rath=rath):
         yield event.files
 
-def watch_files(folder: Union[Optional[IDCoercible], UnsetType]=UNSET, rath: Optional[MikroNextRath]=None) -> Iterator[WatchFilesSubscriptionFiles]:
+def watch_files(folder: IDCoercible | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> Iterator[WatchFilesSubscriptionFiles]:
     """WatchFiles 
 
 Subscribe to real-time file updates
 
 Args:
-    folder (Optional[ID], optional): No description. 
+    folder (ID | None, optional): No description. 
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
     WatchFilesSubscriptionFiles
 """
-    variables: Dict[str, Any] = {}
+    variables: dict[str, Any] = {}
     if folder is not UNSET:
         variables['folder'] = folder
     for event in subscribe(WatchFilesSubscription, variables, rath=rath):
@@ -9594,6 +11472,7 @@ ApertureElementInput.model_rebuild()
 ArrayDatasetFilter.model_rebuild()
 BeamSplitterElementInput.model_rebuild()
 CCDElementInput.model_rebuild()
+ColumnColorByInput.model_rebuild()
 CoordinateAnchorInput.model_rebuild()
 CoordinateSystemDerivedFromInput.model_rebuild()
 CoordinateSystemFilter.model_rebuild()
@@ -9606,8 +11485,10 @@ CreateLensInput.model_rebuild()
 CreateMeshCollectionInput.model_rebuild()
 CreateMeshLayerInput.model_rebuild()
 CreatePhasorLayerInput.model_rebuild()
+CreatePointLayerInput.model_rebuild()
 CreateSceneFromCoordinateSystemInput.model_rebuild()
 CreateSceneInput.model_rebuild()
+CreateSparseDatasetInput.model_rebuild()
 CreateTableDatasetInput.model_rebuild()
 CreateTransformationInput.model_rebuild()
 DatasetDerivedFromInput.model_rebuild()
@@ -9616,6 +11497,7 @@ DeviceStateInput.model_rebuild()
 FilterElementInput.model_rebuild()
 LampElementInput.model_rebuild()
 LaserElementInput.model_rebuild()
+LayerFilter.model_rebuild()
 LayerNodeInput.model_rebuild()
 LensDerivedFromInput.model_rebuild()
 LensElementInput.model_rebuild()
@@ -9636,6 +11518,7 @@ RegistrationPathInput.model_rebuild()
 SampleElementInput.model_rebuild()
 SceneSnapshotFilter.model_rebuild()
 ShutterElementInput.model_rebuild()
+SparseColorByInput.model_rebuild()
 TableDatasetDerivedFromInput.model_rebuild()
 TableDatasetFilter.model_rebuild()
 TransformationFilter.model_rebuild()

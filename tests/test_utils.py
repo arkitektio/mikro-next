@@ -1,6 +1,6 @@
 """Unit tests for the client-side helpers that are not tied to one mutation."""
 
-from typing import Dict, Hashable
+from collections.abc import Hashable
 
 from mikro_next.errors import MikroError, NoDataLayerFound, NoMikroFound, NotQueriedError
 from mikro_next.utils import rechunk
@@ -20,7 +20,7 @@ def test_mikro_error_classes() -> None:
 def test_rechunk_picks_chunks_for_a_large_stack() -> None:
     """Chunking is per-plane: a channel is never chunked together with another,
     and the spatial chunk is capped so one chunk stays a reasonable request."""
-    sizes: Dict[Hashable, int] = {"c": 3, "t": 10, "z": 20, "y": 1024, "x": 1024}
+    sizes: dict[Hashable, int] = {"c": 3, "t": 10, "z": 20, "y": 1024, "x": 1024}
     chunks = rechunk(sizes)
 
     assert set(chunks) == set(sizes), "Every dimension should be assigned a chunk"
@@ -31,5 +31,5 @@ def test_rechunk_picks_chunks_for_a_large_stack() -> None:
 
 def test_rechunk_leaves_a_small_stack_alone() -> None:
     """Nothing is gained by splitting an array that is already one chunk."""
-    small_sizes: Dict[Hashable, int] = {"c": 1, "t": 1, "z": 1, "y": 100, "x": 100}
+    small_sizes: dict[Hashable, int] = {"c": 1, "t": 1, "z": 1, "y": 100, "x": 100}
     assert rechunk(small_sizes) == small_sizes, "Small images should not be rechunked"

@@ -1,7 +1,7 @@
 """Upload middleware for the funcs API.
 
 This middleware intercepts serialized operation variables and uploads
-uploadable types (ArrayLike, ParquetLike, etc.) to the datalayer
+uploadable types (ArrayLike, ParquetLike, SporadikLike, etc.) to the datalayer
 *before* the operation reaches the rath link chain.
 
 It provides both sync and async paths:
@@ -14,37 +14,39 @@ Credential acquisition always goes through rath.query/aquery directly
 
 import asyncio
 import logging
-from functools import partial
-from typing import Any, Dict, Tuple, Type, Union, TYPE_CHECKING
-
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+from typing import TYPE_CHECKING, Any
+
 from koil import unkoil
 from pydantic import ConfigDict, Field
 
+from mikro_next.datalayer import DataLayer
+from mikro_next.io.upload import (
+    astore_fabriks_collection,
+    astore_media_file,
+    astore_sparse_matrix,
+    # Async paths (obstore)
+    aupload_bigfile,
+    aupload_parquet,
+    aupload_xarray,
+    store_fabriks_collection,
+    store_media_file,
+    store_sparse_matrix,
+    upload_bigfile,
+    upload_parquet,
+    # Sync paths (obstore)
+    upload_xarray,
+)
 from mikro_next.middleware.base import FuncsMiddleware
 from mikro_next.scalars import (
     ArrayLike,
+    FabriksLike,
     FileLike,
     ImageFileLike,
-    FabriksLike,
     ParquetLike,
+    SporadikLike,
 )
-from mikro_next.io.upload import (
-    # Async paths (obstore)
-    aupload_bigfile,
-    aupload_xarray,
-    aupload_parquet,
-    astore_fabriks_collection,
-    astore_media_file,
-    # Sync paths (obstore)
-    upload_xarray,
-    upload_parquet,
-    upload_bigfile,
-    store_fabriks_collection,
-    store_media_file,
-)
-
-from mikro_next.datalayer import DataLayer
 
 if TYPE_CHECKING:
     from mikro_next.api.schema import (
@@ -52,12 +54,12 @@ if TYPE_CHECKING:
         FabriksUploadGrant,
         MediaUploadGrant,
         ParquetUploadGrant,
+        SparseUploadGrant,
         ZarrUploadGrant,
     )
     from mikro_next.rath import MikroNextRath
 
 from rath.turms.funcs import TOperation
-
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +72,7 @@ logger = logging.getLogger(__name__)
 async def _apply_recursive_async(
     func,  # noqa: ANN001
     obj: Any,  # noqa: ANN401
-    typeguard: Union[Type[Any], Tuple[Type[Any], ...]],
+    typeguard: type[Any] | tuple[type[Any], ...],
 ) -> Any:  # noqa: ANN401
     """Recursively applies an async function to matching elements in a nested structure."""
     if isinstance(obj, dict):
@@ -92,7 +94,7 @@ async def _apply_recursive_async(
 def _apply_recursive_sync(
     func,  # noqa: ANN001
     obj: Any,  # noqa: ANN401
-    typeguard: Union[Type[Any], Tuple[Type[Any], ...]],
+    typeguard: type[Any] | tuple[type[Any], ...],
 ) -> Any:  # noqa: ANN401
     """Recursively applies a sync function to matching elements in a nested structure."""
     if isinstance(obj, dict):
@@ -112,7 +114,7 @@ class UploadMiddleware(FuncsMiddleware):
 
     This middleware walks the serialized variables dict, finds instances of
     uploadable scalar types (ArrayLike, ParquetLike, FileLike, ImageFileLike,
-    FabriksLike), uploads them to S3, and replaces
+    FabriksLike, SporadikLike), uploads them to S3, and replaces
     them with their store IDs.
 
     Provides two paths:
@@ -174,7 +176,7 @@ class UploadMiddleware(FuncsMiddleware):
         rath.query(
             FinishZarrUploadMutation.Meta.document,
             FinishZarrUploadMutation.Arguments(
-                input=FinishZarrUploadInput(storeId=store_id, valid=True)
+                input=FinishZarrUploadInput(store_id=store_id, valid=True)
             ).model_dump(by_alias=True, exclude_unset=True),
         )
 
@@ -214,7 +216,48 @@ class UploadMiddleware(FuncsMiddleware):
         rath.query(
             FinishFabriksUploadMutation.Meta.document,
             FinishFabriksUploadMutation.Arguments(
-                input=FinishFabriksUploadInput(storeId=store_id, valid=True)
+                input=FinishFabriksUploadInput(store_id=store_id, valid=True)
+            ).model_dump(by_alias=True, exclude_unset=True),
+        )
+
+    def _get_sparse_credentials(
+        self, key: str, datalayer: str, rath: "MikroNextRath"
+    ) -> "SparseUploadGrant":
+        """Get sparse upload credentials synchronously.
+
+        One grant for the whole prefix, as for fabriks: a sparse matrix is a zarr *group* --
+        three arrays and the attributes that say what they mean -- not a single object.
+        """
+        from mikro_next.api.schema import (
+            RequestSparseUploadInput,
+            RequestSparseUploadMutation,
+        )
+
+        x = rath.query(
+            RequestSparseUploadMutation.Meta.document,
+            RequestSparseUploadMutation.Arguments(input=RequestSparseUploadInput()).model_dump(
+                by_alias=True, exclude_unset=True
+            ),
+        )
+        return RequestSparseUploadMutation(**x.data).request_sparse_upload
+
+    def _finish_sparse_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+        """Finish a sparse upload synchronously.
+
+        Where the server reads the group back: the encoding, the shape, the nnz and the chunking
+        all come off the artifact here, which is why `createSparseDataset` declares none of them.
+        A prefix missing `encoding-type` or any of the three arrays is refused at this point --
+        which is what an interrupted write looks like.
+        """
+        from mikro_next.api.schema import (
+            FinishSparseUploadInput,
+            FinishSparseUploadMutation,
+        )
+
+        rath.query(
+            FinishSparseUploadMutation.Meta.document,
+            FinishSparseUploadMutation.Arguments(
+                input=FinishSparseUploadInput(store_id=store_id, valid=True)
             ).model_dump(by_alias=True, exclude_unset=True),
         )
 
@@ -249,7 +292,7 @@ class UploadMiddleware(FuncsMiddleware):
         x = rath.query(
             RequestBigfileUploadMutation.Meta.document,
             RequestBigfileUploadMutation.Arguments(
-                input=RequestBigFileUploadInput(originalFileName=original_file_name)
+                input=RequestBigFileUploadInput(original_file_name=original_file_name)
             ).model_dump(by_alias=True, exclude_unset=True),
         )
         return RequestBigfileUploadMutation(**x.data).request_bigfile_upload
@@ -259,14 +302,14 @@ class UploadMiddleware(FuncsMiddleware):
     ) -> "MediaUploadGrant":
         """Get media upload credentials synchronously."""
         from mikro_next.api.schema import (
-            RequestMediaUploadMutation,
             RequestMediaUploadInput,
+            RequestMediaUploadMutation,
         )
 
         x = rath.query(
             RequestMediaUploadMutation.Meta.document,
             RequestMediaUploadMutation.Arguments(
-                input=RequestMediaUploadInput(originalFileName=file_name)
+                input=RequestMediaUploadInput(original_file_name=file_name)
             ).model_dump(by_alias=True, exclude_unset=True),
         )
         return RequestMediaUploadMutation(**x.data).request_media_upload
@@ -302,7 +345,7 @@ class UploadMiddleware(FuncsMiddleware):
         await rath.aquery(
             FinishZarrUploadMutation.Meta.document,
             FinishZarrUploadMutation.Arguments(
-                input=FinishZarrUploadInput(storeId=store_id, valid=True)
+                input=FinishZarrUploadInput(store_id=store_id, valid=True)
             ).model_dump(by_alias=True, exclude_unset=True),
         )
 
@@ -333,7 +376,38 @@ class UploadMiddleware(FuncsMiddleware):
         await rath.aquery(
             FinishFabriksUploadMutation.Meta.document,
             FinishFabriksUploadMutation.Arguments(
-                input=FinishFabriksUploadInput(storeId=store_id, valid=True)
+                input=FinishFabriksUploadInput(store_id=store_id, valid=True)
+            ).model_dump(by_alias=True, exclude_unset=True),
+        )
+
+    async def _aget_sparse_credentials(
+        self, key: str, datalayer: str, rath: "MikroNextRath"
+    ) -> "SparseUploadGrant":
+        """Get sparse upload credentials asynchronously."""
+        from mikro_next.api.schema import (
+            RequestSparseUploadInput,
+            RequestSparseUploadMutation,
+        )
+
+        x = await rath.aquery(
+            RequestSparseUploadMutation.Meta.document,
+            RequestSparseUploadMutation.Arguments(input=RequestSparseUploadInput()).model_dump(
+                by_alias=True, exclude_unset=True
+            ),
+        )
+        return RequestSparseUploadMutation(**x.data).request_sparse_upload
+
+    async def _afinish_sparse_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+        """Finish a sparse upload asynchronously."""
+        from mikro_next.api.schema import (
+            FinishSparseUploadInput,
+            FinishSparseUploadMutation,
+        )
+
+        await rath.aquery(
+            FinishSparseUploadMutation.Meta.document,
+            FinishSparseUploadMutation.Arguments(
+                input=FinishSparseUploadInput(store_id=store_id, valid=True)
             ).model_dump(by_alias=True, exclude_unset=True),
         )
 
@@ -368,7 +442,7 @@ class UploadMiddleware(FuncsMiddleware):
         x = await rath.aquery(
             RequestBigfileUploadMutation.Meta.document,
             RequestBigfileUploadMutation.Arguments(
-                input=RequestBigFileUploadInput(originalFileName=original_file_name)
+                input=RequestBigFileUploadInput(original_file_name=original_file_name)
             ).model_dump(by_alias=True, exclude_unset=True),
         )
         return RequestBigfileUploadMutation(**x.data).request_bigfile_upload
@@ -378,14 +452,14 @@ class UploadMiddleware(FuncsMiddleware):
     ) -> "MediaUploadGrant":
         """Get media upload credentials asynchronously."""
         from mikro_next.api.schema import (
-            RequestMediaUploadMutation,
             RequestMediaUploadInput,
+            RequestMediaUploadMutation,
         )
 
         x = await rath.aquery(
             RequestMediaUploadMutation.Meta.document,
             RequestMediaUploadMutation.Arguments(
-                input=RequestMediaUploadInput(originalFileName=file_name)
+                input=RequestMediaUploadInput(original_file_name=file_name)
             ).model_dump(by_alias=True, exclude_unset=True),
         )
         return RequestMediaUploadMutation(**x.data).request_media_upload
@@ -450,6 +524,17 @@ class UploadMiddleware(FuncsMiddleware):
         self._finish_fabriks_upload(store_id, rath)
         return store_id
 
+    def _store_sparse(
+        self, datalayer: "DataLayer", rath: "MikroNextRath", sparse: SporadikLike
+    ) -> str:
+        """Write a sparse matrix into a granted prefix and register it as complete."""
+        endpoint_url = self.get_datalayer_url()
+
+        credentials = self._get_sparse_credentials(sparse.key, endpoint_url, rath)
+        store_id = store_sparse_matrix(sparse, credentials, datalayer)
+        self._finish_sparse_upload(store_id, rath)
+        return store_id
+
     # ====================================================================
     # Async upload methods (obstore path)
     # ====================================================================
@@ -506,16 +591,27 @@ class UploadMiddleware(FuncsMiddleware):
         await self._afinish_fabriks_upload(store_id, rath)
         return store_id
 
+    async def _astore_sparse(
+        self, datalayer: "DataLayer", rath: "MikroNextRath", sparse: SporadikLike
+    ) -> str:
+        """Write a sparse matrix into a granted prefix and register it as complete."""
+        endpoint_url = await datalayer.get_endpoint_url()
+
+        credentials = await self._aget_sparse_credentials(sparse.key, endpoint_url, rath)
+        store_id = await astore_sparse_matrix(sparse, credentials, datalayer)
+        await self._afinish_sparse_upload(store_id, rath)
+        return store_id
+
     # ====================================================================
     # Core middleware methods
     # ====================================================================
 
     def process_variables(
         self,
-        variables: Dict[str, Any],
-        operation: Type[TOperation],
+        variables: dict[str, Any],
+        operation: type[TOperation],
         rath: "MikroNextRath",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Process serialized variables synchronously (obstore path).
 
         Called from ``execute()`` and ``subscribe()``. Uses sync I/O
@@ -556,15 +652,20 @@ class UploadMiddleware(FuncsMiddleware):
             variables,
             FabriksLike,
         )
+        variables = _apply_recursive_sync(
+            partial(self._store_sparse, datalayer, rath),
+            variables,
+            SporadikLike,
+        )
 
         return variables
 
     async def aprocess_variables(
         self,
-        variables: Dict[str, Any],
-        operation: Type[TOperation],
+        variables: dict[str, Any],
+        operation: type[TOperation],
         rath: "MikroNextRath",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Process serialized variables asynchronously (obstore path).
 
         Called from ``aexecute()`` and ``asubscribe()``. Uses async I/O
@@ -604,6 +705,11 @@ class UploadMiddleware(FuncsMiddleware):
             partial(self._astore_fabriks, datalayer, rath),
             variables,
             FabriksLike,
+        )
+        variables = await _apply_recursive_async(
+            partial(self._astore_sparse, datalayer, rath),
+            variables,
+            SporadikLike,
         )
 
         return variables

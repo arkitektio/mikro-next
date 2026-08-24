@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from mikro_next.scalars import FourByFourMatrix
 
 

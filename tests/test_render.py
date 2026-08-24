@@ -12,7 +12,17 @@ import pytest
 from pydantic import ValidationError
 
 from mikro_next.api.schema import Blending, ColorMap, ProjectionMode
-from mikro_next.render import ChannelSpec, channel_graph, composite_graph, rgb_graph
+from mikro_next.render import (
+    FALLBACK_COLORS,
+    ChannelSpec,
+    channel_graph,
+    color_for_wavelength,
+    composite_graph,
+    fallback_color,
+    hue_ramp,
+    rgb_graph,
+    rgba,
+)
 
 
 def test_composite_graph_nests_channels_under_a_blend_node() -> None:
@@ -50,9 +60,17 @@ def test_composite_graph_sorts_a_flat_spec_into_the_right_nodes() -> None:
         ]
     ).root.children
 
+    # A spec carrying a `mode` gets a projection node above its channel: the server
+    # models a projection as its own node kind, and `ChannelSourceNode` has no `mode`
+    # field, so a mode set on the channel is accepted and silently dropped.
+    assert node.kind == "projection"
+    assert node.mode == ProjectionMode.MIP.value
+    (node,) = node.children
+
+    assert node.kind == "channel"
+    assert node.mode is None
     assert (node.intensity_axis, node.intensity_index) == ("c", 2)
     assert (node.label, node.visible) == ("nuclei", False)
-    assert node.mode == ProjectionMode.MIP.value
     assert node.transfer is not None
     assert node.transfer.colormap == ColorMap.MAGMA.value
     assert (node.transfer.gamma, node.transfer.opacity) == (0.8, 0.5)
@@ -150,3 +168,74 @@ def test_rgb_graph_maps_explicit_channel_positions() -> None:
 def test_rgb_graph_rejects_anything_but_three_channels(channels: tuple) -> None:
     with pytest.raises(ValueError, match="exactly three channels"):
         rgb_graph(channels=channels)
+
+
+def test_a_spec_without_a_mode_gets_no_projection_node() -> None:
+    """The flat `blend -> channel` tree is what a 2D image should still produce."""
+    (node,) = composite_graph([ChannelSpec(intensity_index=1)]).root.children
+    assert node.kind == "channel"
+    assert node.intensity_index == 1
+
+
+def test_each_channel_of_a_composite_projects_independently() -> None:
+    children = composite_graph(
+        [ChannelSpec(intensity_index=i, mode=ProjectionMode.MIP) for i in range(3)]
+    ).root.children
+    assert [c.kind for c in children] == ["projection"] * 3
+    assert [c.children[0].intensity_index for c in children] == [0, 1, 2]
+
+
+def test_composite_graph_accepts_mappings() -> None:
+    """Callers that build settings programmatically hold a dict; `ChannelSpec(**d)`
+    at every call site is noise, and the attribute access used to blow up."""
+    (node,) = composite_graph([{"intensity_index": 2, "mode": ProjectionMode.MIP}]).root.children
+    assert node.kind == "projection"
+    assert node.children[0].intensity_index == 2
+
+
+def test_rgb_graph_can_project() -> None:
+    children = rgb_graph(mode=ProjectionMode.MIP).root.children
+    assert [c.kind for c in children] == ["projection"] * 3
+    assert rgb_graph().root.children[0].kind == "channel"
+
+
+# ---------------------------------------------------------------------------
+# Colour
+# ---------------------------------------------------------------------------
+
+
+class TestColour:
+    def test_a_triple_is_completed_to_rgba(self) -> None:
+        """`TransferFunctionInput.color` is a bare `[Int!]`, so nothing in its type
+        says how many components it wants — the server rejects three."""
+        assert rgba((10, 20, 30)) == (10, 20, 30, 255)
+
+    def test_a_quadruple_keeps_its_alpha_and_ignores_extras(self) -> None:
+        assert rgba((10, 20, 30, 40), alpha=40) == (10, 20, 30, 40)
+
+    def test_the_palette_is_used_while_it_lasts(self) -> None:
+        assert fallback_color(1, 3) == rgba(FALLBACK_COLORS[1])
+
+    def test_the_offset_rotates_the_palette_between_datasets(self) -> None:
+        """Several datasets composited into one scene would otherwise each open on
+        the same colour and blend to a wash."""
+        assert fallback_color(0, 3, offset=2) == rgba(FALLBACK_COLORS[2])
+
+    def test_more_channels_than_palette_entries_falls_to_a_hue_ramp(self) -> None:
+        """Sixteen channels rotating through eight colours gives two the same one,
+        which reads as a rendering bug rather than as running out of names."""
+        total = len(FALLBACK_COLORS) + 1
+        assert fallback_color(0, total) == rgba(hue_ramp(0, total))
+        assert len({fallback_color(i, total) for i in range(total)}) == total
+
+    def test_the_hue_ramp_survives_a_zero_total(self) -> None:
+        assert hue_ramp(0, 0) == (255, 0, 0)
+
+    def test_a_wavelength_takes_the_first_edge_it_falls_below(self) -> None:
+        ramp = ((500.0, (0, 0, 255)), (600.0, (0, 255, 0)))
+        assert color_for_wavelength(450.0, ramp, (255, 0, 0)) == (0, 0, 255, 255)
+        assert color_for_wavelength(550.0, ramp, (255, 0, 0)) == (0, 255, 0, 255)
+
+    def test_a_wavelength_past_the_last_edge_takes_the_far_colour(self) -> None:
+        ramp = ((500.0, (0, 0, 255)),)
+        assert color_for_wavelength(700.0, ramp, (255, 70, 70)) == (255, 70, 70, 255)

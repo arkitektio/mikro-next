@@ -8,16 +8,18 @@ import numpy as np
 import obstore
 import xarray as xr
 import zarr
-from obstore.store import ObjectStore as ObstoreObjectStore, S3Store
-from zarr.storage import ObjectStore as ZarrObjectStore, StorePath
+from obstore.store import ObjectStore as ObstoreObjectStore
+from obstore.store import S3Store
+from zarr.storage import ObjectStore as ZarrObjectStore
+from zarr.storage import StorePath
 
 from mikro_next.scalars import is_dask_array
 from mikro_next.utils import rechunk
 
-
 if TYPE_CHECKING:
-    from pyarrow import Table  # type: ignore
     from obstore.store import ClientConfig, RetryConfig
+    from pyarrow import Table  # type: ignore
+
     from mikro_next.datalayer import DataLayer
 
 
@@ -45,8 +47,14 @@ def create_s3_store(
     grant: "S3UploadGrantLike",
     client_options: "ClientConfig | None" = None,
     retry_config: "RetryConfig | None" = None,
+    prefix: str | None = None,
 ) -> S3Store:
-    """Create an obstore S3 client from a Mikro grant and endpoint."""
+    """Create an obstore S3 client from a Mikro grant and endpoint.
+
+    ``prefix`` roots the store inside the bucket, so every key the caller passes is
+    relative to it. Zarr needs this (see :func:`create_zarr_store_path`); the
+    single-object paths address their key directly and leave it unset.
+    """
     normalized_client_options: dict[str, object] = dict(client_options or {})
     if endpoint_url.startswith("http://"):
         normalized_client_options.setdefault("allow_http", True)
@@ -61,6 +69,8 @@ def create_s3_store(
     }
     if grant.session_token:
         store_kwargs["session_token"] = grant.session_token
+    if prefix:
+        store_kwargs["prefix"] = prefix
 
     return S3Store(
         grant.bucket,
@@ -69,9 +79,18 @@ def create_s3_store(
 
 
 def create_zarr_store_path(endpoint_url: str, grant: "S3UploadGrantLike") -> StorePath:
-    """Create a Zarr store path rooted at the granted S3 prefix."""
-    zarr_store = ZarrObjectStore(create_s3_store(endpoint_url, grant))
-    return StorePath(zarr_store, grant.key)
+    """Create a Zarr store path rooted at the granted S3 prefix.
+
+    The store is rooted at ``grant.key`` and the node sits at the store's root, rather
+    than the store being rooted at the bucket with the node at ``grant.key``. The two
+    write identical objects, but only this one stays inside the grant: zarr's
+    ``init_array`` walks a node's parents to create intermediate groups, and the parent
+    of ``grant.key`` in a bucket-rooted store is the *bucket root* -- so that shape
+    reads and writes ``<bucket>/zarr.json``, which a prefix-scoped STS grant denies with
+    a 403. A node at the root has no parents to walk.
+    """
+    zarr_store = ZarrObjectStore(create_s3_store(endpoint_url, grant, prefix=grant.key))
+    return StorePath(zarr_store, "")
 
 
 async def acreate_s3_store(

@@ -207,6 +207,45 @@ def build_mesh_collection(
     )
 
 
+def refuse_an_unreadable_part_codec() -> str:
+    """Refuse to write a collection whose Parquet parts the mesh viewer could not decode.
+
+    A mesh collection's *file* compression is fabriks's, not this library's -- ``write_collection``
+    passes nothing and ``fabriks.frames.table_to_parquet`` picks the codec. Today that is ZSTD,
+    which is fine. What makes it worth checking rather than trusting is the shape of the failure
+    if it ever changes: ``fabriks.frames.ParquetCompression`` is
+    ``Literal["none", "snappy", "gzip", "brotli", "lz4", "zstd"]``, and three of those six are
+    codecs the viewer cannot decode -- it reads meshes with **hyparquet**, whose built-ins are
+    UNCOMPRESSED and SNAPPY, plus the ZSTD it registers by hand out of ``fzstd``
+    (``components/scene/features/meshes/fabriks/parquetPart.ts``); ``hyparquet-compressors`` is
+    not a dependency there. So a gzip default would upload cleanly, verify cleanly, and draw
+    nothing, with no error anywhere to attach the cause to.
+
+    Distinct from ``build_mesh_collection``'s ``compression``, which is the *per-blob* codec
+    inside a row and is the manifest's business. This is the file's.
+
+    Returns the codec that will be written, so a caller can log it.
+    """
+    import inspect
+
+    from fabriks import frames
+
+    from mikro_next.compression import MESH_CODECS, UnreadableCodecError
+
+    codec = inspect.signature(frames.table_to_parquet).parameters["compression"].default
+    if str(codec).upper() not in {name.replace("UNCOMPRESSED", "NONE") for name in MESH_CODECS}:
+        raise UnreadableCodecError(
+            f"fabriks writes its Parquet parts with {codec!r}, which the mesh viewer cannot "
+            f"decode -- it reads them with hyparquet, whose codecs here are "
+            f"{', '.join(sorted(MESH_CODECS))} and nothing else, because `hyparquet-compressors` "
+            "is not installed in the frontend.\n"
+            "\n"
+            "Nothing on the server checks this; it stores whatever arrives. A collection written "
+            "this way would upload, verify and then draw nothing."
+        )
+    return str(codec)
+
+
 __all__ = [
     "CODEC_MESHOPT",
     "CODEC_NONE",
@@ -224,6 +263,7 @@ __all__ = [
     "encode_positions",
     "morton_decode",
     "morton_encode",
+    "refuse_an_unreadable_part_codec",
     "require_meshoptimizer",
     "require_trimesh",
     "snap_boundary",

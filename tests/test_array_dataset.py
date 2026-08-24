@@ -19,7 +19,7 @@ that order.
 
 import tempfile
 from pathlib import Path
-from typing import List, cast
+from typing import cast
 
 import numpy as np
 import pytest
@@ -57,7 +57,7 @@ def _make_volume() -> xr.DataArray:
     )
 
 
-def _axes() -> List[AxisInput]:
+def _axes() -> list[AxisInput]:
     return [
         AxisInput(name="c", type=AxisType.CHANNEL),
         AxisInput(name="z", type=AxisType.SPACE),
@@ -157,7 +157,7 @@ def test_create_array_dataset_with_anchors(deployed_app: DeployedMikro) -> None:
         name="array_dataset_anchored",
         axes=_axes(),
         anchors=cast(
-            List[CoordinateAnchorInput], CoordinateAnchorInput.histogram_anchors(data)
+            list[CoordinateAnchorInput], CoordinateAnchorInput.histogram_anchors(data)
         ),
     )
     assert dataset.id

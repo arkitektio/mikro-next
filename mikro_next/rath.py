@@ -1,15 +1,16 @@
+import contextvars
 from types import TracebackType
-from typing import List, Optional
+from typing import Optional
+
 from pydantic import Field
 from rath import rath
-import contextvars
 from rath.links.auth import AuthTokenLink
 from rath.links.compose import TypedComposedLink
 from rath.links.dictinglink import DictingLink
 from rath.links.file import FileExtraction
 from rath.links.split import SplitLink
-from mikro_next.middleware.base import FuncsMiddleware
 
+from mikro_next.middleware.base import FuncsMiddleware
 
 current_mikro_next_rath: contextvars.ContextVar[Optional["MikroNextRath"]] = (
     contextvars.ContextVar("current_mikro_next_rath")
@@ -55,7 +56,7 @@ class MikroNextRath(rath.Rath):
             order: first middleware processes first, then passes to the next.
     """
 
-    middlewares: List[FuncsMiddleware] = Field(default_factory=list)
+    middlewares: list[FuncsMiddleware] = Field(default_factory=list)
     """Middleware chain applied to serialized variables in funcs.execute/subscribe."""
 
     async def __aenter__(self) -> "MikroNextRath":

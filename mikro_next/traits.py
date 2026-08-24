@@ -14,45 +14,44 @@ If you want to add your own traits to the graphql type, you can do so by adding 
 from __future__ import annotations
 
 """A context manager to download the file and delete it after use"""
+import os
 from collections import deque
+from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
 from enum import Enum
-import os
+from pathlib import Path
 from typing import (
-    Dict,
-    Generator,
-    List,
-    Mapping,
+    IO,
+    TYPE_CHECKING,
+    Any,
     ClassVar,
-    FrozenSet,
     NamedTuple,
     NoReturn,
-    Sequence,
-    TypeVar,
-    Tuple,
     Protocol,
-    Optional,
+    Self,
+    TypeVar,
     Union,
+    cast,
 )
+
 import numpy as np
+import xarray as xr
+from dask.array.core import from_zarr  # type: ignore
 from numpy.typing import NDArray
 from pydantic import BaseModel, model_validator
-import xarray as xr
-from typing import TYPE_CHECKING, Self, cast
-from dask.array.core import from_zarr  # type: ignore
-from zarr.storage import StorePath
-from .scalars import ArrayCoercible
 from rath.scalars import ID, IDCoercible
-from typing import Any
-from rath.turms.utils import get_attributes_or_error
 from rath.traits import FederationFetchable
+from rath.turms.utils import get_attributes_or_error
+from zarr.storage import StorePath
 
+from .scalars import ArrayCoercible
 from .vocabulary import (
     MATRIX_KINDS,
     AxisSelection,
     Calibration,
     ResolvedTransformKind,
     TransformKind,
+    Unit,
     default_axis_type,
     normalize_selection,
 )
@@ -68,34 +67,35 @@ PointsLike = Union[Sequence[float], Sequence[Sequence[float]], NDArray[np.generi
 
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     import duckdb
-    from mikro_next.io.obstore import ParquetDatasetViaObstore
+
     from mikro_next.api.schema import (
-        HasZarrStoreAccessor,
-        AnnotationKind,
         Annotation,
+        AnnotationKind,
         Axis,
-        CoordinateSystem,
         CoordinateAnchorInput,
-        CreateTransformationMutationCreatetransformationBase,
-        GetCoordinateGraphQueryCoordinategraph,
-        PhysicalAxisInput,
+        CoordinateSystem,
+        CreateTransformationMutationCreateTransformationBase,
         DerivedFromInput,
+        GetCoordinateGraphQueryCoordinateGraph,
+        HasZarrStoreAccessor,
         Lens,
+        PhysicalAxisInput,
         PlacementValidity,
+        Scene,
+        ScenePolicyInput,
         TransformInput,
         ValueHistogramInput,
         ValueRelation,
-        Scene,
-        ScenePolicyInput,
     )
+    from mikro_next.io.obstore import ParquetDatasetViaObstore
     from mikro_next.rath import MikroNextRath
-
-    from datetime import datetime
 
     #: What `create_transformation` hands back: the shared base of every edge
     #: kind the mutation can return, the catch-all included.
-    CreatedTransformation = CreateTransformationMutationCreatetransformationBase
+    CreatedTransformation = CreateTransformationMutationCreateTransformationBase
 
 
 class _LivesInItsOwnGrid(Protocol):
@@ -103,7 +103,7 @@ class _LivesInItsOwnGrid(Protocol):
     that space is its own pixel grid."""
 
     @property
-    def intrinsic_system(self) -> Optional["CoordinateSystem"]:
+    def intrinsic_system(self) -> CoordinateSystem | None:
         """The dataset's own grid."""
         ...
 
@@ -113,7 +113,7 @@ class _LivesInASpace(Protocol):
     whose coordinates are given in a space they simply name."""
 
     @property
-    def coordinate_system(self) -> Optional["CoordinateSystem"]:
+    def coordinate_system(self) -> CoordinateSystem | None:
         """The space this container's coordinates are given in."""
         ...
 
@@ -125,7 +125,7 @@ class _LivesInASpace(Protocol):
 Registrable = Union[_LivesInItsOwnGrid, _LivesInASpace, "CoordinateSystemTrait"]
 
 
-def _three_floats(values: "NDArray[np.generic]") -> Tuple[float, float, float]:
+def _three_floats(values: NDArray[np.generic]) -> tuple[float, float, float]:
     """The first three entries of a row, as the tuple of floats callers expect.
 
     Slicing a numpy row yields an ndarray of numpy scalars, which is neither a
@@ -146,7 +146,7 @@ class MikroFetchable(FederationFetchable):
     """
 
     @classmethod
-    def get_rath(cls) -> "MikroNextRath":
+    def get_rath(cls) -> MikroNextRath:
         """Get the current Rath client from the context.
 
         Returns:
@@ -176,7 +176,7 @@ class HasParquestStoreTrait(BaseModel):
     """
 
     @property
-    def data(self) -> "duckdb.DuckDBPyRelation":
+    def data(self) -> duckdb.DuckDBPyRelation:
         """The data of this table as a lazy DuckDB relation.
 
         The relation queries the parquet object directly on S3 through DuckDB's
@@ -187,7 +187,7 @@ class HasParquestStoreTrait(BaseModel):
         Returns:
             duckdb.DuckDBPyRelation: A lazy relation over the parquet object.
         """
-        store: "HasParquetStoreAccesor" = get_attributes_or_error(self, "store")
+        store: HasParquetStoreAccesor = get_attributes_or_error(self, "store")
         return store.duckdb_relation
 
 
@@ -203,7 +203,7 @@ class HasZarrStoreAccessor(BaseModel):
 
     """
 
-    _openstore: Optional[StorePath] = None
+    _openstore: StorePath | None = None
 
     @property
     def zarr_store(self) -> StorePath:
@@ -219,12 +219,12 @@ class HasZarrStoreAccessor(BaseModel):
 class HasParquetStoreAccesor(BaseModel):
     """Parquet Store Accessor"""
 
-    _dataset: Optional["ParquetDatasetViaObstore"] = None
-    _duckdb_con: Optional["duckdb.DuckDBPyConnection"] = None
-    _duckdb_rel: Optional["duckdb.DuckDBPyRelation"] = None
+    _dataset: ParquetDatasetViaObstore | None = None
+    _duckdb_con: duckdb.DuckDBPyConnection | None = None
+    _duckdb_rel: duckdb.DuckDBPyRelation | None = None
 
     @property
-    def parquet_dataset(self) -> "ParquetDatasetViaObstore":
+    def parquet_dataset(self) -> ParquetDatasetViaObstore:
         """The Parquet Dataset of the ParquetStore object"""
         from mikro_next.io.download import open_parquet_filesystem
 
@@ -235,7 +235,7 @@ class HasParquetStoreAccesor(BaseModel):
         return dataset
 
     @property
-    def duckdb_relation(self) -> "duckdb.DuckDBPyRelation":
+    def duckdb_relation(self) -> duckdb.DuckDBPyRelation:
         """A lazy DuckDB relation over the parquet object, queried directly on S3.
 
         Reads through DuckDB's ``httpfs`` extension so the object is never fully
@@ -256,9 +256,9 @@ class HasParquetStoreAccesor(BaseModel):
 class HasDownloadAccessor(BaseModel):
     """Download Accessor"""
 
-    _dataset: Optional[str] = None
+    _dataset: str | None = None
 
-    def download(self, file_name: str | None = None) -> "str":
+    def download(self, file_name: str | None = None) -> str:
         """Download the file from the backing store.
 
         Args:
@@ -272,6 +272,66 @@ class HasDownloadAccessor(BaseModel):
         store_id, key = get_attributes_or_error(self, "id", "key")
         return download_file(store_id, file_name=file_name or key)
 
+    @contextmanager
+    def open(
+        self,
+        *,
+        cache: bool | str = True,
+        block_size: int | None = None,
+        max_cached_blocks: int = 32,
+    ) -> Generator[IO[bytes], None, None]:
+        """Open the object as a seekable file, reading bytes on demand.
+
+        Nothing transfers until the first read, and then only the block it lands in --
+        so a reader that wants a header off a multi-gigabyte object transfers the
+        header. Pass the result to any reader that accepts a file object: `tifffile`,
+        `zarr`, `h5py` with ``driver="fileobj"``, `pyarrow.parquet`.
+
+        Readers that want a *path* cannot use this. Once the path crosses into C or a
+        JVM -- Bio-Formats, libtiff, anything that ``mmap``s -- a Python object with a
+        `seek` method is not something the operating system can open. Those need
+        `FileTrait.as_path`.
+
+        This is also the wrong tool for reading most of an object. Each read is a round
+        trip and formats seek a great deal, so a full pass becomes many small serialised
+        requests where `download` would issue parallel multipart GETs at the full
+        bandwidth of the link. Somewhere around a fifth of the bytes the two cross over.
+
+        The handle is not thread-safe -- one file, one cursor. Readers that parallelise
+        internally (`tifffile` with ``maxworkers > 1``, pyarrow with
+        ``use_threads=True``) need a handle each. Reads block, so under asyncio this
+        belongs in `asyncio.to_thread`.
+
+        Blocks already fetched are kept, so a reader that comes back to an offset does
+        not pay for it twice -- which container formats do constantly, jumping between
+        their index and their data. The cache belongs to the handle and dies with it:
+        two `open()` calls on the same file share nothing, so re-reading an object means
+        holding one handle open rather than opening it again.
+
+        Args:
+            cache: ``True`` (default) keeps fetched blocks in a bounded LRU. ``False``
+                fetches exactly what is asked for and keeps nothing -- for a reader that
+                buffers on its own, or when memory matters more than requests. A string
+                names an fsspec policy: ``"readahead"`` for a pure forward scan,
+                ``"all"`` to pull the object once, ``"first"`` to pin only the header.
+            block_size: Bytes fetched per request, and the granularity of the cache.
+            max_cached_blocks: How many blocks the LRU holds. The memory ceiling is this
+                times ``block_size`` -- 32 MB by default.
+        """
+        from mikro_next.io.remote import open_remote_file
+
+        store_id = get_attributes_or_error(self, "id")
+        handle = open_remote_file(
+            store_id,
+            block_size=block_size,
+            cache=cache,
+            max_cached_blocks=max_cached_blocks,
+        )
+        try:
+            yield handle
+        finally:
+            handle.close()
+
 
 class HasPresignedDownloadAccessor(BaseModel):
     """Presigned Download Accessor
@@ -280,7 +340,7 @@ class HasPresignedDownloadAccessor(BaseModel):
 
     """
 
-    _dataset: Optional[str] = None
+    _dataset: str | None = None
 
     def download(self, file_name: str | None = None) -> str:
         """Download the file from the presigned URL
@@ -302,7 +362,7 @@ class FileTrait:
     because they have a big file store attached to them.
     """
 
-    def download(self, file_name: str | None = None) -> "str":
+    def download(self, file_name: str | None = None) -> str:
         """Download the file from the store
 
         Args:
@@ -311,12 +371,68 @@ class FileTrait:
         Returns:
             str: The path to the downloaded file
         """
-        store: "HasPresignedDownloadAccessor" = get_attributes_or_error(self, "store")
+        store: HasPresignedDownloadAccessor = get_attributes_or_error(self, "store")
         return store.download(file_name=file_name)
 
     @contextmanager
+    def open(
+        self,
+        *,
+        cache: bool | str = True,
+        block_size: int | None = None,
+        max_cached_blocks: int = 32,
+    ) -> Generator[IO[bytes], None, None]:
+        """Open the file as a seekable file object, reading bytes on demand.
+
+        See `HasDownloadAccessor.open` for what this costs and when `as_path` is the
+        better answer.
+        """
+        store: HasDownloadAccessor = get_attributes_or_error(self, "store")
+        with store.open(
+            cache=cache, block_size=block_size, max_cached_blocks=max_cached_blocks
+        ) as handle:
+            yield handle
+
+    @contextmanager
+    def as_path(self) -> Generator[str, None, None]:
+        """Download the file and yield a real local path, deleting it on exit.
+
+        What `open` cannot do: readers whose work happens in C or on a JVM take a path
+        and open it themselves, so the bytes have to exist as a file. The whole object
+        is transferred, which for those readers is not a choice.
+
+        Unlike `temporary`, the download lands in a directory of its own rather than the
+        working directory, chosen by ``MIKRO_SCRATCH_DIR`` and falling back to ``TMPDIR``.
+        Nothing here knows how big the file is -- neither a `File` nor a `BigFileStore`
+        carries a size -- so a caller who does should set that variable rather than find
+        out that ``/tmp`` was a tmpfs by filling memory partway through.
+        """
+        import shutil
+
+        from mikro_next.io.remote import download_to_scratch
+
+        store_id, key = get_attributes_or_error(
+            get_attributes_or_error(self, "store"), "id", "key"
+        )
+
+        # The file's own name, not the store key. Keys are opaque -- often a UUID with
+        # no suffix -- and a reader that dispatches on the extension will refuse a
+        # vendor file handed to it as `a3f9c2e1` that it would have opened as
+        # `a3f9c2e1.tif`. The name is what the file was uploaded as.
+        name = getattr(self, "name", None) or os.path.basename(key) or "download"
+        path = download_to_scratch(store_id, file_name=name)
+        try:
+            yield path
+        finally:
+            shutil.rmtree(os.path.dirname(path), ignore_errors=True)
+
+    @contextmanager
     def temporary(self) -> Generator[str, None, None]:
-        """Download the file and yield its local path, deleting it on exit."""
+        """Download the file and yield its local path, deleting it on exit.
+
+        Kept for callers that already use it; `as_path` is the same idea with a
+        deliberate download destination.
+        """
         path = None
         try:
             path = self.download()
@@ -335,6 +451,43 @@ class DataArrayTrait:
         store: HasZarrStoreAccessor = get_attributes_or_error(self, "store")
         array = from_zarr(store.zarr_store)
         return xr.DataArray(array)
+
+
+def _as_calibration(axis: str, value: Any) -> Calibration:
+    """Accept a bare ``(factor, unit)`` pair wherever a `Calibration` is wanted.
+
+    `Calibration` is a NamedTuple, so a plain tuple looks interchangeable with one
+    right up until `calibrate` reads ``.factor`` off it — and that happens *after*
+    the dataset has uploaded, which is the expensive place to learn it.
+
+    Only ``(factor, unit)`` — the reversed spelling is refused rather than repaired.
+    `Calibration`'s own docstring is explicit that ``(0.2, "micrometer")`` and
+    ``("micrometer", 0.2)`` are equally plausible and *only one of them works*, so
+    quietly accepting both would discard the rule it exists to state. The order is
+    the same as the NamedTuple's fields, and getting it wrong says so by name.
+    """
+    if isinstance(value, Calibration):
+        return value
+    if isinstance(value, str) or not isinstance(value, Sequence) or len(value) != 2:
+        raise TypeError(
+            f"The calibration for axis {axis!r} must be a Calibration(factor, unit) "
+            f"or a (factor, unit) pair, got {value!r}"
+        )
+    factor, unit = value
+    if isinstance(factor, bool) or not isinstance(factor, (int, float)):
+        if isinstance(factor, (str, Unit)) and isinstance(unit, (int, float)):
+            raise TypeError(
+                f"The calibration for axis {axis!r} is the wrong way round: it "
+                f"pairs (factor, unit), so write ({unit!r}, {str(factor)!r})"
+            )
+        raise TypeError(
+            f"The calibration for axis {axis!r} must start with the factor, got {value!r}"
+        )
+    if not isinstance(unit, (str, Unit)):
+        raise TypeError(
+            f"The calibration for axis {axis!r} must pair the factor with a unit, got {value!r}"
+        )
+    return Calibration(float(factor), Unit(str(unit)))
 
 
 class DatasetTrait:
@@ -357,7 +510,7 @@ class DatasetTrait:
             f"{sorted(a.level for a in arrays)}"
         )
 
-    def multi_scale_data(self) -> List[xr.DataArray]:
+    def multi_scale_data(self) -> list[xr.DataArray]:
         """Every pyramid level of this dataset, finest first."""
         arrays = get_attributes_or_error(self, "data_arrays")
         dims = get_attributes_or_error(self, "axis_names")
@@ -373,15 +526,15 @@ class DatasetTrait:
 
     def calibrate(
         self,
-        axes: Union[Mapping[str, Calibration], Sequence["PhysicalAxisInput"]],
+        axes: Mapping[str, Calibration] | Sequence[PhysicalAxisInput],
         *,
         name: str = "physical",
-        scale: Optional[Sequence[float]] = None,
-        translation: Optional[Sequence[float]] = None,
-        affine: Optional[Sequence[Sequence[float]]] = None,
-        epoch: Optional["datetime"] = None,
-        rath: Optional["MikroNextRath"] = None,
-    ) -> "CoordinateSystem":
+        scale: Sequence[float] | None = None,
+        translation: Sequence[float] | None = None,
+        affine: Sequence[Sequence[float]] | None = None,
+        epoch: datetime | None = None,
+        rath: MikroNextRath | None = None,
+    ) -> CoordinateSystem:
         """Give this dataset a physical size: a coordinate system carrying the
         units, and the edge registering the dataset's pixel grid into it.
 
@@ -405,9 +558,9 @@ class DatasetTrait:
         """
         from mikro_next.api.schema import (
             UNSET,
-            create_coordinate_system,
             PhysicalAxisInput,
             RegistrationPathInput,
+            create_coordinate_system,
         )
 
         intrinsic = get_attributes_or_error(self, "intrinsic_system")
@@ -427,12 +580,13 @@ class DatasetTrait:
                     f"The calibration must cover every intrinsic axis exactly: "
                     f"intrinsic axes are {intrinsic_names}, got {sorted(axes)}"
                 )
-            factors = [float(axes[a.name].factor) for a in intrinsic_axes]
+            resolved = {name: _as_calibration(name, value) for name, value in axes.items()}
+            factors = [float(resolved[a.name].factor) for a in intrinsic_axes]
             calibrated_axes = [
                 PhysicalAxisInput(
                     name=a.name,
                     type=a.type,
-                    unit=axes[a.name].unit,
+                    unit=resolved[a.name].unit,
                     long_name=a.long_name,
                 )
                 for a in intrinsic_axes
@@ -483,9 +637,9 @@ class DatasetTrait:
 
     def lens(
         self,
-        rath: Optional["MikroNextRath"] = None,
+        rath: MikroNextRath | None = None,
         **selections: AxisSelection,
-    ) -> "Lens":
+    ) -> Lens:
         """Create a lens on this dataset from pythonic per-axis selections.
 
         With no selections the lens frames the whole dataset — the tail every
@@ -497,10 +651,10 @@ class DatasetTrait:
         ``crop.lens(z=16, y=32)`` is the row through (z=16, y=32);
         ``source.lens(x=(0, 128))`` is the left half.
         """
-        from mikro_next.api.schema import create_lens, SliceInput
+        from mikro_next.api.schema import SliceInput, create_lens
 
         axis_names = getattr(self, "axis_names", None)
-        slices: List[SliceInput] = []
+        slices: list[SliceInput] = []
         for axis, selection in selections.items():
             if axis_names is not None and axis not in axis_names:
                 raise ValueError(
@@ -515,12 +669,12 @@ class DatasetTrait:
 
     def key_table(
         self,
-        table: "Registrable",
+        table: Registrable,
         *,
-        name: Optional[str] = None,
-        validity: Optional["PlacementValidity"] = None,
-        rath: Optional["MikroNextRath"] = None,
-    ) -> "CreatedTransformation":
+        name: str | None = None,
+        validity: PlacementValidity | None = None,
+        rath: MikroNextRath | None = None,
+    ) -> CreatedTransformation:
         """Register this label dataset's voxels as the FIELD edge keying `table`.
 
         A label mask is exactly the case where the array being mapped is the
@@ -530,12 +684,15 @@ class DatasetTrait:
         many-to-one on purpose — an object is a set of voxels — and is never
         walked backwards.
 
-        For a table that does not exist yet, prefer ``create_table_dataset``'s
-        ``keyed_by=[DatasetKeyedByInput(dataset=mask.id)]``: it says the same thing in
-        the call that creates the table, so the pair is atomic, and the server
-        derives the consumed and produced axes from the two spaces rather than
-        taking them on trust. This method is the standalone form, for keying a
-        table that already exists.
+        For a table that does not exist yet, prefer saying it on the axis at
+        creation -- ``TableAxisInput(column="object_id",
+        identifiedBy=[DatasetIdentifiesInput(kind="DATASET", dataset=mask.id)])``
+        in ``create_table_dataset``'s ``axes``. It says the same thing in the call
+        that creates the table, so the pair is atomic, and the server derives the
+        consumed and produced axes from the two spaces rather than taking them on
+        trust. (It was a sibling ``keyed_by`` list until 2026-08-21, which named
+        the source and not the axis it keyed.) This method is the standalone form,
+        for keying a table that already exists.
 
         Args:
             table: The table dataset keyed by these labels (anything with a
@@ -619,6 +776,195 @@ class CreateADatasetTrait:
         return self
 
 
+class CreateTableDatasetTrait(BaseModel):
+    """Resolves `columns` against the frame, and checks the whole declaration against it.
+
+    A table declares **every** column of its Parquet, in the file's order, with the DuckDB type
+    name the server will read back off it -- and the server checks that declaration against the
+    file. Every part of that is a fact about the file, so writing it out by hand is
+    transcription, and the transcription is easy to get wrong in one specific way: `dtype` is
+    DuckDB's vocabulary and a DataFrame speaks pandas', where a float64 is a ``double`` and a
+    float32 is a ``float``.
+
+    So the complete list is derived here from the frame's **Arrow** schema, which is what the
+    upload actually writes, and what the caller passes in `columns` is merged onto it: a
+    subset, in any order, with `dtype` omitted. A caller who states a `dtype` anyway is held to
+    it -- an assertion about the data is worth checking, and this is the cheap side to check it
+    on. The server checks again against the file itself; two statements about the same bytes,
+    and the pair is worth more than either alone, because the client's copy is what the caller
+    wrote and the server's is what arrived.
+
+    Reading Arrow rather than ``frame.dtypes`` is not a detail. They disagree in ways that
+    decide the answer: a ``category`` column is a ``VARCHAR``, a nullable ``Int64`` is a
+    ``BIGINT``, and a column moved into the index may not reach the file at all.
+    """
+
+    @model_validator(mode="after")
+    def _resolve_columns(self) -> Self:
+        """Derive the declaration, merge the caller's onto it, and refuse what cannot describe this frame."""
+        from mikro_next.compression import refuse_unreadable_codec
+        from mikro_next.tables import TableDeclarationError, file_columns_of, resolve_columns
+
+        data = getattr(self, "data", None)
+        if data is None:
+            return self
+        value = getattr(data, "value", data)
+
+        # A path is streamed to the object store byte for byte, so its codec is the caller's
+        # and this is the last place anything looks at it. Footer only -- a 4 GB file must not
+        # enter the process, which is the whole reason that branch exists.
+        if isinstance(value, Path):
+            refuse_unreadable_codec(value)
+
+        try:
+            file_columns = file_columns_of(value)
+        except TableDeclarationError:
+            # Our own refusals are the point of being here; only an unreadable object is a
+            # reason to defer to the server.
+            raise
+        except Exception:
+            # A path to a Parquet that does not exist yet, an object this cannot read: the
+            # server still checks, so an unreadable frame is not a reason to refuse here.
+            return self
+
+        columns = resolve_columns(file_columns, self.columns or (), self.axes or ())
+        object.__setattr__(self, "columns", columns)
+        # `object.__setattr__` does not touch `fields_set`, and `funcs.execute` dumps with
+        # `exclude_unset=True` -- so without this the resolved list would be dropped on the
+        # way out for any caller who did not pass `columns` themselves.
+        self.__pydantic_fields_set__.add("columns")
+        return self
+
+
+class CreateSparseDatasetTrait(BaseModel):
+    """Checks a sparse dataset's declaration against its matrix, before the matrix moves.
+
+    The sparse counterpart of :class:`CreateTableDatasetTrait`, and it makes the same argument
+    for the same reason -- two statements about the same bytes, the caller's and the arrived
+    one's -- with one difference in its favour. ``funcs.execute`` validates at ``:94`` and
+    hands the variables to the upload middleware at ``:97``, so every refusal below fires
+    before a byte leaves the process. The server's copy of each fires after.
+
+    One of them the server cannot make first at all: it compares the declared axis count
+    against the store's ``shape``, and it reads that shape off a row written at
+    ``finishSparseUpload``. Until then there is nothing to compare with. This side is holding
+    the matrix, and a declaration that disagrees with it "places every lookup one position out
+    and raises nothing" -- the server's own words for the failure.
+
+    Refuses, never repairs. Every generated input is frozen, so a validator that rewrote a
+    field would need ``object.__setattr__`` *and* a manual ``__pydantic_fields_set__.add`` --
+    see :class:`CreateTableDatasetTrait`, where forgetting the second was a latent bug. There
+    is nothing here worth paying that for.
+    """
+
+    @model_validator(mode="after")
+    def _check_declaration(self) -> Self:
+        """Check the axes, then check them against the matrix if one is in hand."""
+        from mikro_next.sparse import check_against_store, check_axes
+
+        # `axes` is `... | None` with a GraphQL default of `[]`, and `()` is what the first
+        # refusal is about -- so it is coerced rather than treated as "nothing to check",
+        # which would skip the rank rule exactly where it applies.
+        axes = getattr(self, "axes", None) or ()
+        check_axes(axes)
+
+        # Above this line is everything that is a statement about the axes alone. Below it is
+        # the one that needs the matrix -- and a `store` that is not a `SporadikLike` (a bare
+        # id, a value some other path built) is not a reason to refuse: the server checks too.
+        layouts = getattr(getattr(self, "store", None), "layouts", None)
+        if not layouts:
+            return self
+        check_against_store(axes, layouts)
+        return self
+
+
+class SparseAxisInputTrait(BaseModel):
+    """Refuses the two axis declarations that otherwise fail unreadably or not at all.
+
+    ``identifiedBy`` is a **list** because an axis can be keyed by more than one source -- a
+    nucleus mask and a cell mask, each edge standing on its own. Handing it a single
+    ``DatasetIdentifiesInput`` is the obvious mistake, and pydantic reports it as badly as it
+    reports anything: a `BaseModel` iterates as ``(field, value)`` pairs, so the error names
+    ``('kind', 'DATASET')`` and a ``model_attributes_type`` mismatch rather than the list.
+
+    Coerced rather than refused? No. ``AxisInputTrait`` widens ``AxisInput`` to accept a bare
+    string, but that widening is *declared* -- ``coercible_scalars``/``coercible_inputs`` in
+    ``graphql.config.yaml`` makes turms publish ``AxisInput | str`` in the generated signature,
+    so the type and the runtime agree. There is no such declaration here, and
+    ``identified_by`` is typed ``tuple[IdentificationInput, ...]``. Accepting a bare model
+    would leave a static checker flagging the very call the runtime had blessed, which is a
+    lie about the type rather than an ergonomic.
+
+    The second refusal is the empty list. The server refuses it too, and says why the best
+    place is here: identification lives *on* the axis, so "identified at all" is a property of
+    this input rather than a rule about it, "and the best time to catch it is at the keystroke
+    rather than in a rank mismatch three functions later."
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _check_identifications(cls, value: Any) -> Any:  # noqa: ANN401
+        if not isinstance(value, dict):
+            return value
+        # Both spellings: the field is `identified_by`, the alias is `identifiedBy`, and the
+        # models are `populate_by_name=True`, so a caller may have written either.
+        for key in ("identified_by", "identifiedBy"):
+            if key not in value:
+                continue
+            entries = value[key]
+            if isinstance(entries, BaseModel):
+                raise ValueError(
+                    f"`{key}` is a list, because an axis can be keyed by more than one source "
+                    f"(a nucleus mask and a cell mask). Write "
+                    f"{key}=[{type(entries).__name__}(...)]."
+                )
+            if entries is not None and not isinstance(entries, (str, bytes)) and not entries:
+                raise ValueError(
+                    f"`{key}` is empty. An axis of a sparse matrix is positions and nothing "
+                    "else, so one that does not say what they are is one no source could ever "
+                    "key -- there is no FIELD edge onto it and no colouring along it. Name a "
+                    "mask, a collection, or the table whose rows the positions are."
+                )
+        return value
+
+
+class SparseColorByInputTrait(BaseModel):
+    """The two rules a sparse colouring can be judged by from the input alone.
+
+    A slice of a sparse matrix is a value per object, so it is **always measured**: it takes a
+    colormap over its range. Nothing stores categories sparsely -- the zeros would be a
+    category too -- which is why a qualitative colormap is refused rather than reinterpreted.
+
+    On the input rather than in :func:`mikro_next.picker.sparse_color_by`, because
+    ``label_render`` accepts entries that were built some other way and a guard in the builder
+    is one anybody can walk past. The rest of what a sparse colouring can get wrong -- whether
+    ``at`` names the axes this matrix identifies, whether a position is inside its extent,
+    whether any layout indexes one of them -- needs the dataset, and this input carries an id.
+    Those live in the picker, which is where the caller holds the object.
+    """
+
+    @model_validator(mode="after")
+    def _a_slice_is_measured(self) -> Self:
+        """Refuse a qualitative colormap, and an inverted window."""
+        from mikro_next.vocabulary import QUALITATIVE_COLORMAP_VALUES
+
+        colormap = getattr(self, "colormap", None)
+        name = getattr(colormap, "value", colormap)
+        if name in QUALITATIVE_COLORMAP_VALUES:
+            raise ValueError(
+                f"A sparse colouring is measured -- a slice is a value per object, and "
+                f"nothing stores categories sparsely, since the zeros would be a category "
+                f"too -- so it takes a colormap over its range, and {name!r} is qualitative."
+            )
+
+        # Not `not max > min`: a degenerate window is legal server-side, and being stricter
+        # than the server is the one thing a client-side check must not be.
+        low, high = getattr(self, "min", None), getattr(self, "max", None)
+        if low is not None and high is not None and low > high:
+            raise ValueError(f"the colormap window is inverted: min={low} is above max={high}.")
+        return self
+
+
 class RGBAColorInputTrait(BaseModel):
     """Completes a colour to RGBA, and rejects one that cannot be completed.
 
@@ -685,7 +1031,7 @@ class ValueHistogramInputTrait(BaseModel):
     """Builds the render metadata of an array in one call."""
 
     @classmethod
-    def from_array(cls, array: ArrayCoercible, bins: int = 256) -> "ValueHistogramInput":
+    def from_array(cls, array: ArrayCoercible, bins: int = 256) -> ValueHistogramInput:
         """Robust min/max, a 1st/99th-percentile contrast window and a UI
         histogram, computed from the array itself.
 
@@ -724,10 +1070,10 @@ class CoordinateAnchorInputTrait(BaseModel):
     def histogram_anchor(
         cls,
         array: ArrayCoercible,
-        dims: Optional[Sequence[str]] = None,
+        dims: Sequence[str] | None = None,
         bins: int = 256,
-        at: Optional[Mapping[str, int]] = None,
-    ) -> "CoordinateAnchorInput":
+        at: Mapping[str, int] | None = None,
+    ) -> CoordinateAnchorInput:
         """An anchor carrying the array's value histogram.
 
         A histogram is a single fact about the array it was computed from, so it
@@ -784,7 +1130,7 @@ class CoordinateAnchorInputTrait(BaseModel):
         array: xr.DataArray,
         axis: str = "c",
         bins: int = 256,
-    ) -> List["CoordinateAnchorInput"]:
+    ) -> list[CoordinateAnchorInput]:
         """One histogram anchor per position along ``axis`` — the whole
         ``anchors=`` argument in one call.
 
@@ -836,8 +1182,8 @@ class Lensable:
         """
         from mikro_next.api.schema import Slice
 
-        store: "DatasetTrait" = get_attributes_or_error(self, "dataset")
-        slices: List[Slice] = get_attributes_or_error(self, "slices")
+        store: DatasetTrait = get_attributes_or_error(self, "dataset")
+        slices: list[Slice] = get_attributes_or_error(self, "slices")
 
         data = store.data
 
@@ -863,12 +1209,12 @@ class Lensable:
 
     def draw(
         self,
-        kind: "AnnotationKind",
-        vectors: "TwoDArray",
+        kind: AnnotationKind,
+        vectors: TwoDArray,
         name: str | None = None,
-        collection: Optional[IDCoercible] = None,
-        scene: Optional[IDCoercible] = None,
-    ) -> "Annotation":
+        collection: IDCoercible | None = None,
+        scene: IDCoercible | None = None,
+    ) -> Annotation:
         """Draw an annotation on the data of this lens
 
         The vectors are interpreted in the lens' own coordinate system, which already
@@ -894,19 +1240,19 @@ class Lensable:
         from mikro_next.api.schema import (
             AxisInput,
             AxisType,
-            CoordinateSystemDerivedFromInput,
-            create_annotation,
-            create_annotation_collection,
             CoordinateInput,
+            CoordinateSystemDerivedFromInput,
             IdentityTransformInput,
             Slice,
+            create_annotation,
+            create_annotation_collection,
         )
 
         if collection is not None and scene is not None:
             raise ValueError("Pass either a collection or a scene, not both")
 
         coordinate_system = get_attributes_or_error(self, "coordinate_system")
-        slices: List[Slice] = get_attributes_or_error(self, "slices")
+        slices: list[Slice] = get_attributes_or_error(self, "slices")
 
         discrete_dims = {
             axis.name
@@ -929,13 +1275,13 @@ class Lensable:
                 name=name or f"Drawings on {coordinate_system.name}",
                 axes=[
                     AxisInput(
-                        name=axis.name, type=axis.type, longName=axis.long_name
+                        name=axis.name, type=axis.type, long_name=axis.long_name
                     )
                     for axis in coordinate_system.axes
                 ],
                 derived_from=[
                     CoordinateSystemDerivedFromInput(
-                        coordinateSystem=coordinate_system.id,
+                        coordinate_system=coordinate_system.id,
                         transform=IdentityTransformInput(),
                     )
                 ],
@@ -953,15 +1299,15 @@ class Lensable:
     def derive(
         self,
         *,
-        kind: Optional[Union[TransformKind, Enum]] = None,
-        scale: Optional[Sequence[float]] = None,
-        translation: Optional[Sequence[float]] = None,
-        affine: Optional[Sequence[Sequence[float]]] = None,
-        input_axes: Optional[Sequence[str]] = None,
-        output_axes: Optional[Sequence[str]] = None,
-        value_relation: Optional["ValueRelation"] = None,
-        reason: Optional[str] = None,
-    ) -> "DerivedFromInput":
+        kind: TransformKind | Enum | None = None,
+        scale: Sequence[float] | None = None,
+        translation: Sequence[float] | None = None,
+        affine: Sequence[Sequence[float]] | None = None,
+        input_axes: Sequence[str] | None = None,
+        output_axes: Sequence[str] | None = None,
+        value_relation: ValueRelation | None = None,
+        reason: str | None = None,
+    ) -> DerivedFromInput:
         """A derivation edge pointing back into this lens, for a dataset about
         to be created from what the lens frames.
 
@@ -1010,8 +1356,8 @@ class Lensable:
 
     def derive_identity(
         self,
-        value_relation: Optional["ValueRelation"] = None,
-    ) -> "DerivedFromInput":
+        value_relation: ValueRelation | None = None,
+    ) -> DerivedFromInput:
         """An IDENTITY derivation edge: same axes, same voxels.
 
         The classic case is a dense computation on the same grid — a
@@ -1025,8 +1371,8 @@ class Lensable:
         self,
         offset: Sequence[float],
         *,
-        value_relation: Optional["ValueRelation"] = None,
-    ) -> "DerivedFromInput":
+        value_relation: ValueRelation | None = None,
+    ) -> DerivedFromInput:
         """A TRANSLATION derivation edge: same axes, shifted origin — a crop.
 
         `offset` is forward, derived -> source: the derived dataset's voxel
@@ -1048,8 +1394,8 @@ class Lensable:
         self,
         axes: Sequence[str],
         *,
-        value_relation: Optional["ValueRelation"] = None,
-    ) -> "DerivedFromInput":
+        value_relation: ValueRelation | None = None,
+    ) -> DerivedFromInput:
         """A rank-dropping BY_DIMENSION derivation edge keeping only `axes`.
 
         Naming an axis on both sides IS the map; the axes left unnamed are the
@@ -1065,7 +1411,7 @@ class Lensable:
         )
 
 
-def _normalize_kind(kind: Union[ResolvedTransformKind, Enum]) -> ResolvedTransformKind:
+def _normalize_kind(kind: ResolvedTransformKind | Enum) -> ResolvedTransformKind:
     """Normalize a transformation kind to its plain string value.
 
     `use_enum_values=True` means a kind read off a model may be either the enum
@@ -1074,13 +1420,13 @@ def _normalize_kind(kind: Union[ResolvedTransformKind, Enum]) -> ResolvedTransfo
     return str(getattr(kind, "value", kind))  # type: ignore[return-value]
 
 
-def _axis_names_in_order(system: "CoordinateSystemTrait") -> List[str]:
+def _axis_names_in_order(system: CoordinateSystemTrait) -> list[str]:
     """The axis names of a coordinate system, ordered by their `order` field."""
     axes = get_attributes_or_error(system, "axes")
     return [a.name for a in sorted(axes, key=lambda a: a.order)]
 
 
-def _space_of(source: "Registrable") -> "CoordinateSystem":
+def _space_of(source: Registrable) -> CoordinateSystem:
     """The coordinate system a registrable source lives in.
 
     Data lives in exactly one space and says so itself, but which field says it
@@ -1105,7 +1451,7 @@ def _space_of(source: "Registrable") -> "CoordinateSystem":
     )
 
 
-def _homogeneous_from_rows(rows: "np.ndarray", ndim_in: Optional[int]) -> "np.ndarray":
+def _homogeneous_from_rows(rows: np.ndarray, ndim_in: int | None) -> np.ndarray:
     """Turn an M x (N+1) affine (last column translation) into a homogeneous
     (M+1) x (N+1) matrix. A square N x N matrix (a rotation given without a
     translation column) gets a zero translation column appended first."""
@@ -1121,7 +1467,7 @@ def _homogeneous_from_rows(rows: "np.ndarray", ndim_in: Optional[int]) -> "np.nd
     return np.vstack([rows, bottom])
 
 
-def _apply_homogeneous(matrix: "np.ndarray", points: PointsLike) -> "np.ndarray":
+def _apply_homogeneous(matrix: np.ndarray, points: PointsLike) -> np.ndarray:
     """Apply a homogeneous (M+1) x (N+1) matrix to an (K, N) or (N,) point array."""
     pts = np.atleast_2d(np.asarray(points, dtype=float))
     n = matrix.shape[1] - 1
@@ -1134,15 +1480,15 @@ def _apply_homogeneous(matrix: "np.ndarray", points: PointsLike) -> "np.ndarray"
 
 
 def _infer_transform_kind(
-    scale: Optional[Sequence[float]],
-    translation: Optional[Sequence[float]],
-    affine: Optional[Sequence[Sequence[float]]],
-    input_axes: Optional[Sequence[str]],
-) -> Tuple[
+    scale: Sequence[float] | None,
+    translation: Sequence[float] | None,
+    affine: Sequence[Sequence[float]] | None,
+    input_axes: Sequence[str] | None,
+) -> tuple[
     TransformKind,
-    Optional[Sequence[float]],
-    Optional[Sequence[float]],
-    Optional[Sequence[Sequence[float]]],
+    Sequence[float] | None,
+    Sequence[float] | None,
+    Sequence[Sequence[float]] | None,
 ]:
     """Infer the transformation kind from which parameters were given.
 
@@ -1175,16 +1521,16 @@ def _infer_transform_kind(
 
 
 def _transform_member(
-    kind: Union[TransformKind, Enum],
+    kind: TransformKind | Enum,
     *,
-    scale: Optional[Sequence[float]] = None,
-    translation: Optional[Sequence[float]] = None,
-    affine: Optional[Sequence[Sequence[float]]] = None,
-    input_axes: Optional[Sequence[str]] = None,
-    output_axes: Optional[Sequence[str]] = None,
-    field: Optional[IDCoercible] = None,
-    reason: Optional[str] = None,
-) -> "TransformInput":
+    scale: Sequence[float] | None = None,
+    translation: Sequence[float] | None = None,
+    affine: Sequence[Sequence[float]] | None = None,
+    input_axes: Sequence[str] | None = None,
+    output_axes: Sequence[str] | None = None,
+    field: IDCoercible | None = None,
+    reason: str | None = None,
+) -> TransformInput:
     """Build the tagged member input for a transformation ``kind``.
 
     The schema publishes ``TransformInput`` as a tagged union of per-kind
@@ -1211,7 +1557,7 @@ def _transform_member(
             "the coordinate graph reads nothing else from it"
         )
 
-    def require(name: str, value: Optional[_Given]) -> _Given:
+    def require(name: str, value: _Given | None) -> _Given:
         """The value, or a refusal naming the parameter the kind needs."""
         if value is None:
             raise ValueError(f"A {normalized} transformation needs {name}=")
@@ -1279,7 +1625,7 @@ class PathStep(NamedTuple):
     case its matrix must be inverted before composing.
     """
 
-    transformation: "TransformationTrait"
+    transformation: TransformationTrait
     inverted: bool
 
 
@@ -1295,15 +1641,15 @@ class TransformationTrait:
 
     #: Re-exported for callers that branch on it; the vocabulary itself lives
     #: in `mikro_next.vocabulary`.
-    MATRIX_KINDS: ClassVar[FrozenSet[ResolvedTransformKind]] = MATRIX_KINDS
+    MATRIX_KINDS: ClassVar[frozenset[ResolvedTransformKind]] = MATRIX_KINDS
 
-    def ndim_in(self) -> Optional[int]:
+    def ndim_in(self) -> int | None:
         """Number of input axes, if the input system was selected in the query."""
         system = getattr(self, "input", None)
         axes = getattr(system, "axes", None) if system is not None else None
         return len(axes) if axes is not None else None
 
-    def ndim_out(self) -> Optional[int]:
+    def ndim_out(self) -> int | None:
         """Number of output axes, if the output system was selected in the query."""
         system = getattr(self, "output", None)
         axes = getattr(system, "axes", None) if system is not None else None
@@ -1415,7 +1761,7 @@ class TransformationTrait:
         """Map points from the output system back to the input system."""
         return _apply_homogeneous(self.inverse_matrix(), points)
 
-    def resolve_matrix(self, rath: Optional["MikroNextRath"] = None) -> NDArray[np.float64]:
+    def resolve_matrix(self, rath: MikroNextRath | None = None) -> NDArray[np.float64]:
         """Like `as_matrix()`, but resolves SEQUENCE transformations by fetching
         each child from the server and composing them first-to-last."""
         kind = _normalize_kind(get_attributes_or_error(self, "kind"))
@@ -1425,7 +1771,7 @@ class TransformationTrait:
         from mikro_next.api.schema import get_transformation
 
         children = get_attributes_or_error(self, "sequence_children")
-        matrix: Optional[np.ndarray] = None
+        matrix: np.ndarray | None = None
         for child in children:
             full = get_transformation(child.id, rath=rath)
             resolve = getattr(full, "resolve_matrix", None)
@@ -1448,7 +1794,7 @@ def _bfs_path(
     start_id: str,
     target_id: str,
     allow_fetch: bool = False,
-) -> List[PathStep]:
+) -> list[PathStep]:
     """Find the shortest composable path between two coordinate systems.
 
     Edges are walked forward (input -> output) and backward (output -> input,
@@ -1460,7 +1806,7 @@ def _bfs_path(
     `object` here, and the narrowing below. Such an edge is not walkable for the
     same reason a FIELD edge is not: nothing about it yields a matrix.
     """
-    adjacency: Dict[str, List[Tuple[PathStep, str]]] = {}
+    adjacency: dict[str, list[tuple[PathStep, str]]] = {}
     for t in transformations:
         if not isinstance(t, TransformationTrait):
             continue
@@ -1482,7 +1828,7 @@ def _bfs_path(
         return []
 
     queue = deque([start_id])
-    predecessor: Dict[str, Tuple[str, PathStep]] = {}
+    predecessor: dict[str, tuple[str, PathStep]] = {}
     visited = {start_id}
     while queue:
         node = queue.popleft()
@@ -1492,7 +1838,7 @@ def _bfs_path(
             visited.add(neighbor)
             predecessor[neighbor] = (node, step)
             if neighbor == target_id:
-                path: List[PathStep] = []
+                path: list[PathStep] = []
                 current = neighbor
                 while current != start_id:
                     current, prev_step = predecessor[current]
@@ -1508,13 +1854,13 @@ def _bfs_path(
 
 def _compose_steps(
     steps: Sequence[PathStep],
-    identity_ndim: Optional[int] = None,
+    identity_ndim: int | None = None,
     allow_fetch: bool = False,
-    rath: Optional["MikroNextRath"] = None,
+    rath: MikroNextRath | None = None,
 ) -> NDArray[np.float64]:
     """Compose a path of steps into one homogeneous matrix, applied first-to-last
     (the newest matrix multiplies on the left). Inverted steps are inverted first."""
-    matrix: Optional[np.ndarray] = None
+    matrix: np.ndarray | None = None
     for step in steps:
         t = step.transformation
         kind = _normalize_kind(get_attributes_or_error(t, "kind"))
@@ -1565,7 +1911,7 @@ class SceneTrait:
     """
 
     @property
-    def world(self) -> "CoordinateSystem":
+    def world(self) -> CoordinateSystem:
         """The shared coordinate system this scene composes its layers over.
 
         Adopted, never owned: many scenes can compose over this same space, it
@@ -1598,7 +1944,7 @@ class SceneTrait:
             "world sees it"
         )
 
-    def clear(self, rath: Optional["MikroNextRath"] = None) -> "Scene":
+    def clear(self, rath: MikroNextRath | None = None) -> Scene:
         """Delete every layer of this scene, keeping the scene itself.
 
         A pure view-state reset: no coordinate system, registration or dataset
@@ -1614,7 +1960,7 @@ class SceneTrait:
 
         return clear_scene(id=get_attributes_or_error(self, "id"), rath=rath)
 
-    def delete(self, rath: Optional["MikroNextRath"] = None) -> ID:
+    def delete(self, rath: MikroNextRath | None = None) -> ID:
         """Delete this scene.
 
         Its world survives — a scene adopts a space, never owns it. Sweep the
@@ -1653,14 +1999,14 @@ class CoordinateSystemTrait:
 
     def register(
         self,
-        source: "Registrable",
+        source: Registrable,
         *,
-        scale: Optional[Union[Mapping[str, float], Sequence[float]]] = None,
-        name: Optional[str] = None,
-        validity: Optional["PlacementValidity"] = None,
-        rath: Optional["MikroNextRath"] = None,
+        scale: Mapping[str, float] | Sequence[float] | None = None,
+        name: str | None = None,
+        validity: PlacementValidity | None = None,
+        rath: MikroNextRath | None = None,
         **offsets: float,
-    ) -> "CreatedTransformation":
+    ) -> CreatedTransformation:
         """Register `source` into this space, scaled and translated.
 
         `source` is anything that lives in a space — a dataset, a table dataset,
@@ -1765,15 +2111,15 @@ class CoordinateSystemTrait:
 
     def grid_cell(
         self,
-        source: "Registrable",
+        source: Registrable,
         index: int,
         cols: int,
         pitch: float,
         *,
-        scale: Optional[Union[Mapping[str, float], Sequence[float]]] = None,
-        name: Optional[str] = None,
-        validity: Optional["PlacementValidity"] = None,
-    ) -> "CreatedTransformation":
+        scale: Mapping[str, float] | Sequence[float] | None = None,
+        name: str | None = None,
+        validity: PlacementValidity | None = None,
+    ) -> CreatedTransformation:
         """Register `source` into this space at grid cell `index`.
 
         Cells fill in reading order. `pitch` is the centre-to-centre spacing in
@@ -1811,13 +2157,13 @@ class CoordinateSystemTrait:
     def unregister(
         self,
         *,
-        dataset: Optional[IDCoercible] = None,
-        table_dataset: Optional[IDCoercible] = None,
-        mesh_collection: Optional[IDCoercible] = None,
-        annotation_collection: Optional[IDCoercible] = None,
-        coordinate_system: Optional[IDCoercible] = None,
-        rath: Optional["MikroNextRath"] = None,
-    ) -> Tuple[ID, ...]:
+        dataset: IDCoercible | None = None,
+        table_dataset: IDCoercible | None = None,
+        mesh_collection: IDCoercible | None = None,
+        annotation_collection: IDCoercible | None = None,
+        coordinate_system: IDCoercible | None = None,
+        rath: MikroNextRath | None = None,
+    ) -> tuple[ID, ...]:
         """Un-register a source from this space, by naming the source.
 
         Deletes every edge from the source's space into this one — rival claims
@@ -1843,7 +2189,7 @@ class CoordinateSystemTrait:
         """
         from mikro_next.api.schema import delete_registration
 
-        sources: Dict[str, Optional[IDCoercible]] = {
+        sources: dict[str, IDCoercible | None] = {
             "dataset": dataset,
             "table_dataset": table_dataset,
             "mesh_collection": mesh_collection,
@@ -1864,10 +2210,10 @@ class CoordinateSystemTrait:
     def stage(
         self,
         *,
-        name: Optional[str] = None,
-        policy: Optional["ScenePolicyInput"] = None,
-        rath: Optional["MikroNextRath"] = None,
-    ) -> "Scene":
+        name: str | None = None,
+        policy: ScenePolicyInput | None = None,
+        rath: MikroNextRath | None = None,
+    ) -> Scene:
         """Bootstrap a renderable scene over this space.
 
         The scene adopts this system as its world and no edges are authored —
@@ -1891,8 +2237,8 @@ class CoordinateSystemTrait:
         """
         from mikro_next.api.schema import (
             UNSET,
-            create_scene_from_coordinate_system,
             ScenePolicyInput,
+            create_scene_from_coordinate_system,
         )
 
         return create_scene_from_coordinate_system(
@@ -1902,7 +2248,7 @@ class CoordinateSystemTrait:
             rath=rath,
         )
 
-    def clear(self, rath: Optional["MikroNextRath"] = None) -> Tuple[ID, ...]:
+    def clear(self, rath: MikroNextRath | None = None) -> tuple[ID, ...]:
         """Delete every registration *into* this space, returning the edge ids.
 
         The space itself survives, so do the scenes composing over it (their
@@ -1928,17 +2274,17 @@ class CoordinateSystemTrait:
         return len(get_attributes_or_error(self, "axes"))
 
     @property
-    def axis_names(self) -> List[str]:
+    def axis_names(self) -> list[str]:
         """The axis names, ordered by their `order` field."""
         return _axis_names_in_order(self)
 
     @property
-    def units(self) -> Dict[str, Optional[str]]:
+    def units(self) -> dict[str, str | None]:
         """A mapping of axis name to its unit (None for uncalibrated axes)."""
         axes = get_attributes_or_error(self, "axes")
         return {a.name: a.unit for a in sorted(axes, key=lambda a: a.order)}
 
-    def get_axis(self, name: str) -> "Axis":
+    def get_axis(self, name: str) -> Axis:
         """Get an axis by its name or long name."""
         axes = get_attributes_or_error(self, "axes")
         for axis in axes:
@@ -1952,19 +2298,19 @@ class CoordinateSystemTrait:
 
     def transform_to(
         self,
-        other: Union[IDCoercible, "CoordinateSystemTrait"],
+        other: IDCoercible | CoordinateSystemTrait,
         *,
-        scale: Optional[Sequence[float]] = None,
-        translation: Optional[Sequence[float]] = None,
-        affine: Optional[Sequence[Sequence[float]]] = None,
-        kind: Optional[TransformKind] = None,
-        name: Optional[str] = None,
-        input_axes: Optional[Sequence[str]] = None,
-        output_axes: Optional[Sequence[str]] = None,
-        reason: Optional[str] = None,
-        validity: Optional["PlacementValidity"] = None,
-        rath: Optional["MikroNextRath"] = None,
-    ) -> "CreatedTransformation":
+        scale: Sequence[float] | None = None,
+        translation: Sequence[float] | None = None,
+        affine: Sequence[Sequence[float]] | None = None,
+        kind: TransformKind | None = None,
+        name: str | None = None,
+        input_axes: Sequence[str] | None = None,
+        output_axes: Sequence[str] | None = None,
+        reason: str | None = None,
+        validity: PlacementValidity | None = None,
+        rath: MikroNextRath | None = None,
+    ) -> CreatedTransformation:
         """Create a transformation edge from this system to `other`.
 
         The kind is inferred from which parameters are given: `affine` ->
@@ -2035,8 +2381,8 @@ class CoordinateSystemTrait:
         )
 
     def graph(
-        self, max_depth: Optional[int] = None, rath: Optional["MikroNextRath"] = None
-    ) -> "GetCoordinateGraphQueryCoordinategraph":
+        self, max_depth: int | None = None, rath: MikroNextRath | None = None
+    ) -> GetCoordinateGraphQueryCoordinateGraph:
         """Fetch the coordinate graph reachable from this system.
 
         Args:
@@ -2056,13 +2402,13 @@ class CoordinateSystemTrait:
 
     def path_to(
         self,
-        other: Union[IDCoercible, "CoordinateSystemTrait"],
+        other: IDCoercible | CoordinateSystemTrait,
         *,
-        max_depth: Optional[int] = None,
+        max_depth: int | None = None,
         allow_fetch: bool = False,
-        graph: Optional["GetCoordinateGraphQueryCoordinategraph"] = None,
-        rath: Optional["MikroNextRath"] = None,
-    ) -> List[PathStep]:
+        graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
+        rath: MikroNextRath | None = None,
+    ) -> list[PathStep]:
         """The shortest composable path of transformation edges to `other`.
 
         Fetches the coordinate graph (or uses a pre-fetched `graph`) and walks
@@ -2081,12 +2427,12 @@ class CoordinateSystemTrait:
 
     def matrix_to(
         self,
-        other: Union[IDCoercible, "CoordinateSystemTrait"],
+        other: IDCoercible | CoordinateSystemTrait,
         *,
-        max_depth: Optional[int] = None,
+        max_depth: int | None = None,
         allow_fetch: bool = False,
-        graph: Optional["GetCoordinateGraphQueryCoordinategraph"] = None,
-        rath: Optional["MikroNextRath"] = None,
+        graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
+        rath: MikroNextRath | None = None,
     ) -> NDArray[np.float64]:
         """The composed homogeneous matrix mapping points of this system into
         `other`, found via the coordinate graph."""
@@ -2099,13 +2445,13 @@ class CoordinateSystemTrait:
 
     def transform_points_to(
         self,
-        other: Union[IDCoercible, "CoordinateSystemTrait"],
+        other: IDCoercible | CoordinateSystemTrait,
         points: PointsLike,
         *,
-        max_depth: Optional[int] = None,
+        max_depth: int | None = None,
         allow_fetch: bool = False,
-        graph: Optional["GetCoordinateGraphQueryCoordinategraph"] = None,
-        rath: Optional["MikroNextRath"] = None,
+        graph: GetCoordinateGraphQueryCoordinateGraph | None = None,
+        rath: MikroNextRath | None = None,
     ) -> NDArray[np.float64]:
         """Map points given in this system's axis order into `other`.
 

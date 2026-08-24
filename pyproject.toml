@@ -30,7 +30,12 @@ table = ["pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
 mesh = ["fabriks>=1.0", "pyarrow>=12.0.1"]
 # `codec="MESHOPT"`, for a caller whose renderer ships the EXT_meshopt_compression decoder.
 meshopt = ["fabriks[meshopt]>=1.0", "pyarrow>=12.0.1"]
-complete = ["fabriks[meshopt]>=1.0", "pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
+# `sporadik` is the sparse wire format, and an extra for the same reason `fabriks` is: it owns the
+# layout, the block and the invariants, and a client that never uploads a sparse dataset should not
+# carry them. It needs nothing beyond numpy and zarr, both of which are core dependencies here
+# already, so this extra costs a caller one small pure-Python package and no transitive weight.
+sparse = ["sporadik>=0.1"]
+complete = ["fabriks[meshopt]>=1.0", "sporadik>=0.1", "pyarrow>=12.0.1", "pandas>=2.2", "duckdb>=1.0"]
 # Installed inside the semantic-release Docker action so build_command has uv.
 build = ["uv>=0.7.12"]
 
@@ -50,12 +55,20 @@ dev-dependencies =  [
     "pyjwt>=2.10.1",
     "dokker>=2.5",
     "pillow>=11.2.1",
+    # Test-only: a real path/file-object reader to check `RemoteFile` against, since
+    # the point of that class is that unmodified readers work through it.
+    "tifffile>=2024.1.30",
     "fakts-next>=4",
     "rekuest-next>=0.12.2",
     "pyarrow>=24",
     "arkitekt-next==0.17",
     "duckdb>=1.5.3",
     "basedpyright>=1.21",
+    # The sparse wire format. An extra for callers (see `[project.optional-dependencies]`),
+    # but a dev dependency here, because `SporadikLike.validate` -- and therefore every test
+    # of the sparse declaration path -- cannot run without it. It was absent, which is why
+    # that path had no tests at all.
+    "sporadik>=1.0",
     # rekuest-next imports `janus` without declaring it, so it never arrives
     # transitively — and without it `mikro_next.specs` cannot be imported and
     # `tests/test_specs.py` skips itself. Drop this once rekuest declares it.

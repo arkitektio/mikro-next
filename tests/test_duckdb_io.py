@@ -9,7 +9,6 @@ import pyarrow.parquet as pq
 
 from mikro_next.io.duckdb_io import (
     create_duckdb_s3_connection,
-    read_parquet_relation,
     require_duckdb,
 )
 

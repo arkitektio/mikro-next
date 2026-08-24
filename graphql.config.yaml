@@ -8,14 +8,15 @@ projects:
         exclude_typenames: true
         dump_configuration: true
         dump_schema: true
-        omited_document_rules:
+        omitted_document_rules:
           - "no_unused_fragments"
         freeze:
           enabled: true
         options:
           enabled: true
-          use_enum_values: true
-          allow_population_by_field_name: true
+          # snake_case is the only python-facing spelling a type checker sees;
+          # the GraphQL name stays the wire name. Both still validate.
+          alias_mode: split
           extra: forbid
           types:
             - input
@@ -37,6 +38,7 @@ projects:
               FileLike: mikro_next.scalars.ImageFileCoercible
               ParquetLike: mikro_next.scalars.ParquetCoercible
               FabriksLike: mikro_next.scalars.FabriksCoercible
+              SporadikLike: mikro_next.scalars.SporadikCoercible
               ID: rath.scalars.IDCoercible
             coercible_inputs:
               AxisInput: str
@@ -69,6 +71,7 @@ projects:
           ArrayLike: mikro_next.scalars.ArrayLike
           ParquetLike: mikro_next.scalars.ParquetLike
           FabriksLike: mikro_next.scalars.FabriksLike
+          SporadikLike: mikro_next.scalars.SporadikLike
           FileLike: mikro_next.scalars.FileLike
           ImageFileLike: mikro_next.scalars.ImageFileLike
           ThreeDVector: mikro_next.scalars.ThreeDVector
@@ -90,6 +93,14 @@ projects:
             - mikro_next.traits.RGBAColorInputTrait
           CoordinateAnchorInput:
             - mikro_next.traits.CoordinateAnchorInputTrait
+          CreateTableDatasetInput:
+            - mikro_next.traits.CreateTableDatasetTrait
+          CreateSparseDatasetInput:
+            - mikro_next.traits.CreateSparseDatasetTrait
+          SparseAxisInput:
+            - mikro_next.traits.SparseAxisInputTrait
+          SparseColorByInput:
+            - mikro_next.traits.SparseColorByInputTrait
           TableDataset:
             - mikro_next.traits.HasParquestStoreTrait
           ZarrStore:
@@ -125,8 +136,6 @@ projects:
           SequenceTransformation:
             - mikro_next.traits.TransformationTrait
           ByDimensionTransformation:
-            - mikro_next.traits.TransformationTrait
-          BijectionTransformation:
             - mikro_next.traits.TransformationTrait
           UnmappableTransformation:
             - mikro_next.traits.TransformationTrait

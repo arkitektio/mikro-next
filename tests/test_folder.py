@@ -1,10 +1,12 @@
 import pytest
+
 from mikro_next.api.schema import (
     create_folder,
     get_folder,
-    update_folder,
     search_folders,
+    update_folder,
 )
+
 from .conftest import DeployedMikro
 
 

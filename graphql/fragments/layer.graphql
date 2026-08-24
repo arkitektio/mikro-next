@@ -13,6 +13,63 @@ fragment Layer on Layer {
     lens {
       id
     }
+    # Selected rather than left off: without it a label layer's colouring is write-only from
+    # Python -- `createLabelLayer` takes a picker and nothing could read back what it stored.
+    #
+    # Inlined, not spread as named fragments, and that is deliberate. turms mis-handles a
+    # nested fragment spread inside an *interface* fragment: it emits a `Layer.model_rebuild()`
+    # keyed on the fragment name, which for an interface has no single generated class, and the
+    # module then fails to import with `NameError: name 'Layer' is not defined`.
+    #
+    # The collision this would normally risk -- turms naming a nested selection after its field
+    # path, so two sibling selections spelled the same collapse into one class -- does not arise
+    # here, because a label layer's pickers hang off `labelRender` while a mesh layer's are
+    # direct fields. The paths differ (`labelRender.colorBys` vs `colorBys`), so the classes do.
+    labelRender {
+      intensityAxis
+      intensityIndex
+      seed
+      background
+      opacity
+      contour
+      contourWidth
+      selected
+      selectionColor
+      showUnselected
+      colorBys {
+        kind
+        table
+        column
+        dataset
+        at {
+          axis
+          value
+        }
+        joinPath {
+          table
+          column
+        }
+        colormap
+        min
+        max
+        label
+      }
+      activeColorBy
+      filterBys {
+        table
+        column
+        joinPath {
+          table
+          column
+        }
+        min
+        max
+        values
+        exclude
+        label
+      }
+      activeFilterBys
+    }
     placement
     placementValidity
   }
@@ -23,13 +80,89 @@ fragment Layer on Layer {
     }
     materialColor
     wireframe
-    colorBy {
+    shading
+    maxLevel
+    colorBys {
+      kind
       table
       column
+      dataset
+      at {
+        axis
+        value
+      }
+      joinPath {
+        table
+        column
+      }
       colormap
-      classColors
+      min
+      max
+      label
     }
+    activeColorBy
+    filterBys {
+      table
+      column
+      joinPath {
+        table
+        column
+      }
+      min
+      max
+      values
+      exclude
+      label
+    }
+    activeFilterBys
     placement
     placementValidity
+  }
+  # A point cloud over a table dataset. Its objects ARE rows of that table, so a
+  # colouring by one of its own columns needs no FIELD edge -- the one way this
+  # layer differs from the other two kinds.
+  ... on PointLayer {
+    tableDataset {
+      id
+      name
+    }
+    xColumn
+    yColumn
+    zColumn
+    pointSize
+    colormap
+    activeColorBy
+    colorBys {
+      kind
+      table
+      column
+      dataset
+      at {
+        axis
+        value
+      }
+      joinPath {
+        table
+        column
+      }
+      colormap
+      min
+      max
+      label
+    }
+    activeFilterBys
+    filterBys {
+      table
+      column
+      joinPath {
+        table
+        column
+      }
+      min
+      max
+      values
+      exclude
+      label
+    }
   }
 }

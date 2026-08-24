@@ -8,6 +8,9 @@ django:
     - "*"
   secret_key: ab94ec351412c22324b2f635e0d6b9dd
 authentikate:
+  # Required since authentikate 4.0: without it the server refuses to boot, and a
+  # token an issuer minted for some other service would otherwise be accepted here.
+  audience: mikro
   issuers:
     - kind: rsa
       iss: lok
@@ -17,7 +20,7 @@ authentikate:
     test:
       sub: 1
       iss: lok
-      active_org: test
+      org: test
       client_id: test
       client_app: test
       client_release: v0.0.1
@@ -30,6 +33,10 @@ redis:
   host: redis
   port: 6379
 datalayer:
+  # The server mints scoped STS credentials per grant and refuses to hand out its own
+  # permanent key when it cannot. MinIO ignores the ARN itself and scopes the session
+  # by the inline policy alone, so any ARN-shaped string does.
+  role_arn: arn:aws:iam::000000000000:role/mikro
   access_key: mikro_access_key
   secret_key: mikro_secret_key
   host: minio

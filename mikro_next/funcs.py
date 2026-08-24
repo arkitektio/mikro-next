@@ -17,20 +17,24 @@ Middleware Support:
 
 """
 
-from typing import Any, Dict, Generator, AsyncGenerator, List, Type
-from mikro_next.rath import MikroNextRath, current_mikro_next_rath
+from collections.abc import AsyncGenerator, Generator
+from typing import Any
+
 from koil import unkoil_gen
 from rath.turms.funcs import TOperation
+
+from mikro_next.rath import MikroNextRath, current_mikro_next_rath
+
 from .errors import NoMikroFound
 from .middleware.base import FuncsMiddleware
 
 
 def _apply_middlewares_sync(
-    variables: Dict[str, Any],
-    operation: Type[TOperation],
+    variables: dict[str, Any],
+    operation: type[TOperation],
     rath: MikroNextRath,
-    middlewares: List[FuncsMiddleware],
-) -> Dict[str, Any]:
+    middlewares: list[FuncsMiddleware],
+) -> dict[str, Any]:
     """Apply the middleware chain to the serialized variables (sync path).
 
     Each middleware processes the variables in order using its sync
@@ -52,11 +56,11 @@ def _apply_middlewares_sync(
 
 
 async def _apply_middlewares_async(
-    variables: Dict[str, Any],
-    operation: Type[TOperation],
+    variables: dict[str, Any],
+    operation: type[TOperation],
     rath: MikroNextRath,
-    middlewares: List[FuncsMiddleware],
-) -> Dict[str, Any]:
+    middlewares: list[FuncsMiddleware],
+) -> dict[str, Any]:
     """Apply the middleware chain to the serialized variables (async path).
 
     Each middleware processes the variables in order using its async
@@ -77,8 +81,8 @@ async def _apply_middlewares_async(
 
 
 def execute(
-    operation: Type[TOperation],
-    variables: Dict[str, Any],
+    operation: type[TOperation],
+    variables: dict[str, Any],
     rath: MikroNextRath | None = None,
 ) -> TOperation:
     """Executes a query or mutation using rath in a blocking way.
@@ -104,8 +108,8 @@ def execute(
 
 
 async def aexecute(
-    operation: Type[TOperation],
-    variables: Dict[str, Any],
+    operation: type[TOperation],
+    variables: dict[str, Any],
     rath: MikroNextRath | None = None,
 ) -> TOperation:
     """Executes a query or mutation using rath in a non-blocking way.
@@ -131,8 +135,8 @@ async def aexecute(
 
 
 def subscribe(
-    operation: Type[TOperation],
-    variables: Dict[str, Any],
+    operation: type[TOperation],
+    variables: dict[str, Any],
     rath: MikroNextRath | None = None,
 ) -> Generator[TOperation, None, None]:
     """Subscribes to a query or mutation using rath in a blocking way."""
@@ -140,8 +144,8 @@ def subscribe(
 
 
 async def asubscribe(
-    operation: Type[TOperation],
-    variables: Dict[str, Any],
+    operation: type[TOperation],
+    variables: dict[str, Any],
     rath: MikroNextRath | None = None,
 ) -> AsyncGenerator[TOperation, None]:
     """Subscribes to a query or mutation using rath in a non-blocking way.

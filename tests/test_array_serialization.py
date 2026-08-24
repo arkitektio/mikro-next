@@ -1,6 +1,7 @@
-from pydantic import BaseModel
 import numpy as np
 import xarray as xr
+from pydantic import BaseModel
+
 from mikro_next.scalars import ArrayLike
 
 

@@ -7,18 +7,18 @@ selection and the ``ScaleMethod`` provenance are all decided client-side, which
 is exactly why they are worth pinning down without a server.
 """
 
-from typing import List
 
 import dask.array as da
 import numpy as np
 import pytest
 import xarray as xr
 
-from mikro_next import build_pyramid, canonical, dataset_arrays, scales_from
+from mikro_next import axes_for, build_pyramid, canonical, dataset_arrays, scales_from
 from mikro_next.api.schema import ScaleMethod
+from mikro_next.vocabulary import UnknownAxisName
 
 
-def _volume(dims: List[str] = ["c", "z", "y", "x"], dtype: str = "uint16") -> xr.DataArray:
+def _volume(dims: list[str] = ["c", "z", "y", "x"], dtype: str = "uint16") -> xr.DataArray:
     """A small labelled volume; every axis is big enough to halve three times."""
     shape = tuple(2 if dim == "c" else 8 for dim in dims)
     data = np.arange(int(np.prod(shape)), dtype=dtype).reshape(shape)
@@ -169,7 +169,7 @@ def test_build_pyramid_materializes_a_lazy_base_once() -> None:
     not cache across separate computations. Without materializing, building N
     levels re-derives the base N times; with it, once.
     """
-    calls: List[int] = []
+    calls: list[int] = []
 
     def _tracked(block: np.ndarray) -> np.ndarray:
         calls.append(1)
@@ -280,3 +280,36 @@ def test_dataset_arrays_of_a_single_level_has_no_scales() -> None:
     data, scales = dataset_arrays(_volume(), levels=1)
     assert scales == []
     assert data.shape == (2, 8, 8, 8)
+
+
+class TestAxesFor:
+    """`axes_for` builds the `AxisInput` list an ingest declares."""
+
+    def _data(self, dims: list) -> "xr.DataArray":
+        return xr.DataArray(np.zeros((2,) * len(dims), dtype="uint8"), dims=dims)
+
+    def test_the_convention_covers_the_ordinary_dims(self) -> None:
+        axes = axes_for(self._data(["t", "c", "z", "y", "x"]))
+        assert [a.name for a in axes] == ["t", "c", "z", "y", "x"]
+        assert [a.type for a in axes] == [
+            "TIME", "CHANNEL", "SPACE", "SPACE", "SPACE",
+        ]
+
+    def test_dims_keep_the_arrays_own_order(self) -> None:
+        axes = axes_for(self._data(["x", "y", "c"]))
+        assert [a.name for a in axes] == ["x", "y", "c"]
+
+    def test_a_declared_type_wins_over_the_convention(self) -> None:
+        """A tile index left to the convention would become SPACE, and the pyramid
+        coarsens exactly the SPACE axes — 12 tiles quietly becoming 6."""
+        axes = axes_for(self._data(["tile", "y", "x"]), types={"tile": "INDEX"})
+        assert [a.type for a in axes] == ["INDEX", "SPACE", "SPACE"]
+
+    def test_an_undeclared_unknown_axis_is_refused(self) -> None:
+        with pytest.raises(UnknownAxisName):
+            axes_for(self._data(["tile", "y", "x"]))
+
+    def test_long_names_default_to_the_axis_name(self) -> None:
+        axes = axes_for(self._data(["z"]), long_names={"z": "depth"})
+        assert axes[0].long_name == "depth"
+        assert axes_for(self._data(["z"]))[0].long_name == "z"

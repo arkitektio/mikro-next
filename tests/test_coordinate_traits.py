@@ -7,10 +7,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-
 from kanne.scalars import Unit
-
-from mikro_next.vocabulary import Calibration
 
 from mikro_next.api.schema import (
     UNSET,
@@ -31,6 +28,7 @@ from mikro_next.traits import (
     _compose_steps,
     _infer_transform_kind,
 )
+from mikro_next.vocabulary import Calibration
 
 
 def make_system(id: str, name: str, axis_names: list[str]) -> CoordinateSystem:
@@ -629,3 +627,52 @@ class TestUnregister:
         assert seen["world"] == "w"
         assert seen["mesh_collection"] == "m"
         assert "dataset" not in seen
+
+
+# ---------------------------------------------------------------------------
+# Calibration coercion
+# ---------------------------------------------------------------------------
+
+
+class TestCalibrationCoercion:
+    """A bare ``(factor, unit)`` pair is accepted wherever a `Calibration` is.
+
+    `Calibration` is a NamedTuple, so a plain tuple looks interchangeable with one
+    right up until `calibrate` reads ``.factor`` off it — and that happens after the
+    dataset has uploaded. The pair is read by type rather than by position, so the
+    ordering ambiguity `Calibration`'s docstring objects to does not arise.
+    """
+
+    def test_a_calibration_passes_through(self) -> None:
+        from mikro_next.traits import _as_calibration
+        from mikro_next.vocabulary import Calibration, Unit
+
+        value = Calibration(0.5, Unit("micrometer"))
+        assert _as_calibration("z", value) is value
+
+    def test_a_factor_unit_pair_is_accepted(self) -> None:
+        from mikro_next.traits import _as_calibration
+
+        calibration = _as_calibration("x", (0.2, "micrometer"))
+        assert (float(calibration.factor), str(calibration.unit)) == (0.2, "micrometer")
+
+    def test_the_reversed_spelling_is_refused_not_repaired(self) -> None:
+        """`Calibration`'s docstring is explicit that only one ordering works."""
+        from mikro_next.traits import _as_calibration
+
+        with pytest.raises(TypeError, match="wrong way round"):
+            _as_calibration("x", ("micrometer", 0.2))
+
+    @pytest.mark.parametrize("bad", [(0.5, 1.0), "micrometer", (0.5,), None, 0.5])
+    def test_anything_that_is_not_a_factor_and_a_unit_is_refused(self, bad: object) -> None:
+        from mikro_next.traits import _as_calibration
+
+        with pytest.raises(TypeError, match="axis 'z'"):
+            _as_calibration("z", bad)
+
+    def test_a_bool_is_not_a_factor(self) -> None:
+        """``bool`` is an ``int`` subclass, so it would otherwise sail through."""
+        from mikro_next.traits import _as_calibration
+
+        with pytest.raises(TypeError):
+            _as_calibration("z", (True, "micrometer"))

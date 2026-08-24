@@ -43,3 +43,26 @@ fragment FabriksStore on FabriksStore {
   counts
   files
 }
+fragment SparseStore on SparseStore {
+  id
+  key
+  bucket
+  path
+  spec
+  shape
+  # One entry per `layouts/<encoding>` child. Which axis a layout compresses decides which
+  # question it answers in one contiguous read, so a store holding one offers one capability.
+  layouts {
+    path
+    encoding
+    encodingVersion
+    indexedAxis
+    # The axes this layout did not compress, in the order `indices` was raveled over them.
+    # At rank two it says nothing; above it, unravel a returned position through it.
+    indexOrder
+    nnz
+    dtype
+    chunks
+    rangeReadable
+  }
+}

@@ -11,7 +11,8 @@ import pytest
 import xarray as xr
 import zarr
 from obstore.store import MemoryStore
-from zarr.storage import ObjectStore as ZarrObjectStore, StorePath
+from zarr.storage import ObjectStore as ZarrObjectStore
+from zarr.storage import StorePath
 
 from mikro_next.io.download import download_file
 from mikro_next.io.obstore import (

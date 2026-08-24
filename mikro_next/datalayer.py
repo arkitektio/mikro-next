@@ -35,7 +35,6 @@ from typing import Optional
 
 from koil.composition import KoiledModel
 
-
 current_next_datalayer: contextvars.ContextVar[Optional["DataLayer"]] = contextvars.ContextVar(
     "current_next_datalayer", default=None
 )

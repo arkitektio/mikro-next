@@ -24,7 +24,7 @@ verified against this backend rather than assumed:
 """
 
 import json
-from typing import Any, Dict, List, NamedTuple, Tuple, cast
+from typing import Any, NamedTuple, cast
 
 import numpy as np
 import pytest
@@ -32,15 +32,15 @@ import xarray as xr
 
 from mikro_next import canonical, dataset_arrays, space_3d
 from mikro_next.api.schema import (
+    AnnotationKind,
     ArrayDataset,
     AxisAnchorInput,
     AxisType,
     BootstrapLayerKind,
     CoordinateAnchorInput,
     CoordinateSystem,
-    GetCoordinateGraphQueryCoordinategraph,
+    GetCoordinateGraphQueryCoordinateGraph,
     OmeMetadataInput,
-    AnnotationKind,
     ScenePolicyInput,
     TransformKind,
     ValueRelation,
@@ -110,18 +110,18 @@ def _upload(data: xr.DataArray, name: str) -> ArrayDataset:
     )
 
 
-def _anchors(data: xr.DataArray) -> List[CoordinateAnchorInput]:
+def _anchors(data: xr.DataArray) -> list[CoordinateAnchorInput]:
     """One contrast window per channel.
 
     The cast is a typing wart, not a runtime one: the classmethod is declared on
     ``CoordinateAnchorInputTrait`` and so is typed as returning the trait rather
     than the generated model it is actually mixed into.
     """
-    return cast(List[CoordinateAnchorInput], CoordinateAnchorInput.histogram_anchors(data))
+    return cast(list[CoordinateAnchorInput], CoordinateAnchorInput.histogram_anchors(data))
 
 
 def _edge(
-    graph: GetCoordinateGraphQueryCoordinategraph,
+    graph: GetCoordinateGraphQueryCoordinateGraph,
     source_id: str,
     target_id: str,
 ) -> Any:  # noqa: ANN401 - a heterogeneous union; the fields live on the variants
@@ -166,7 +166,7 @@ def registered_dataset(deployed_app: DeployedMikro) -> Placed:
 
 
 @pytest.fixture(scope="module")
-def derived_dataset(registered_dataset: Placed) -> Tuple[ArrayDataset, ArrayDataset]:
+def derived_dataset(registered_dataset: Placed) -> tuple[ArrayDataset, ArrayDataset]:
     """A thresholded child hung off the source's lens by an identity edge.
 
     ``isel(c=0)`` drops the singleton channel axis so the threshold walks the
@@ -327,7 +327,7 @@ def test_the_multiscale_edge_parses_with_its_children(
     graph = get_coordinate_graph(coordinate_system=registered_dataset.world.id)
     # Typed loosely on purpose: these are heterogeneous unions whose useful
     # fields live on the variants, exactly as in ``_edge`` above.
-    edges: List[Any] = list(graph.transformations)
+    edges: list[Any] = list(graph.transformations)
 
     assert not [t for t in edges if type(t).__name__.endswith("CatchAll")], (
         f"No edge should degrade to a CatchAll: {[type(t).__name__ for t in edges]}"
@@ -336,7 +336,7 @@ def test_the_multiscale_edge_parses_with_its_children(
     sequences = [t for t in edges if t.kind == TransformKind.SEQUENCE]
     assert len(sequences) == 1, "One coarser level means one downscale edge"
 
-    children: Dict[Any, Any] = {child.kind: child for child in sequences[0].sequence_children}
+    children: dict[Any, Any] = {child.kind: child for child in sequences[0].sequence_children}
     assert set(children) == {TransformKind.SCALE, TransformKind.TRANSLATION}
 
     scale = children[TransformKind.SCALE]
@@ -398,7 +398,7 @@ def test_draw_annotates_the_lens(registered_dataset: Placed) -> None:
 
 @pytest.mark.integration
 def test_derive_identity_creates_a_categorized_child(
-    derived_dataset: Tuple[ArrayDataset, ArrayDataset],
+    derived_dataset: tuple[ArrayDataset, ArrayDataset],
 ) -> None:
     """A segmentation shares the source grid exactly, so the edge is an IDENTITY."""
     source, derived = derived_dataset
@@ -422,7 +422,7 @@ def test_derive_identity_creates_a_categorized_child(
 @pytest.mark.integration
 def test_intrinsic_system_stages_a_label_scene(
     registered_dataset: Placed,
-    derived_dataset: Tuple[ArrayDataset, ArrayDataset],
+    derived_dataset: tuple[ArrayDataset, ArrayDataset],
 ) -> None:
     """The child stages in its own pixel grid, not in the source's physical space.
 

@@ -1,11 +1,9 @@
+from collections.abc import Awaitable
 from typing import (
-    Protocol,
-    Any,
-    runtime_checkable,
-    Optional,
-    Tuple,
-    Awaitable,
     TYPE_CHECKING,
+    Any,
+    Protocol,
+    runtime_checkable,
 )
 
 if TYPE_CHECKING:
@@ -28,7 +26,7 @@ class Namer(Protocol):
     def __call__(
         self,
         file: Any,
-    ) -> Awaitable[Tuple[str, str]]: ...
+    ) -> Awaitable[tuple[str, str]]: ...
 
 
 @runtime_checkable
@@ -42,7 +40,7 @@ class Downloader(Protocol):
         bucket: str,
         key: str,
         credentials: "Credentials",
-        executor: Optional[ThreadPoolExecutor] = None,
+        executor: ThreadPoolExecutor | None = None,
     ) -> Any:
         """Download a file from the DataLayer and return the local path."""
         ...
@@ -62,5 +60,5 @@ class Uploader(Protocol):
         file: Any,
         credentials: "Credentials",
         endpoint_url: str,
-        executor: Optional[ThreadPoolExecutor] = None,
+        executor: ThreadPoolExecutor | None = None,
     ) -> str: ...

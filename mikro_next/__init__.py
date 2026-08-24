@@ -4,23 +4,29 @@ import logging
 
 from kanne.scalars import Unit
 
+from .compression import DEFAULT_COMPRESSION, MESH_CODECS, TABLE_CODECS, UnreadableCodecError
 from .mikro_next import MikroNext
-from .pyramid import build_pyramid, canonical, dataset_arrays, scales_from
+from .pyramid import axes_for, build_pyramid, canonical, dataset_arrays, scales_from
 from .spaces import create_space, space_2d, space_3d, timelapse_3d
+from .sparse import SparseDeclarationError
+from .tables import TableDeclarationError
 from .utils import rechunk
 from .vocabulary import (
     AxisSelection,
     AxisTypeName,
     Calibration,
+    ColumnRoleName,
     Reduction,
     TransformKind,
     default_axis_type,
+    duckdb_type,
 )
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "MikroNext",
+    "axes_for",
     "build_pyramid",
     "canonical",
     "dataset_arrays",
@@ -30,6 +36,15 @@ __all__ = [
     "space_3d",
     "timelapse_3d",
     "rechunk",
+    # The declaration a caller writes against is the generated `ColumnInput` /
+    # `TableAxisInput`; what lives here is the refusal it can raise and the codec
+    # vocabulary, which is this client's own and stated nowhere else.
+    "SparseDeclarationError",
+    "TableDeclarationError",
+    "UnreadableCodecError",
+    "DEFAULT_COMPRESSION",
+    "TABLE_CODECS",
+    "MESH_CODECS",
     # The vocabularies a caller writes against. `ChannelSpec` is deliberately not
     # here: `render` imports the generated schema at module level, and pulling
     # that into every `import mikro_next` is what `pyramid` and `spaces` avoid
@@ -37,10 +52,12 @@ __all__ = [
     "AxisSelection",
     "AxisTypeName",
     "Calibration",
+    "ColumnRoleName",
     "Reduction",
     "Unit",
     "TransformKind",
     "default_axis_type",
+    "duckdb_type",
 ]
 
 # Both of these are optional: `arkitekt-next` and `rekuest-next` are dev

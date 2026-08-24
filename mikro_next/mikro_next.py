@@ -1,7 +1,8 @@
-from pydantic import Field
 from koil.composition import Composition
-from mikro_next.rath import MikroNextRath
+from pydantic import Field
+
 from mikro_next.datalayer import DataLayer
+from mikro_next.rath import MikroNextRath
 
 
 class MikroNext(Composition):

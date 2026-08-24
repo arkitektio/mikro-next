@@ -15,6 +15,7 @@ from rekuest_next.structures.default import (
     id_shrink,
 )
 from rekuest_next.widgets import SearchWidget
+
 from mikro_next.api.schema import (
     Animation,
     Annotation,
@@ -27,6 +28,15 @@ from mikro_next.api.schema import (
     MeshCollection,
     Scene,
     SceneSnapshot,
+    SearchAnimationsQuery,
+    SearchAnnotationCollectionsQuery,
+    SearchArrayDatasetsQuery,
+    SearchCoordinateSystemsQuery,
+    SearchFilesQuery,
+    SearchFoldersQuery,
+    SearchMeshCollectionsQuery,
+    SearchSceneSnapshotsQuery,
+    SearchScenesQuery,
     TableDataset,
     aget_animation,
     aget_annotation,
@@ -40,17 +50,7 @@ from mikro_next.api.schema import (
     aget_scene,
     aget_scene_snapshot,
     aget_table_dataset,
-    SearchAnimationsQuery,
-    SearchAnnotationCollectionsQuery,
-    SearchArrayDatasetsQuery,
-    SearchCoordinateSystemsQuery,
-    SearchFilesQuery,
-    SearchFoldersQuery,
-    SearchMeshCollectionsQuery,
-    SearchSceneSnapshotsQuery,
-    SearchScenesQuery,
 )
-
 
 structure_reg = get_default_structure_registry()
 

@@ -1,7 +1,8 @@
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
 from rath.operation import GraphQLException
+
 from mikro_next.api.schema import (
     create_folder,
     search_animations,
@@ -14,8 +15,8 @@ from mikro_next.api.schema import (
     search_scene_snapshots,
     search_scenes,
 )
-from .conftest import DeployedMikro
 
+from .conftest import DeployedMikro
 
 # A unique substring shared by all folders created in this module, so that the
 # search filter isolates exactly the folders we create here.

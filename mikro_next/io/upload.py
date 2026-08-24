@@ -7,36 +7,39 @@ Provides both async and sync upload paths via obstore:
       store_fabriks_collection
 """
 
-from io import BytesIO
+import asyncio
 import logging
 import os
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 
 import obstore
+
+from mikro_next.compression import DEFAULT_COMPRESSION
 from mikro_next.scalars import (
     ArrayLike,
+    FabriksLike,
     FileLike,
     ImageFileLike,
-    FabriksLike,
     ParquetLike,
+    SporadikLike,
 )
 
 from .errors import UploadError
-
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from mikro_next.api.schema import (
-        ZarrUploadGrant,
-        ParquetUploadGrant,
         BigFileUploadGrant,
         FabriksUploadGrant,
         MediaUploadGrant,
+        ParquetUploadGrant,
+        SparseUploadGrant,
+        ZarrUploadGrant,
     )
     from mikro_next.datalayer import DataLayer
 
@@ -104,9 +107,9 @@ def _parquet_payload(value: object) -> "tuple[object, Path | None]":
         scratch = Path(name)
         try:
             if isinstance(value, Table):
-                pq.write_table(value, scratch)
+                pq.write_table(value, scratch, compression=DEFAULT_COMPRESSION)
             else:
-                with pq.ParquetWriter(scratch, value.schema) as writer:
+                with pq.ParquetWriter(scratch, value.schema, compression=DEFAULT_COMPRESSION) as writer:
                     for batch in value:
                         writer.write_batch(batch)
         except BaseException:
@@ -118,7 +121,7 @@ def _parquet_payload(value: object) -> "tuple[object, Path | None]":
 
     table = Table.from_pandas(value)  # type: ignore
     buffer = BytesIO()
-    pq.write_table(table, buffer)
+    pq.write_table(table, buffer, compression=DEFAULT_COMPRESSION)
     buffer.seek(0)
     return buffer, None
 
@@ -152,6 +155,84 @@ def _store_parquet_input(
             scratch.unlink(missing_ok=True)
 
 
+async def astore_sparse_matrix(
+    sparse: SporadikLike,
+    credentials: "SparseUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Write a sparse matrix into the granted prefix as one store, and return its store id.
+
+    One prefix per matrix, holding one or both layouts under ``layouts/<encoding>`` in the
+    spelling anndata uses -- so the server reads the encoding, the shape and the chunking back
+    off the artifact and ``createSparseDataset`` declares none of them.
+
+    Rooted at ``grant.key`` with the group at the store's root, for the reason
+    :func:`create_zarr_store_path` gives: zarr walks a node's parents to create intermediate
+    groups, and the parent of a bucket-rooted ``grant.key`` is the bucket root, which a
+    prefix-scoped grant denies with a 403.
+
+    The chunking is chosen here rather than by the caller, and it is the one number that decides
+    what a read costs: `indptr` names exactly which bytes a lookup wants, and a chunk is the
+    granularity at which they can be fetched, so the two have to agree. See
+    :data:`sporadik.DEFAULT_CHUNK` for the measurement.
+    """
+    return _store_sparse_into_grant(sparse, credentials, await datalayer.get_endpoint_url())
+
+
+def store_sparse_matrix(
+    sparse: SporadikLike,
+    credentials: "SparseUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Write a sparse matrix into the granted prefix synchronously.
+
+    The same write as :func:`astore_sparse_matrix` -- zarr's obstore path is synchronous either
+    way -- so the two differ only in how they reach the endpoint url.
+    """
+    return _store_sparse_into_grant(sparse, credentials, datalayer.endpoint_url)
+
+
+def _store_sparse_into_grant(
+    sparse: SporadikLike,
+    credentials: "SparseUploadGrant",
+    endpoint_url: str,
+) -> str:
+    """The write itself, shared by both paths.
+
+    The block `sporadik.write_store_into` lands last is what makes an interrupted upload
+    detectable: everything written before it declares something before it is true, because zarr
+    writes an array's metadata ahead of its chunks and substitutes the fill value for a chunk it
+    cannot fetch. A prefix that got this far and no further reads back as zeros, silently, which
+    is the failure the block exists to convert into a refusal.
+    """
+    import zarr
+
+    from mikro_next.io.obstore import create_zarr_store_path
+    from mikro_next.scalars import _sporadik
+
+    write_store_into = _sporadik().write_store_into
+
+    layouts = sparse.layouts
+    shape = tuple(next(iter(layouts.values())).shape)
+    nnz = sum(len(layout.data) for layout in layouts.values())
+    store_path = create_zarr_store_path(endpoint_url, credentials)
+
+    try:
+        logger.debug(f"Uploading sparse matrix to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}...")
+        group = zarr.open_group(store=store_path, mode="w")
+        write_store_into(group, list(layouts.values()))
+        logger.info(
+            f"Successfully uploaded a matrix of shape {shape}, compressed along "
+            f"{'+'.join(f'axis{axis}' for axis in sorted(layouts))} "
+            f"({nnz} nonzero across {len(layouts)} layout(s)) to s3://{credentials.bucket}/{credentials.key}"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
 async def astore_fabriks_collection(
     collection: FabriksLike,
     credentials: "FabriksUploadGrant",
@@ -174,6 +255,7 @@ async def astore_fabriks_collection(
     from fabriks import awrite_collection
 
     from mikro_next.io.obstore import create_s3_store
+    from mikro_next.meshes import refuse_an_unreadable_part_codec
 
     endpoint_url = await datalayer.get_endpoint_url()
     store = create_s3_store(endpoint_url, credentials)
@@ -182,6 +264,7 @@ async def astore_fabriks_collection(
         logger.debug(
             f"Uploading fabriks collection to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
+        refuse_an_unreadable_part_codec()
         manifest = await awrite_collection(collection.value, store, credentials.key)
         logger.info(
             f"Successfully uploaded fabriks collection to s3://{credentials.bucket}/{credentials.key} "
@@ -362,6 +445,7 @@ def store_fabriks_collection(
     from fabriks import write_collection
 
     from mikro_next.io.obstore import create_s3_store
+    from mikro_next.meshes import refuse_an_unreadable_part_codec
 
     endpoint_url = datalayer.endpoint_url
     store = create_s3_store(endpoint_url, credentials)
@@ -370,6 +454,7 @@ def store_fabriks_collection(
         logger.debug(
             f"Uploading fabriks collection to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
         )
+        refuse_an_unreadable_part_codec()
         manifest = write_collection(collection.value, store, credentials.key)
         logger.info(
             f"Successfully uploaded fabriks collection to s3://{credentials.bucket}/{credentials.key} "

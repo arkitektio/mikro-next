@@ -1,47 +1,61 @@
+"""Superseded. Not in any composed link chain -- `middleware/upload.py` is the live path.
+
+Upload moved out of the link chain and up to the funcs level, where `UploadMiddleware` walks the
+*serialized* variables before rath is entered at all; `MikroNextLinkComposition` says so and does
+not list this link. Nothing constructs `UploadLink`.
+
+Nothing imports this module either -- it is reachable only by name. It is kept as the readable
+statement of what the upload protocol *is* (request a grant, write, finish); removing it is a
+call for whoever owns the package, not a side effect of adding a scalar. Treat it as
+documentation: editing the dispatch below changes nothing at runtime. A `SporadikLike` branch was
+added here first and never ran, which is what this notice exists to prevent happening again.
+"""
+
 import asyncio
-
-
-from mikro_next.scalars import (
-    ArrayLike,
-    ImageFileLike,
-    FabriksLike,
-    ParquetLike,
-    FileLike,
-)
-from rath.links.parsing import ParsingLink
-from rath.operation import Operation, opify
-from typing import Any, Tuple, Type, Union
-from mikro_next.io.upload import (
-    aupload_bigfile,
-    aupload_xarray,
-    aupload_parquet,
-    astore_fabriks_collection,
-    astore_media_file,
-)
-from pydantic import Field
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from typing import TYPE_CHECKING, Any
+
+from pydantic import Field
+from rath.links.parsing import ParsingLink
+from rath.operation import Operation, opify
+
 from mikro_next.datalayer import DataLayer
-from typing import TYPE_CHECKING
+from mikro_next.io.upload import (
+    astore_fabriks_collection,
+    astore_media_file,
+    astore_sparse_matrix,
+    aupload_bigfile,
+    aupload_parquet,
+    aupload_xarray,
+)
+from mikro_next.scalars import (
+    ArrayLike,
+    FabriksLike,
+    FileLike,
+    ImageFileLike,
+    ParquetLike,
+    SporadikLike,
+)
 
 if TYPE_CHECKING:
     from mikro_next.api.schema import (
+        BigFileUploadGrant,
         FabriksUploadGrant,
         MediaUploadGrant,
-        ZarrUploadGrant,
         ParquetUploadGrant,
-        BigFileUploadGrant,
+        ZarrUploadGrant,
     )
     from mikro_next.datalayer import DataLayer
     from mikro_next.io.upload import (
-        FileLike,
-        ParquetLike,
         ArrayLike,
+        FileLike,
         ImageFileLike,
+        ParquetLike,
     )
 
 
-async def apply_recursive(func, obj, typeguard: Union[Type[Any], Tuple[Type[Any], ...]]) -> Any:  # type: ignore
+async def apply_recursive(func, obj, typeguard: type[Any] | tuple[type[Any], ...]) -> Any:  # type: ignore
     """
     Recursively applies an asynchronous function to elements in a nested structure.
 
@@ -125,7 +139,7 @@ class UploadLink(ParsingLink):
         operation = opify(
             FinishZarrUploadMutation.Meta.document,
             variables={
-                "input": FinishZarrUploadInput(storeId=store_id, valid=True).model_dump(
+                "input": FinishZarrUploadInput(store_id=store_id, valid=True).model_dump(
                     by_alias=True, exclude_unset=True
                 )
             },
@@ -165,6 +179,69 @@ class UploadLink(ParsingLink):
 
         raise ValueError("No result found for fabriks upload credentials")
 
+    async def aget_sparse_credentials(self, key: str, datalayer: str) -> "SparseUploadGrant":
+        """Get sparse upload credentials.
+
+        One grant for the whole prefix, because a sparse matrix is a zarr *group*: three arrays,
+        each in chunks, under one key.
+        """
+        from mikro_next.api.schema import (
+            RequestSparseUploadInput,
+            RequestSparseUploadMutation,
+        )
+
+        if not self.next:
+            raise ValueError("No next link found. Please set the next link.")
+
+        operation = opify(
+            RequestSparseUploadMutation.Meta.document,
+            variables={"input": RequestSparseUploadInput().model_dump(by_alias=True, exclude_unset=True)},
+        )
+
+        async for result in self.next.aexecute(operation):
+            return RequestSparseUploadMutation(**result.data).request_sparse_upload
+
+        raise ValueError("No result found for sparse upload credentials")
+
+    async def afinish_sparse_upload(self, store_id: str) -> None:
+        """Finish a sparse upload.
+
+        Where the server reads the group's own attributes and each array's, and refuses one
+        whose encoding is missing or whose `indptr` contradicts its declared shape -- which is
+        what a half-written tree looks like. The client checked the same things before spending
+        the upload; this is the check that the *bytes* agree, not just the object in memory.
+        """
+        from mikro_next.api.schema import (
+            FinishSparseUploadInput,
+            FinishSparseUploadMutation,
+        )
+
+        if not self.next:
+            raise ValueError("No next link found. Please set the next link.")
+
+        operation = opify(
+            FinishSparseUploadMutation.Meta.document,
+            variables={
+                "input": FinishSparseUploadInput(store_id=store_id, valid=True).model_dump(by_alias=True, exclude_unset=True)
+            },
+        )
+
+        async for result in self.next.aexecute(operation):
+            return
+
+        raise ValueError("No result found for finishing the sparse upload")
+
+    async def astore_sparse_matrix(self, datalayer: "DataLayer", sparse: SporadikLike) -> str:
+        """Write a sparse matrix into a granted prefix and register it as complete."""
+        assert datalayer is not None, "Datalayer must be set"
+        endpoint_url = await datalayer.get_endpoint_url()
+
+        credentials = await self.aget_sparse_credentials(sparse.key, endpoint_url)
+        store_id = await astore_sparse_matrix(sparse, credentials, datalayer)
+
+        await self.afinish_sparse_upload(store_id)
+        return store_id
+
     async def afinish_fabriks_upload(self, store_id: str) -> None:
         """Finish a fabriks upload.
 
@@ -183,7 +260,7 @@ class UploadLink(ParsingLink):
         operation = opify(
             FinishFabriksUploadMutation.Meta.document,
             variables={
-                "input": FinishFabriksUploadInput(storeId=store_id, valid=True).model_dump(
+                "input": FinishFabriksUploadInput(store_id=store_id, valid=True).model_dump(
                     by_alias=True, exclude_unset=True
                 )
             },
@@ -231,7 +308,7 @@ class UploadLink(ParsingLink):
             RequestBigfileUploadMutation.Meta.document,
             variables={
                 "input": RequestBigFileUploadInput(
-                    originalFileName=file.file_name,
+                    original_file_name=file.file_name,
                 ).model_dump(by_alias=True, exclude_unset=True)
             },
         )
@@ -245,8 +322,8 @@ class UploadLink(ParsingLink):
         self, file_name: str, datalayer: str
     ) -> "MediaUploadGrant":
         from mikro_next.api.schema import (
-            RequestMediaUploadMutation,
             RequestMediaUploadInput,
+            RequestMediaUploadMutation,
         )
 
         if not self.next:
@@ -256,7 +333,7 @@ class UploadLink(ParsingLink):
             RequestMediaUploadMutation.Meta.document,
             variables={
                 "input": RequestMediaUploadInput(
-                    originalFileName=file_name,
+                    original_file_name=file_name,
                 ).model_dump(by_alias=True, exclude_unset=True)
             },
         )
@@ -371,6 +448,9 @@ class UploadLink(ParsingLink):
         )
         operation.variables = await apply_recursive(
             partial(self.astore_fabriks_collection, datalayer), operation.variables, FabriksLike
+        )
+        operation.variables = await apply_recursive(
+            partial(self.astore_sparse_matrix, datalayer), operation.variables, SporadikLike
         )
 
         return operation

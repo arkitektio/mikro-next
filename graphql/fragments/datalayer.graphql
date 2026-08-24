@@ -120,3 +120,15 @@ fragment FabriksAccessGrant on FabriksAccessGrant {
   key
   bucket
 }
+
+fragment SparseUploadGrant on SparseUploadGrant {
+  accessKey
+  secretKey
+  sessionToken
+  path
+  key
+  bucket
+  expiresIn
+  maxBytes
+  store
+}

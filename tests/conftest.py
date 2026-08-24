@@ -1,22 +1,24 @@
-import sys
-from typing import Generator
-import pytest
-from dokker import local, Deployment, testing
-from dokker.log_watcher import LogWatcher
 import os
-from mikro_next.mikro_next import MikroNext
-from rath.links.auth import ComposedAuthLink
+import sys
+from collections.abc import Generator
+from dataclasses import dataclass
+
+import pytest
+from dokker import Deployment, testing
+from dokker.log_watcher import LogWatcher
 from rath.links.aiohttp import AIOHttpLink
+from rath.links.auth import ComposedAuthLink
 from rath.links.graphql_ws import GraphQLWSLink
-from mikro_next.rath import (
-    MikroNextRath,
-    SplitLink,
-    MikroNextLinkComposition,
-)
+
+from graphql import OperationType
 from mikro_next.datalayer import DataLayer
 from mikro_next.middleware.upload import UploadMiddleware
-from graphql import OperationType
-from dataclasses import dataclass
+from mikro_next.mikro_next import MikroNext
+from mikro_next.rath import (
+    MikroNextLinkComposition,
+    MikroNextRath,
+    SplitLink,
+)
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -25,7 +27,7 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "no_windows: skip on Windows")
 
 
-def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:  # noqa: ARG001
+def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
     """Skip tests marked linux_only or no_windows on the wrong platform."""
     for item in items:
         if item.get_closest_marker("linux_only") and sys.platform != "linux":

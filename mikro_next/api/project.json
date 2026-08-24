@@ -1,9 +1,8 @@
 {
-    "schema_url": "http://jhnnsrs-lab/mikro/schema",
+    "schema": "http://jhnnsrs-lab/mikro/schema",
     "documents": "graphql/**/**.graphql",
     "extensions": {
         "turms": {
-            "pydantic_version": "v2",
             "domain": null,
             "out_dir": "mikro_next/api",
             "dump_configuration": true,
@@ -28,6 +27,7 @@
                 "ArrayLike": "mikro_next.scalars.ArrayLike",
                 "ParquetLike": "mikro_next.scalars.ParquetLike",
                 "FabriksLike": "mikro_next.scalars.FabriksLike",
+                "SporadikLike": "mikro_next.scalars.SporadikLike",
                 "FileLike": "mikro_next.scalars.FileLike",
                 "ImageFileLike": "mikro_next.scalars.ImageFileLike",
                 "ThreeDVector": "mikro_next.scalars.ThreeDVector",
@@ -55,19 +55,17 @@
                 ],
                 "exclude": null,
                 "include": null,
-                "exclude_fields": [],
-                "include_fields": [],
                 "convert_list_to_tuple": true
             },
             "create_catchall": true,
             "options": {
                 "enabled": true,
                 "extra": "forbid",
-                "allow_mutation": null,
-                "allow_population_by_field_name": true,
-                "orm_mode": null,
-                "use_enum_values": true,
+                "populate_by_name": null,
+                "from_attributes": null,
+                "use_enum_values": null,
                 "validate_assignment": null,
+                "alias_mode": "split",
                 "types": [
                     "input"
                 ],
@@ -75,6 +73,8 @@
                 "include": null
             },
             "skip_forwards": false,
+            "min_python_version": "3.10",
+            "type_annotation_style": "auto",
             "additional_bases": {
                 "AxisInput": [
                     "mikro_next.traits.AxisInputTrait"
@@ -90,6 +90,18 @@
                 ],
                 "CoordinateAnchorInput": [
                     "mikro_next.traits.CoordinateAnchorInputTrait"
+                ],
+                "CreateTableDatasetInput": [
+                    "mikro_next.traits.CreateTableDatasetTrait"
+                ],
+                "CreateSparseDatasetInput": [
+                    "mikro_next.traits.CreateSparseDatasetTrait"
+                ],
+                "SparseAxisInput": [
+                    "mikro_next.traits.SparseAxisInputTrait"
+                ],
+                "SparseColorByInput": [
+                    "mikro_next.traits.SparseColorByInputTrait"
                 ],
                 "TableDataset": [
                     "mikro_next.traits.HasParquestStoreTrait"
@@ -145,9 +157,6 @@
                 "ByDimensionTransformation": [
                     "mikro_next.traits.TransformationTrait"
                 ],
-                "BijectionTransformation": [
-                    "mikro_next.traits.TransformationTrait"
-                ],
                 "UnmappableTransformation": [
                     "mikro_next.traits.TransformationTrait"
                 ],
@@ -163,7 +172,7 @@
             },
             "additional_config": {},
             "force_plugin_order": true,
-            "omited_document_rules": [
+            "omitted_document_rules": [
                 "no_unused_fragments"
             ],
             "parsers": [],
@@ -191,6 +200,7 @@
                         "FileLike": "mikro_next.scalars.ImageFileCoercible",
                         "ParquetLike": "mikro_next.scalars.ParquetCoercible",
                         "FabriksLike": "mikro_next.scalars.FabriksCoercible",
+                        "SporadikLike": "mikro_next.scalars.SporadikCoercible",
                         "ID": "rath.scalars.IDCoercible"
                     },
                     "coercible_inputs": {

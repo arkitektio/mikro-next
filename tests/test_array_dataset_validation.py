@@ -112,13 +112,27 @@ def test_the_labels_of_the_data_array_survive() -> None:
 @pytest.mark.parametrize(
     ("name", "expected"),
     [("t", "TIME"), ("time", "TIME"), ("c", "CHANNEL"), ("channel", "CHANNEL"),
-     ("z", "SPACE"), ("y", "SPACE"), ("x", "SPACE"), ("m", "SPACE")],
+     ("z", "SPACE"), ("y", "SPACE"), ("x", "SPACE")],
 )
 def test_a_bare_axis_name_infers_its_type(name: str, expected: str) -> None:
     """``axes=["c", "z", "y", "x"]`` is enough for the common case; anything the
     convention gets wrong takes a full ``AxisInput`` instead."""
     axis = AxisInput.model_validate(name)
     assert (axis.name, axis.type) == (name, expected)
+
+
+@pytest.mark.parametrize("name", ["m", "lambda", "tile", "tau", "row"])
+def test_an_unconventional_bare_name_is_refused(name: str) -> None:
+    """The convention has no catch-all. It used to call anything it did not
+    recognise SPACE, and the pyramid coarsens exactly the SPACE axes — which is
+    how a tile index gets halved level by level, 12 tiles quietly becoming 6."""
+    with pytest.raises(ValidationError, match="No conventional axis type"):
+        AxisInput.model_validate(name)
+
+
+def test_an_unconventional_axis_is_fine_when_its_type_is_stated() -> None:
+    axis = AxisInput(name="tile", type="INDEX")
+    assert (axis.name, axis.type) == ("tile", "INDEX")
 
 
 def test_bare_axis_names_are_accepted_by_the_mutation_input() -> None:

@@ -8,7 +8,7 @@ Attributes:
     MY_TOP_SAMPLES (SearchWidget): The top samples for the currently active user
 """
 
-from rekuest_next.widgets import withDescriptor, DescriptorInput
+from rekuest_next.widgets import DescriptorInput, withDescriptor
 
 
 def withMaxXSize(max_x_size: int) -> DescriptorInput:

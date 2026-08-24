@@ -26,7 +26,8 @@ from __future__ import annotations
 import atexit
 import shutil
 import tempfile
-from typing import TYPE_CHECKING, Final, List, Mapping, Optional, Sequence, Tuple
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Final
 
 import xarray as xr
 
@@ -39,7 +40,7 @@ from mikro_next.vocabulary import (
 )
 
 if TYPE_CHECKING:
-    from mikro_next.api.schema import ScaleInput, ScaleMethod
+    from mikro_next.api.schema import AxisInput, ScaleInput, ScaleMethod
 
 
 # The reductions xarray's ``coarsen`` can apply, plus ``nearest`` which is a
@@ -49,7 +50,7 @@ if TYPE_CHECKING:
 # calls the same operation, and ``sum`` has no member at all — pooling that
 # conserves counts is not a resampling filter, so it travels with no method
 # rather than being misreported as one of the others.
-_REDUCTIONS: Final[Mapping[Reduction, Optional[str]]] = {
+_REDUCTIONS: Final[Mapping[Reduction, str | None]] = {
     "max": "MAX",
     "mean": "AREA",
     "sum": None,
@@ -59,7 +60,7 @@ _REDUCTIONS: Final[Mapping[Reduction, Optional[str]]] = {
 
 
 def canonical(
-    array: xr.DataArray, types: Optional[Mapping[str, AxisTypeName]] = None
+    array: xr.DataArray, types: Mapping[str, AxisTypeName] | None = None
 ) -> xr.DataArray:
     """Reorder an array's dimensions into the axis order the server requires:
     time, then channel and custom types, then space.
@@ -80,18 +81,76 @@ def canonical(
     dims = [str(d) for d in array.dims]
     ordered = sorted(
         dims,
-        key=lambda d: axis_type_rank(types.get(d, default_axis_type(d))),
+        key=lambda d: axis_type_rank(_axis_type_of(d, types)),
     )
     if ordered == dims:
         return array
     return array.transpose(*ordered)
 
 
+def _axis_type_of(name: str, types: Mapping[str, AxisTypeName]) -> AxisTypeName:
+    """The declared type of an axis, falling back to the bare-name convention.
+
+    Written out rather than ``types.get(name, default_axis_type(name))`` because
+    that evaluates the fallback eagerly — and the fallback now raises on a name
+    the convention does not know, so a caller who *did* declare the type would
+    still hit it.
+    """
+    if name in types:
+        return types[name]
+    return default_axis_type(name)
+
+
+def axes_for(
+    array: xr.DataArray,
+    *,
+    types: Mapping[str, AxisTypeName] | None = None,
+    long_names: Mapping[str, str] | None = None,
+) -> list[AxisInput]:
+    """The `AxisInput` list describing an array's dimensions, in array order.
+
+    The type of each axis comes from ``types`` where the caller states it and from the
+    bare-name convention otherwise — so the axes a converter has to *think* about are
+    the ones it names, and the rest follow. Stating a type is not optional decoration:
+    the pyramid coarsens exactly the SPACE axes, so an axis left to a guess that guesses
+    wrong is downsampled away.
+
+        axes_for(data, types={"tile": "INDEX"}, long_names=AXIS_LONG_NAMES)
+
+    Args:
+        array: The array whose ``dims`` are being described.
+        types: Axis name -> `AxisType` name, for the axes the convention does not know
+            or would get wrong.
+        long_names: Axis name -> human-readable label. Defaults to the axis name.
+
+    Returns:
+        One `AxisInput` per dimension, in the array's own order.
+
+    Raises:
+        UnknownAxisName: If an axis is neither in ``types`` nor known to the convention.
+    """
+    from mikro_next.api.schema import AxisInput, AxisType
+
+    declared = types or {}
+    labels = long_names or {}
+    return [
+        AxisInput(
+            name=dim,
+            type=AxisType(_axis_type_of(dim, declared)),
+            # The alias, not `long_name=`: both populate the same field, but the
+            # generated model declares the alias, so this is the spelling the type
+            # checker can see.
+            long_name=labels.get(dim, dim),
+        )
+        for dim in (str(d) for d in array.dims)
+    ]
+
+
 def _coarsen_dims(
     array: xr.DataArray,
-    axes: Optional[Sequence[str]],
+    axes: Sequence[str] | None,
     types: Mapping[str, AxisTypeName],
-) -> List[str]:
+) -> list[str]:
     """Which of the array's dimensions this pyramid halves.
 
     By default the spatial ones: a pyramid is a level-of-detail structure, and
@@ -101,7 +160,7 @@ def _coarsen_dims(
     dims = [str(d) for d in array.dims]
 
     if axes is None:
-        return [d for d in dims if types.get(d, default_axis_type(d)) == "SPACE"]
+        return [d for d in dims if _axis_type_of(d, types) == "SPACE"]
 
     chosen = [str(a) for a in axes]
     unknown = [a for a in chosen if a not in dims]
@@ -112,7 +171,7 @@ def _coarsen_dims(
     categorical = [
         a
         for a in chosen
-        if types.get(a, default_axis_type(a)) not in COARSENABLE_AXIS_TYPES
+        if _axis_type_of(a, types) not in COARSENABLE_AXIS_TYPES
     ]
     if categorical:
         raise ValueError(
@@ -175,10 +234,10 @@ def build_pyramid(
     levels: int = 5,
     method: Reduction = "max",
     *,
-    axes: Optional[Sequence[str]] = None,
-    types: Optional[Mapping[str, AxisTypeName]] = None,
-    materialize: Optional[bool] = None,
-) -> List[xr.DataArray]:
+    axes: Sequence[str] | None = None,
+    types: Mapping[str, AxisTypeName] | None = None,
+    materialize: bool | None = None,
+) -> list[xr.DataArray]:
     """A resolution pyramid: `base` and each successive halving of it.
 
     Level *i* is a real downsample of level *i-1*, chained — which is what a
@@ -226,7 +285,7 @@ def build_pyramid(
 
 def scales_from(
     pyramid: Sequence[xr.DataArray], method: Reduction = "max"
-) -> List["ScaleInput"]:
+) -> list[ScaleInput]:
     """The ``scales`` argument for a pyramid you already hold.
 
     Levels 1..N only: ``data`` *is* level 0, so listing it here as well would
@@ -246,7 +305,7 @@ def scales_from(
         )
 
     recorded = _REDUCTIONS[method]
-    scale_method: Optional[ScaleMethod] = (
+    scale_method: ScaleMethod | None = (
         ScaleMethod(recorded) if recorded is not None else None
     )
     return [
@@ -261,10 +320,10 @@ def dataset_arrays(
     levels: int = 5,
     method: Reduction = "max",
     *,
-    axes: Optional[Sequence[str]] = None,
-    types: Optional[Mapping[str, AxisTypeName]] = None,
-    materialize: Optional[bool] = None,
-) -> Tuple[xr.DataArray, List["ScaleInput"]]:
+    axes: Sequence[str] | None = None,
+    types: Mapping[str, AxisTypeName] | None = None,
+    materialize: bool | None = None,
+) -> tuple[xr.DataArray, list[ScaleInput]]:
     """The ``(data, scales)`` pair ``create_array_dataset`` wants.
 
     Level 0 is returned separately from the rest because that is how the mutation
@@ -292,8 +351,9 @@ def dataset_arrays(
 
 
 __all__ = [
-    "canonical",
+    "axes_for",
     "build_pyramid",
-    "scales_from",
+    "canonical",
     "dataset_arrays",
+    "scales_from",
 ]

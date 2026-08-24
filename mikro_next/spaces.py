@@ -24,7 +24,8 @@ Reach for `create_space` when the shape is not one of them.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence, Union
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Union
 
 from kanne.scalars import Unit
 
@@ -44,7 +45,7 @@ if TYPE_CHECKING:
 AxisSpec = Union[Mapping[str, Unit], Sequence["PhysicalAxisInput"]]
 
 
-def _axis_type_rank(axis: "PhysicalAxisInput") -> int:
+def _axis_type_rank(axis: PhysicalAxisInput) -> int:
     """The RFC-5 group an axis sorts into. Unknown types sort with the
     categorical ones, which is where every non-space, non-time type belongs."""
     # `use_enum_values` means the field may hold either the enum or its value.
@@ -53,7 +54,7 @@ def _axis_type_rank(axis: "PhysicalAxisInput") -> int:
     return axis_type_rank(name)
 
 
-def _canonical_axes(axes: Sequence["PhysicalAxisInput"]) -> List["PhysicalAxisInput"]:
+def _canonical_axes(axes: Sequence[PhysicalAxisInput]) -> list[PhysicalAxisInput]:
     """Sort axis inputs into RFC-5 order, stably.
 
     Stable, because order *within* a group is the caller's to state: ``(z, y, x)``
@@ -66,10 +67,10 @@ def create_space(
     name: str,
     axes: AxisSpec,
     *,
-    epoch: Optional["datetime"] = None,
-    registrations: Optional[Sequence["RegistrationPathInput"]] = None,
-    rath: Optional["MikroNextRath"] = None,
-) -> "CoordinateSystem":
+    epoch: datetime | None = None,
+    registrations: Sequence[RegistrationPathInput] | None = None,
+    rath: MikroNextRath | None = None,
+) -> CoordinateSystem:
     """Create a shared coordinate system: a reference frame owned by nobody.
 
     Args:
@@ -102,7 +103,7 @@ def create_space(
         create_coordinate_system,
     )
 
-    axis_inputs: List[PhysicalAxisInput]
+    axis_inputs: list[PhysicalAxisInput]
     if isinstance(axes, Mapping):
         axis_inputs = [
             PhysicalAxisInput(
@@ -132,8 +133,8 @@ def space_2d(
     *,
     unit: Unit = Unit("micrometer"),
     axes: Sequence[str] = ("y", "x"),
-    rath: Optional["MikroNextRath"] = None,
-) -> "CoordinateSystem":
+    rath: MikroNextRath | None = None,
+) -> CoordinateSystem:
     """A flat physical space: ``(y, x)``, one length unit for both axes.
 
         plane = space_2d("slide", unit=Unit("micrometer"))
@@ -156,8 +157,8 @@ def space_3d(
     *,
     unit: Unit = Unit("micrometer"),
     axes: Sequence[str] = ("z", "y", "x"),
-    rath: Optional["MikroNextRath"] = None,
-) -> "CoordinateSystem":
+    rath: MikroNextRath | None = None,
+) -> CoordinateSystem:
     """A volumetric physical space: ``(z, y, x)``, one length unit for all three.
 
     The usual world to register a z-stack into. An anisotropic voxel is not a
@@ -185,9 +186,9 @@ def timelapse_3d(
     unit: Unit = Unit("micrometer"),
     time_unit: Unit = Unit("second"),
     axes: Sequence[str] = ("z", "y", "x"),
-    epoch: Optional["datetime"] = None,
-    rath: Optional["MikroNextRath"] = None,
-) -> "CoordinateSystem":
+    epoch: datetime | None = None,
+    rath: MikroNextRath | None = None,
+) -> CoordinateSystem:
     """A volumetric space with a time axis: ``(t, z, y, x)``.
 
     Pass `epoch` to anchor the clock — the wall-clock instant ``t = 0`` means —

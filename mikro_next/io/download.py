@@ -1,26 +1,26 @@
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import aiohttp
+import obstore  # Imported to access direct streaming capabilities
+from koil import unkoil
+from rath.scalars import ID
+from zarr.storage import StorePath
+
 from mikro_next.api.schema import (
-    ZarrAccessGrant,
-    arequest_zarr_access,
-    arequest_parquet_access,
-    arequest_bigfile_access,
-    ParquetAccessGrant,
     BigFileAccessGrant,
+    ParquetAccessGrant,
+    ZarrAccessGrant,
+    arequest_bigfile_access,
+    arequest_parquet_access,
+    arequest_zarr_access,
 )
 from mikro_next.datalayer import DataLayer, current_next_datalayer
-from koil import unkoil
-import aiohttp
-from pathlib import Path
-from typing import Tuple
-from typing import TYPE_CHECKING
-import obstore  # Imported to access direct streaming capabilities
-
 from mikro_next.io.obstore import (
     ParquetDatasetViaObstore,
     create_s3_store,
     create_zarr_store_path,
 )
-from rath.scalars import ID
-from zarr.storage import StorePath
 
 if TYPE_CHECKING:
     from duckdb import DuckDBPyConnection, DuckDBPyRelation
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 async def aget_zarr_credentials_and_endpoint(
     store: str,
-) -> Tuple[ZarrAccessGrant, str]:
+) -> tuple[ZarrAccessGrant, str]:
     """Fetch zarr access credentials and the datalayer endpoint URL."""
     datalayer = current_next_datalayer.get()
     if not datalayer:
@@ -41,7 +41,7 @@ async def aget_zarr_credentials_and_endpoint(
 
 async def aget_table_credentials_and_endpoint(
     store: str,
-) -> Tuple[ParquetAccessGrant, str]:
+) -> tuple[ParquetAccessGrant, str]:
     """Fetch parquet access credentials and the datalayer endpoint URL."""
     datalayer = current_next_datalayer.get()
     if not datalayer:
@@ -54,7 +54,7 @@ async def aget_table_credentials_and_endpoint(
 
 async def aget_bigfile_credentials_and_endpoint(
     store: str,
-) -> Tuple[BigFileAccessGrant, str]:
+) -> tuple[BigFileAccessGrant, str]:
     """Fetch big-file access credentials and the datalayer endpoint URL."""
     datalayer = current_next_datalayer.get()
     if not datalayer:
@@ -103,7 +103,7 @@ def open_parquet_filesystem(store_id: str) -> ParquetDatasetViaObstore:
 
 async def aopen_parquet_duckdb(
     store_id: str,
-) -> Tuple["DuckDBPyConnection", "DuckDBPyRelation"]:
+) -> tuple["DuckDBPyConnection", "DuckDBPyRelation"]:
     """Open a lazy DuckDB relation over the parquet object asynchronously.
 
     Returns ``(connection, relation)``. The connection is returned alongside the
@@ -123,7 +123,7 @@ async def aopen_parquet_duckdb(
 
 def open_parquet_duckdb(
     store_id: str,
-) -> Tuple["DuckDBPyConnection", "DuckDBPyRelation"]:
+) -> tuple["DuckDBPyConnection", "DuckDBPyRelation"]:
     """Open a lazy DuckDB relation over the parquet object synchronously.
 
     Returns ``(connection, relation)``; keep a reference to the connection for as
@@ -254,7 +254,6 @@ def download_file(store_id: str, file_name: str, datalayer: DataLayer | None = N
     # Stream the file synchronously directly into the file object
     response = obstore.get(store, credentials.key)
     with open(file_name, "wb") as file:
-        for chunk in response.stream():
-            file.write(chunk)
+        file.writelines(response.stream())
 
     return file_name

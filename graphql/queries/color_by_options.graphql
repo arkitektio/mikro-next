@@ -1,0 +1,114 @@
+# What a picker may offer. The server's stated invariant is that these queries return
+# *exactly* the set the corresponding mutation accepts -- offer a set that is neither a
+# subset nor a superset and a picker either hides legal choices or proposes refused ones.
+#
+# `joinPath` here is NOT the `JoinStep` the layer fragment selects: an option carries full
+# `TableDataset` / `Column` objects, and it is the *client* that maps them down
+# to the `{table: ID, column: String}` a `colorBys[].joinPath` takes. Hence its own fragment.
+fragment ColumnOptionJoinStep on ColumnOptionJoinStep {
+  table {
+    id
+    name
+  }
+  column {
+    name
+  }
+}
+
+# Lean on purpose: spreading `...TableDataset` here would drag in its store, its coordinate
+# system and its derivation edges for every one of potentially thousands of options.
+fragment ColorByOption on ColorByOption {
+  table {
+    id
+    name
+  }
+  sparseDataset {
+    id
+    name
+  }
+  axes
+  column {
+    id
+    name
+    dtype
+    role
+    unit
+    longName
+    description
+  }
+  control
+  joinPath {
+    ...ColumnOptionJoinStep
+  }
+}
+
+fragment FilterByOption on FilterByOption {
+  table {
+    id
+    name
+  }
+  sparseDataset {
+    id
+    name
+  }
+  axes
+  column {
+    id
+    name
+    dtype
+    role
+    unit
+    longName
+    description
+  }
+  control
+  joinPath {
+    ...ColumnOptionJoinStep
+  }
+}
+
+# Rooted on a lens -- what a label layer over that lens can be coloured by.
+query LabelColorByOptions(
+  $lens: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  labelColorByOptions(lens: $lens, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...ColorByOption
+  }
+}
+
+query LabelFilterByOptions(
+  $lens: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  labelFilterByOptions(lens: $lens, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...FilterByOption
+  }
+}
+
+# Rooted on a mesh collection -- the same walk and the same answer for a mesh layer.
+query ColorByOptions(
+  $meshCollection: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  colorByOptions(meshCollection: $meshCollection, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...ColorByOption
+  }
+}
+
+query FilterByOptions(
+  $meshCollection: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  filterByOptions(meshCollection: $meshCollection, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...FilterByOption
+  }
+}
