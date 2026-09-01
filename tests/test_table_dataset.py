@@ -3,9 +3,11 @@
 This replaces the deprecated ``from_parquet_like`` / ``Table`` route. The
 difference is not just a new mutation name: a table dataset *declares its
 columns*, and those declarations are what the server builds a coordinate system
-out of. A COORDINATE column becomes an axis of a space the table owns, which is
-what makes a localization table placeable in a scene; a table with no coordinate
-column is a measurement table whose rows enumerate objects.
+out of. A column with an ``axisType`` becomes an axis of a space the table owns,
+which is what makes a localization table placeable in a scene; a table with no
+axis column is a measurement table whose rows enumerate objects. The axis order
+is the axis-typed columns in the file's column order -- there is no separate
+``axes`` list to disagree with.
 
 Most of what can go wrong is decided client-side -- which Parquet-like things are
 accepted, how each is handed to the object store, and whether the declared schema
@@ -33,7 +35,6 @@ from mikro_next.api.schema import (
     ColumnRole,
     CreateTableDatasetInput,
     DatasetIdentifiesInput,
-    TableAxisInput,
     create_array_dataset,
     create_table_dataset,
     get_table_dataset,
@@ -61,28 +62,17 @@ def _localizations(rows: int = 32) -> pd.DataFrame:
 def _localization_columns() -> list[ColumnInput]:
     """The declaration that turns those four columns into a placeable space.
 
-    Only the three coordinate columns become axes; ``photons`` is data hanging
-    off the row and places nothing.
+    One declaration per column: the three coordinate columns carry an `axisType`,
+    which is the whole of what makes them axes -- (z, y, x) because that is the
+    frame's column order, and x is the last spatial axis by position, never by
+    name. ``photons`` is data hanging off the row and places nothing.
     """
     return [
-        # The three coordinate columns say nothing here: they are declared in `axes`, and a
-        # column that appears in both lists is refused -- the server keeps the axis' unit and
-        # prose and drops the column's, so saying both is a field silently discarded. Their
-        # names and types are derived from the frame like every other column's.
-        ColumnInput(name="photons", role=ColumnRole.ATTRIBUTE, longName="photon count"),
-    ]
-
-
-def _localization_axes() -> list[TableAxisInput]:
-    """The three coordinate columns, as the axes they are.
-
-    An axis is declared in `axes` now, where its position in the list is its position in the
-    space -- (z, y, x), because x is the last spatial axis and y the one before it, read off
-    position and never off the name.
-    """
-    return [
-        TableAxisInput(column=axis, type=AxisType.SPACE, unit="micrometer")
-        for axis in ("z", "y", "x")
+        *(
+            ColumnInput(name=axis, axis_type=AxisType.SPACE, unit="micrometer")
+            for axis in ("z", "y", "x")
+        ),
+        ColumnInput(name="photons", role=ColumnRole.ATTRIBUTE, long_name="photon count"),
     ]
 
 
@@ -104,21 +94,17 @@ _MEASUREMENT_COLUMNS = [
     ColumnInput(name="mean_intensity", dtype="DOUBLE", role=ColumnRole.ATTRIBUTE),
 ]
 
-#: The same table, declared so a mask can key into it. ``object_id`` has to be a
-#: COORDINATE column with an INDEX axis type, not merely an ID: without one the
-#: table's space is a synthetic axis that only enumerates rows, and there is no
-#: column for a sampled pixel value to be looked up in -- and with no axis there is
-#: nothing to carry an ``identifiedBy``, so the keying is not expressible at all. An enumerating axis carries no unit, because there is
-#: nothing to measure: the distance between object 3 and object 4 means nothing.
-#: The same table, keyed. `object_id` is an axis rather than an ID column, and so drops its
-#: role here -- COORDINATE follows from being named in `axes`, and claiming it twice is refused.
-_KEYED_MEASUREMENT_COLUMNS = list(_MEASUREMENT_COLUMNS[1:])
-
-#: `object_id` is the axis, not a column override. It has to be a COORDINATE column with an
-#: INDEX axis type, not merely an ID: without one the table's space is a synthetic axis that
-#: only enumerates rows, and there is nothing for an `identifiedBy` to hang on. An enumerating
-#: axis carries no unit -- the distance between object 3 and object 4 means nothing.
-_KEYED_MEASUREMENT_AXES = [TableAxisInput(column="object_id", type=AxisType.INDEX, longName="object id")]
+#: The same table, declared so a mask can key into it. ``object_id`` has to be an
+#: INDEX *axis*, not merely an ID column: without one the table's space is a
+#: synthetic axis that only enumerates rows, and there is no column for a sampled
+#: pixel value to be looked up in. `axisType` replaces the role -- COORDINATE
+#: follows from it, and claiming both is refused. An enumerating axis carries no
+#: unit, because there is nothing to measure: the distance between object 3 and
+#: object 4 means nothing.
+_KEYED_MEASUREMENT_COLUMNS = [
+    ColumnInput(name="object_id", axis_type=AxisType.INDEX, long_name="object id"),
+    *_MEASUREMENT_COLUMNS[1:],
+]
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +118,7 @@ def test_a_column_is_an_attribute_unless_it_says_otherwise() -> None:
     column", which is what puts it in a hover plan."""
     override = ColumnInput(name="area", dtype="DOUBLE")
     assert override.role is None
+    assert override.axis_type is None, "no axisType means an ordinary column"
 
 
 def test_a_column_names_itself_and_may_state_its_type() -> None:
@@ -151,20 +138,20 @@ def test_a_column_names_itself_and_may_state_its_type() -> None:
         ColumnInput(dtype="DOUBLE")  # no name: which column is half the statement
 
 
-def test_an_axis_carries_the_kind_of_position_it_holds_and_a_unit() -> None:
+def test_an_axis_column_carries_the_kind_of_position_it_holds_and_a_unit() -> None:
     """These are what the file cannot say: a float64 is a float64 whether it is a nanometre or
-    a row id, and that is the whole reason `type` is declared and `dtype` is not."""
-    axis = TableAxisInput(column="x", type=AxisType.SPACE, unit="micrometer")
-    assert axis.type == AxisType.SPACE.value
-    assert axis.unit == "micrometer"
+    a row id, and that is the whole reason `axisType` is declared and `dtype` is not."""
+    column = ColumnInput(name="x", axis_type=AxisType.SPACE, unit="micrometer")
+    assert column.axis_type == AxisType.SPACE.value
+    assert column.unit == "micrometer"
 
 
 def test_an_index_axis_is_the_axis_of_an_enumerating_table() -> None:
     """A per-object table has no metric axis -- the distance between object 3 and object 4
-    means nothing -- so its coordinate axis is INDEX and carries no unit."""
-    axis = TableAxisInput(column="object_id", type=AxisType.INDEX)
-    assert axis.type == AxisType.INDEX.value
-    assert axis.unit is None
+    means nothing -- so its coordinate column is an INDEX axis and carries no unit."""
+    column = ColumnInput(name="object_id", axis_type=AxisType.INDEX)
+    assert column.axis_type == AxisType.INDEX.value
+    assert column.unit is None
 
 
 def test_a_unit_must_be_a_real_unit() -> None:
@@ -191,26 +178,24 @@ def test_the_input_wraps_a_dataframe_as_parquet() -> None:
         name="localizations",
         data=frame,
         columns=_localization_columns(),
-        axes=_localization_axes(),
     )
     assert isinstance(model.data, ParquetLike)
     assert model.data.value.equals(frame)
-    assert [axis.column for axis in model.axes] == ["z", "y", "x"]
+    # The space is the axis-typed columns, in the file's column order.
+    assert [column.name for column in model.columns if column.axis_type is not None] == ["z", "y", "x"]
 
 
-def test_the_input_takes_a_measurement_table_with_no_coordinate_columns() -> None:
-    """No coordinate column is a legitimate declaration, not an omission: the
+def test_the_input_takes_a_measurement_table_with_no_axis_columns() -> None:
+    """No axis column is a legitimate declaration, not an omission: the
     rows enumerate objects and the table's lineage edge is UNMAPPABLE."""
     model = CreateTableDatasetInput(
-        name="measurements", data=_measurements(), columns=_MEASUREMENT_COLUMNS, axes=[]
+        name="measurements", data=_measurements(), columns=_MEASUREMENT_COLUMNS
     )
-    assert all(
-        column.role != ColumnRole.COORDINATE.value for column in model.columns
-    )
+    assert all(column.axis_type is None for column in model.columns)
 
 
 def test_the_input_carries_the_mask_a_table_is_keyed_by() -> None:
-    """Identification is per-axis now: the mask is named *on the axis it keys*.
+    """Identification is per-column now: the mask is named *on the column it keys*.
 
     It used to be a sibling `keyedBy` list that named sources and not the axes they keyed --
     the pairing was recovered on the server by subtracting the source's axes from the table's,
@@ -220,17 +205,18 @@ def test_the_input_carries_the_mask_a_table_is_keyed_by() -> None:
     model = CreateTableDatasetInput(
         name="measurements",
         data=_measurements(),
-        columns=_KEYED_MEASUREMENT_COLUMNS,
-        axes=[
-            TableAxisInput(
-                column="object_id",
-                type=AxisType.INDEX,
-                identifiedBy=[DatasetIdentifiesInput(kind="DATASET", dataset="17", name="object ids -> measurements")],
-            )
+        columns=[
+            ColumnInput(
+                name="object_id",
+                axis_type=AxisType.INDEX,
+                identified_by=[DatasetIdentifiesInput(kind="DATASET", dataset="17", name="object ids -> measurements")],
+            ),
+            *_MEASUREMENT_COLUMNS[1:],
         ],
     )
-    assert model.axes[0].column == "object_id"
-    assert model.axes[0].identified_by[0].dataset == "17"
+    keyed = next(column for column in model.columns if column.name == "object_id")
+    assert keyed.axis_type == AxisType.INDEX.value
+    assert keyed.identified_by[0].dataset == "17"
 
 
 def test_the_input_rejects_an_unknown_field() -> None:
@@ -240,6 +226,17 @@ def test_the_input_rejects_an_unknown_field() -> None:
             data=_localizations(),
             columns=_localization_columns(),
             dataframe=_localizations(),
+        )
+
+
+def test_the_input_rejects_the_retired_axes_list() -> None:
+    """`axes` was the second door into the one declaration; it is gone, not ignored."""
+    with pytest.raises(ValidationError):
+        CreateTableDatasetInput(
+            name="localizations",
+            data=_localizations(),
+            columns=_localization_columns(),
+            axes=[],
         )
 
 
@@ -400,12 +397,11 @@ def test_a_failed_write_leaves_no_scratch_file_behind() -> None:
 
 @pytest.mark.integration
 def test_create_a_measurement_table(deployed_app: DeployedMikro) -> None:
-    """A table with no coordinate columns: its rows enumerate objects."""
+    """A table with no axis columns: its rows enumerate objects."""
     table = create_table_dataset(
         name="measurements_basic",
         data=_measurements(),
         columns=_MEASUREMENT_COLUMNS,
-        axes=[],
         description="one row per segmented object",
     )
 
@@ -429,7 +425,6 @@ def test_a_measurement_table_reads_back_out_of_its_store(
         name="measurements_readback",
         data=frame,
         columns=_MEASUREMENT_COLUMNS,
-        axes=[],
     )
 
     relation = table.store.duckdb_relation
@@ -442,17 +437,16 @@ def test_a_measurement_table_reads_back_out_of_its_store(
 
 
 @pytest.mark.integration
-def test_coordinate_columns_become_the_axes_of_the_tables_own_space(
+def test_axis_columns_become_the_axes_of_the_tables_own_space(
     deployed_app: DeployedMikro,
 ) -> None:
-    """This is the whole point of declaring roles: the coordinate columns -- and
+    """This is the whole point of declaring an `axisType`: the axis columns -- and
     only those -- turn into a coordinate system the table owns, which is what
     makes a localization table placeable next to the volume it came from."""
     table = create_table_dataset(
         name="localizations_spaced",
         data=_localizations(),
         columns=_localization_columns(),
-        axes=_localization_axes(),
     )
 
     assert tuple(table.axis_names) == ("z", "y", "x")
@@ -467,7 +461,7 @@ def test_a_table_is_keyed_by_the_mask_it_measures(deployed_app: DeployedMikro) -
 
     A label mask goes up as an array dataset whose pixel values are object ids;
     the measurements of those objects go up as a table dataset keyed by it.
-    The axis' ``identifiedBy`` alone is the link, and no ``derivedFrom`` accompanies it -- the
+    The column's ``identifiedBy`` alone is the link, and no ``derivedFrom`` accompanies it -- the
     two run in opposite directions, and a lineage edge would additionally claim
     the rows are a spatial transform of the mask, which they are not.
     """
@@ -485,13 +479,13 @@ def test_a_table_is_keyed_by_the_mask_it_measures(deployed_app: DeployedMikro) -
     table = create_table_dataset(
         name="keyed_measurements",
         data=_measurements(),
-        columns=_KEYED_MEASUREMENT_COLUMNS,
-        axes=[
-            TableAxisInput(
-                column="object_id",
-                type=AxisType.INDEX,
-                identifiedBy=[DatasetIdentifiesInput(kind="DATASET", dataset=mask.id, name="object ids -> measurements")],
-            )
+        columns=[
+            ColumnInput(
+                name="object_id",
+                axis_type=AxisType.INDEX,
+                identified_by=[DatasetIdentifiesInput(kind="DATASET", dataset=mask.id, name="object ids -> measurements")],
+            ),
+            *_MEASUREMENT_COLUMNS[1:],
         ],
     )
 
@@ -507,7 +501,7 @@ def test_a_table_can_be_renamed_and_redescribed(deployed_app: DeployedMikro) -> 
     """The whole of what is editable. Its store, columns and coordinate system
     are fixed at creation -- a recomputation is a new table."""
     table = create_table_dataset(
-        name="renamable", data=_measurements(), columns=_MEASUREMENT_COLUMNS, axes=[]
+        name="renamable", data=_measurements(), columns=_MEASUREMENT_COLUMNS
     )
 
     updated = update_table_dataset(
@@ -533,5 +527,4 @@ def test_a_declared_schema_that_does_not_match_the_data_is_rejected(
             name="mismatched",
             data=_measurements(),
             columns=[*_MEASUREMENT_COLUMNS, ColumnInput(name="not_a_real_column")],
-            axes=[],
         )

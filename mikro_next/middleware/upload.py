@@ -24,6 +24,7 @@ from pydantic import ConfigDict, Field
 from mikro_next.datalayer import DataLayer
 from mikro_next.io.upload import (
     astore_fabriks_collection,
+    astore_konnektion_collection,
     astore_media_file,
     astore_sparse_matrix,
     # Async paths (obstore)
@@ -31,6 +32,7 @@ from mikro_next.io.upload import (
     aupload_parquet,
     aupload_xarray,
     store_fabriks_collection,
+    store_konnektion_collection,
     store_media_file,
     store_sparse_matrix,
     upload_bigfile,
@@ -42,6 +44,7 @@ from mikro_next.middleware.base import FuncsMiddleware
 from mikro_next.scalars import (
     ArrayLike,
     FabriksLike,
+    KonnektionLike,
     FileLike,
     ImageFileLike,
     ParquetLike,
@@ -220,6 +223,46 @@ class UploadMiddleware(FuncsMiddleware):
             ).model_dump(by_alias=True, exclude_unset=True),
         )
 
+    def _get_konnektion_credentials(
+        self, key: str, datalayer: str, rath: "MikroNextRath"
+    ) -> "KonnektionUploadGrant":
+        """Get konnektion upload credentials synchronously.
+
+        One grant for the whole prefix -- the manifest, both catalogs and every level -- because
+        a konnektion store is a tree rather than an object.
+        """
+        from mikro_next.api.schema import (
+            RequestKonnektionUploadInput,
+            RequestKonnektionUploadMutation,
+        )
+
+        x = rath.query(
+            RequestKonnektionUploadMutation.Meta.document,
+            RequestKonnektionUploadMutation.Arguments(input=RequestKonnektionUploadInput()).model_dump(
+                by_alias=True, exclude_unset=True
+            ),
+        )
+        return RequestKonnektionUploadMutation(**x.data).request_konnektion_upload
+
+    def _finish_konnektion_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+        """Finish a konnektion upload synchronously.
+
+        The completion protocol, not a formality: the server reads the prefix's `konnektion.json`
+        and refuses one that has none, which is exactly what an interrupted write looks like
+        since the manifest is written last.
+        """
+        from mikro_next.api.schema import (
+            FinishKonnektionUploadInput,
+            FinishKonnektionUploadMutation,
+        )
+
+        rath.query(
+            FinishKonnektionUploadMutation.Meta.document,
+            FinishKonnektionUploadMutation.Arguments(
+                input=FinishKonnektionUploadInput(store_id=store_id, valid=True)
+            ).model_dump(by_alias=True, exclude_unset=True),
+        )
+
     def _get_sparse_credentials(
         self, key: str, datalayer: str, rath: "MikroNextRath"
     ) -> "SparseUploadGrant":
@@ -380,6 +423,37 @@ class UploadMiddleware(FuncsMiddleware):
             ).model_dump(by_alias=True, exclude_unset=True),
         )
 
+    async def _aget_konnektion_credentials(
+        self, key: str, datalayer: str, rath: "MikroNextRath"
+    ) -> "KonnektionUploadGrant":
+        """Get konnektion upload credentials asynchronously."""
+        from mikro_next.api.schema import (
+            RequestKonnektionUploadInput,
+            RequestKonnektionUploadMutation,
+        )
+
+        x = await rath.aquery(
+            RequestKonnektionUploadMutation.Meta.document,
+            RequestKonnektionUploadMutation.Arguments(input=RequestKonnektionUploadInput()).model_dump(
+                by_alias=True, exclude_unset=True
+            ),
+        )
+        return RequestKonnektionUploadMutation(**x.data).request_konnektion_upload
+
+    async def _afinish_konnektion_upload(self, store_id: str, rath: "MikroNextRath") -> None:
+        """Finish a konnektion upload asynchronously."""
+        from mikro_next.api.schema import (
+            FinishKonnektionUploadInput,
+            FinishKonnektionUploadMutation,
+        )
+
+        await rath.aquery(
+            FinishKonnektionUploadMutation.Meta.document,
+            FinishKonnektionUploadMutation.Arguments(
+                input=FinishKonnektionUploadInput(store_id=store_id, valid=True)
+            ).model_dump(by_alias=True, exclude_unset=True),
+        )
+
     async def _aget_sparse_credentials(
         self, key: str, datalayer: str, rath: "MikroNextRath"
     ) -> "SparseUploadGrant":
@@ -524,6 +598,17 @@ class UploadMiddleware(FuncsMiddleware):
         self._finish_fabriks_upload(store_id, rath)
         return store_id
 
+    def _store_konnektion(
+        self, datalayer: "DataLayer", rath: "MikroNextRath", collection: KonnektionLike
+    ) -> str:
+        """Write a konnektion collection into a granted prefix and register it as complete."""
+        endpoint_url = self.get_datalayer_url()
+
+        credentials = self._get_konnektion_credentials(collection.key, endpoint_url, rath)
+        store_id = store_konnektion_collection(collection, credentials, datalayer)
+        self._finish_konnektion_upload(store_id, rath)
+        return store_id
+
     def _store_sparse(
         self, datalayer: "DataLayer", rath: "MikroNextRath", sparse: SporadikLike
     ) -> str:
@@ -591,6 +676,17 @@ class UploadMiddleware(FuncsMiddleware):
         await self._afinish_fabriks_upload(store_id, rath)
         return store_id
 
+    async def _astore_konnektion(
+        self, datalayer: "DataLayer", rath: "MikroNextRath", collection: KonnektionLike
+    ) -> str:
+        """Write a konnektion collection into a granted prefix and register it as complete."""
+        endpoint_url = await datalayer.get_endpoint_url()
+
+        credentials = await self._aget_konnektion_credentials(collection.key, endpoint_url, rath)
+        store_id = await astore_konnektion_collection(collection, credentials, datalayer)
+        await self._afinish_konnektion_upload(store_id, rath)
+        return store_id
+
     async def _astore_sparse(
         self, datalayer: "DataLayer", rath: "MikroNextRath", sparse: SporadikLike
     ) -> str:
@@ -653,6 +749,11 @@ class UploadMiddleware(FuncsMiddleware):
             FabriksLike,
         )
         variables = _apply_recursive_sync(
+            partial(self._store_konnektion, datalayer, rath),
+            variables,
+            KonnektionLike,
+        )
+        variables = _apply_recursive_sync(
             partial(self._store_sparse, datalayer, rath),
             variables,
             SporadikLike,
@@ -705,6 +806,11 @@ class UploadMiddleware(FuncsMiddleware):
             partial(self._astore_fabriks, datalayer, rath),
             variables,
             FabriksLike,
+        )
+        variables = await _apply_recursive_async(
+            partial(self._astore_konnektion, datalayer, rath),
+            variables,
+            KonnektionLike,
         )
         variables = await _apply_recursive_async(
             partial(self._astore_sparse, datalayer, rath),

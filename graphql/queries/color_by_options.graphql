@@ -27,6 +27,11 @@ fragment ColorByOption on ColorByOption {
     name
   }
   axes
+  graphAttribute
+  # (network) which row set the values belong to: null per-object, NODE/EDGE on a graph
+  # attribute or on a column of a node/edge table. Informational on the way back in --
+  # the mutation re-derives and stamps it.
+  target
   column {
     id
     name
@@ -52,6 +57,7 @@ fragment FilterByOption on FilterByOption {
     name
   }
   axes
+  graphAttribute
   column {
     id
     name
@@ -109,6 +115,34 @@ query FilterByOptions(
   $maxJoinDepth: Int! = 1
 ) {
   filterByOptions(meshCollection: $meshCollection, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...FilterByOption
+  }
+}
+
+# Rooted on a network collection -- what a network layer over it can be coloured by. The one
+# options list with a third arm: `graphAttribute` names a per-node value the collection itself
+# carries (strahler, degree, depth, component, a writer's own column, `radius` when the
+# encoding stores one), present exactly when `table`, `column` and `sparseDataset` are null.
+# Pass it back as `colorBys[].attribute` with `kind: GRAPH`. The COLUMN half is rooted at
+# depth zero server-side: only tables keyed by this collection's *object* ids are offered.
+query NetworkColorByOptions(
+  $networkCollection: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  networkColorByOptions(networkCollection: $networkCollection, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
+    ...ColorByOption
+  }
+}
+
+query NetworkFilterByOptions(
+  $networkCollection: ID!
+  $filters: ColumnOptionFilter
+  $pagination: OffsetPaginationInput
+  $maxJoinDepth: Int! = 1
+) {
+  networkFilterByOptions(networkCollection: $networkCollection, filters: $filters, pagination: $pagination, maxJoinDepth: $maxJoinDepth) {
     ...FilterByOption
   }
 }

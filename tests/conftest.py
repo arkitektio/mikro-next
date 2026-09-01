@@ -38,6 +38,12 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
 
 project_path = os.path.join(os.path.dirname(__file__), "integration")
 docker_compose_file = os.path.join(project_path, "docker-compose.yml")
+# An untracked sibling override (see its own header): when a developer's checkout sits next
+# to a live mikro source tree, it mounts that tree over the published image so the tests
+# see the current schema instead of the last-pushed one. Absent (CI, anyone else), the
+# published image is the schema under test, as before.
+_local_override = os.path.join(project_path, "docker-compose.local.yml")
+compose_files = [docker_compose_file] + ([_local_override] if os.path.exists(_local_override) else [])
 private_key = os.path.join(project_path, "private_key.pem")
 
 
@@ -78,7 +84,7 @@ def deployed_app() -> Generator[DeployedMikro, None, None]:
         DeployedMikro: An instance containing the deployment, watchers, and MikroNext instance
 
     """
-    setup = testing(docker_compose_file)
+    setup = testing(compose_files)
     setup.add_health_check(
         url=lambda spec: (
             f"http://localhost:{spec.find_service('mikro').get_port_for_internal(80).published}/graphql"

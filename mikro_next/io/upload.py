@@ -22,6 +22,7 @@ from mikro_next.compression import DEFAULT_COMPRESSION
 from mikro_next.scalars import (
     ArrayLike,
     FabriksLike,
+    KonnektionLike,
     FileLike,
     ImageFileLike,
     ParquetLike,
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
     from mikro_next.api.schema import (
         BigFileUploadGrant,
         FabriksUploadGrant,
+        KonnektionUploadGrant,
         MediaUploadGrant,
         ParquetUploadGrant,
         SparseUploadGrant,
@@ -431,6 +433,204 @@ def _store_media_file_via_obstore(
         ) from e
 
 
+async def astore_konnektion_collection(
+    collection: KonnektionLike,
+    credentials: "KonnektionUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Write a konnektion collection into the granted prefix, and return the store it landed in.
+
+    A whole tree rather than one object -- ``konnektion.json``, both catalogs and a part file per
+    octree level -- which is why the grant covers a prefix and permits reading and deleting
+    inside it. The ordering is konnektion's and is load-bearing: every file the manifest names is
+    written before the manifest is, so a prefix without one is an interrupted write rather than
+    a collection. ``finishKonnektionUpload`` is the other half of that protocol -- it reads the
+    manifest and refuses a prefix that has none -- so nothing here retries or reorders the
+    write; the writer owns it.
+
+    ``awrite_collection`` does the whole write in a worker thread, since Parquet serialization
+    is CPU-bound and obstore's ``put`` releases the GIL -- which also keeps the manifest-last
+    ordering trivially true rather than a scheduling question.
+    """
+    from konnektion import awrite_collection
+
+    from mikro_next.io.obstore import create_s3_store
+    from mikro_next.networks import refuse_an_unreadable_part_codec
+
+    endpoint_url = await datalayer.get_endpoint_url()
+    store = create_s3_store(endpoint_url, credentials)
+
+    try:
+        logger.debug(
+            f"Uploading konnektion collection to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
+        refuse_an_unreadable_part_codec()
+        manifest = await awrite_collection(collection.value, store, credentials.key)
+        logger.info(
+            f"Successfully uploaded konnektion collection to s3://{credentials.bucket}/{credentials.key} "
+            f"at {endpoint_url} ({manifest.counts})"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
+async def astore_media_file(
+    file: ImageFileLike,
+    credentials: "MediaUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Store a media file in the DataLayer asynchronously via obstore."""
+    from mikro_next.io.obstore import create_s3_store
+
+    endpoint_url = await datalayer.get_endpoint_url()
+    store = create_s3_store(endpoint_url, credentials)
+
+    try:
+        logger.debug(
+            f"Uploading file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
+        await obstore.put_async(store, credentials.key, file.value)
+        logger.info(
+            f"Successfully uploaded file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
+async def aupload_bigfile(
+    file: FileLike | ImageFileLike,
+    credentials: "BigFileUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Upload a big file to the DataLayer asynchronously via obstore."""
+    from mikro_next.io.obstore import create_s3_store
+
+    endpoint_url = await datalayer.get_endpoint_url()
+    store = create_s3_store(endpoint_url, credentials)
+
+    try:
+        logger.debug(
+            f"Uploading file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
+        await obstore.put_async(store, credentials.key, file.value)
+        logger.info(
+            f"Successfully uploaded file to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
+async def aupload_xarray(
+    array: ArrayLike,
+    credentials: "ZarrUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Upload an xarray to the DataLayer asynchronously via obstore."""
+    return await astore_xarray_input(array, credentials, await datalayer.get_endpoint_url())
+
+
+async def aupload_parquet(
+    parquet: ParquetLike,
+    credentials: "ParquetUploadGrant",
+    datalayer: "DataLayer",
+    executor: ThreadPoolExecutor,
+) -> str:
+    """Upload a parquet table to the DataLayer asynchronously via a thread executor."""
+    co_future = executor.submit(
+        _store_parquet_input, parquet, credentials, await datalayer.get_endpoint_url()
+    )
+    return await asyncio.wrap_future(co_future)
+
+
+# ========================================================================
+# Sync upload functions (obstore)
+# ========================================================================
+
+
+def _store_xarray_via_obstore(
+    xarray: ArrayLike,
+    credentials: "ZarrUploadGrant",
+    endpoint_url: str,
+) -> str:
+    """Stores an xarray in the DataLayer synchronously via obstore/zarr."""
+    from mikro_next.io.obstore import create_zarr_store_path, write_dataarray_to_zarr
+
+    store_path = create_zarr_store_path(endpoint_url, credentials)
+
+    try:
+        logger.debug(
+            f"Uploading zarr (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
+        write_dataarray_to_zarr(store_path, xarray.value)
+        logger.info(
+            f"Successfully uploaded zarr (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
+def _store_bigfile_via_obstore(
+    file: FileLike | ImageFileLike,
+    credentials: "BigFileUploadGrant",
+    endpoint_url: str,
+) -> str:
+    """Store a big file in the DataLayer synchronously via obstore."""
+    from mikro_next.io.obstore import create_s3_store
+
+    store = create_s3_store(endpoint_url, credentials)
+
+    try:
+        logger.debug(
+            f"Uploading file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
+        obstore.put(store, credentials.key, file.value)
+        logger.info(
+            f"Successfully uploaded file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
+def _store_media_file_via_obstore(
+    file: ImageFileLike,
+    credentials: "MediaUploadGrant",
+    endpoint_url: str,
+) -> str:
+    """Store a media file in the DataLayer synchronously via obstore."""
+    from mikro_next.io.obstore import create_s3_store
+
+    store = create_s3_store(endpoint_url, credentials)
+
+    try:
+        logger.debug(
+            f"Uploading media file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
+        obstore.put(store, credentials.key, file.value)
+        logger.info(
+            f"Successfully uploaded media file (sync/obstore) to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
 def store_fabriks_collection(
     collection: FabriksLike,
     credentials: "FabriksUploadGrant",
@@ -458,6 +658,42 @@ def store_fabriks_collection(
         manifest = write_collection(collection.value, store, credentials.key)
         logger.info(
             f"Successfully uploaded fabriks collection to s3://{credentials.bucket}/{credentials.key} "
+            f"at {endpoint_url} ({manifest.counts})"
+        )
+        return credentials.store
+    except Exception as e:
+        raise UploadError(
+            f"Error while uploading to s3://{credentials.bucket}/{credentials.key} on {endpoint_url}"
+        ) from e
+
+
+def store_konnektion_collection(
+    collection: KonnektionLike,
+    credentials: "KonnektionUploadGrant",
+    datalayer: "DataLayer",
+) -> str:
+    """Write a konnektion collection into the granted prefix synchronously.
+
+    The same write as :func:`astore_konnektion_collection` -- konnektion's writer is synchronous and the
+    async path is it in a worker thread -- so this is the writer itself rather than a second
+    implementation of it.
+    """
+    from konnektion import write_collection
+
+    from mikro_next.io.obstore import create_s3_store
+    from mikro_next.networks import refuse_an_unreadable_part_codec
+
+    endpoint_url = datalayer.endpoint_url
+    store = create_s3_store(endpoint_url, credentials)
+
+    try:
+        logger.debug(
+            f"Uploading konnektion collection to s3://{credentials.bucket}/{credentials.key} at {endpoint_url}..."
+        )
+        refuse_an_unreadable_part_codec()
+        manifest = write_collection(collection.value, store, credentials.key)
+        logger.info(
+            f"Successfully uploaded konnektion collection to s3://{credentials.bucket}/{credentials.key} "
             f"at {endpoint_url} ({manifest.counts})"
         )
         return credentials.store

@@ -65,6 +65,19 @@ fragment FabriksUploadGrant on FabriksUploadGrant {
   store
 }
 
+fragment KonnektionUploadGrant on KonnektionUploadGrant {
+  accessKey
+  secretKey
+  sessionToken
+  path
+  key
+  bucket
+  expiresIn
+  maxBytes
+  store
+}
+
+
 
 fragment BigFileAccessGrant on BigFileAccessGrant {
   accessKey
@@ -120,6 +133,17 @@ fragment FabriksAccessGrant on FabriksAccessGrant {
   key
   bucket
 }
+
+fragment KonnektionAccessGrant on KonnektionAccessGrant {
+  accessKey
+  secretKey
+  sessionToken
+  expiresIn
+  path
+  key
+  bucket
+}
+
 
 fragment SparseUploadGrant on SparseUploadGrant {
   accessKey

@@ -246,11 +246,13 @@ def test_register_places_a_dataset_in_the_world(deployed_app: DeployedMikro) -> 
     assert tuple(edge.output_axes) == ("z", "y", "x")
     assert "c" not in edge.input_axes
 
-    # Pins current server behaviour: the voxel size handed to `register` is
-    # written through ByDimensionTransformInput.scale but read back by nothing.
-    # If the backend starts materialising per-axis children, this line should
-    # become an assertion on that scale rather than be deleted.
-    assert edge.by_dimension_children == ()
+    # The backend materialises per-axis children now, so this is the assertion the old
+    # pin (`by_dimension_children == ()`) said to become: the voxel size handed to
+    # `register` comes back as a SCALE child over the shared spatial axes.
+    scales = [child for child in edge.by_dimension_children if child.kind == TransformKind.SCALE]
+    assert scales, "the voxel size handed to `register` is materialised as a SCALE child"
+    assert tuple(scales[0].scale) == (0.2, 0.2, 0.2)
+    assert tuple(scales[0].output_axes) == ("z", "y", "x")
 
 
 @pytest.mark.integration

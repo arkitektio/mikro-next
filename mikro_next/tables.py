@@ -1,27 +1,32 @@
 """Checking a table's declaration against the frame it is made of, before anything moves.
 
-``create_table_dataset`` takes the generated inputs directly -- ``ColumnInput`` for a column,
-``TableAxisInput`` for an axis -- and this module is what checks them. There is no wrapper
-type: a ``ColumnSpec`` that was a ``ColumnInput`` minus its ``dtype``, and an ``axes_for`` that
-mapped a dataclass onto the input the caller could have written, were a vocabulary invented
-alongside the one the schema already had.
+``create_table_dataset`` takes the generated ``ColumnInput`` directly, and a column is
+declared ONCE: a non-null ``axisType`` makes it an axis of the table's own space, and
+``identifiedBy`` is the one spelling of every "values here identify things there" claim --
+for axes (a mask keying an INDEX axis) and data columns (a foreign key into another table)
+alike. There is no second ``axes`` list, so nothing exists for a column to disagree with
+itself across; and the table's **axis order is the axis-typed columns in the file's column
+order** -- a table has no byte order, its consumers address axes by name, and an edge
+wanting a different order states its own axis lists.
 
-What survives is the part that was never transcription: the file supplies every column's name
-and DuckDB type, so a caller declares only what the file cannot say -- which columns are axes
-and of what kind, what a column measures, what it means::
+The file supplies every column's name and DuckDB type, so a caller declares only what the
+file cannot say -- which columns are axes and of what kind, what a column measures, what it
+means::
 
     create_table_dataset(
         name="cells",
         data={"object_id": ids, "volume_um3": volumes},
-        axes=[TableAxisInput(column="object_id", type=AxisType.INDEX, longName="instance id",
-                             identifiedBy=[DatasetIdentifiesInput(kind="DATASET", dataset=mask.id)])],
-        columns=[ColumnInput(name="volume_um3", unit="micrometer**3")],
+        columns=[
+            ColumnInput(name="object_id", axis_type=AxisType.INDEX, long_name="instance id",
+                        identified_by=[DatasetIdentifiesInput(kind="DATASET", dataset=mask.id)]),
+            ColumnInput(name="volume_um3", unit="micrometer**3"),
+        ],
     )
 
 ``columns`` is **partial**: a subset, in any order, and ``dtype`` omitted is the ordinary case.
 :func:`resolve_columns` merges it onto the file's own list, in the file's order, which is what
 the server requires -- and the checks below run on the way, here, where the frame is, rather
-than on the far side of an upload. Four things they catch that a hand-written declaration got
+than on the far side of an upload. Three things they catch that a hand-written declaration got
 right only by accident, each measured:
 
 * **A type the server will not be able to describe.** A float16 column reads back as ``FLOAT``
@@ -33,14 +38,11 @@ right only by accident, each measured:
   one, which is what object ids running 1..N are, so ``frame.set_index("object_id")`` writes a
   Parquet with no ``object_id`` column at all. An unnamed non-range index has the opposite
   problem: it gains the file a ``__index_level_0__`` column that exists in no frame.
-* **A space declared in the wrong order.** x is the *last* spatial axis and y the one before
-  it, by position and never by name, so ``(x, y, z)`` renders transposed rather than failing.
-  The server cannot catch this -- a table's axis names are free-form, so nothing there knows
-  which order was meant. A name that follows the convention does.
-* **A column declared twice.** A coordinate column is a column of the file *and* a position in
-  a space, so it appears in the resolved ``columns`` and in ``axes`` both. What it may not do
-  is carry a unit or prose in each: the server takes those from the axis and drops the
-  column's, and a silently dropped field is a lie.
+* **A space in the wrong order.** x is the *last* spatial axis and y the one before it, by
+  position and never by name -- and the axis order is the file's column order, so a frame
+  whose centroid columns run ``x, y, z`` renders transposed rather than failing. The server
+  cannot catch this -- a table's axis names are free-form, so nothing there knows which order
+  was meant. A name that follows the convention does, and the frame is in hand here to fix.
 """
 
 from __future__ import annotations
@@ -55,7 +57,7 @@ from mikro_next.vocabulary import duckdb_type
 if TYPE_CHECKING:
     import pyarrow as pa
 
-    from mikro_next.api.schema import ColumnInput, TableAxisInput
+    from mikro_next.api.schema import ColumnInput
 
 
 #: The axis types a table's coordinate column may have. A table's axes are its
@@ -69,12 +71,13 @@ TABLE_AXIS_TYPES: Final[frozenset[str]] = frozenset({"SPACE", "TIME", "INDEX"})
 MAX_COLUMNS: Final[int] = 3000
 
 #: The roles a column may carry a unit in, mirroring the server's `_UNIT_BEARING_ROLES`
-#: (`core/mutations/table_dataset.py:60`). The server refuses the rest: an id, a label or a
+#: (`core/mutations/table_dataset.py`). The server refuses the rest: an id, a label or a
 #: colour is not measured, so a unit on one names a metric that does not exist.
 #:
-#: COORDINATE is in the set and unreachable through this check -- an axis column may not appear
-#: in `columns` at all, and its unit is declared on the axis. It is kept here anyway so the
-#: constant states the server's rule rather than the subset this path happens to see.
+#: COORDINATE is in the set and unreachable through this check -- a coordinate column is
+#: declared with `axisType` rather than a role, and a SPACE/TIME axis' unit is checked on its
+#: own terms. It is kept here anyway so the constant states the server's rule rather than the
+#: subset this path happens to see.
 UNIT_BEARING_ROLES: Final[frozenset[str]] = frozenset({"COORDINATE", "ATTRIBUTE"})
 
 #: The column ``pyarrow`` invents for a frame whose index is neither a
@@ -185,7 +188,6 @@ def _refuse_a_dropped_index(frame: object, names: Sequence[str]) -> None:
 def resolve_columns(
     file_columns: Sequence[tuple[str, str]],
     declared: Sequence[ColumnInput],
-    axes: Sequence[TableAxisInput],
 ) -> tuple[ColumnInput, ...]:
     """Every column of the file, in the file's order, with the caller's overrides merged on.
 
@@ -203,12 +205,11 @@ def resolve_columns(
 
     present = {name for name, _ in file_columns}
     by_name = {column.name: column for column in declared}
-    _check_declarations(axes, declared, by_name, present)
+    _check_declarations(declared, by_name, present)
 
     if len(file_columns) > MAX_COLUMNS:
         raise TableDeclarationError(_too_wide(len(file_columns)))
 
-    _check_axis_order(axes)
     _check_role_counts(declared)
 
     resolved: list[ColumnInput] = []
@@ -225,6 +226,10 @@ def resolve_columns(
                 "the file's own answer is used."
             )
         resolved.append(given.model_copy(update={"dtype": dtype}))
+
+    # On the resolved list rather than the caller's: `declared` is partial and in any order,
+    # and the axis order is the *file's* -- which is exactly what is being checked.
+    _check_axis_order(resolved)
     return tuple(resolved)
 
 
@@ -270,7 +275,6 @@ def _enum_value(value: object) -> str:
 
 
 def _check_declarations(
-    axes: Sequence[TableAxisInput],
     columns: Sequence[ColumnInput],
     by_name: dict,
     present: set,
@@ -281,23 +285,10 @@ def _check_declarations(
     on the far side of an upload, which for a table worth uploading is the far
     side of several hundred megabytes.
     """
-    by_axis = {axis.column: axis for axis in axes}
-    if len(by_axis) != len(axes):
-        raise TableDeclarationError(_duplicates("axes", [axis.column for axis in axes]))
     if len(by_name) != len(columns):
         raise TableDeclarationError(_duplicates("columns", [column.name for column in columns]))
 
-    both = sorted(set(by_axis) & set(by_name))
-    if both:
-        raise TableDeclarationError(
-            f"{', '.join(both)} appear{'s' if len(both) == 1 else ''} in both `axes` and "
-            "`columns`. An axis carries its own unit and prose -- declare it once, in `axes`. "
-            "(It is still a column of the file and still reaches the server as one; what it "
-            "may not do is say two things about itself, since the server keeps the axis' "
-            "answer and drops the column's.)"
-        )
-
-    for declared in (*by_axis, *by_name):
+    for declared in by_name:
         if declared not in present:
             close = get_close_matches(declared, present, n=1)
             suggestion = f" Did you mean {close[0]!r}?" if close else ""
@@ -306,82 +297,111 @@ def _check_declarations(
                 f"are: {', '.join(sorted(present))}"
             )
 
-    for axis in axes:
-        axis_type = _enum_value(axis.type)
-        if axis_type not in TABLE_AXIS_TYPES:
-            raise TableDeclarationError(
-                f"Axis {axis.column!r} is a {axis_type} axis, but a table's axes are "
-                f"{', '.join(sorted(TABLE_AXIS_TYPES))} -- a row holds a position, an instant "
-                "or an enumeration, and nothing else is one of those."
-            )
-        if axis_type == "INDEX" and axis.unit is not None:
-            raise TableDeclarationError(
-                f"Axis {axis.column!r} is an INDEX axis, which enumerates -- the distance "
-                "between object 3 and object 4 is not a small number, it is not a number -- "
-                "so it has no metric to state a unit in. Drop `unit`."
-            )
-        # The server refuses these too. Raised here so a caller meets them before the bytes
-        # move, which for a table worth uploading is several hundred megabytes earlier.
-        tables = [
-            entry for entry in (axis.identified_by or ()) if _enum_value(getattr(entry, "kind", None)) == "TABLE"
-        ]
-        if axis_type != "INDEX" and tables:
-            raise TableDeclarationError(
-                f"Axis {axis.column!r} is a {axis_type} axis, so its values are positions "
-                "rather than ids: it places the row in this table's own space and cannot "
-                "also identify rows elsewhere. Declare the reference on a data column, or -- "
-                "if its values really are rows of the other table -- as an INDEX axis."
-            )
-        if len(tables) > 1:
-            raise TableDeclarationError(
-                f"Axis {axis.column!r} is identified by more than one table. An axis "
-                "enumerates one thing: two tables would be two different answers to what a "
-                "position along it is. Fan-in is only meaningful for the kinds that author an "
-                "edge -- two masks may key one axis, because each edge stands on its own."
-            )
-
     for column in columns:
+        axis_type = _enum_value(column.axis_type) if column.axis_type is not None else None
         role = _enum_value(column.role)
-        if role == "COORDINATE":
+
+        if axis_type is not None:
+            if role:
+                raise TableDeclarationError(
+                    f"Column {column.name!r} declares both `axis_type` and `role`. An axis "
+                    "column is a COORDINATE by that fact; a role beside it would be the same "
+                    "question answered twice. Drop `role`."
+                )
+            if axis_type not in TABLE_AXIS_TYPES:
+                raise TableDeclarationError(
+                    f"Column {column.name!r} is a {axis_type} axis, but a table's axes are "
+                    f"{', '.join(sorted(TABLE_AXIS_TYPES))} -- a row holds a position, an instant "
+                    "or an enumeration, and nothing else is one of those."
+                )
+            if axis_type == "INDEX" and column.unit is not None:
+                raise TableDeclarationError(
+                    f"Column {column.name!r} is an INDEX axis, which enumerates -- the distance "
+                    "between object 3 and object 4 is not a small number, it is not a number -- "
+                    "so it has no metric to state a unit in. Drop `unit`."
+                )
+        elif role == "COORDINATE":
             raise TableDeclarationError(
-                f"Column {column.name!r} is declared COORDINATE in `columns`, but a "
-                "coordinate column is an axis and an axis has a position: declare it in "
-                "`axes`, where the order of the list is the order of the space. The server "
-                "refuses this too, and assigns the role itself from `axes`."
+                f"Column {column.name!r} is declared COORDINATE, but a coordinate column is an "
+                "axis: say so with `axis_type` (SPACE, TIME or INDEX), which is what makes it "
+                "one. The server refuses this too."
             )
         # An empty role is an *undeclared* one, which the server fills in as ATTRIBUTE -- so a
         # unit on it is fine, and the check is only for a role that was actually stated.
-        if column.unit is not None and role != "" and role not in UNIT_BEARING_ROLES:
+        elif column.unit is not None and role != "" and role not in UNIT_BEARING_ROLES:
             raise TableDeclarationError(
                 f"Column {column.name!r} is a {role} column and carries a unit. A unit says "
                 "what the values are measured in, and an id, a label or a colour is not "
                 "measured. Drop the unit, or the role."
             )
 
+        # The server refuses these too. Raised here so a caller meets them before the bytes
+        # move, which for a table worth uploading is several hundred megabytes earlier.
+        # TABLE and NETWORK_COLLECTION_NODES are the two no-edge kinds: both state what a
+        # column's values *are* (rows of a table, nodes of a collection) rather than
+        # authoring a FIELD edge. TABLE is legal on an INDEX axis (the product-space case)
+        # and on a plain data column (a foreign key -- what `references` used to spell);
+        # NODES only on an INDEX axis, its scoping being an axis convention. Both count
+        # toward one-answer-per-column.
+        no_edge = [
+            entry
+            for entry in (column.identified_by or ())
+            if _enum_value(getattr(entry, "kind", None)) in ("TABLE", "NETWORK_COLLECTION_NODES")
+        ]
+        if axis_type in ("SPACE", "TIME") and no_edge:
+            raise TableDeclarationError(
+                f"Column {column.name!r} is a {axis_type} axis, so its values are positions "
+                "rather than ids: it places the row in this table's own space and cannot "
+                "also identify rows elsewhere. Declare the reference on a data column, or -- "
+                "if its values really are ids -- declare the column an INDEX axis."
+            )
+        if axis_type is None and any(
+            _enum_value(getattr(entry, "kind", None)) == "NETWORK_COLLECTION_NODES" for entry in no_edge
+        ):
+            raise TableDeclarationError(
+                f"Column {column.name!r} is identified by a network collection's nodes but is "
+                "not an axis. A node id is scoped by the sibling object axis, which is an axis "
+                "convention -- declare the column `axis_type=AxisType.INDEX` so the "
+                "(object, node) pair is the row's key."
+            )
+        if len(no_edge) > 1:
+            raise TableDeclarationError(
+                f"Column {column.name!r} is identified by more than one enumeration. A column "
+                "enumerates one thing: two answers would be two different claims about what a "
+                "value in it is. Fan-in is only meaningful for the kinds that author an "
+                "edge -- two masks may key one axis, because each edge stands on its own."
+            )
 
-def _check_axis_order(axes: Sequence[TableAxisInput]) -> None:
-    """Refuse an axis list in an order the upload will not produce.
 
-    A table's axis order is genuinely the caller's -- ``axes`` is a sequence the server stores
-    as given. So there is nothing to reconcile *for the axes*. What is still worth checking is
-    the one thing position decides and nothing guards: ``resolve_render_axes`` takes the last
-    spatial axis as x, the one before it as y, the one before that as z, entirely by position
-    and never by name. A frame whose centroid columns run ``x, y, z`` declared in that order
-    yields ``x=z, z=x``, fully transposed, with no error on either side.
+def _check_axis_order(resolved: Sequence[ColumnInput]) -> None:
+    """Refuse a space in an order the render will silently transpose.
+
+    A table's axis order is the axis-typed columns in the file's column order -- there is no
+    list to reorder it with, deliberately, since nothing strides a table by position. What is
+    still worth checking is the one thing position decides and nothing guards:
+    ``resolve_render_axes`` takes the last spatial axis as x, the one before it as y, the one
+    before that as z, entirely by position and never by name. A frame whose centroid columns
+    run ``x, y, z`` yields ``x=z, z=x``, fully transposed, with no error on either side.
 
     So this refuses only the case that is almost certainly a mistake: spatial axes named
-    ``x``/``y``/``z`` declared in ascending order rather than the ``(z, y, x)`` array
+    ``x``/``y``/``z`` in ascending column order rather than the ``(z, y, x)`` array
     convention. It is a convention and this is the only place that says so out loud -- the
-    server cannot, since a table's axis names are free-form.
+    server cannot, since a table's axis names are free-form. The fix is the frame's column
+    order, which is in hand here: ``frame[["z", "y", "x", ...]]``.
     """
-    spatial = [axis.column.lower() for axis in axes if _enum_value(axis.type) == "SPACE"]
+    spatial = [
+        column.name.lower()
+        for column in resolved
+        if column.axis_type is not None and _enum_value(column.axis_type) == "SPACE"
+    ]
     conventional = [name for name in ("z", "y", "x") if name in spatial]
     if len(conventional) >= 2 and spatial == list(reversed(conventional)):
         raise TableDeclarationError(
-            f"The spatial axes are declared {', '.join(spatial)}, which is the reverse of the "
-            "array convention. x is the *last* spatial axis, y the one before it and z the one "
-            "before that, by position and never by name -- so this declaration renders "
-            f"transposed rather than failing. Declare them {', '.join(conventional)}. "
+            f"The spatial axes run {', '.join(spatial)} in this frame's column order, which is "
+            "the reverse of the array convention -- and the axis order IS the column order. "
+            "x is the *last* spatial axis, y the one before it and z the one before that, by "
+            "position and never by name, so this table renders transposed rather than failing. "
+            f"Reorder the frame's columns to {', '.join(conventional)} first. "
             "(Nothing on the server can catch this: a table's axis names are free-form, so "
             "only a name that follows the convention says which order was meant.)"
         )

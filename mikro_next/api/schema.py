@@ -1,53 +1,13 @@
-from collections.abc import AsyncIterator, Iterable, Iterator
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Any, Literal
-
 from kanne.scalars import Frequency, GenericQuantity, Length, Power, Temperature, Unit
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
-from rath.scalars import ID, IDCoercible
-
 from mikro_next.funcs import aexecute, asubscribe, execute, subscribe
 from mikro_next.rath import MikroNextRath
-from mikro_next.scalars import (
-    ArrayCoercible,
-    ArrayLike,
-    FabriksCoercible,
-    FabriksLike,
-    FileLike,
-    ImageFileCoercible,
-    ImageFileLike,
-    ParquetCoercible,
-    ParquetLike,
-    SporadikCoercible,
-    SporadikLike,
-    ThreeDVector,
-)
-from mikro_next.traits import (
-    AxisInputTrait,
-    CoordinateAnchorInputTrait,
-    CoordinateSystemTrait,
-    CreateADatasetTrait,
-    CreateSparseDatasetTrait,
-    CreateTableDatasetTrait,
-    DataArrayTrait,
-    DatasetTrait,
-    FileTrait,
-    HasDownloadAccessor,
-    HasParquestStoreTrait,
-    HasParquetStoreAccesor,
-    HasPresignedDownloadAccessor,
-    HasZarrStoreAccessor,
-    Lensable,
-    MikroFetchable,
-    RGBAColorInputTrait,
-    SceneTrait,
-    SparseAxisInputTrait,
-    SparseColorByInputTrait,
-    TransformationTrait,
-    ValueHistogramInputTrait,
-)
-
+from mikro_next.scalars import ArrayCoercible, ArrayLike, FabriksCoercible, FabriksLike, FileLike, ImageFileCoercible, ImageFileLike, KonnektionCoercible, KonnektionLike, ParquetCoercible, ParquetLike, SporadikCoercible, SporadikLike, ThreeDVector
+from mikro_next.traits import AxisInputTrait, CoordinateAnchorInputTrait, CoordinateSystemTrait, CreateADatasetTrait, CreateSparseDatasetTrait, CreateTableDatasetTrait, DataArrayTrait, DatasetTrait, FileTrait, GraphColorByInputTrait, HasDownloadAccessor, HasParquestStoreTrait, HasParquetStoreAccesor, HasPresignedDownloadAccessor, HasZarrStoreAccessor, Lensable, MikroFetchable, RGBAColorInputTrait, SceneTrait, SparseAxisInputTrait, SparseColorByInputTrait, TransformationTrait, ValueHistogramInputTrait
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from rath.scalars import ID, IDCoercible
+from typing import Annotated, Any, AsyncIterator, Iterable, Iterator, Literal
 
 class GraphQLDefault:
     """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""
@@ -177,13 +137,15 @@ class BlendingChoices(str, Enum):
 class BootstrapLayerKind(str, Enum):
     """The render recipe an image layer carries: which default graph createSceneFromCoordinateSystem builds, via `ScenePolicyInput.kind`."""
     RGB = 'RGB'
-    'Composite three channels as red, green and blue. Inferred for a 2D dataset whose channel axis has exactly three positions -- a photograph, a brightfield slide.'
+    'Composite three channels as red, green and blue in a single layer -- a photograph, a brightfield slide. Never inferred from *shape*: a flat three-channel image is a three-marker fluorescence acquisition far more often than a photograph, and the two cannot be told apart that way. It is inferred from what ingest recorded -- three channels labelled red, green and blue (whose order then decides the components), or a source file that is a PNG or a JPEG -- so pass it for a photograph nothing recorded. Every other recipe gives each channel a layer of its own; this one keeps them together, because red, green and blue are components of one picture.'
     INTENSITY = 'INTENSITY'
-    'One colormapped source per channel, additively blended (grey for a single channel). The fluorescence default, and the fallback when nothing else is inferred.'
+    'One additively-blended INTENSITY layer per channel, each with its own colormap, order and visibility (a single grey layer when there is one channel). The fluorescence default, and the fallback when nothing else is inferred.'
     VOLUME = 'VOLUME'
-    'The channel sources under a maximum-intensity projection over z. Inferred when the dataset has a z axis with more than one plane.'
+    'One INTENSITY layer per channel as above, each with `projectionMode` set to MIP. Inferred when the dataset has a z axis with more than one plane. The one member with no `LayerKind` of its own: a projection is a setting on one channel, not a kind of layer.'
     LABEL = 'LABEL'
     'A single categorical source mapping discrete integer labels to distinct colors. Never inferred from structure -- nothing about an array distinguishes a label map from an image -- so it comes either from a derivation declared CATEGORIZED or from stating it outright.'
+    VECTOR = 'VECTOR'
+    "A single VECTOR layer drawing the dataset's vectors as glyphs. Inferred whenever the dataset carries a DISPLACEMENT value axis -- like LABEL's CATEGORIZED edge, that axis type is something an author stated rather than a shape to guess from, so the inference is reading a declaration back. There are no channels to peel: the value axis's positions are components of one offset, not signals to layer separately."
     __str__ = str.__str__
 
 class ChannelKind(str, Enum):
@@ -251,11 +213,13 @@ class ColorMap(str, Enum):
     __str__ = str.__str__
 
 class ColorSourceKind(str, Enum):
-    """Which sort of source a colouring reads its value from: the discriminator of `LabelColorByInput` and `MeshColorByInput`. Two members, because there are two ways a set of ids reaches a number -- a column of a table they key into, or one slice of a sparse matrix they index. Flat with a discriminator rather than an input union, which GraphQL has no such thing as; the fields the other member reads are refused rather than ignored"""
+    """Which sort of source a colouring reads its value from: the discriminator of `LabelColorByInput`, `MeshColorByInput` and `NetworkColorByInput`. Three members, because there are three ways a set of ids reaches a number -- a column of a table they key into, one slice of a sparse matrix they index, or (for a network alone) a per-node value the collection itself carries. Flat with a discriminator rather than an input union, which GraphQL has no such thing as; the fields the other members read are refused rather than ignored. GRAPH is valid only where the source has per-node values to read, which today means a network layer"""
     COLUMN = 'COLUMN'
     "A column of a table the source's ids key into, reached by `table`, `column` and any `joinPath`. Every colouring written before sparse datasets existed is one of these, which is why it is the default."
     SPARSE = 'SPARSE'
     "One slice of a sparse matrix the source's ids index, reached by `dataset` and the position `at`. Always measured: a slice is a value per object, so it takes a colormap and never a class map."
+    GRAPH = 'GRAPH'
+    "A per-node value the network collection itself carries, reached by `attribute` -- a name its manifest declares (Strahler order, degree, depth, component, a writer's own column), or `radius` when the encoding carries one. Computed once on the full level-0 graph and only ever subset, so the value is the same at every level a node survives to. Always measured, per node rather than per object; `target` says whether it paints nodes or edges."
     __str__ = str.__str__
 
 class ColumnControl(str, Enum):
@@ -276,6 +240,8 @@ class ColumnRole(str, Enum):
     'A per-row identifier.'
     TRACK_ID = 'TRACK_ID'
     'Groups rows into a trajectory. Required to render a table as tracks.'
+    GROUP_ID = 'GROUP_ID'
+    'Groups rows into one connected object — the nodes of one traced arbor, the points of one cluster. Distinct from TRACK_ID, which means a trajectory: a branching tree is not one, and a table that grouped by TRACK_ID would be claiming an order its rows do not have.'
     LABEL = 'LABEL'
     'A per-row text label.'
     COLOR = 'COLOR'
@@ -377,24 +343,67 @@ class FilterKind(str, Enum):
     OTHER = 'OTHER'
     __str__ = str.__str__
 
+class GraphTarget(str, Enum):
+    """Which of a network's two row sets a GRAPH colouring or rule addresses. A network is the one layer kind with two -- every other source has exactly one set of objects -- and an edge has no durable identity of its own (simplification re-links edges between levels), so an edge's value is *derived*: it takes its start node's value, the same convention the renderer already uses for an edge's object ordinal"""
+    NODE = 'NODE'
+    "Every node, and the segments and glyphs that touch it: a segment takes its start node's value, so colouring nodes colours the wireframe too."
+    EDGE = 'EDGE'
+    "Segments only, each taking its start node's value; node glyphs keep the layer's base colour. The honest per-edge statement, since an edge owns no value of its own."
+    __str__ = str.__str__
+
 class IdentificationKind(str, Enum):
-    """How one axis is identified -- the discriminator of `IdentificationInput`, and the same question whether the axis belongs to a sparse matrix or to a table. An axis of positions means nothing until something says what those positions *are*, and there are exactly these three ways to answer. Two of them author a FIELD edge, which is also what makes the data reachable from a layer over that source; `TABLE` authors none and states a foreign key instead, because a table is already in record-land"""
+    """How one axis is identified -- the discriminator of `IdentificationInput`, and the same question whether the axis belongs to a sparse matrix or to a table. An axis of positions means nothing until something says what those positions *are*, and there are exactly these five ways to answer. Three of them author a FIELD edge, which is also what makes the data reachable from a layer over that source; `TABLE` and `NETWORK_COLLECTION_NODES` author none -- a table states a foreign key, and a node axis states which collection's nodes it enumerates, scoped by the sibling axis that collection's objects key"""
     DATASET = 'DATASET'
     'A label mask, through its intrinsic pixel grid: its pixel values are the positions along this axis. Authors a FIELD edge, so it is also what makes the data reachable from a layer over that mask.'
     MESH_COLLECTION = 'MESH_COLLECTION'
     'A mesh collection, through its vertex coordinate system: the ids ride on the geometry rows, so a client that picked a surface is already holding one. Authors a FIELD edge, exactly as DATASET does.'
+    NETWORK_COLLECTION = 'NETWORK_COLLECTION'
+    'A network collection, through its coordinate system, identified by its **object** ids -- one row per traced object (a filament, an arbor, a vessel tree), never per node. The object ids ride on the geometry rows and the object catalog, so a client that picked a wireframe is already holding one. Authors a FIELD edge, exactly as MESH_COLLECTION does. A per-node identification is the sibling member NETWORK_COLLECTION_NODES: a node id is unique only within its object, so it cannot key a row on its own.'
+    NETWORK_COLLECTION_NODES = 'NETWORK_COLLECTION_NODES'
+    "A network collection's **node** ids -- the values along this axis are node ids, scoped by a sibling INDEX axis keyed by the same collection's object ids (a node id is unique only within its traced object, so the pair is the row's key). Authors no edge, like TABLE, and for the same reason: the object axis' edge already supplies the one id an edge supplies, and this says what the *other* axis enumerates. One such axis makes the table per-node; two over one collection make it per-edge, (source, target) in axis declaration order. Node ids survive every octree level; edge rows resolve exactly at level 0 and on pruned levels and are void on simplified ones, where edges are re-linked chords."
     TABLE = 'TABLE'
     "A table whose rows this axis' positions are -- the relation `Column.references` carries, said of the axis. Authors no edge and touches no coordinate system: a table is already in record-land, where the relation is a foreign key rather than a map between spaces. It is what lets a FIELD edge land beside it, because an axis identified this way is one the edge is not expected to supply. Valid on an INDEX axis only: a SPACE or TIME coordinate's values are positions, and a position in nanometres and a row id are different things."
+    __str__ = str.__str__
+
+class LayerKind(str, Enum):
+    """The kind of a layer, discriminating which data source it renders and which rendering settings apply."""
+    IMAGE = 'IMAGE'
+    "The general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually composites -- several channels blended together, a hand-authored transfer curve, an inverted mapping, per-channel opacity. When the recipe's shape is fixed, one of INTENSITY, RGB or PHASOR says so directly and carries its settings as fields."
+    INTENSITY = 'INTENSITY'
+    'One channel of a lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. The fluorescence workhorse. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing.'
+    RGB = 'RGB'
+    'Three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. Its own kind rather than a three-child blend because the two are indistinguishable as graphs, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape. Never inferred from that shape, for the same reason: a bootstrapped scene reaches this kind only on something ingest recorded -- channels *named* red, green and blue, or arrays read out of a PNG -- or on a caller saying so. Keeping the three together is the point: they are components of one picture, not three signals to hide and reorder separately.'
+    PHASOR = 'PHASOR'
+    "One axis of a lens -- MICROTIME or SPECTRUM -- reduced per pixel to a phasor and coloured by it: a lifetime, or a spectral centre of mass. Its recipe lives in `phasorRender`, as a label layer's lives in `labelRender`, because a phasor's transfer maps a (g, s) pair plus a photon count rather than a sampled scalar. A phasor may still appear as a node inside an IMAGE layer's graph, which is what composites one with an ordinary channel."
+    LABEL = 'LABEL'
+    "A label layer rendering array (lens) data whose values are discrete object ids -- a segmentation or instance map. It shares the image layer's source but none of its render settings: contrast limits, gamma, colormaps and intensity projections are all meaningless over ids, and what it carries instead is an id-to-color hashing, a transparent background id, contour-or-fill, a selection, and an optional `colorBy` dereferencing the FIELD edge that keys the mask's pixels to a table of objects."
+    ANNOTATION = 'ANNOTATION'
+    'An annotation layer rendering the drawn vector geometry (polygons, boxes, ellipses, lines, paths) of an annotation collection.'
+    POINT = 'POINT'
+    'A point layer rendering a point cloud (e.g. SMLM localisations, centroids) from columns of a table.'
+    TRACK = 'TRACK'
+    'A track layer rendering trajectories from columns of a table, grouped by a track id.'
+    MESH = 'MESH'
+    'A mesh layer rendering a 3D surface reconstruction.'
+    NETWORK = 'NETWORK'
+    'A network layer rendering a node/edge graph from a konnektion collection -- a traced arbor, a vessel tree, a connectome. Distinct from TRACK, which draws trajectories from a table and can only express a path: a network is a graph, so it carries branch points, and a dividing cell or a dendrite is not a trajectory. Its segments are drawn as camera-facing quads, which is also why `lineWidth` and `nodeSizeColumn` mean something only from SIMILARITY up.'
+    VECTOR = 'VECTOR'
+    "A vector layer rendering a vector-valued lens -- an optical flow, a deformation field, an orientation map -- as glyphs sampled from the grid. The sixth lens-backed kind, and the value axis is what makes it one: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry rather than composited as channels. Which axis that is is derived (`renderAxes.vector`), never stored; what the layer carries is view state -- a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window. `glyphScale` maps a magnitude in the component axis's unit to a drawn length in scene units, so like `pointSize` it means something only from SIMILARITY up."
     __str__ = str.__str__
 
 class LayerKindChoices(str, Enum):
     """No documentation"""
     IMAGE = 'IMAGE'
+    INTENSITY = 'INTENSITY'
+    RGB = 'RGB'
+    PHASOR = 'PHASOR'
     LABEL = 'LABEL'
     ANNOTATION = 'ANNOTATION'
     POINT = 'POINT'
     TRACK = 'TRACK'
     MESH = 'MESH'
+    NETWORK = 'NETWORK'
+    VECTOR = 'VECTOR'
     __str__ = str.__str__
 
 class MeshShading(str, Enum):
@@ -481,7 +490,7 @@ class PreferredView(str, Enum):
     __str__ = str.__str__
 
 class ProjectionMode(str, Enum):
-    """The 3D projection / rendering mode applied to a volumetric (z-stacked) render node."""
+    """The 3D projection / rendering mode applied to a volumetric (z-stacked) render, whether that is an IMAGE layer's projection node or an INTENSITY layer's `projectionMode`."""
     MIP = 'MIP'
     'Maximum intensity projection: each output pixel takes the maximum value along the z-axis.'
     ATTENUATED_MIP = 'ATTENUATED_MIP'
@@ -520,6 +529,20 @@ class ScaleMethod(str, Enum):
     'The maximum of the source window. Returns a real value, but over ids it biases every boundary toward whichever object sorts higher, so it is not label-safe either.'
     MIN = 'MIN'
     "The minimum of the source window. Not label-safe, for the mirror of MAX's reason."
+    __str__ = str.__str__
+
+class TransformInvariance(str, Enum):
+    """Which geometric properties survive a coordinate transformation. A nested hierarchy -- each class preserves strictly less than the one above it -- so the class of a composed path is the weakest of its steps. Derived from a transformation's `kind`, never stored: a column could contradict the parameters, and the parameters would be right."""
+    ISOMETRY = 'ISOMETRY'
+    'Distances, angles and areas all transfer unchanged: a length measured on one side IS that length on the other. An identity, a translation, a rotation, an axis permutation.'
+    SIMILARITY = 'SIMILARITY'
+    'Angles and length *ratios* transfer; every absolute length scales by one common factor. A circle is still a circle, just a different size -- so anything dimensionless carries across untouched, and anything measured needs the one factor.'
+    AFFINE = 'AFFINE'
+    'Parallelism and area *ratios* transfer; angles and distances do not. A square may arrive a parallelogram, so an angle or a length read on one side means nothing on the other. Stated for every AFFINE edge, including one whose matrix happens to be rigid: telling those apart needs an SVD, which is numerics inside a metadata answer -- the same line the graph draws when it declines to catch a singular affine.'
+    DIFFEOMORPHIC = 'DIFFEOMORPHIC'
+    'Topology at best, and only locally: the Jacobian varies with position, so no distance, angle, area or ratio survives anywhere. A ceiling, not a guarantee -- a FIELD is many-to-one on purpose (an object is a set of pixels), and such a map is not a diffeomorphism at all.'
+    NONE = 'NONE'
+    'Nothing corresponds. On an edge, an UNMAPPABLE: a declared non-correspondence. On a layer, no path to the world at all -- `placement` says which of the two reasons applies.'
     __str__ = str.__str__
 
 class TransformKind(str, Enum):
@@ -670,7 +693,7 @@ class CCDElementInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ColumnColorByInput(BaseModel):
-    """The fields a COLUMN member of a colour picker entry reads. Published for codegen; the wire type is the flat LabelColorByInput / MeshColorByInput"""
+    """The fields a COLUMN member of a colour picker entry reads. Published for codegen; the wire type is the flat LabelColorByInput / MeshColorByInput / NetworkColorByInput"""
     kind: Literal['COLUMN'] = Field(default='COLUMN')
     colormap: ColorMap | None = None
     min: float | None = None
@@ -773,6 +796,21 @@ class FilterElementInput(BaseModel):
     description: str | None = None
     filter_kind: FilterKind | None = Field(validation_alias=AliasChoices('filter_kind', 'filterKind'), serialization_alias='filterKind', default=None)
     transmittance: float | None = None
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class GraphColorByInput(GraphColorByInputTrait, BaseModel):
+    """The fields a GRAPH member of a colour picker entry reads: a per-node value the network collection itself carries. Published for codegen; the wire type is the flat NetworkColorByInput -- and only that one, because a mask and a mesh have no per-node values to read"""
+    kind: Literal['GRAPH'] = Field(default='GRAPH')
+    colormap: ColorMap | None = None
+    min: float | None = None
+    max: float | None = None
+    label: str | None = None
+    attribute: str
+    target: Annotated[GraphTarget | None, GraphQLDefault('NODE')] = None
+    'Default: NODE'
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
@@ -913,6 +951,26 @@ class MirrorElementInput(BaseModel):
     angle_deg: float | None = Field(validation_alias=AliasChoices('angle_deg', 'angleDeg'), serialization_alias='angleDeg', default=None)
     band_min: Length | None = Field(validation_alias=AliasChoices('band_min', 'bandMin'), serialization_alias='bandMin', default=None)
     band_max: Length | None = Field(validation_alias=AliasChoices('band_max', 'bandMax'), serialization_alias='bandMax', default=None)
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class NetworkCollectionIdentifiesInput(BaseModel):
+    """The fields a NETWORK_COLLECTION identification reads. Published for codegen; the wire type is the flat IdentificationInput"""
+    kind: Literal['NETWORK_COLLECTION'] = Field(default='NETWORK_COLLECTION')
+    name: str | None = None
+    validity: PlacementValidity | None = None
+    network_collection: ID = Field(validation_alias=AliasChoices('network_collection', 'networkCollection'), serialization_alias='networkCollection')
+
+    def model_post_init(self, context):
+        self.__pydantic_fields_set__.update({'kind'})
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class NetworkCollectionNodesIdentifiesInput(BaseModel):
+    """The fields a NETWORK_COLLECTION_NODES identification reads. Published for codegen; the wire type is the flat IdentificationInput"""
+    kind: Literal['NETWORK_COLLECTION_NODES'] = Field(default='NETWORK_COLLECTION_NODES')
+    network_collection: ID = Field(validation_alias=AliasChoices('network_collection', 'networkCollection'), serialization_alias='networkCollection')
 
     def model_post_init(self, context):
         self.__pydantic_fields_set__.update({'kind'})
@@ -1065,7 +1123,7 @@ class ShutterElementInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class SparseColorByInput(SparseColorByInputTrait, BaseModel):
-    """The fields a SPARSE member of a colour picker entry reads. Published for codegen; the wire type is the flat LabelColorByInput / MeshColorByInput"""
+    """The fields a SPARSE member of a colour picker entry reads. Published for codegen; the wire type is the flat LabelColorByInput / MeshColorByInput / NetworkColorByInput"""
     kind: Literal['SPARSE'] = Field(default='SPARSE')
     colormap: ColorMap | None = None
     min: float | None = None
@@ -1252,7 +1310,7 @@ class ArrayDatasetFilter(BaseModel):
     multiscale: bool | None = Field(default=None, description='Filter by whether the dataset carries a resolution pyramid: true for the multiscale ones, false for those with a single level')
     has_physical_space: bool | None = Field(validation_alias=AliasChoices('has_physical_space', 'hasPhysicalSpace'), serialization_alias='hasPhysicalSpace', default=None, description="Filter by whether the dataset has an edge into a space with real units. False finds the data that is still only pixels, with no pixel size or stage pose recorded. Unrelated to a phasor histogram's `calibrated`, which is about reference correction")
     scene: ID | None = Field(default=None, description="Filter to datasets rendered in this scene, through their lenses' layers. What is actually staged there -- for what merely could be, use `placeableIn`")
-    placeable_in: ID | None = Field(validation_alias=AliasChoices('placeable_in', 'placeableIn'), serialization_alias='placeableIn', default=None, description='Filter to datasets placeable into this coordinate system: those with a lens whose space has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene, because that is all the answer depends on -- every scene over one world offers the same candidates. Pass `scene.worldCoordinateSystem.id` to ask it of a scene. What could be staged there -- for what already is, use `scene`')
+    placeable_in: ID | None = Field(validation_alias=AliasChoices('placeable_in', 'placeableIn'), serialization_alias='placeableIn', default=None, description='Filter to datasets placeable into this coordinate system: those with a lens whose space reaches it across steps that compose into one affine map, walking the transformation edges. A route crossing a FIELD is not one -- it relates the two spaces by the values of an array, which no renderer can draw with, so such a dataset is not offered and `createLayer` would refuse it. Takes a *space*, not a scene, because that is all the answer depends on -- every scene over one world offers the same candidates. Pass `scene.worldCoordinateSystem.id` to ask it of a scene. What could be staged there -- for what already is, use `scene`')
     derived_from: ID | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None, description='Filter to the datasets computed from this one -- the deconvolutions, segmentations and projections that named a space of it as their parent. Every child, not just the ones it places: a fusion that named it second is listed, and so is a child whose derivation is UNMAPPABLE, since it still came from here')
     not_derived: bool | None = Field(validation_alias=AliasChoices('not_derived', 'notDerived'), serialization_alias='notDerived', default=None, description="Filter for datasets that were acquired rather than computed: true for the roots, those with no derivation edge into another dataset's space")
     source_file: ID | None = Field(validation_alias=AliasChoices('source_file', 'sourceFile'), serialization_alias='sourceFile', default=None, description='Filter to the datasets converted from this file -- every series of it, unless `sourceSeriesIdentifier` narrows that. A file link, not a derivation: this asks which bytes the arrays were read out of, where `derivedFrom` asks which data they were computed from. A dataset can honestly answer both')
@@ -1321,14 +1379,16 @@ class ClearSceneInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ColumnInput(BaseModel):
-    """One column of the table. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A COORDINATE column is an axis and is declared in `axes` as well, which is where its type and its identification live"""
+    """One column of the table -- THE one declaration a column gets. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A non-null `axisType` makes the column an axis of the table's own space; **the axis-typed columns, in this list's (= the file's) order, ARE the space** -- a table has no byte order, its axes are named columns, and an edge wanting a different order states its own `inputAxes`/`outputAxes`. `identifiedBy` says what the values are, for an axis and a data column alike"""
     name: str
     dtype: str | None = None
     role: ColumnRole | None = None
+    axis_type: AxisType | None = Field(validation_alias=AliasChoices('axis_type', 'axisType'), serialization_alias='axisType', default=None)
     unit: Unit | None = None
     long_name: str | None = Field(validation_alias=AliasChoices('long_name', 'longName'), serialization_alias='longName', default=None)
     description: str | None = None
-    references: ID | None = None
+    identified_by: Annotated[tuple['IdentificationInput', ...] | None, GraphQLDefault('[]')] = Field(validation_alias=AliasChoices('identified_by', 'identifiedBy'), serialization_alias='identifiedBy', default=None)
+    'Default: []'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ColumnOptionFilter(BaseModel):
@@ -1443,6 +1503,24 @@ class CreateFolderInput(BaseModel):
     parent: ID | None = Field(default=None, description='The ID of the parent folder to nest this folder under')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class CreateIntensityLayerInput(BaseModel):
+    """Create a single-channel intensity layer rendered through a colormap (e.g. a fluorescence channel)"""
+    lens: ID
+    scene: ID
+    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None)
+    intensity_index: Annotated[int | None, GraphQLDefault('0')] = Field(validation_alias=AliasChoices('intensity_index', 'intensityIndex'), serialization_alias='intensityIndex', default=None)
+    'Default: 0'
+    colormap: ColorMap | None = None
+    color: tuple[int, ...] | None = None
+    clim_min: float | None = Field(validation_alias=AliasChoices('clim_min', 'climMin'), serialization_alias='climMin', default=None)
+    clim_max: float | None = Field(validation_alias=AliasChoices('clim_max', 'climMax'), serialization_alias='climMax', default=None)
+    gamma: float | None = None
+    blending: Blending | None = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CreateLabelLayerInput(BaseModel):
     """Create a label layer that renders an instance / segmentation map: an array whose values are discrete object ids"""
     lens: ID
@@ -1492,6 +1570,38 @@ class CreateMeshLayerInput(BaseModel):
     color_bys: tuple['MeshColorByInput', ...] | None = Field(validation_alias=AliasChoices('color_bys', 'colorBys'), serialization_alias='colorBys', default=None)
     active_color_by: int | None = Field(validation_alias=AliasChoices('active_color_by', 'activeColorBy'), serialization_alias='activeColorBy', default=None)
     filter_bys: tuple['MeshFilterByInput', ...] | None = Field(validation_alias=AliasChoices('filter_bys', 'filterBys'), serialization_alias='filterBys', default=None)
+    active_filter_bys: tuple[int, ...] | None = Field(validation_alias=AliasChoices('active_filter_bys', 'activeFilterBys'), serialization_alias='activeFilterBys', default=None)
+    blending: Blending | None = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateNetworkCollectionInput(BaseModel):
+    """Input for registering an immutable, versioned network collection. The collection gets a coordinate system of its own, and an edge relates it to the space the network was traced in"""
+    version: str
+    store: KonnektionLike
+    axes: tuple[AxisInput, ...]
+    folder: ID | None = None
+    derived_from: tuple['DerivedFromInput', ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
+    source_files: tuple['SourceFileInput', ...] | None = Field(validation_alias=AliasChoices('source_files', 'sourceFiles'), serialization_alias='sourceFiles', default=None)
+    provenance_metadata: Any | None = Field(validation_alias=AliasChoices('provenance_metadata', 'provenanceMetadata'), serialization_alias='provenanceMetadata', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateNetworkLayerInput(BaseModel):
+    """Input for drawing a network collection -- a traced arbor, a vessel tree, a connectome -- in a scene. Its segments are drawn as camera-facing quads rather than GL lines, which is what makes a width in scene units meaningful at all"""
+    scene: ID
+    network_collection: ID = Field(validation_alias=AliasChoices('network_collection', 'networkCollection'), serialization_alias='networkCollection')
+    material_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('material_color', 'materialColor'), serialization_alias='materialColor', default=None)
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    node_size_column: str | None = Field(validation_alias=AliasChoices('node_size_column', 'nodeSizeColumn'), serialization_alias='nodeSizeColumn', default=None)
+    edge_width_column: str | None = Field(validation_alias=AliasChoices('edge_width_column', 'edgeWidthColumn'), serialization_alias='edgeWidthColumn', default=None)
+    directed: bool | None = None
+    show_nodes: bool | None = Field(validation_alias=AliasChoices('show_nodes', 'showNodes'), serialization_alias='showNodes', default=None)
+    max_level: int | None = Field(validation_alias=AliasChoices('max_level', 'maxLevel'), serialization_alias='maxLevel', default=None)
+    color_bys: tuple['NetworkColorByInput', ...] | None = Field(validation_alias=AliasChoices('color_bys', 'colorBys'), serialization_alias='colorBys', default=None)
+    active_color_by: int | None = Field(validation_alias=AliasChoices('active_color_by', 'activeColorBy'), serialization_alias='activeColorBy', default=None)
+    filter_bys: tuple['NetworkFilterByInput', ...] | None = Field(validation_alias=AliasChoices('filter_bys', 'filterBys'), serialization_alias='filterBys', default=None)
     active_filter_bys: tuple[int, ...] | None = Field(validation_alias=AliasChoices('active_filter_bys', 'activeFilterBys'), serialization_alias='activeFilterBys', default=None)
     blending: Blending | None = None
     opacity: float | None = None
@@ -1561,12 +1671,30 @@ class CreatePointLayerInput(BaseModel):
     order: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class CreateRgbLayerInput(BaseModel):
+    """Create a layer that composites three channels of a lens as red, green and blue"""
+    lens: ID
+    scene: ID
+    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None)
+    red_index: Annotated[int | None, GraphQLDefault('0')] = Field(validation_alias=AliasChoices('red_index', 'redIndex'), serialization_alias='redIndex', default=None)
+    'Default: 0'
+    green_index: Annotated[int | None, GraphQLDefault('1')] = Field(validation_alias=AliasChoices('green_index', 'greenIndex'), serialization_alias='greenIndex', default=None)
+    'Default: 1'
+    blue_index: Annotated[int | None, GraphQLDefault('2')] = Field(validation_alias=AliasChoices('blue_index', 'blueIndex'), serialization_alias='blueIndex', default=None)
+    'Default: 2'
+    clim_min: float | None = Field(validation_alias=AliasChoices('clim_min', 'climMin'), serialization_alias='climMin', default=None)
+    clim_max: float | None = Field(validation_alias=AliasChoices('clim_max', 'climMax'), serialization_alias='climMax', default=None)
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class CreateSceneFromCoordinateSystemInput(BaseModel):
-    """Bootstrap a renderable scene over an existing coordinate system. Over an ownerless SHARED space the sources already registered into it become layers, up to the policy's nchildren -- each source's path to world is the one registration createCoordinateSystem authored. Over an owned system (a dataset's intrinsic pixels, a physical space, a collection's space) the container's own data becomes the layer: it is in its own space by construction, so no edge exists or is authored. Rerunning makes another scene over the same space, which outlives them all"""
+    """Bootstrap a renderable scene over an existing coordinate system. Over an ownerless SHARED space the sources already registered into it become layers, up to the policy's nchildren sources -- each source's path to world is the one registration createCoordinateSystem authored. Over an owned system (a dataset's intrinsic pixels, a physical space, a collection's space) the container's own data becomes the layer: it is in its own space by construction, so no edge exists or is authored. A multi-channel image becomes one layer per channel, each with its own hue, order and visibility, so a viewer can control the channels separately; an RGB photograph stays one layer. Rerunning makes another scene over the same space, which outlives them all"""
     coordinate_system: ID = Field(validation_alias=AliasChoices('coordinate_system', 'coordinateSystem'), serialization_alias='coordinateSystem')
     name: str | None = None
-    policy: Annotated['ScenePolicyInput | None', GraphQLDefault("{'nchildren': 8, 'transformTables': False, 'includeMeshes': True, 'kind': None}")] = None
-    "Default: {'nchildren': 8, 'transformTables': False, 'includeMeshes': True, 'kind': None}"
+    policy: Annotated['ScenePolicyInput | None', GraphQLDefault("{'nchildren': 8, 'transformTables': False, 'includeMeshes': True, 'includeNetworks': True, 'skipUnplaceable': False, 'kind': None}")] = None
+    "Default: {'nchildren': 8, 'transformTables': False, 'includeMeshes': True, 'includeNetworks': True, 'skipUnplaceable': False, 'kind': None}"
     default_for: tuple[ID, ...] | None = Field(validation_alias=AliasChoices('default_for', 'defaultFor'), serialization_alias='defaultFor', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
@@ -1595,17 +1723,28 @@ class CreateSparseDatasetInput(CreateSparseDatasetTrait, BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateTableDatasetInput(CreateTableDatasetTrait, BaseModel):
-    """Input for creating a table dataset from a Parquet store. Its coordinate columns become the axes of a coordinate system it owns; declare no coordinate columns for a pure measurement table (its rows enumerate objects and its lineage edge is UNMAPPABLE)"""
+    """Input for creating a table dataset from a Parquet store. A column is declared ONCE, in `columns`: a non-null `axisType` makes it an axis of the coordinate system the table owns, and the axis-typed columns, in list (= file) order, are the space -- there is no separate axes list, because a table's axes are named columns and every consumer addresses them by name. Declare no axis-typed columns for a pure measurement table (its rows enumerate objects, its space is a synthetic `object` axis, and its lineage edge is UNMAPPABLE)"""
     name: str
     data: ParquetLike
     columns: Annotated[tuple[ColumnInput, ...] | None, GraphQLDefault('[]')] = None
-    'Default: []'
-    axes: Annotated[tuple['TableAxisInput', ...] | None, GraphQLDefault('[]')] = None
     'Default: []'
     description: str | None = None
     folder: ID | None = None
     derived_from: tuple['DerivedFromInput', ...] | None = Field(validation_alias=AliasChoices('derived_from', 'derivedFrom'), serialization_alias='derivedFrom', default=None)
     source_files: tuple['SourceFileInput', ...] | None = Field(validation_alias=AliasChoices('source_files', 'sourceFiles'), serialization_alias='sourceFiles', default=None)
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateTrackLayerInput(BaseModel):
+    """Create a layer that renders trajectories (e.g. particle/cell tracks) from a table dataset, grouped by its TRACK_ID column"""
+    scene: ID
+    table_dataset: ID = Field(validation_alias=AliasChoices('table_dataset', 'tableDataset'), serialization_alias='tableDataset')
+    color_by_column: str | None = Field(validation_alias=AliasChoices('color_by_column', 'colorByColumn'), serialization_alias='colorByColumn', default=None)
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    colormap: ColorMap | None = None
+    blending: Blending | None = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class CreateTransformationInput(BaseModel):
@@ -1617,6 +1756,25 @@ class CreateTransformationInput(BaseModel):
     validity: PlacementValidity | None = None
     value_relation: ValueRelation | None = Field(validation_alias=AliasChoices('value_relation', 'valueRelation'), serialization_alias='valueRelation', default=None)
     selector: 'SelectorInput | None' = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class CreateVolumeLayerInput(BaseModel):
+    """Create a single-channel layer rendered as a 3D volume projection (MIP / attenuated-MIP / volume / isosurface) over its z-axis"""
+    lens: ID
+    scene: ID
+    mode: ProjectionMode | None = None
+    intensity_axis: str | None = Field(validation_alias=AliasChoices('intensity_axis', 'intensityAxis'), serialization_alias='intensityAxis', default=None)
+    intensity_index: Annotated[int | None, GraphQLDefault('0')] = Field(validation_alias=AliasChoices('intensity_index', 'intensityIndex'), serialization_alias='intensityIndex', default=None)
+    'Default: 0'
+    colormap: ColorMap | None = None
+    color: tuple[int, ...] | None = None
+    clim_min: float | None = Field(validation_alias=AliasChoices('clim_min', 'climMin'), serialization_alias='climMin', default=None)
+    clim_max: float | None = Field(validation_alias=AliasChoices('clim_max', 'climMax'), serialization_alias='climMax', default=None)
+    gamma: float | None = None
+    blending: Blending | None = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteAnimationInput(BaseModel):
@@ -1642,6 +1800,11 @@ class DeleteCoordinateSystemInput(BaseModel):
 class DeleteMeshCollectionInput(BaseModel):
     """Input for deleting a mesh collection by ID"""
     id: ID = Field(description='The ID of the mesh collection to delete')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class DeleteNetworkCollectionInput(BaseModel):
+    """Input for deleting a network collection by ID"""
+    id: ID = Field(description='The ID of the network collection to delete')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class DeleteRegistrationInput(BaseModel):
@@ -1710,6 +1873,13 @@ class FinishFabriksUploadInput(BaseModel):
     'Default: True'
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class FinishKonnektionUploadInput(BaseModel):
+    """No documentation"""
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    valid: Annotated[bool | None, GraphQLDefault('True')] = None
+    'Default: True'
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class FinishMediaUploadInput(BaseModel):
     """No documentation"""
     store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
@@ -1745,7 +1915,7 @@ class FromFileLike(BaseModel):
     folder: ID | None = Field(default=None, description='The ID of the folder to put the file in (defaults to the current default folder)')
     export_of: tuple[ExportOfInput, ...] | None = Field(validation_alias=AliasChoices('export_of', 'exportOf'), serialization_alias='exportOf', default=None, description='The containers this file was written from')
     model_config = ConfigDict(frozen=True, extra='forbid')
-IdentificationInput = Annotated[DatasetIdentifiesInput | MeshCollectionIdentifiesInput | TableIdentifiesInput, Field(discriminator='kind')]
+IdentificationInput = Annotated[DatasetIdentifiesInput | MeshCollectionIdentifiesInput | NetworkCollectionIdentifiesInput | NetworkCollectionNodesIdentifiesInput | TableIdentifiesInput, Field(discriminator='kind')]
 
 class JoinStepInput(BaseModel):
     """One hop of a join path: the column whose values identify rows of the next table. The target is not named here -- the next step names it, and which of its columns holds row identity is already declared on it"""
@@ -1905,6 +2075,28 @@ class MeshFilterByInput(BaseModel):
     'Default: False'
     label: str | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
+NetworkColorByInput = Annotated[ColumnColorByInput | GraphColorByInput | SparseColorByInput, Field(discriminator='kind')]
+
+class NetworkFilterByInput(BaseModel):
+    """Draw only the objects -- or, for a GRAPH rule, the nodes and segments -- whose value satisfies this rule. Which half applies follows from the source: bounds for a measure column, a sparse slice or a graph attribute; an explicit value set for a categorical column"""
+    kind: Annotated[ColorSourceKind | None, GraphQLDefault('COLUMN')] = None
+    'Default: COLUMN'
+    table: ID | None = None
+    column: str | None = None
+    join_path: Annotated[tuple[JoinStepInput, ...] | None, GraphQLDefault('[]')] = Field(validation_alias=AliasChoices('join_path', 'joinPath'), serialization_alias='joinPath', default=None)
+    'Default: []'
+    dataset: ID | None = None
+    at: Annotated[tuple[AxisPositionInput, ...] | None, GraphQLDefault('[]')] = None
+    'Default: []'
+    attribute: str | None = None
+    target: GraphTarget | None = None
+    min: float | None = None
+    max: float | None = None
+    values: tuple[str, ...] | None = None
+    exclude: Annotated[bool | None, GraphQLDefault('False')] = None
+    'Default: False'
+    label: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
 class OffsetPaginationInput(BaseModel):
     """No documentation"""
@@ -2032,6 +2224,17 @@ class RequestFabriksUploadInput(BaseModel):
     port: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class RequestKonnektionAccessInput(BaseModel):
+    """No documentation"""
+    store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class RequestKonnektionUploadInput(BaseModel):
+    """No documentation"""
+    host: str | None = None
+    port: int | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class RequestMediaAccessInput(BaseModel):
     """No documentation"""
     store_id: str = Field(validation_alias=AliasChoices('store_id', 'storeId'), serialization_alias='storeId')
@@ -2090,13 +2293,17 @@ class ScaleInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class ScenePolicyInput(BaseModel):
-    """The policy createSceneFromCoordinateSystem follows: at most `nchildren` layers, materialized from the sources living in or registered into the space, filtered by source kind and drawn by the recipe in `kind`"""
+    """The policy createSceneFromCoordinateSystem follows: at most `nchildren` sources, materialized from what lives in or is registered into the space, filtered by source kind and drawn by the recipe in `kind`. A source may become several layers -- a multi-channel image becomes one layer per channel"""
     nchildren: Annotated[int | None, GraphQLDefault('8')] = None
     'Default: 8'
     transform_tables: Annotated[bool | None, GraphQLDefault('False')] = Field(validation_alias=AliasChoices('transform_tables', 'transformTables'), serialization_alias='transformTables', default=None)
     'Default: False'
     include_meshes: Annotated[bool | None, GraphQLDefault('True')] = Field(validation_alias=AliasChoices('include_meshes', 'includeMeshes'), serialization_alias='includeMeshes', default=None)
     'Default: True'
+    include_networks: Annotated[bool | None, GraphQLDefault('True')] = Field(validation_alias=AliasChoices('include_networks', 'includeNetworks'), serialization_alias='includeNetworks', default=None)
+    'Default: True'
+    skip_unplaceable: Annotated[bool | None, GraphQLDefault('False')] = Field(validation_alias=AliasChoices('skip_unplaceable', 'skipUnplaceable'), serialization_alias='skipUnplaceable', default=None)
+    'Default: False'
     kind: BootstrapLayerKind | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
@@ -2201,17 +2408,6 @@ class StrFilterLookup(BaseModel):
     i_regex: str | None = Field(validation_alias=AliasChoices('i_regex', 'iRegex'), serialization_alias='iRegex', default=None)
     model_config = ConfigDict(frozen=True, extra='forbid')
 
-class TableAxisInput(BaseModel):
-    """One axis of the table's own space: which Parquet column it is, what kind of position it holds, and what those positions **are**. The list's order is the axis order, so the space is stated rather than derived by filtering a column list. `identifiedBy` replaces the old sibling `keyedBy`: there the axis a source keyed was matched by subtraction inside the server, correct and invisible, and here the pairing is the input's own shape. It is a list because fan-in is real -- a nucleus mask and a cell mask may key one axis, one edge each -- and it may be empty, because a localization table's `x` axis is identified by nothing and should be"""
-    column: str
-    type: AxisType
-    unit: Unit | None = None
-    long_name: str | None = Field(validation_alias=AliasChoices('long_name', 'longName'), serialization_alias='longName', default=None)
-    description: str | None = None
-    identified_by: Annotated[tuple[IdentificationInput, ...] | None, GraphQLDefault('[]')] = Field(validation_alias=AliasChoices('identified_by', 'identifiedBy'), serialization_alias='identifiedBy', default=None)
-    'Default: []'
-    model_config = ConfigDict(frozen=True, extra='forbid')
-
 class TableDatasetFilter(BaseModel):
     """No documentation"""
     ids: tuple[ID, ...] | None = Field(default=None, description='Filter by list of IDs')
@@ -2234,7 +2430,7 @@ class TableDatasetFilter(BaseModel):
     folders: tuple[ID, ...] | None = Field(default=None, description='Filter by a list of folder IDs')
     dataset: ID | None = Field(default=None, description='Filter by the dataset the table was computed from, following its derivation edge')
     has_column_role: ColumnRole | None = Field(validation_alias=AliasChoices('has_column_role', 'hasColumnRole'), serialization_alias='hasColumnRole', default=None, description='Filter to tables that declare a column of this role, e.g. TRACK_ID')
-    placeable_in: ID | None = Field(validation_alias=AliasChoices('placeable_in', 'placeableIn'), serialization_alias='placeableIn', default=None, description='Filter to table datasets placeable into this coordinate system: those whose own coordinate system has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene')
+    placeable_in: ID | None = Field(validation_alias=AliasChoices('placeable_in', 'placeableIn'), serialization_alias='placeableIn', default=None, description='Filter to table datasets placeable into this coordinate system: those whose own coordinate system reaches it across steps that compose into one affine map, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class TransferFunctionInput(RGBAColorInputTrait, BaseModel):
@@ -2323,6 +2519,26 @@ class UpdateMeshLayerInput(BaseModel):
     order: int | None = Field(default=None, description='Explicit z-index for back-to-front compositing')
     model_config = ConfigDict(frozen=True, extra='forbid')
 
+class UpdateNetworkLayerInput(BaseModel):
+    """Retune how a network layer is drawn. A patch: an OMITTED field keeps its current value. The collection and the scene are not editable -- a layer renders what it was created to render"""
+    id: ID = Field(description='The ID of the network layer to update')
+    material_color: tuple[int, ...] | None = Field(validation_alias=AliasChoices('material_color', 'materialColor'), serialization_alias='materialColor', default=None, description='The flat colour of every segment, as RGBA')
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None, description="The flat width of every segment, in scene units -- the world's spatial-axis unit, which is a well-defined length for a layer only when its `placementInvariance` is SIMILARITY or better (RFC-8). The fallback: `nodeSizeColumn` and `edgeWidthColumn` override it where they are set. An explicit `null` clears it")
+    node_size_column: str | None = Field(validation_alias=AliasChoices('node_size_column', 'nodeSizeColumn'), serialization_alias='nodeSizeColumn', default=None, description="The per-node column giving each node's radius, so a segment **tapers** between its endpoints. This is the shape traced morphology actually has -- a dendrite's calibre is a measurement per node, not per branch -- and it is why this wins over `edgeWidthColumn` when both are given: a per-node profile is strictly the more specific statement. An explicit `null` clears it, falling back to `edgeWidthColumn` and then to `lineWidth`")
+    edge_width_column: str | None = Field(validation_alias=AliasChoices('edge_width_column', 'edgeWidthColumn'), serialization_alias='edgeWidthColumn', default=None, description="The per-edge column giving each segment one uniform width -- a connectome's weight, a vessel segment's calibre where the tracer recorded one per segment rather than per node. Ignored when `nodeSizeColumn` is set. An explicit `null` clears it")
+    directed: bool | None = Field(default=None, description="Whether to draw each edge's direction, e.g. as arrowheads. **A render setting, never a fact about the graph**: an edge is always stored source-to-target, so the direction is in the data whether or not it is drawn. A traced arbor is directed away from the soma and usually drawn without arrows; a connectome usually with them")
+    show_nodes: bool | None = Field(validation_alias=AliasChoices('show_nodes', 'showNodes'), serialization_alias='showNodes', default=None, description='Whether to draw a glyph at each node as well as the segments')
+    max_level: int | None = Field(validation_alias=AliasChoices('max_level', 'maxLevel'), serialization_alias='maxLevel', default=None, description="The deepest octree level this layer may load, capping detail against the collection's declared `grid.levels`. A budget, not a choice of level: which level a viewer fetches still follows from the zoom. Null lets the viewer decide. Commonly moot here -- a traced arbor is usually a single-level collection, because konnektion picks its depth from the data. An omitted field keeps the cap, an explicit `null` removes it")
+    color_bys: tuple[NetworkColorByInput, ...] | None = Field(validation_alias=AliasChoices('color_bys', 'colorBys'), serialization_alias='colorBys', default=None, description="The colourings this layer offers, in the order a picker should show them, instead of the flat `materialColor`. Three entry kinds: a COLUMN entry colours whole objects by a table reachable from this collection by a FIELD edge (author it with `createTableDataset(keyedBy: {kind: NETWORK_COLLECTION})` -- the table's rows are keyed by **object** ids, one per filament or arbor); a SPARSE entry colours objects by one slice of a matrix those ids index; and a GRAPH entry -- this kind's own -- colours per **node**, by a value the collection itself carries: Strahler order, degree, depth, component, a stored radius, or a writer's own column, exactly the set the collection's manifest declares and `networkColorByOptions` offers. Which entry is drawn is `activeColorBy`; publishing a picker is not the same as choosing within it. Replaces the published picker wholesale: its order is the display order, so there is nothing to merge on. Pass `[]` to remove every colouring and fall back to `materialColor`")
+    active_color_by: int | None = Field(validation_alias=AliasChoices('active_color_by', 'activeColorBy'), serialization_alias='activeColorBy', default=None, description='Which entry of `colorBys` is drawn, as an index into it. Null draws the flat `materialColor` -- what having no colouring has always meant. Pass `null` to publish the picker and draw none of it; omit to leave the choice alone. Re-checked against the picker being written, never the stored one. If a new `colorBys` no longer holds the entry that was active, the layer falls back to `materialColor` -- name `activeColorBy` in the same call to point at another entry instead')
+    filter_bys: tuple[NetworkFilterByInput, ...] | None = Field(validation_alias=AliasChoices('filter_bys', 'filterBys'), serialization_alias='filterBys', default=None, description="The filters this layer offers, in the order a picker should show them. A COLUMN or SPARSE rule keeps or drops whole objects; a GRAPH rule -- always `min`/`max` bounds over a per-node value the collection carries -- hides individual nodes and segments, which is what 'trunk only' (Strahler order at least 3) means on an arbor. Which of them are actually applied is `activeFilterBys`. Replaces the published filters wholesale, as `colorBys` does. Pass `[]` to remove every rule and draw everything")
+    active_filter_bys: tuple[int, ...] | None = Field(validation_alias=AliasChoices('active_filter_bys', 'activeFilterBys'), serialization_alias='activeFilterBys', default=None, description='Which entries of `filterBys` are applied, as indices into it. Several at once is the normal case -- they combine with AND, and something is drawn when every active rule keeps it. Empty applies none of them, so everything draws. Re-checked against the filters being written: a new `filterBys` that no longer holds an applied rule drops it from this set rather than leaving it dangling')
+    blending: Blending | None = Field(default=None, description='Layer-level blend mode')
+    opacity: float | None = Field(default=None, description='Layer alpha, from 0 to 1')
+    visible: bool | None = Field(default=None, description='Whether the layer participates in compositing')
+    order: int | None = Field(default=None, description='Explicit z-index for back-to-front compositing')
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
 class UpdatePointLayerInput(BaseModel):
     """Retune a point layer after creation -- above all, switch or republish its colour picker"""
     id: ID
@@ -2357,6 +2573,18 @@ class UpdateTableDatasetInput(BaseModel):
     id: ID
     name: str | None = None
     description: str | None = None
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+class UpdateTrackLayerInput(BaseModel):
+    """Retune a track layer after creation -- its line width, its colouring column and the compositing it takes part in"""
+    id: ID
+    color_by_column: str | None = Field(validation_alias=AliasChoices('color_by_column', 'colorByColumn'), serialization_alias='colorByColumn', default=None)
+    line_width: float | None = Field(validation_alias=AliasChoices('line_width', 'lineWidth'), serialization_alias='lineWidth', default=None)
+    colormap: ColorMap | None = None
+    blending: Blending | None = None
+    opacity: float | None = None
+    visible: bool | None = None
+    order: int | None = None
     model_config = ConfigDict(frozen=True, extra='forbid')
 
 class UpdateTransformationInput(BaseModel):
@@ -2523,6 +2751,26 @@ class FabriksUploadGrant(MikroFetchable, BaseModel):
         name = 'FabriksUploadGrant'
         type = 'FabriksUploadGrant'
 
+class KonnektionUploadGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for uploading a konnektion store. Scoped to the prefix and permitted to read back and delete inside it, because the tree is written incrementally and its manifest lands last."""
+    typename: Literal['KonnektionUploadGrant'] = Field(alias='__typename', default='KonnektionUploadGrant', exclude=True)
+    access_key: str = Field(alias='accessKey')
+    secret_key: str = Field(alias='secretKey')
+    session_token: str = Field(alias='sessionToken')
+    path: str
+    key: str
+    bucket: str
+    expires_in: int = Field(alias='expiresIn')
+    max_bytes: int = Field(alias='maxBytes')
+    store: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for KonnektionUploadGrant"""
+        document = 'fragment KonnektionUploadGrant on KonnektionUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}'
+        name = 'KonnektionUploadGrant'
+        type = 'KonnektionUploadGrant'
+
 class BigFileAccessGrant(MikroFetchable, BaseModel):
     """Temporary S3 credentials for reading a big file."""
     typename: Literal['BigFileAccessGrant'] = Field(alias='__typename', default='BigFileAccessGrant', exclude=True)
@@ -2613,6 +2861,24 @@ class FabriksAccessGrant(MikroFetchable, BaseModel):
         name = 'FabriksAccessGrant'
         type = 'FabriksAccessGrant'
 
+class KonnektionAccessGrant(MikroFetchable, BaseModel):
+    """Temporary S3 credentials for reading a konnektion store. Covers the whole prefix, so one grant reads the manifest, both catalogs and every level."""
+    typename: Literal['KonnektionAccessGrant'] = Field(alias='__typename', default='KonnektionAccessGrant', exclude=True)
+    access_key: str = Field(alias='accessKey')
+    secret_key: str = Field(alias='secretKey')
+    session_token: str = Field(alias='sessionToken')
+    expires_in: int = Field(alias='expiresIn')
+    path: str
+    key: str
+    bucket: str
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for KonnektionAccessGrant"""
+        document = 'fragment KonnektionAccessGrant on KonnektionAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}'
+        name = 'KonnektionAccessGrant'
+        type = 'KonnektionAccessGrant'
+
 class SparseUploadGrant(MikroFetchable, BaseModel):
     """Temporary S3 credentials for uploading a sparse store. Scoped to the prefix and permitted to read back and delete inside it, because the three arrays are written incrementally."""
     typename: Literal['SparseUploadGrant'] = Field(alias='__typename', default='SparseUploadGrant', exclude=True)
@@ -2666,6 +2932,71 @@ class LayerLens(Lensable, BaseModel):
     """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
     typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
     id: ID
+    model_config = ConfigDict(frozen=True)
+
+class LayerLens(Lensable, BaseModel):
+    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
+    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class LayerLens(Lensable, BaseModel):
+    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
+    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class LayerLens(Lensable, BaseModel):
+    """A Lens is a way of looking at a dataset: a dimensional selection (slices) over a dataset that defines a view of its data"""
+    typename: Literal['Lens'] = Field(alias='__typename', default='Lens', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class LayerPhasorRenderTransferIntensity(BaseModel):
+    """How a single channel's intensities are mapped to color before compositing"""
+    typename: Literal['TransferFunction'] = Field(alias='__typename', default='TransferFunction', exclude=True)
+    clim_min: float | None = Field(default=None, alias='climMin')
+    clim_max: float | None = Field(default=None, alias='climMax')
+    colormap: ColorMap | None = Field(default=None)
+    color: tuple[int, ...] | None = Field(default=None)
+    gamma: float | None = Field(default=None)
+    opacity: float | None = Field(default=None)
+    invert: bool | None = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+class LayerPhasorRenderTransferCursors(BaseModel):
+    """A region of phasor space, and the color the pixels falling inside it are painted"""
+    typename: Literal['PhasorCursor'] = Field(alias='__typename', default='PhasorCursor', exclude=True)
+    kind: PhasorCursorKind
+    g: float | None = Field(default=None)
+    s: float | None = Field(default=None)
+    radius: float | None = Field(default=None)
+    points: tuple[tuple[float, ...], ...] | None = Field(default=None)
+    color: tuple[int, ...] | None = Field(default=None)
+    label: str | None = Field(default=None)
+    visible: bool
+    model_config = ConfigDict(frozen=True)
+
+class LayerPhasorRenderTransfer(BaseModel):
+    """How a phasor becomes the pixel's color. The transfer function of a phasor source: it maps the reduction's output -- a (g, s) pair plus a photon count -- rather than a sampled scalar, which is why it is not a TransferFunction"""
+    typename: Literal['PhasorTransfer'] = Field(alias='__typename', default='PhasorTransfer', exclude=True)
+    mode: PhasorColorMode
+    min: GenericQuantity | None = Field(default=None)
+    max: GenericQuantity | None = Field(default=None)
+    colormap: ColorMap
+    weight_by_intensity: bool = Field(alias='weightByIntensity')
+    intensity: LayerPhasorRenderTransferIntensity
+    cursors: tuple[LayerPhasorRenderTransferCursors, ...]
+    model_config = ConfigDict(frozen=True)
+
+class LayerPhasorRender(BaseModel):
+    """How a phasor layer draws: which axis is reduced to a phasor, at which harmonic, and how the resulting (g, s) becomes color. The whole recipe of a PHASOR layer, as `labelRender` is the whole recipe of a LABEL one -- for a phasor composited *with* other channels, an IMAGE layer's graph carries a `PhasorNode` instead"""
+    typename: Literal['PhasorRender'] = Field(alias='__typename', default='PhasorRender', exclude=True)
+    phasor_axis: str = Field(alias='phasorAxis')
+    intensity_axis: str | None = Field(default=None, alias='intensityAxis')
+    intensity_index: int = Field(alias='intensityIndex')
+    harmonic: int
+    transfer: LayerPhasorRenderTransfer
     model_config = ConfigDict(frozen=True)
 
 class LayerLens(Lensable, BaseModel):
@@ -2805,6 +3136,82 @@ class LayerTableDataset(HasParquestStoreTrait, BaseModel):
     name: str
     model_config = ConfigDict(frozen=True)
 
+class LayerCollection(BaseModel):
+    """An immutable, versioned collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+    typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class LayerNetworkColorBysAt(BaseModel):
+    """One position along one named axis: which slice of a matrix a colouring reads"""
+    typename: Literal['AxisPosition'] = Field(alias='__typename', default='AxisPosition', exclude=True)
+    axis: str
+    value: int
+    model_config = ConfigDict(frozen=True)
+
+class LayerNetworkColorBysJoinPath(BaseModel):
+    """One hop of a join path: the column whose values identify rows of the next table. The target is not named here -- the next step names it, and which of its columns holds row identity is already declared on it"""
+    typename: Literal['JoinStep'] = Field(alias='__typename', default='JoinStep', exclude=True)
+    table: ID
+    column: str
+    model_config = ConfigDict(frozen=True)
+
+class LayerNetworkColorBys(BaseModel):
+    """One entry of a network layer's colour picker. Three kinds where the other pickers have two: COLUMN and SPARSE colour whole objects exactly as a mesh's do, and GRAPH -- this layer kind's own -- colours per node, by a value the collection itself carries (Strahler order, degree, depth, component, a stored radius, a writer's own column). Computed once on the full level-0 graph and only ever subset, so the value is the same at every level a node survives to"""
+    typename: Literal['NetworkColorBy'] = Field(alias='__typename', default='NetworkColorBy', exclude=True)
+    kind: ColorSourceKind
+    table: ID | None = Field(default=None)
+    column: str | None = Field(default=None)
+    dataset: ID | None = Field(default=None)
+    at: tuple[LayerNetworkColorBysAt, ...]
+    attribute: str | None = Field(default=None)
+    target: GraphTarget | None = Field(default=None)
+    join_path: tuple[LayerNetworkColorBysJoinPath, ...] = Field(alias='joinPath')
+    colormap: ColorMap | None = Field(default=None)
+    min: float | None = Field(default=None)
+    max: float | None = Field(default=None)
+    label: str | None = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+class LayerNetworkFilterBysAt(BaseModel):
+    """One position along one named axis: which slice of a matrix a colouring reads"""
+    typename: Literal['AxisPosition'] = Field(alias='__typename', default='AxisPosition', exclude=True)
+    axis: str
+    value: int
+    model_config = ConfigDict(frozen=True)
+
+class LayerNetworkFilterBysJoinPath(BaseModel):
+    """One hop of a join path: the column whose values identify rows of the next table. The target is not named here -- the next step names it, and which of its columns holds row identity is already declared on it"""
+    typename: Literal['JoinStep'] = Field(alias='__typename', default='JoinStep', exclude=True)
+    table: ID
+    column: str
+    model_config = ConfigDict(frozen=True)
+
+class LayerNetworkFilterBys(BaseModel):
+    """One entry of a network layer's filter picker. A COLUMN or SPARSE rule keeps or drops whole objects, exactly as a mesh's does; a GRAPH rule -- always `min`/`max` bounds over a per-node value the collection carries -- hides individual nodes and segments, which is what 'trunk only' means on an arbor"""
+    typename: Literal['NetworkFilterBy'] = Field(alias='__typename', default='NetworkFilterBy', exclude=True)
+    kind: ColorSourceKind
+    table: ID | None = Field(default=None)
+    column: str | None = Field(default=None)
+    dataset: ID | None = Field(default=None)
+    at: tuple[LayerNetworkFilterBysAt, ...]
+    attribute: str | None = Field(default=None)
+    target: GraphTarget | None = Field(default=None)
+    join_path: tuple[LayerNetworkFilterBysJoinPath, ...] = Field(alias='joinPath')
+    min: float | None = Field(default=None)
+    max: float | None = Field(default=None)
+    values: tuple[str, ...] | None = Field(default=None)
+    exclude: bool
+    label: str | None = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+class LayerTableDataset(HasParquestStoreTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    name: str
+    model_config = ConfigDict(frozen=True)
+
 class LayerColorBysAt(BaseModel):
     """One position along one named axis: which slice of a matrix a colouring reads"""
     typename: Literal['AxisPosition'] = Field(alias='__typename', default='AxisPosition', exclude=True)
@@ -2855,15 +3262,19 @@ class LayerFilterBys(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 class LayerBase(BaseModel):
-    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind (ImageLayer, AnnotationLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings."""
+    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer and MeshLayer draw from a collection or a table rather than a lens."""
     id: ID
+    kind: LayerKind
+    name: str | None = Field(default=None)
     scene: LayerScene
 
 class LayerCatch(LayerBase):
     """Catch all class for LayerBase"""
     typename: str = Field(alias='__typename', exclude=True)
-    "A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind (ImageLayer, AnnotationLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings."
+    "A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer and MeshLayer draw from a collection or a table rather than a lens."
     id: ID
+    kind: LayerKind
+    name: str | None = Field(default=None)
     scene: LayerScene
 
 class LayerAnnotationLayer(LayerBase, BaseModel):
@@ -2871,9 +3282,22 @@ class LayerAnnotationLayer(LayerBase, BaseModel):
     typename: Literal['AnnotationLayer'] = Field(alias='__typename', default='AnnotationLayer', exclude=True)
 
 class LayerImageLayer(LayerBase, BaseModel):
-    """A layer that renders array (lens) data as an alpha-blended image. Its rendering is described entirely by the composable render graph; its placement, entirely by the coordinate graph."""
+    """The general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually **composites** -- several channels blended together, a hand-authored transfer curve, a solid tint, per-channel opacity. When the recipe's shape is fixed instead, one of IntensityLayer, RgbLayer or PhasorLayer says so directly and carries its settings as fields, which is why those are not this type with a flag. Its rendering is described entirely by the render graph; its placement, entirely by the coordinate graph."""
     typename: Literal['ImageLayer'] = Field(alias='__typename', default='ImageLayer', exclude=True)
     lens: LayerLens
+
+class LayerIntensityLayer(LayerBase, BaseModel):
+    """One channel of a lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. The fluorescence workhorse, and the layer a renderer can take straight to a single-channel texture and a LUT without walking a tree. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing. Anything that *would* need the tree -- a second channel, an authored transfer curve, per-channel opacity -- is an ImageLayer. A tint is not among them: it names the hue one ramp ends at, which is what `colormap` does, so it is a field here rather than a reason to author a graph."""
+    typename: Literal['IntensityLayer'] = Field(alias='__typename', default='IntensityLayer', exclude=True)
+    lens: LayerLens
+    intensity_axis: str | None = Field(default=None, alias='intensityAxis')
+    intensity_index: int = Field(alias='intensityIndex')
+    intensity_colormap: ColorMap = Field(alias='intensityColormap')
+    color: tuple[int, ...] | None = Field(default=None)
+    clim_min: float | None = Field(default=None, alias='climMin')
+    clim_max: float | None = Field(default=None, alias='climMax')
+    gamma: float | None = Field(default=None)
+    projection_mode: ProjectionMode | None = Field(default=None, alias='projectionMode')
 
 class LayerLabelLayer(LayerBase, BaseModel):
     """A layer that renders array (lens) data whose values are discrete object ids -- a segmentation or an instance map. It shares the image layer's source and the same coordinate-graph placement, and none of its render settings: contrast limits, gamma, colormaps and intensity projections are all meaningless over ids."""
@@ -2908,6 +3332,45 @@ class LayerMeshLayer(LayerBase, BaseModel):
     placement_validity: PlacementValidity = Field(alias='placementValidity')
     "How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed, and when there is no path at all; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. A layer placed per index reports one of its scoped routes rather than UNKNOWN; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path"
 
+class LayerNetworkLayer(LayerBase, BaseModel):
+    """A layer that renders a node/edge network -- a traced arbor, a vessel tree, a connectome -- placed and styled in a scene. Its segments are drawn as camera-facing quads rather than GL lines, which is what makes a width in scene units meaningful."""
+    typename: Literal['NetworkLayer'] = Field(alias='__typename', default='NetworkLayer', exclude=True)
+    collection: LayerCollection | None = Field(default=None)
+    "The versioned, coordinate-system-anchored network collection this layer renders. Its nodes and edges are fetched from the collection's Parquet catalog, not through this API"
+    material_color: tuple[int, ...] | None = Field(default=None, alias='materialColor')
+    network_line_width: float | None = Field(default=None, alias='networkLineWidth')
+    'The flat width of every segment, in scene units. A well-defined length only from `placementInvariance` SIMILARITY up. Overridden where `nodeSizeColumn` or `edgeWidthColumn` is set'
+    node_size_column: str | None = Field(default=None, alias='nodeSizeColumn')
+    "The per-node column giving each node's radius, so a segment tapers between its endpoints -- the shape traced morphology actually has. Wins over `edgeWidthColumn`, being the more specific statement"
+    edge_width_column: str | None = Field(default=None, alias='edgeWidthColumn')
+    'The per-edge column giving each segment one uniform width. Ignored when `nodeSizeColumn` is set'
+    directed: bool
+    'Whether the edge direction is drawn, e.g. as arrowheads. A render setting, never a fact about the graph: an edge is always stored source-to-target'
+    show_nodes: bool = Field(alias='showNodes')
+    'Whether a glyph is drawn at each node as well as the segments between them'
+    network_max_level: int | None = Field(default=None, alias='networkMaxLevel')
+    network_color_bys: tuple[LayerNetworkColorBys, ...] = Field(alias='networkColorBys')
+    'The colourings this layer offers, in the order a picker should show them. A COLUMN or SPARSE entry colours whole objects, already checked reachable; a GRAPH entry colours per node, by a value the collection itself carries, already checked against its manifest. Empty means there is nothing to pick and the material color is the rendering'
+    network_active_color_by: int | None = Field(default=None, alias='networkActiveColorBy')
+    'Which entry of `colorBys` is drawn, as an index into it. Null means the flat `materialColor` is what is drawn'
+    network_filter_bys: tuple[LayerNetworkFilterBys, ...] = Field(alias='networkFilterBys')
+    'The filters this layer offers, in the order a picker should show them. A COLUMN or SPARSE rule keeps or drops whole objects; a GRAPH rule hides individual nodes and segments by a per-node value the collection carries. Empty means nothing is offered and everything draws'
+    network_active_filter_bys: tuple[int, ...] = Field(alias='networkActiveFilterBys')
+    'Which entries of `filterBys` are applied, as indices into it. They combine with AND: something is drawn when every active rule keeps it. Empty applies none of them, so everything draws'
+    placement: PlacementState
+    "Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means three different things -- nobody has registered this data yet, its geometry did not survive the operation that produced it and it can never be placed, or it is registered per index and you have not said which index -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Pass the same `at` you would pass `pathToWorld` to be told about that coordinate. Derived, never stored"
+    placement_validity: PlacementValidity = Field(alias='placementValidity')
+    "How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed, and when there is no path at all; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. A layer placed per index reports one of its scoped routes rather than UNKNOWN; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path"
+    placement_invariance: TransformInvariance = Field(alias='placementInvariance')
+    "Which geometric properties survive the whole walk from this layer's data to its scene's world: the weakest edge on its path. ISOMETRY means a distance measured in the data IS that distance in world; SIMILARITY means shapes and angles transfer and every length needs one common factor; AFFINE means only parallelism and area ratios do, so an angle or a distance read in the data means nothing in world; DIFFEOMORPHIC means nothing metric survives anywhere; NONE means there is no path at all. This is what says whether a scalar length in scene units (`pointSize`, `lineWidth`, a stroke width, a camera zoom) is well defined for this layer: it is, from SIMILARITY up. A layer placed per index reports one of its scoped routes rather than NONE; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `invariance`, this being the minimum over the whole path. `placement` says which of the reasons a NONE layer has"
+
+class LayerPhasorLayer(LayerBase, BaseModel):
+    """One axis of a lens -- MICROTIME or SPECTRUM -- reduced per pixel to a phasor and coloured by it: over microtime the phase reads as a fluorescence lifetime, over a spectrum as a spectral centre of mass. Its recipe lives in `phasorRender` rather than in fields, as a label layer's lives in `labelRender`, because a phasor's transfer maps the *reduction's* output -- a (g, s) pair plus a photon count -- and carries a list of cursors. A phasor composited *with* an ordinary intensity channel is still expressible: that is an ImageLayer whose graph carries a `PhasorNode`."""
+    typename: Literal['PhasorLayer'] = Field(alias='__typename', default='PhasorLayer', exclude=True)
+    lens: LayerLens
+    phasor_render: LayerPhasorRender | None = Field(default=None, alias='phasorRender')
+    'Which axis is reduced to a phasor, at which harmonic, and how the resulting (g, s) becomes color'
+
 class LayerPointLayer(LayerBase, BaseModel):
     """A layer that renders a point cloud (e.g. SMLM localisations, centroids) from a table dataset."""
     typename: Literal['PointLayer'] = Field(alias='__typename', default='PointLayer', exclude=True)
@@ -2930,9 +3393,39 @@ class LayerPointLayer(LayerBase, BaseModel):
     filter_bys: tuple[LayerFilterBys, ...] = Field(alias='filterBys')
     "The filters this layer offers, in the order a picker should show them. Each keeps or drops points by a column of a table this layer's ids key into. Empty means nothing is offered and every point draws"
 
+class LayerRgbLayer(LayerBase, BaseModel):
+    """Three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. A renderer can upload this as a single RGB texture in one pass. Its own kind rather than a three-child blend because the two are **indistinguishable as graphs**, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape -- so as a graph the authored fact was destroyed at write time. Never inferred, for the same reason. There is no per-channel colormap here and no per-channel visibility: the channel *is* the colour, and the three are components of one picture rather than three signals to hide and reorder separately. Wanting to do that means wanting three layers, or an ImageLayer."""
+    typename: Literal['RgbLayer'] = Field(alias='__typename', default='RgbLayer', exclude=True)
+    lens: LayerLens
+    intensity_axis: str | None = Field(default=None, alias='intensityAxis')
+    red_index: int = Field(alias='redIndex')
+    green_index: int = Field(alias='greenIndex')
+    blue_index: int = Field(alias='blueIndex')
+    clim_min: float | None = Field(default=None, alias='climMin')
+    clim_max: float | None = Field(default=None, alias='climMax')
+
 class LayerTrackLayer(LayerBase, BaseModel):
     """A layer that renders trajectories (e.g. particle/cell tracks) from a table dataset, grouped by its TRACK_ID column."""
     typename: Literal['TrackLayer'] = Field(alias='__typename', default='TrackLayer', exclude=True)
+    table_dataset: LayerTableDataset = Field(alias='tableDataset')
+    'The table dataset the tracks are drawn from. Its coordinate and TRACK_ID columns provide the trajectories -- the column fields below are derived from its schema, never stored per layer'
+    color_by_column: str | None = Field(default=None, alias='colorByColumn')
+    line_width: float | None = Field(default=None, alias='lineWidth')
+    colormap: ColorMap | None = Field(default=None)
+    track_id_column: str | None = Field(default=None, alias='trackIdColumn')
+    "The dataset's TRACK_ID column, which groups rows into tracks"
+    x_column: str | None = Field(default=None, alias='xColumn')
+    "The coordinate column whose axis is named 'x', from the dataset's declared schema"
+    y_column: str | None = Field(default=None, alias='yColumn')
+    "The coordinate column whose axis is named 'y'"
+    z_column: str | None = Field(default=None, alias='zColumn')
+    "The coordinate column whose axis is named 'z', if any"
+    t_column: str | None = Field(default=None, alias='tColumn')
+    "The coordinate column whose axis is named 't', if any"
+
+class LayerVectorLayer(LayerBase, BaseModel):
+    """A vector-valued lens -- an optical flow, a deformation field, an orientation map -- drawn as glyphs sampled from the grid. The sixth lens-backed kind, and the value domain is what earns it one, for LabelLayer's reason: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry, and none of the intensity vocabulary (a channel index, a gamma, a projection) survives that. Which axis holds the components is derived (`vectorAxis`), never stored -- a per-layer copy could disagree with the axes themselves. What the layer carries is honestly view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window, and two layers over one field may disagree about all of it -- a coarse overview beside a dense inset."""
+    typename: Literal['VectorLayer'] = Field(alias='__typename', default='VectorLayer', exclude=True)
 
 class Slice(MikroFetchable, BaseModel):
     """A slice along a named axis, with optional start, stop and step"""
@@ -3099,6 +3592,29 @@ class FabriksStore(MikroFetchable, BaseModel):
         document = 'fragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}'
         name = 'FabriksStore'
         type = 'FabriksStore'
+
+class KonnektionStore(MikroFetchable, BaseModel):
+    """A konnektion collection stored as a prefix of Parquet files behind the S3 datalayer. Its grid and encoding are read from its own manifest, never declared by a caller."""
+    typename: Literal['KonnektionStore'] = Field(alias='__typename', default='KonnektionStore', exclude=True)
+    id: ID
+    key: str
+    bucket: str
+    path: str
+    spec_version: str | None = Field(default=None, alias='specVersion')
+    grid: Any | None = Field(default=None)
+    encoding: Any | None = Field(default=None)
+    axes: tuple[str, ...] | None = Field(default=None)
+    counts: Any | None = Field(default=None)
+    files: Any | None = Field(default=None)
+    attributes: Any | None = Field(default=None)
+    "The per-node value columns the manifest declares, each {name, encoding, semantics} -- the vocabulary a network layer's GRAPH picker entries are validated against, `radius` joining off `encoding.radii`. Null on a store filled before attributes existed, which reads the same as declaring none"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for KonnektionStore"""
+        document = 'fragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}'
+        name = 'KonnektionStore'
+        type = 'KonnektionStore'
 
 class SparseStoreLayouts(BaseModel):
     """One stored layout of a sparse matrix: an anndata-spelled group under `layouts/<encoding>`, holding `data`, `indices` and `indptr`. Read it with two requests -- `indptr[i:i+2]` at the position, then the range those two offsets name in `indices` and `data`."""
@@ -3348,6 +3864,10 @@ class ColorByOption(MikroFetchable, BaseModel):
     '(SPARSE) The matrix one slice of which is read, instead of a table column. Present exactly when `table` and `column` are null -- an option is one or the other, never both'
     axes: tuple[str, ...]
     "(SPARSE) The axes a position is named along -- the ones the matrix identifies itself, never the one the source's ids index. **Name a position along every one of them**: a rank-two matrix has one, a rank-three matrix two, and an `at` that names a different set is refused. **One option per matrix, never per position**: a matrix with 19 059 features has 19 059 of those, and the picker offers the axes while the client picks the positions out of the tables they reference, which it already holds access grants for. Offered when at least one of these axes has a stored layout, which is what makes the read one contiguous slice rather than a scan"
+    graph_attribute: str | None = Field(default=None, alias='graphAttribute')
+    "(GRAPH, network collections only) A per-node value the collection itself carries: a name its manifest declares -- strahler, degree, depth, component, a writer's own column -- or `radius` when the encoding carries one. Present exactly when `table`, `column` and `sparseDataset` are all null. Pass it back as `colorBys[].attribute` with `kind: GRAPH`; always MEASURE, and the one option kind whose values are per node rather than per object"
+    target: GraphTarget | None = Field(default=None)
+    "(network collections only) Which row set this option's values belong to. Null is per-object -- every option every other source offers. NODE/EDGE on a graph attribute or on a column of a table whose axes are node-identified (`NETWORK_COLLECTION_NODES`), where it is derived from the table's own shape -- one node axis is per-node, two are per-edge. Informational on the way back in: the mutation re-derives and stamps it, so a caller never sends it on a COLUMN entry"
     column: ColorByOptionColumn | None = Field(default=None)
     'The column holding the value. Its `name` is what `colorBys`/`filterBys` take, and its `role`, `unit` and `dtype` are declared on the table'
     control: ColumnControl
@@ -3358,7 +3878,7 @@ class ColorByOption(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for ColorByOption"""
-        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ColorByOption on ColorByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ColorByOption on ColorByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  graphAttribute\n  target\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}'
         name = 'ColorByOption'
         type = 'ColorByOption'
 
@@ -3397,6 +3917,8 @@ class FilterByOption(MikroFetchable, BaseModel):
     '(SPARSE) The matrix one slice of which is read, instead of a table column. Present exactly when `table` and `column` are null -- an option is one or the other, never both'
     axes: tuple[str, ...]
     "(SPARSE) The axes a position is named along -- the ones the matrix identifies itself, never the one the source's ids index. **Name a position along every one of them**: a rank-two matrix has one, a rank-three matrix two, and an `at` that names a different set is refused. **One option per matrix, never per position**: a matrix with 19 059 features has 19 059 of those, and the picker offers the axes while the client picks the positions out of the tables they reference, which it already holds access grants for. Offered when at least one of these axes has a stored layout, which is what makes the read one contiguous slice rather than a scan"
+    graph_attribute: str | None = Field(default=None, alias='graphAttribute')
+    '(GRAPH, network collections only) A per-node value the collection itself carries, exactly as on `ColorByOption`. Present exactly when `table`, `column` and `sparseDataset` are all null. Pass it back as `filterBys[].attribute` with `kind: GRAPH`; always MEASURE, so the rule is `min`/`max` bounds, and it hides individual nodes and segments rather than whole objects'
     column: FilterByOptionColumn | None = Field(default=None)
     'The column the rule is written against. Its `name` is what `filterBys` takes, and its `unit` is the unit a `min`/`max` bound is stated in'
     control: ColumnControl
@@ -3407,7 +3929,7 @@ class FilterByOption(MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for FilterByOption"""
-        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FilterByOption on FilterByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}'
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FilterByOption on FilterByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  graphAttribute\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}'
         name = 'FilterByOption'
         type = 'FilterByOption'
 
@@ -3896,6 +4418,90 @@ class MeshCollection(MikroFetchable, BaseModel):
         name = 'MeshCollection'
         type = 'MeshCollection'
 
+class NetworkCollectionDerivedFromBase(BaseModel):
+    """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
+    model_config = ConfigDict(frozen=True)
+
+class NetworkCollectionDerivedFromBaseAffineTransformation(TransformationAffineTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
+    """A general affine map, given as an M x (N+1) matrix with rows outermost"""
+    typename: Literal['AffineTransformation'] = Field(alias='__typename', default='AffineTransformation', exclude=True)
+
+class NetworkCollectionDerivedFromBaseByDimensionTransformation(TransformationByDimensionTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
+    """A composition of child transformations, each acting on a named subset of the axes"""
+    typename: Literal['ByDimensionTransformation'] = Field(alias='__typename', default='ByDimensionTransformation', exclude=True)
+
+class NetworkCollectionDerivedFromBaseFieldTransformation(TransformationFieldTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
+    """A non-affine map given by the values of an array rather than by a formula. The array is a `field`: a node of this graph, not a payload on this edge, so it keeps its own lineage and its axes say what its numbers mean. It has no closed-form inverse, so a placement path never walks it backwards"""
+    typename: Literal['FieldTransformation'] = Field(alias='__typename', default='FieldTransformation', exclude=True)
+
+class NetworkCollectionDerivedFromBaseIdentityTransformation(TransformationIdentityTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
+    """The identity map: input and output coordinates are the same"""
+    typename: Literal['IdentityTransformation'] = Field(alias='__typename', default='IdentityTransformation', exclude=True)
+
+class NetworkCollectionDerivedFromBaseMapAxisTransformation(TransformationMapAxisTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
+    """A permutation of axes, mapping each input axis to an output axis by name"""
+    typename: Literal['MapAxisTransformation'] = Field(alias='__typename', default='MapAxisTransformation', exclude=True)
+
+class NetworkCollectionDerivedFromBaseRotationTransformation(TransformationRotationTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
+    """A rotation, given as an orthonormal matrix"""
+    typename: Literal['RotationTransformation'] = Field(alias='__typename', default='RotationTransformation', exclude=True)
+
+class NetworkCollectionDerivedFromBaseScaleTransformation(TransformationScaleTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
+    """A per-axis multiplication, with one entry per input axis"""
+    typename: Literal['ScaleTransformation'] = Field(alias='__typename', default='ScaleTransformation', exclude=True)
+
+class NetworkCollectionDerivedFromBaseSequenceTransformation(TransformationSequenceTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
+    """An ordered composition of child transformations, applied first to last"""
+    typename: Literal['SequenceTransformation'] = Field(alias='__typename', default='SequenceTransformation', exclude=True)
+
+class NetworkCollectionDerivedFromBaseTranslationTransformation(TransformationTranslationTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
+    """A per-axis offset, with one entry per input axis"""
+    typename: Literal['TranslationTransformation'] = Field(alias='__typename', default='TranslationTransformation', exclude=True)
+
+class NetworkCollectionDerivedFromBaseUnmappableTransformation(TransformationUnmappableTransformation, NetworkCollectionDerivedFromBase, TransformationTrait, BaseModel):
+    """A declared NON-correspondence: the two systems are related -- one was computed from the other -- and no point of either maps to a point of the other. It has no parameters, no rank and no matrix, and no placement search will walk it, in either direction. This is what a per-object measurement table's relation to the image it was measured from looks like"""
+    typename: Literal['UnmappableTransformation'] = Field(alias='__typename', default='UnmappableTransformation', exclude=True)
+
+class NetworkCollectionDerivedFromBaseCatchAll(NetworkCollectionDerivedFromBase, BaseModel):
+    """Catch all class for NetworkCollectionDerivedFromBase"""
+    typename: str = Field(alias='__typename', exclude=True)
+
+class NetworkCollection(MikroFetchable, BaseModel):
+    """An immutable, versioned collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+    typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
+    id: ID
+    version: str
+    spec_version: str = Field(alias='specVersion')
+    grid: Any
+    "The octree grid, as read from the store's manifest. Its `cellSize` is in voxels, one size per position component -- the same order the catalog's bbox columns use, which is not necessarily the coordinate system's axis order"
+    encoding: Any
+    'The geometry encoding: how positions, edges, node ids, radii and ghosts are quantized and compressed, and which coarsening operations each level ran'
+    coordinate_system: CoordinateSystem = Field(alias='coordinateSystem')
+    "The coordinate system the collection's node positions are expressed in. The collection owns it; `derivedFrom` relates it to the data the network was traced in"
+    store: KonnektionStore
+    'The **konnektion store** holding this collection: one prefix with `konnektion.json`, both catalogs and every octree level. Ask it for a single access grant and you can read all of it -- the manifest, the indexes and the geometry. Its `grid` and `encoding` were read from that manifest rather than declared through this API, so they describe what was actually written. Never null: a collection whose bytes are not addressable is not a collection'
+    derived_from: tuple[Annotated[NetworkCollectionDerivedFromBaseAffineTransformation | NetworkCollectionDerivedFromBaseByDimensionTransformation | NetworkCollectionDerivedFromBaseFieldTransformation | NetworkCollectionDerivedFromBaseIdentityTransformation | NetworkCollectionDerivedFromBaseMapAxisTransformation | NetworkCollectionDerivedFromBaseRotationTransformation | NetworkCollectionDerivedFromBaseScaleTransformation | NetworkCollectionDerivedFromBaseSequenceTransformation | NetworkCollectionDerivedFromBaseTranslationTransformation | NetworkCollectionDerivedFromBaseUnmappableTransformation, Field(discriminator='typename')] | NetworkCollectionDerivedFromBaseCatchAll, ...] = Field(alias='derivedFrom')
+    "Every edge from this collection's space back into data the network was traced in, in declared order -- the first is the primary parent, the one that places it. An identity when the network is in that grid as-is, a scale when it was traced on a downsampled one, UNMAPPABLE where the lineage is recorded but no geometry is claimed. Empty for a network derived from no data at all. The same relation a derived dataset's `derivedFrom` records"
+    model_config = ConfigDict(frozen=True)
+
+    class Meta:
+        """Meta class for NetworkCollection"""
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}'
+        name = 'NetworkCollection'
+        type = 'NetworkCollection'
+
+class TableDatasetColumnsReferences(HasParquestStoreTrait, BaseModel):
+    """A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL"""
+    typename: Literal['TableDataset'] = Field(alias='__typename', default='TableDataset', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+class TableDatasetColumnsNodeReferences(BaseModel):
+    """An immutable, versioned collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL"""
+    typename: Literal['NetworkCollection'] = Field(alias='__typename', default='NetworkCollection', exclude=True)
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
 class TableDatasetColumns(BaseModel):
     """One declared column of a table dataset: its name, dtype and role. A COORDINATE column is also an axis of the table's space"""
     typename: Literal['Column'] = Field(alias='__typename', default='Column', exclude=True)
@@ -3907,6 +4513,10 @@ class TableDatasetColumns(BaseModel):
     axis_type: AxisType | None = Field(default=None, alias='axisType')
     unit: Unit | None = Field(default=None)
     long_name: str | None = Field(default=None, alias='longName')
+    references: TableDatasetColumnsReferences | None = Field(default=None)
+    "The table whose rows this column's values identify -- a declared foreign key, e.g. an `instance_id` column referencing a table of tracks. The target is keyed by its single INDEX coordinate column; look a value up there. Null for a column that identifies nothing"
+    node_references: TableDatasetColumnsNodeReferences | None = Field(default=None, alias='nodeReferences')
+    "The network collection whose NODE ids this INDEX coordinate column's values are, scoped by the sibling INDEX axis keyed by the same collection's object ids. One such column makes the table per-node, two make it per-edge -- (source, target), in axis declaration order -- which is what a client resolving a per-node picker entry reads the key columns from. Null for every column of every other table"
     model_config = ConfigDict(frozen=True)
 
 class TableDatasetDerivedFromBase(BaseModel):
@@ -3979,7 +4589,7 @@ class TableDataset(HasParquestStoreTrait, MikroFetchable, BaseModel):
 
     class Meta:
         """Meta class for TableDataset"""
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}'
         name = 'TableDataset'
         type = 'TableDataset'
 
@@ -4258,6 +4868,47 @@ class RequestFabriksAccessMutation(BaseModel):
         """Meta class for RequestFabriksAccess """
         document = 'fragment FabriksAccessGrant on FabriksAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestFabriksAccess($input: RequestFabriksAccessInput!) {\n  requestFabriksAccess(input: $input) {\n    ...FabriksAccessGrant\n    __typename\n  }\n}'
 
+class RequestKonnektionUploadMutation(BaseModel):
+    """No documentation found for this operation."""
+    request_konnektion_upload: KonnektionUploadGrant = Field(alias='requestKonnektionUpload')
+    'Request an upload grant for a konnektion store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level'
+
+    class Arguments(BaseModel):
+        """Arguments for RequestKonnektionUpload """
+        input: RequestKonnektionUploadInput
+
+    class Meta:
+        """Meta class for RequestKonnektionUpload """
+        document = 'fragment KonnektionUploadGrant on KonnektionUploadGrant {\n  accessKey\n  secretKey\n  sessionToken\n  path\n  key\n  bucket\n  expiresIn\n  maxBytes\n  store\n  __typename\n}\n\nmutation RequestKonnektionUpload($input: RequestKonnektionUploadInput!) {\n  requestKonnektionUpload(input: $input) {\n    ...KonnektionUploadGrant\n    __typename\n  }\n}'
+
+class FinishKonnektionUploadMutation(BaseModel):
+    """ Reads the store's `konnektion.json` and refuses a prefix without one -- which is exactly what an
+ interrupted upload looks like, since the manifest is written last. So this is the completion
+ protocol, not a formality, and the store it returns carries the grid and encoding it read."""
+    finish_konnektion_upload: KonnektionStore = Field(alias='finishKonnektionUpload')
+    "Finalize a konnektion upload. This reads the store's `konnektion.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last"
+
+    class Arguments(BaseModel):
+        """Arguments for FinishKonnektionUpload """
+        input: FinishKonnektionUploadInput
+
+    class Meta:
+        """Meta class for FinishKonnektionUpload """
+        document = 'fragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nmutation FinishKonnektionUpload($input: FinishKonnektionUploadInput!) {\n  finishKonnektionUpload(input: $input) {\n    ...KonnektionStore\n    __typename\n  }\n}'
+
+class RequestKonnektionAccessMutation(BaseModel):
+    """No documentation found for this operation."""
+    request_konnektion_access: KonnektionAccessGrant = Field(alias='requestKonnektionAccess')
+    "Request temporary S3 read credentials covering a konnektion store's whole prefix"
+
+    class Arguments(BaseModel):
+        """Arguments for RequestKonnektionAccess """
+        input: RequestKonnektionAccessInput
+
+    class Meta:
+        """Meta class for RequestKonnektionAccess """
+        document = 'fragment KonnektionAccessGrant on KonnektionAccessGrant {\n  accessKey\n  secretKey\n  sessionToken\n  expiresIn\n  path\n  key\n  bucket\n  __typename\n}\n\nmutation RequestKonnektionAccess($input: RequestKonnektionAccessInput!) {\n  requestKonnektionAccess(input: $input) {\n    ...KonnektionAccessGrant\n    __typename\n  }\n}'
+
 class RequestMediaUploadMutation(BaseModel):
     """No documentation found for this operation."""
     request_media_upload: MediaUploadGrant = Field(alias='requestMediaUpload')
@@ -4469,7 +5120,7 @@ class RevertFolderMutation(BaseModel):
 class CreateLayerMutation(BaseModel):
     """No documentation found for this operation."""
     create_layer: LayerImageLayer = Field(alias='createLayer')
-    'Create a new layer from an existing lens with optional affine transformation and colormap settings'
+    'Create a general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually composites -- several channels together, an authored transfer curve, a tint, per-channel opacity. For a recipe of fixed shape, createIntensityLayer, createRgbLayer, createVolumeLayer and createPhasorLayer make a layer of that kind, whose settings are fields rather than a tree'
 
     class Arguments(BaseModel):
         """Arguments for CreateLayer """
@@ -4477,7 +5128,54 @@ class CreateLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateLayer($input: CreateLayerInput!) {\n  createLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateLayer($input: CreateLayerInput!) {\n  createLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class CreateIntensityLayerMutation(BaseModel):
+    """ One channel through one colormap -- or one solid RGBA tint, for a colour that is a
+ measured fact (an emission wavelength, the acquisition software's own choice) and matches
+ no named map. The fluorescence workhorse."""
+    create_intensity_layer: LayerIntensityLayer = Field(alias='createIntensityLayer')
+    'Create an intensity layer: one channel of a lens through one colormap -- or one solid RGBA tint, for a colour that is a measured fact rather than a choice -- with contrast limits and gamma. The fluorescence workhorse, and its own kind -- its settings are fields, not a render graph, because there is nothing here to composite'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateIntensityLayer """
+        input: CreateIntensityLayerInput
+
+    class Meta:
+        """Meta class for CreateIntensityLayer """
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateIntensityLayer($input: CreateIntensityLayerInput!) {\n  createIntensityLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class CreateVolumeLayerMutation(BaseModel):
+    """ The same layer drawn through z rather than flat. A projection collapses an axis, it does
+ not composite anything, so this returns an IntensityLayer with `projectionMode` set
+ rather than a kind of its own."""
+    create_volume_layer: LayerIntensityLayer = Field(alias='createVolumeLayer')
+    'Create a single-channel layer rendered as a 3D volume projection (MIP / attenuated-MIP / volume / isosurface). Returns an IntensityLayer with `projectionMode` set, not a kind of its own: a projection collapses z, it does not composite anything, so it is a setting on one channel. Update it with updateIntensityLayer'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateVolumeLayer """
+        input: CreateVolumeLayerInput
+
+    class Meta:
+        """Meta class for CreateVolumeLayer """
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateVolumeLayer($input: CreateVolumeLayerInput!) {\n  createVolumeLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class CreateRgbLayerMutation(BaseModel):
+    """ Three channels as the red, green and blue of one picture. Never inferred and always
+ stated: a flat three-channel image is a three-marker fluorescence acquisition far more
+ often than a photograph, and the two are indistinguishable as graphs. Note the server
+ forces NORMAL blending here -- a photograph sits *over* what is beneath it -- and takes
+ no `blending` argument at all."""
+    create_rgb_layer: LayerRgbLayer = Field(alias='createRgbLayer')
+    'Create an RGB layer: three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. Its own kind rather than a three-channel render graph, because as a graph it is indistinguishable from three fluorescence markers somebody tinted red, green and blue, which is the commoner reading. Never inferred from that shape: a bootstrapped scene reaches this kind only on evidence ingest recorded -- channels labelled red, green and blue, or arrays read out of a PNG -- so state it here for a photograph that arrived with neither'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateRgbLayer """
+        input: CreateRgbLayerInput
+
+    class Meta:
+        """Meta class for CreateRgbLayer """
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateRgbLayer($input: CreateRgbLayerInput!) {\n  createRgbLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateLabelLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -4490,7 +5188,7 @@ class CreateLabelLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateLabelLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateLabelLayer($input: CreateLabelLayerInput!) {\n  createLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateLabelLayer($input: CreateLabelLayerInput!) {\n  createLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateMeshLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -4503,7 +5201,7 @@ class CreateMeshLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateMeshLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateMeshLayer($input: CreateMeshLayerInput!) {\n  createMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateMeshLayer($input: CreateMeshLayerInput!) {\n  createMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class UpdateMeshLayerMutation(BaseModel):
     """No documentation found for this operation."""
@@ -4516,7 +5214,36 @@ class UpdateMeshLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateMeshLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateMeshLayer($input: UpdateMeshLayerInput!) {\n  updateMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateMeshLayer($input: UpdateMeshLayerInput!) {\n  updateMeshLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class CreateNetworkLayerMutation(BaseModel):
+    """ A node/edge network -- a traced arbor, a vessel tree, a connectome -- rather than a surface.
+ Its own mutation and not a mesh layer with a flag, for the reason the two collections are two
+ stores: konnektion holds a segment list and fabriks a triangle list, and nothing about either
+ blob distinguishes them once they are the same field."""
+    create_network_layer: LayerNetworkLayer = Field(alias='createNetworkLayer')
+    'Create a layer that renders a node/edge network -- a traced arbor, a vessel tree, a connectome -- in a scene'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateNetworkLayer """
+        input: CreateNetworkLayerInput
+
+    class Meta:
+        """Meta class for CreateNetworkLayer """
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateNetworkLayer($input: CreateNetworkLayerInput!) {\n  createNetworkLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class UpdateNetworkLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_network_layer: LayerNetworkLayer = Field(alias='updateNetworkLayer')
+    'Retune how a network layer is drawn: its colour, its widths, whether direction and nodes are drawn, and the compositing it takes part in. A patch -- an omitted field keeps its value'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateNetworkLayer """
+        input: UpdateNetworkLayerInput
+
+    class Meta:
+        """Meta class for UpdateNetworkLayer """
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateNetworkLayer($input: UpdateNetworkLayerInput!) {\n  updateNetworkLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class UpdateLabelLayerMutation(BaseModel):
     """ Retune a label layer after creation -- above all, switch or republish its colour picker.
@@ -4531,7 +5258,7 @@ class UpdateLabelLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateLabelLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateLabelLayer($input: UpdateLabelLayerInput!) {\n  updateLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateLabelLayer($input: UpdateLabelLayerInput!) {\n  updateLabelLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreatePointLayerMutation(BaseModel):
     """ A point cloud drawn from a table dataset's coordinate columns. Its objects ARE
@@ -4546,7 +5273,7 @@ class CreatePointLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreatePointLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreatePointLayer($input: CreatePointLayerInput!) {\n  createPointLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreatePointLayer($input: CreatePointLayerInput!) {\n  createPointLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class UpdatePointLayerMutation(BaseModel):
     """ Retune it afterwards — above all, switch or republish its colour picker. The
@@ -4560,7 +5287,35 @@ class UpdatePointLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdatePointLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdatePointLayer($input: UpdatePointLayerInput!) {\n  updatePointLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdatePointLayer($input: UpdatePointLayerInput!) {\n  updatePointLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class CreateTrackLayerMutation(BaseModel):
+    """ Trajectories from a table dataset, one polyline per value of its TRACK_ID column.
+ The trajectory itself is the table's declaration — coordinate, track and time
+ columns are derived, never stored per layer — so the input only styles it."""
+    create_track_layer: LayerTrackLayer = Field(alias='createTrackLayer')
+    'Create a layer that renders trajectories from columns of a table, grouped by a track id'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateTrackLayer """
+        input: CreateTrackLayerInput
+
+    class Meta:
+        """Meta class for CreateTrackLayer """
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreateTrackLayer($input: CreateTrackLayerInput!) {\n  createTrackLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+
+class UpdateTrackLayerMutation(BaseModel):
+    """No documentation found for this operation."""
+    update_track_layer: LayerTrackLayer = Field(alias='updateTrackLayer')
+    'Retune a track layer after creation -- its line width, its colouring column and the compositing it takes part in.'
+
+    class Arguments(BaseModel):
+        """Arguments for UpdateTrackLayer """
+        input: UpdateTrackLayerInput
+
+    class Meta:
+        """Meta class for UpdateTrackLayer """
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation UpdateTrackLayer($input: UpdateTrackLayerInput!) {\n  updateTrackLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreateLensMutation(BaseModel):
     """No documentation found for this operation."""
@@ -4601,10 +5356,36 @@ class DeleteMeshCollectionMutation(BaseModel):
         """Meta class for DeleteMeshCollection """
         document = 'mutation DeleteMeshCollection($input: DeleteMeshCollectionInput!) {\n  deleteMeshCollection(input: $input)\n}'
 
+class CreateNetworkCollectionMutation(BaseModel):
+    """No documentation found for this operation."""
+    create_network_collection: NetworkCollection = Field(alias='createNetworkCollection')
+    'Register an immutable, versioned network collection from an uploaded konnektion store, in a coordinate system of its own'
+
+    class Arguments(BaseModel):
+        """Arguments for CreateNetworkCollection """
+        input: CreateNetworkCollectionInput
+
+    class Meta:
+        """Meta class for CreateNetworkCollection """
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment NetworkCollection on NetworkCollection {\n  id\n  version\n  specVersion\n  grid\n  encoding\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  store {\n    ...KonnektionStore\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  __typename\n}\n\nmutation CreateNetworkCollection($input: CreateNetworkCollectionInput!) {\n  createNetworkCollection(input: $input) {\n    ...NetworkCollection\n    __typename\n  }\n}'
+
+class DeleteNetworkCollectionMutation(BaseModel):
+    """No documentation found for this operation."""
+    delete_network_collection: ID = Field(alias='deleteNetworkCollection')
+    'Delete an existing network collection'
+
+    class Arguments(BaseModel):
+        """Arguments for DeleteNetworkCollection """
+        input: DeleteNetworkCollectionInput
+
+    class Meta:
+        """Meta class for DeleteNetworkCollection """
+        document = 'mutation DeleteNetworkCollection($input: DeleteNetworkCollectionInput!) {\n  deleteNetworkCollection(input: $input)\n}'
+
 class CreatePhasorLayerMutation(BaseModel):
     """No documentation found for this operation."""
-    create_phasor_layer: LayerImageLayer = Field(alias='createPhasorLayer')
-    'Create a layer that reduces one axis of a lens to a phasor and colors each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube'
+    create_phasor_layer: LayerPhasorLayer = Field(alias='createPhasorLayer')
+    'Create a phasor layer, reducing one axis of a lens to a phasor and coloring each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube. For a phasor composited *with* an ordinary intensity channel, use createLayer with a PhasorNode in the graph'
 
     class Arguments(BaseModel):
         """Arguments for CreatePhasorLayer """
@@ -4612,7 +5393,7 @@ class CreatePhasorLayerMutation(BaseModel):
 
     class Meta:
         """Meta class for CreatePhasorLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreatePhasorLayer($input: CreatePhasorLayerInput!) {\n  createPhasorLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nmutation CreatePhasorLayer($input: CreatePhasorLayerInput!) {\n  createPhasorLayer(input: $input) {\n    ...Layer\n    __typename\n  }\n}'
 
 class CreatePhasorHistogramMutation(BaseModel):
     """No documentation found for this operation."""
@@ -4794,7 +5575,7 @@ class CreateTableDatasetMutation(BaseModel):
 
     class Meta:
         """Meta class for CreateTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation CreateTableDataset($input: CreateTableDatasetInput!) {\n  createTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation CreateTableDataset($input: CreateTableDatasetInput!) {\n  createTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class UpdateTableDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -4807,7 +5588,7 @@ class UpdateTableDatasetMutation(BaseModel):
 
     class Meta:
         """Meta class for UpdateTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation UpdateTableDataset($input: UpdateTableDatasetInput!) {\n  updateTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nmutation UpdateTableDataset($input: UpdateTableDatasetInput!) {\n  updateTableDataset(input: $input) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class DeleteTableDatasetMutation(BaseModel):
     """No documentation found for this operation."""
@@ -5272,6 +6053,12 @@ class AttributePlansQueryAttributePlansSampleBaseMeshSample(AttributePlansQueryA
     store: FabriksStore
     'The fabriks store holding the collection -- its manifest, both catalogs and every octree level. Ask it for an accessGrant; one grant covers the whole prefix'
 
+class AttributePlansQueryAttributePlansSampleBaseNetworkSample(AttributePlansQueryAttributePlansSampleBase, BaseModel):
+    """A network collection whose geometry carries the ids -- `MeshSample`'s sentence over a wireframe. **Nothing is sampled at a coordinate here**: an OBJECT id (one per traced filament or arbor, never per node) rides on the geometry rows and the object catalog, so a client that picked a segment is already holding one and goes straight to the lookup. The store is named for a headless worker that did not do the picking and must read the object catalog itself"""
+    typename: Literal['NetworkSample'] = Field(alias='__typename', default='NetworkSample', exclude=True)
+    store: KonnektionStore
+    'The konnektion store holding the collection -- its manifest, both catalogs and every octree level. Ask it for an accessGrant; one grant covers the whole prefix'
+
 class AttributePlansQueryAttributePlansSampleBaseCatchAll(AttributePlansQueryAttributePlansSampleBase, BaseModel):
     """Catch all class for AttributePlansQueryAttributePlansSampleBase"""
     typename: str = Field(alias='__typename', exclude=True)
@@ -5359,7 +6146,7 @@ class AttributePlansQueryAttributePlans(BaseModel):
     'The matrix the plan lands in, when `lookup.kind` is SPARSE. One or the other, never both'
     path: tuple[AttributePlansQueryAttributePlansPath, ...]
     "The steps from the PROBED system to this plan's root (the FIELD edge's input system -- equal to `sample.system` when the mask's own pixels are the map). Empty when the plan is rooted where you probed. Compose in order, inverting the flagged steps, to map a probed-space point into the space `consumes` and `passthrough` are stated in -- the same contract as `pathToWorld`. The path crosses derivations, levels, lenses and physical spaces, never a registration"
-    sample: Annotated[AttributePlansQueryAttributePlansSampleBaseArraySample | AttributePlansQueryAttributePlansSampleBaseMeshSample, Field(discriminator='typename')] | AttributePlansQueryAttributePlansSampleBaseCatchAll
+    sample: Annotated[AttributePlansQueryAttributePlansSampleBaseArraySample | AttributePlansQueryAttributePlansSampleBaseMeshSample | AttributePlansQueryAttributePlansSampleBaseNetworkSample, Field(discriminator='typename')] | AttributePlansQueryAttributePlansSampleBaseCatchAll
     'Where the id comes from: an `ArraySample` to read at the (path-mapped) point, or a `MeshSample` whose id the client already picked'
     lookup: AttributePlansQueryAttributePlansLookup
     'The duckdb half: look the id up in the parquet'
@@ -5385,7 +6172,7 @@ class AttributePlansQuery(BaseModel):
 
     class Meta:
         """Meta class for AttributePlans """
-        document = 'fragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nquery AttributePlans($system: ID!, $maxDepth: Int) {\n  attributePlans(system: $system, maxDepth: $maxDepth) {\n    edge {\n      id\n      kind\n      name\n      version\n      validity\n      inputAxes\n      outputAxes\n      input {\n        id\n        name\n        __typename\n      }\n      output {\n        id\n        name\n        __typename\n      }\n      __typename\n    }\n    table {\n      id\n      name\n      __typename\n    }\n    sparseDataset {\n      id\n      name\n      __typename\n    }\n    path {\n      inverted\n      transformation {\n        id\n        kind\n        version\n        __typename\n      }\n      __typename\n    }\n    sample {\n      consumes\n      produces\n      passthrough\n      system {\n        id\n        name\n        __typename\n      }\n      ... on ArraySample {\n        store {\n          ...ZarrStore\n        }\n      }\n      ... on MeshSample {\n        store {\n          ...FabriksStore\n        }\n      }\n      __typename\n    }\n    lookup {\n      kind\n      sql\n      store {\n        id\n        key\n        __typename\n      }\n      sparseArray {\n        id\n        path\n        indexedAxis\n        store {\n          id\n          key\n          spec\n          __typename\n        }\n        __typename\n      }\n      keyAxis\n      valueAxes\n      keyColumns {\n        axis\n        column {\n          name\n          dtype\n          __typename\n        }\n        __typename\n      }\n      attributes {\n        name\n        dtype\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}'
+        document = 'fragment FabriksStore on FabriksStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  __typename\n}\n\nfragment KonnektionStore on KonnektionStore {\n  id\n  key\n  bucket\n  path\n  specVersion\n  grid\n  encoding\n  axes\n  counts\n  files\n  attributes\n  __typename\n}\n\nfragment ZarrStore on ZarrStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nquery AttributePlans($system: ID!, $maxDepth: Int) {\n  attributePlans(system: $system, maxDepth: $maxDepth) {\n    edge {\n      id\n      kind\n      name\n      version\n      validity\n      inputAxes\n      outputAxes\n      input {\n        id\n        name\n        __typename\n      }\n      output {\n        id\n        name\n        __typename\n      }\n      __typename\n    }\n    table {\n      id\n      name\n      __typename\n    }\n    sparseDataset {\n      id\n      name\n      __typename\n    }\n    path {\n      inverted\n      transformation {\n        id\n        kind\n        version\n        __typename\n      }\n      __typename\n    }\n    sample {\n      consumes\n      produces\n      passthrough\n      system {\n        id\n        name\n        __typename\n      }\n      ... on ArraySample {\n        store {\n          ...ZarrStore\n        }\n      }\n      ... on MeshSample {\n        store {\n          ...FabriksStore\n        }\n      }\n      ... on NetworkSample {\n        store {\n          ...KonnektionStore\n        }\n      }\n      __typename\n    }\n    lookup {\n      kind\n      sql\n      store {\n        id\n        key\n        __typename\n      }\n      sparseArray {\n        id\n        path\n        indexedAxis\n        store {\n          id\n          key\n          spec\n          __typename\n        }\n        __typename\n      }\n      keyAxis\n      valueAxes\n      keyColumns {\n        axis\n        column {\n          name\n          dtype\n          __typename\n        }\n        __typename\n      }\n      attributes {\n        name\n        dtype\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}'
 
 class LabelColorByOptionsQuery(BaseModel):
     """ Rooted on a lens -- what a label layer over that lens can be coloured by."""
@@ -5401,7 +6188,7 @@ class LabelColorByOptionsQuery(BaseModel):
 
     class Meta:
         """Meta class for LabelColorByOptions """
-        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ColorByOption on ColorByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery LabelColorByOptions($lens: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  labelColorByOptions(\n    lens: $lens\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...ColorByOption\n    __typename\n  }\n}'
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ColorByOption on ColorByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  graphAttribute\n  target\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery LabelColorByOptions($lens: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  labelColorByOptions(\n    lens: $lens\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...ColorByOption\n    __typename\n  }\n}'
 
 class LabelFilterByOptionsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -5417,7 +6204,7 @@ class LabelFilterByOptionsQuery(BaseModel):
 
     class Meta:
         """Meta class for LabelFilterByOptions """
-        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FilterByOption on FilterByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery LabelFilterByOptions($lens: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  labelFilterByOptions(\n    lens: $lens\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...FilterByOption\n    __typename\n  }\n}'
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FilterByOption on FilterByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  graphAttribute\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery LabelFilterByOptions($lens: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  labelFilterByOptions(\n    lens: $lens\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...FilterByOption\n    __typename\n  }\n}'
 
 class ColorByOptionsQuery(BaseModel):
     """ Rooted on a mesh collection -- the same walk and the same answer for a mesh layer."""
@@ -5433,7 +6220,7 @@ class ColorByOptionsQuery(BaseModel):
 
     class Meta:
         """Meta class for ColorByOptions """
-        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ColorByOption on ColorByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery ColorByOptions($meshCollection: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  colorByOptions(\n    meshCollection: $meshCollection\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...ColorByOption\n    __typename\n  }\n}'
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ColorByOption on ColorByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  graphAttribute\n  target\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery ColorByOptions($meshCollection: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  colorByOptions(\n    meshCollection: $meshCollection\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...ColorByOption\n    __typename\n  }\n}'
 
 class FilterByOptionsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -5449,7 +6236,44 @@ class FilterByOptionsQuery(BaseModel):
 
     class Meta:
         """Meta class for FilterByOptions """
-        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FilterByOption on FilterByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery FilterByOptions($meshCollection: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  filterByOptions(\n    meshCollection: $meshCollection\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...FilterByOption\n    __typename\n  }\n}'
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FilterByOption on FilterByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  graphAttribute\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery FilterByOptions($meshCollection: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  filterByOptions(\n    meshCollection: $meshCollection\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...FilterByOption\n    __typename\n  }\n}'
+
+class NetworkColorByOptionsQuery(BaseModel):
+    """ Rooted on a network collection -- what a network layer over it can be coloured by. The one
+ options list with a third arm: `graphAttribute` names a per-node value the collection itself
+ carries (strahler, degree, depth, component, a writer's own column, `radius` when the
+ encoding stores one), present exactly when `table`, `column` and `sparseDataset` are null.
+ Pass it back as `colorBys[].attribute` with `kind: GRAPH`. The COLUMN half is rooted at
+ depth zero server-side: only tables keyed by this collection's *object* ids are offered."""
+    network_color_by_options: tuple[ColorByOption, ...] = Field(alias='networkColorByOptions')
+    "Everything a network layer over one collection can be coloured or filtered by. **The set this returns is exactly the set `createNetworkLayer(colorBys:)` and `filterBys` accept.** Two halves in one list: the GRAPH options first -- the per-node values the collection itself carries (Strahler order, degree, depth, component, a stored radius, a writer's own column), named by `graphAttribute` and always MEASURE -- then the COLUMN and SPARSE options from the shared reachability walk, rooted at depth zero so only tables keyed by this collection's **object** ids (via `createTableDataset(keyedBy: {kind: NETWORK_COLLECTION})`) are offered; the wider fact walk would offer the source image's mask-keyed tables, joins an object id cannot execute. Same arguments, same `joinPath` to pass back, same no-values rule as every other options query"
+
+    class Arguments(BaseModel):
+        """Arguments for NetworkColorByOptions """
+        network_collection: ID = Field(validation_alias=AliasChoices('network_collection', 'networkCollection'), serialization_alias='networkCollection')
+        filters: ColumnOptionFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+        max_join_depth: Annotated[int | None, GraphQLDefault('1')] = Field(validation_alias=AliasChoices('max_join_depth', 'maxJoinDepth'), serialization_alias='maxJoinDepth', default=None)
+
+    class Meta:
+        """Meta class for NetworkColorByOptions """
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment ColorByOption on ColorByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  graphAttribute\n  target\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery NetworkColorByOptions($networkCollection: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  networkColorByOptions(\n    networkCollection: $networkCollection\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...ColorByOption\n    __typename\n  }\n}'
+
+class NetworkFilterByOptionsQuery(BaseModel):
+    """No documentation found for this operation."""
+    network_filter_by_options: tuple[FilterByOption, ...] = Field(alias='networkFilterByOptions')
+    'Everything a network layer over one collection can be filtered by -- **the same set `networkColorByOptions` returns**, under the name that reads right where a rule is being authored. A GRAPH option is the one whose rule is per node: `min`/`max` bounds over Strahler order, degree or a radius hide individual nodes and segments, where a COLUMN or SPARSE rule keeps or drops whole objects. Everything returned is something `createNetworkLayer(filterBys:)` accepts'
+
+    class Arguments(BaseModel):
+        """Arguments for NetworkFilterByOptions """
+        network_collection: ID = Field(validation_alias=AliasChoices('network_collection', 'networkCollection'), serialization_alias='networkCollection')
+        filters: ColumnOptionFilter | None = Field(default=None)
+        pagination: OffsetPaginationInput | None = Field(default=None)
+        max_join_depth: Annotated[int | None, GraphQLDefault('1')] = Field(validation_alias=AliasChoices('max_join_depth', 'maxJoinDepth'), serialization_alias='maxJoinDepth', default=None)
+
+    class Meta:
+        """Meta class for NetworkFilterByOptions """
+        document = 'fragment ColumnOptionJoinStep on ColumnOptionJoinStep {\n  table {\n    id\n    name\n    __typename\n  }\n  column {\n    name\n    __typename\n  }\n  __typename\n}\n\nfragment FilterByOption on FilterByOption {\n  table {\n    id\n    name\n    __typename\n  }\n  sparseDataset {\n    id\n    name\n    __typename\n  }\n  axes\n  graphAttribute\n  column {\n    id\n    name\n    dtype\n    role\n    unit\n    longName\n    description\n    __typename\n  }\n  control\n  joinPath {\n    ...ColumnOptionJoinStep\n    __typename\n  }\n  __typename\n}\n\nquery NetworkFilterByOptions($networkCollection: ID!, $filters: ColumnOptionFilter, $pagination: OffsetPaginationInput, $maxJoinDepth: Int! = 1) {\n  networkFilterByOptions(\n    networkCollection: $networkCollection\n    filters: $filters\n    pagination: $pagination\n    maxJoinDepth: $maxJoinDepth\n  ) {\n    ...FilterByOption\n    __typename\n  }\n}'
 
 class GetCoordinateGraphQueryCoordinateGraphTransformationsBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
@@ -5647,7 +6471,7 @@ class SearchFoldersQuery(BaseModel):
         document = 'query SearchFolders($search: String, $values: [ID!], $limit: Int, $offset: Int = 0) {\n  options: folders(\n    filters: {search: $search, ids: $values}\n    pagination: {limit: $limit, offset: $offset}\n  ) {\n    value: id\n    label: name\n    __typename\n  }\n}'
 
 class GetLayerQueryLayerBase(BaseModel):
-    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind (ImageLayer, AnnotationLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings."""
+    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer and MeshLayer draw from a collection or a table rather than a lens."""
     model_config = ConfigDict(frozen=True)
 
 class GetLayerQueryLayerBaseAnnotationLayer(LayerAnnotationLayer, GetLayerQueryLayerBase, BaseModel):
@@ -5655,8 +6479,12 @@ class GetLayerQueryLayerBaseAnnotationLayer(LayerAnnotationLayer, GetLayerQueryL
     typename: Literal['AnnotationLayer'] = Field(alias='__typename', default='AnnotationLayer', exclude=True)
 
 class GetLayerQueryLayerBaseImageLayer(LayerImageLayer, GetLayerQueryLayerBase, BaseModel):
-    """A layer that renders array (lens) data as an alpha-blended image. Its rendering is described entirely by the composable render graph; its placement, entirely by the coordinate graph."""
+    """The general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually **composites** -- several channels blended together, a hand-authored transfer curve, a solid tint, per-channel opacity. When the recipe's shape is fixed instead, one of IntensityLayer, RgbLayer or PhasorLayer says so directly and carries its settings as fields, which is why those are not this type with a flag. Its rendering is described entirely by the render graph; its placement, entirely by the coordinate graph."""
     typename: Literal['ImageLayer'] = Field(alias='__typename', default='ImageLayer', exclude=True)
+
+class GetLayerQueryLayerBaseIntensityLayer(LayerIntensityLayer, GetLayerQueryLayerBase, BaseModel):
+    """One channel of a lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. The fluorescence workhorse, and the layer a renderer can take straight to a single-channel texture and a LUT without walking a tree. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing. Anything that *would* need the tree -- a second channel, an authored transfer curve, per-channel opacity -- is an ImageLayer. A tint is not among them: it names the hue one ramp ends at, which is what `colormap` does, so it is a field here rather than a reason to author a graph."""
+    typename: Literal['IntensityLayer'] = Field(alias='__typename', default='IntensityLayer', exclude=True)
 
 class GetLayerQueryLayerBaseLabelLayer(LayerLabelLayer, GetLayerQueryLayerBase, BaseModel):
     """A layer that renders array (lens) data whose values are discrete object ids -- a segmentation or an instance map. It shares the image layer's source and the same coordinate-graph placement, and none of its render settings: contrast limits, gamma, colormaps and intensity projections are all meaningless over ids."""
@@ -5666,13 +6494,29 @@ class GetLayerQueryLayerBaseMeshLayer(LayerMeshLayer, GetLayerQueryLayerBase, Ba
     """A layer that renders a 3D mesh (surface reconstruction / isosurface) placed and styled in a scene."""
     typename: Literal['MeshLayer'] = Field(alias='__typename', default='MeshLayer', exclude=True)
 
+class GetLayerQueryLayerBaseNetworkLayer(LayerNetworkLayer, GetLayerQueryLayerBase, BaseModel):
+    """A layer that renders a node/edge network -- a traced arbor, a vessel tree, a connectome -- placed and styled in a scene. Its segments are drawn as camera-facing quads rather than GL lines, which is what makes a width in scene units meaningful."""
+    typename: Literal['NetworkLayer'] = Field(alias='__typename', default='NetworkLayer', exclude=True)
+
+class GetLayerQueryLayerBasePhasorLayer(LayerPhasorLayer, GetLayerQueryLayerBase, BaseModel):
+    """One axis of a lens -- MICROTIME or SPECTRUM -- reduced per pixel to a phasor and coloured by it: over microtime the phase reads as a fluorescence lifetime, over a spectrum as a spectral centre of mass. Its recipe lives in `phasorRender` rather than in fields, as a label layer's lives in `labelRender`, because a phasor's transfer maps the *reduction's* output -- a (g, s) pair plus a photon count -- and carries a list of cursors. A phasor composited *with* an ordinary intensity channel is still expressible: that is an ImageLayer whose graph carries a `PhasorNode`."""
+    typename: Literal['PhasorLayer'] = Field(alias='__typename', default='PhasorLayer', exclude=True)
+
 class GetLayerQueryLayerBasePointLayer(LayerPointLayer, GetLayerQueryLayerBase, BaseModel):
     """A layer that renders a point cloud (e.g. SMLM localisations, centroids) from a table dataset."""
     typename: Literal['PointLayer'] = Field(alias='__typename', default='PointLayer', exclude=True)
 
+class GetLayerQueryLayerBaseRgbLayer(LayerRgbLayer, GetLayerQueryLayerBase, BaseModel):
+    """Three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. A renderer can upload this as a single RGB texture in one pass. Its own kind rather than a three-child blend because the two are **indistinguishable as graphs**, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape -- so as a graph the authored fact was destroyed at write time. Never inferred, for the same reason. There is no per-channel colormap here and no per-channel visibility: the channel *is* the colour, and the three are components of one picture rather than three signals to hide and reorder separately. Wanting to do that means wanting three layers, or an ImageLayer."""
+    typename: Literal['RgbLayer'] = Field(alias='__typename', default='RgbLayer', exclude=True)
+
 class GetLayerQueryLayerBaseTrackLayer(LayerTrackLayer, GetLayerQueryLayerBase, BaseModel):
     """A layer that renders trajectories (e.g. particle/cell tracks) from a table dataset, grouped by its TRACK_ID column."""
     typename: Literal['TrackLayer'] = Field(alias='__typename', default='TrackLayer', exclude=True)
+
+class GetLayerQueryLayerBaseVectorLayer(LayerVectorLayer, GetLayerQueryLayerBase, BaseModel):
+    """A vector-valued lens -- an optical flow, a deformation field, an orientation map -- drawn as glyphs sampled from the grid. The sixth lens-backed kind, and the value domain is what earns it one, for LabelLayer's reason: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry, and none of the intensity vocabulary (a channel index, a gamma, a projection) survives that. Which axis holds the components is derived (`vectorAxis`), never stored -- a per-layer copy could disagree with the axes themselves. What the layer carries is honestly view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window, and two layers over one field may disagree about all of it -- a coarse overview beside a dense inset."""
+    typename: Literal['VectorLayer'] = Field(alias='__typename', default='VectorLayer', exclude=True)
 
 class GetLayerQueryLayerBaseCatchAll(GetLayerQueryLayerBase, BaseModel):
     """Catch all class for GetLayerQueryLayerBase"""
@@ -5683,7 +6527,7 @@ class GetLayerQuery(BaseModel):
  asked for them, so the only way to see a layer's current picker from Python was to fire
  `updateLabelLayer` with an empty payload and read the mutation's return value -- a write
  used as a read, which `sparse_live.py` did precisely because this file was missing."""
-    layer: Annotated[GetLayerQueryLayerBaseAnnotationLayer | GetLayerQueryLayerBaseImageLayer | GetLayerQueryLayerBaseLabelLayer | GetLayerQueryLayerBaseMeshLayer | GetLayerQueryLayerBasePointLayer | GetLayerQueryLayerBaseTrackLayer, Field(discriminator='typename')] | GetLayerQueryLayerBaseCatchAll
+    layer: Annotated[GetLayerQueryLayerBaseAnnotationLayer | GetLayerQueryLayerBaseImageLayer | GetLayerQueryLayerBaseIntensityLayer | GetLayerQueryLayerBaseLabelLayer | GetLayerQueryLayerBaseMeshLayer | GetLayerQueryLayerBaseNetworkLayer | GetLayerQueryLayerBasePhasorLayer | GetLayerQueryLayerBasePointLayer | GetLayerQueryLayerBaseRgbLayer | GetLayerQueryLayerBaseTrackLayer | GetLayerQueryLayerBaseVectorLayer, Field(discriminator='typename')] | GetLayerQueryLayerBaseCatchAll
     'Get a single layer by ID'
 
     class Arguments(BaseModel):
@@ -5692,10 +6536,10 @@ class GetLayerQuery(BaseModel):
 
     class Meta:
         """Meta class for GetLayer """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nquery GetLayer($id: ID!) {\n  layer(id: $id) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nquery GetLayer($id: ID!) {\n  layer(id: $id) {\n    ...Layer\n    __typename\n  }\n}'
 
 class LayersQueryLayersBase(BaseModel):
-    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind (ImageLayer, AnnotationLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings."""
+    """A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer and MeshLayer draw from a collection or a table rather than a lens."""
     model_config = ConfigDict(frozen=True)
 
 class LayersQueryLayersBaseAnnotationLayer(LayerAnnotationLayer, LayersQueryLayersBase, BaseModel):
@@ -5703,8 +6547,12 @@ class LayersQueryLayersBaseAnnotationLayer(LayerAnnotationLayer, LayersQueryLaye
     typename: Literal['AnnotationLayer'] = Field(alias='__typename', default='AnnotationLayer', exclude=True)
 
 class LayersQueryLayersBaseImageLayer(LayerImageLayer, LayersQueryLayersBase, BaseModel):
-    """A layer that renders array (lens) data as an alpha-blended image. Its rendering is described entirely by the composable render graph; its placement, entirely by the coordinate graph."""
+    """The general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually **composites** -- several channels blended together, a hand-authored transfer curve, a solid tint, per-channel opacity. When the recipe's shape is fixed instead, one of IntensityLayer, RgbLayer or PhasorLayer says so directly and carries its settings as fields, which is why those are not this type with a flag. Its rendering is described entirely by the render graph; its placement, entirely by the coordinate graph."""
     typename: Literal['ImageLayer'] = Field(alias='__typename', default='ImageLayer', exclude=True)
+
+class LayersQueryLayersBaseIntensityLayer(LayerIntensityLayer, LayersQueryLayersBase, BaseModel):
+    """One channel of a lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. The fluorescence workhorse, and the layer a renderer can take straight to a single-channel texture and a LUT without walking a tree. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing. Anything that *would* need the tree -- a second channel, an authored transfer curve, per-channel opacity -- is an ImageLayer. A tint is not among them: it names the hue one ramp ends at, which is what `colormap` does, so it is a field here rather than a reason to author a graph."""
+    typename: Literal['IntensityLayer'] = Field(alias='__typename', default='IntensityLayer', exclude=True)
 
 class LayersQueryLayersBaseLabelLayer(LayerLabelLayer, LayersQueryLayersBase, BaseModel):
     """A layer that renders array (lens) data whose values are discrete object ids -- a segmentation or an instance map. It shares the image layer's source and the same coordinate-graph placement, and none of its render settings: contrast limits, gamma, colormaps and intensity projections are all meaningless over ids."""
@@ -5714,13 +6562,29 @@ class LayersQueryLayersBaseMeshLayer(LayerMeshLayer, LayersQueryLayersBase, Base
     """A layer that renders a 3D mesh (surface reconstruction / isosurface) placed and styled in a scene."""
     typename: Literal['MeshLayer'] = Field(alias='__typename', default='MeshLayer', exclude=True)
 
+class LayersQueryLayersBaseNetworkLayer(LayerNetworkLayer, LayersQueryLayersBase, BaseModel):
+    """A layer that renders a node/edge network -- a traced arbor, a vessel tree, a connectome -- placed and styled in a scene. Its segments are drawn as camera-facing quads rather than GL lines, which is what makes a width in scene units meaningful."""
+    typename: Literal['NetworkLayer'] = Field(alias='__typename', default='NetworkLayer', exclude=True)
+
+class LayersQueryLayersBasePhasorLayer(LayerPhasorLayer, LayersQueryLayersBase, BaseModel):
+    """One axis of a lens -- MICROTIME or SPECTRUM -- reduced per pixel to a phasor and coloured by it: over microtime the phase reads as a fluorescence lifetime, over a spectrum as a spectral centre of mass. Its recipe lives in `phasorRender` rather than in fields, as a label layer's lives in `labelRender`, because a phasor's transfer maps the *reduction's* output -- a (g, s) pair plus a photon count -- and carries a list of cursors. A phasor composited *with* an ordinary intensity channel is still expressible: that is an ImageLayer whose graph carries a `PhasorNode`."""
+    typename: Literal['PhasorLayer'] = Field(alias='__typename', default='PhasorLayer', exclude=True)
+
 class LayersQueryLayersBasePointLayer(LayerPointLayer, LayersQueryLayersBase, BaseModel):
     """A layer that renders a point cloud (e.g. SMLM localisations, centroids) from a table dataset."""
     typename: Literal['PointLayer'] = Field(alias='__typename', default='PointLayer', exclude=True)
 
+class LayersQueryLayersBaseRgbLayer(LayerRgbLayer, LayersQueryLayersBase, BaseModel):
+    """Three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. A renderer can upload this as a single RGB texture in one pass. Its own kind rather than a three-child blend because the two are **indistinguishable as graphs**, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape -- so as a graph the authored fact was destroyed at write time. Never inferred, for the same reason. There is no per-channel colormap here and no per-channel visibility: the channel *is* the colour, and the three are components of one picture rather than three signals to hide and reorder separately. Wanting to do that means wanting three layers, or an ImageLayer."""
+    typename: Literal['RgbLayer'] = Field(alias='__typename', default='RgbLayer', exclude=True)
+
 class LayersQueryLayersBaseTrackLayer(LayerTrackLayer, LayersQueryLayersBase, BaseModel):
     """A layer that renders trajectories (e.g. particle/cell tracks) from a table dataset, grouped by its TRACK_ID column."""
     typename: Literal['TrackLayer'] = Field(alias='__typename', default='TrackLayer', exclude=True)
+
+class LayersQueryLayersBaseVectorLayer(LayerVectorLayer, LayersQueryLayersBase, BaseModel):
+    """A vector-valued lens -- an optical flow, a deformation field, an orientation map -- drawn as glyphs sampled from the grid. The sixth lens-backed kind, and the value domain is what earns it one, for LabelLayer's reason: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry, and none of the intensity vocabulary (a channel index, a gamma, a projection) survives that. Which axis holds the components is derived (`vectorAxis`), never stored -- a per-layer copy could disagree with the axes themselves. What the layer carries is honestly view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window, and two layers over one field may disagree about all of it -- a coarse overview beside a dense inset."""
+    typename: Literal['VectorLayer'] = Field(alias='__typename', default='VectorLayer', exclude=True)
 
 class LayersQueryLayersBaseCatchAll(LayersQueryLayersBase, BaseModel):
     """Catch all class for LayersQueryLayersBase"""
@@ -5729,7 +6593,7 @@ class LayersQueryLayersBaseCatchAll(LayersQueryLayersBase, BaseModel):
 class LayersQuery(BaseModel):
     """ No `ordering` variable, matching every other list query here: turms cannot parse a list
  literal as a variable default, and the server's `ordering` already defaults to `[]`."""
-    layers: tuple[Annotated[LayersQueryLayersBaseAnnotationLayer | LayersQueryLayersBaseImageLayer | LayersQueryLayersBaseLabelLayer | LayersQueryLayersBaseMeshLayer | LayersQueryLayersBasePointLayer | LayersQueryLayersBaseTrackLayer, Field(discriminator='typename')] | LayersQueryLayersBaseCatchAll, ...]
+    layers: tuple[Annotated[LayersQueryLayersBaseAnnotationLayer | LayersQueryLayersBaseImageLayer | LayersQueryLayersBaseIntensityLayer | LayersQueryLayersBaseLabelLayer | LayersQueryLayersBaseMeshLayer | LayersQueryLayersBaseNetworkLayer | LayersQueryLayersBasePhasorLayer | LayersQueryLayersBasePointLayer | LayersQueryLayersBaseRgbLayer | LayersQueryLayersBaseTrackLayer | LayersQueryLayersBaseVectorLayer, Field(discriminator='typename')] | LayersQueryLayersBaseCatchAll, ...]
     'List layers placed in scenes (a heterogeneous list of layer kinds)'
 
     class Arguments(BaseModel):
@@ -5739,7 +6603,7 @@ class LayersQuery(BaseModel):
 
     class Meta:
         """Meta class for Layers """
-        document = 'fragment Layer on Layer {\n  id\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nquery Layers($filters: LayerFilter, $pagination: OffsetPaginationInput) {\n  layers(filters: $filters, pagination: $pagination) {\n    ...Layer\n    __typename\n  }\n}'
+        document = 'fragment Layer on Layer {\n  id\n  kind\n  name\n  scene {\n    id\n    name\n    __typename\n  }\n  ... on ImageLayer {\n    lens {\n      id\n    }\n  }\n  ... on IntensityLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    intensityIndex\n    intensityColormap: colormap\n    color\n    climMin\n    climMax\n    gamma\n    projectionMode\n  }\n  ... on RgbLayer {\n    lens {\n      id\n    }\n    intensityAxis\n    redIndex\n    greenIndex\n    blueIndex\n    climMin\n    climMax\n  }\n  ... on PhasorLayer {\n    lens {\n      id\n    }\n    phasorRender {\n      phasorAxis\n      intensityAxis\n      intensityIndex\n      harmonic\n      transfer {\n        mode\n        min\n        max\n        colormap\n        weightByIntensity\n        intensity {\n          climMin\n          climMax\n          colormap\n          color\n          gamma\n          opacity\n          invert\n        }\n        cursors {\n          kind\n          g\n          s\n          radius\n          points\n          color\n          label\n          visible\n        }\n      }\n    }\n  }\n  ... on LabelLayer {\n    lens {\n      id\n    }\n    labelRender {\n      intensityAxis\n      intensityIndex\n      seed\n      background\n      opacity\n      contour\n      contourWidth\n      selected\n      selectionColor\n      showUnselected\n      colorBys {\n        kind\n        table\n        column\n        dataset\n        at {\n          axis\n          value\n        }\n        joinPath {\n          table\n          column\n        }\n        colormap\n        min\n        max\n        label\n      }\n      activeColorBy\n      filterBys {\n        table\n        column\n        joinPath {\n          table\n          column\n        }\n        min\n        max\n        values\n        exclude\n        label\n      }\n      activeFilterBys\n    }\n    placement\n    placementValidity\n  }\n  ... on MeshLayer {\n    collection {\n      id\n      version\n    }\n    materialColor\n    wireframe\n    shading\n    maxLevel\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeColorBy\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    activeFilterBys\n    placement\n    placementValidity\n  }\n  ... on TrackLayer {\n    tableDataset {\n      id\n      name\n    }\n    colorByColumn\n    lineWidth\n    colormap\n    trackIdColumn\n    xColumn\n    yColumn\n    zColumn\n    tColumn\n  }\n  ... on NetworkLayer {\n    collection {\n      id\n    }\n    materialColor\n    networkLineWidth: lineWidth\n    nodeSizeColumn\n    edgeWidthColumn\n    directed\n    showNodes\n    networkMaxLevel: maxLevel\n    networkColorBys: colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    networkActiveColorBy: activeColorBy\n    networkFilterBys: filterBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      attribute\n      target\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n    networkActiveFilterBys: activeFilterBys\n    placement\n    placementValidity\n    placementInvariance\n  }\n  ... on PointLayer {\n    tableDataset {\n      id\n      name\n    }\n    xColumn\n    yColumn\n    zColumn\n    pointSize\n    colormap\n    activeColorBy\n    colorBys {\n      kind\n      table\n      column\n      dataset\n      at {\n        axis\n        value\n      }\n      joinPath {\n        table\n        column\n      }\n      colormap\n      min\n      max\n      label\n    }\n    activeFilterBys\n    filterBys {\n      table\n      column\n      joinPath {\n        table\n        column\n      }\n      min\n      max\n      values\n      exclude\n      label\n    }\n  }\n  __typename\n}\n\nquery Layers($filters: LayerFilter, $pagination: OffsetPaginationInput) {\n  layers(filters: $filters, pagination: $pagination) {\n    ...Layer\n    __typename\n  }\n}'
 
 class GetLensQuery(BaseModel):
     """No documentation found for this operation."""
@@ -5935,7 +6799,7 @@ class GetTableDatasetQuery(BaseModel):
 
     class Meta:
         """Meta class for GetTableDataset """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDataset($id: ID!) {\n  tableDataset(id: $id) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDataset($id: ID!) {\n  tableDataset(id: $id) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class GetTableDatasetsQuery(BaseModel):
     """No documentation found for this operation."""
@@ -5949,7 +6813,7 @@ class GetTableDatasetsQuery(BaseModel):
 
     class Meta:
         """Meta class for GetTableDatasets """
-        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDatasets($filters: TableDatasetFilter, $pagination: OffsetPaginationInput) {\n  tableDatasets(filters: $filters, pagination: $pagination) {\n    ...TableDataset\n    __typename\n  }\n}'
+        document = 'fragment Axis on Axis {\n  id\n  order\n  name\n  type\n  unit\n  longName\n  __typename\n}\n\nfragment TransformationChild on Transformation {\n  __typename\n  id\n  kind\n  inputAxes\n  outputAxes\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n}\n\nfragment CoordinateSystem on CoordinateSystem {\n  id\n  name\n  epoch\n  axes {\n    ...Axis\n    __typename\n  }\n  __typename\n}\n\nfragment ParquetStore on ParquetStore {\n  id\n  key\n  bucket\n  path\n  __typename\n}\n\nfragment Transformation on Transformation {\n  id\n  kind\n  name\n  version\n  input {\n    ...CoordinateSystem\n    __typename\n  }\n  output {\n    ...CoordinateSystem\n    __typename\n  }\n  ... on ScaleTransformation {\n    scale\n  }\n  ... on TranslationTransformation {\n    translation\n  }\n  ... on AffineTransformation {\n    affine\n  }\n  ... on RotationTransformation {\n    affine\n  }\n  ... on MapAxisTransformation {\n    inputAxes\n    outputAxes\n  }\n  ... on FieldTransformation {\n    field {\n      ...CoordinateSystem\n    }\n  }\n  ... on SequenceTransformation {\n    sequenceChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  ... on ByDimensionTransformation {\n    inputAxes\n    outputAxes\n    byDimensionChildren: transformations {\n      ...TransformationChild\n    }\n  }\n  __typename\n}\n\nfragment TableDataset on TableDataset {\n  id\n  name\n  description\n  store {\n    ...ParquetStore\n    __typename\n  }\n  columns {\n    id\n    order\n    name\n    dtype\n    role\n    axisType\n    unit\n    longName\n    references {\n      id\n      __typename\n    }\n    nodeReferences {\n      id\n      __typename\n    }\n    __typename\n  }\n  coordinateSystem {\n    ...CoordinateSystem\n    __typename\n  }\n  derivedFrom {\n    ...Transformation\n    __typename\n  }\n  axisNames\n  provenanceMetadata\n  __typename\n}\n\nquery GetTableDatasets($filters: TableDatasetFilter, $pagination: OffsetPaginationInput) {\n  tableDatasets(filters: $filters, pagination: $pagination) {\n    ...TableDataset\n    __typename\n  }\n}'
 
 class GetTransformationQueryTransformationBase(BaseModel):
     """A directed edge of the coordinate graph, mapping `input` to `output`. Direction is always forward. The concrete kind (Scale, Translation, Affine, Sequence, ...) carries the parameters"""
@@ -7169,6 +8033,128 @@ Returns:
     variables['input'] = _input
     return execute(RequestFabriksAccessMutation, variables, rath=rath).request_fabriks_access
 
+async def arequest_konnektion_upload(host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> KonnektionUploadGrant:
+    """RequestKonnektionUpload 
+
+Request an upload grant for a konnektion store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
+
+Args:
+    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    KonnektionUploadGrant
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    if host is not UNSET:
+        _input['host'] = host
+    if port is not UNSET:
+        _input['port'] = port
+    variables['input'] = _input
+    return (await aexecute(RequestKonnektionUploadMutation, variables, rath=rath)).request_konnektion_upload
+
+def request_konnektion_upload(host: str | None | UnsetType=UNSET, port: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> KonnektionUploadGrant:
+    """RequestKonnektionUpload 
+
+Request an upload grant for a konnektion store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
+
+Args:
+    host: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    port: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    KonnektionUploadGrant
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    if host is not UNSET:
+        _input['host'] = host
+    if port is not UNSET:
+        _input['port'] = port
+    variables['input'] = _input
+    return execute(RequestKonnektionUploadMutation, variables, rath=rath).request_konnektion_upload
+
+async def afinish_konnektion_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> KonnektionStore:
+    """FinishKonnektionUpload 
+ Reads the store's `konnektion.json` and refuses a prefix without one -- which is exactly what an
+ interrupted upload looks like, since the manifest is written last. So this is the completion
+ protocol, not a formality, and the store it returns carries the grid and encoding it read.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    valid: The `Boolean` scalar type represents `true` or `false`. (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    KonnektionStore
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return (await aexecute(FinishKonnektionUploadMutation, variables, rath=rath)).finish_konnektion_upload
+
+def finish_konnektion_upload(store_id: str, valid: bool, rath: MikroNextRath | None=None) -> KonnektionStore:
+    """FinishKonnektionUpload 
+ Reads the store's `konnektion.json` and refuses a prefix without one -- which is exactly what an
+ interrupted upload looks like, since the manifest is written last. So this is the completion
+ protocol, not a formality, and the store it returns carries the grid and encoding it read.
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    valid: The `Boolean` scalar type represents `true` or `false`. (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    KonnektionStore
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['storeId'] = store_id
+    _input['valid'] = valid
+    variables['input'] = _input
+    return execute(FinishKonnektionUploadMutation, variables, rath=rath).finish_konnektion_upload
+
+async def arequest_konnektion_access(store_id: str, rath: MikroNextRath | None=None) -> KonnektionAccessGrant:
+    """RequestKonnektionAccess 
+
+Request temporary S3 read credentials covering a konnektion store's whole prefix
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    KonnektionAccessGrant
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['storeId'] = store_id
+    variables['input'] = _input
+    return (await aexecute(RequestKonnektionAccessMutation, variables, rath=rath)).request_konnektion_access
+
+def request_konnektion_access(store_id: str, rath: MikroNextRath | None=None) -> KonnektionAccessGrant:
+    """RequestKonnektionAccess 
+
+Request temporary S3 read credentials covering a konnektion store's whole prefix
+
+Args:
+    store_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    KonnektionAccessGrant
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['storeId'] = store_id
+    variables['input'] = _input
+    return execute(RequestKonnektionAccessMutation, variables, rath=rath).request_konnektion_access
+
 async def arequest_media_upload(original_file_name: str, file_size: int | None | UnsetType=UNSET, content_type: str | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> MediaUploadGrant:
     """RequestMediaUpload 
 
@@ -7866,7 +8852,7 @@ Returns:
 async def acreate_layer(lens: IDCoercible, scene: IDCoercible, render_graph: LayerRenderGraphInput, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerImageLayer:
     """CreateLayer 
 
-Create a new layer from an existing lens with optional affine transformation and colormap settings
+Create a general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually composites -- several channels together, an authored transfer curve, a tint, per-channel opacity. For a recipe of fixed shape, createIntensityLayer, createRgbLayer, createVolumeLayer and createPhasorLayer make a layer of that kind, whose settings are fields rather than a tree
 
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -7900,7 +8886,7 @@ Returns:
 def create_layer(lens: IDCoercible, scene: IDCoercible, render_graph: LayerRenderGraphInput, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerImageLayer:
     """CreateLayer 
 
-Create a new layer from an existing lens with optional affine transformation and colormap settings
+Create a general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually composites -- several channels together, an authored transfer curve, a tint, per-channel opacity. For a recipe of fixed shape, createIntensityLayer, createRgbLayer, createVolumeLayer and createPhasorLayer make a layer of that kind, whose settings are fields rather than a tree
 
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -7930,6 +8916,328 @@ Returns:
     _input['renderGraph'] = render_graph
     variables['input'] = _input
     return execute(CreateLayerMutation, variables, rath=rath).create_layer
+
+async def acreate_intensity_layer(lens: IDCoercible, scene: IDCoercible, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerIntensityLayer:
+    """CreateIntensityLayer 
+ One channel through one colormap -- or one solid RGBA tint, for a colour that is a
+ measured fact (an emission wavelength, the acquisition software's own choice) and matches
+ no named map. The fluorescence workhorse.
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    colormap: ColorMap
+    color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    clim_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    gamma: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerIntensityLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if intensity_axis is not UNSET:
+        _input['intensityAxis'] = intensity_axis
+    if intensity_index is not UNSET:
+        _input['intensityIndex'] = intensity_index
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if color is not UNSET:
+        _input['color'] = color
+    if clim_min is not UNSET:
+        _input['climMin'] = clim_min
+    if clim_max is not UNSET:
+        _input['climMax'] = clim_max
+    if gamma is not UNSET:
+        _input['gamma'] = gamma
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(CreateIntensityLayerMutation, variables, rath=rath)).create_intensity_layer
+
+def create_intensity_layer(lens: IDCoercible, scene: IDCoercible, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerIntensityLayer:
+    """CreateIntensityLayer 
+ One channel through one colormap -- or one solid RGBA tint, for a colour that is a
+ measured fact (an emission wavelength, the acquisition software's own choice) and matches
+ no named map. The fluorescence workhorse.
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    colormap: ColorMap
+    color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    clim_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    gamma: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerIntensityLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if intensity_axis is not UNSET:
+        _input['intensityAxis'] = intensity_axis
+    if intensity_index is not UNSET:
+        _input['intensityIndex'] = intensity_index
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if color is not UNSET:
+        _input['color'] = color
+    if clim_min is not UNSET:
+        _input['climMin'] = clim_min
+    if clim_max is not UNSET:
+        _input['climMax'] = clim_max
+    if gamma is not UNSET:
+        _input['gamma'] = gamma
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(CreateIntensityLayerMutation, variables, rath=rath).create_intensity_layer
+
+async def acreate_volume_layer(lens: IDCoercible, scene: IDCoercible, mode: ProjectionMode | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerIntensityLayer:
+    """CreateVolumeLayer 
+ The same layer drawn through z rather than flat. A projection collapses an axis, it does
+ not composite anything, so this returns an IntensityLayer with `projectionMode` set
+ rather than a kind of its own.
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    mode: ProjectionMode
+    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    colormap: ColorMap
+    color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    clim_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    gamma: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerIntensityLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if mode is not UNSET:
+        _input['mode'] = mode
+    if intensity_axis is not UNSET:
+        _input['intensityAxis'] = intensity_axis
+    if intensity_index is not UNSET:
+        _input['intensityIndex'] = intensity_index
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if color is not UNSET:
+        _input['color'] = color
+    if clim_min is not UNSET:
+        _input['climMin'] = clim_min
+    if clim_max is not UNSET:
+        _input['climMax'] = clim_max
+    if gamma is not UNSET:
+        _input['gamma'] = gamma
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(CreateVolumeLayerMutation, variables, rath=rath)).create_volume_layer
+
+def create_volume_layer(lens: IDCoercible, scene: IDCoercible, mode: ProjectionMode | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, color: Iterable[int] | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, gamma: float | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerIntensityLayer:
+    """CreateVolumeLayer 
+ The same layer drawn through z rather than flat. A projection collapses an axis, it does
+ not composite anything, so this returns an IntensityLayer with `projectionMode` set
+ rather than a kind of its own.
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    mode: ProjectionMode
+    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    intensity_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    colormap: ColorMap
+    color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    clim_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    gamma: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerIntensityLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if mode is not UNSET:
+        _input['mode'] = mode
+    if intensity_axis is not UNSET:
+        _input['intensityAxis'] = intensity_axis
+    if intensity_index is not UNSET:
+        _input['intensityIndex'] = intensity_index
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if color is not UNSET:
+        _input['color'] = color
+    if clim_min is not UNSET:
+        _input['climMin'] = clim_min
+    if clim_max is not UNSET:
+        _input['climMax'] = clim_max
+    if gamma is not UNSET:
+        _input['gamma'] = gamma
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(CreateVolumeLayerMutation, variables, rath=rath).create_volume_layer
+
+async def acreate_rgb_layer(lens: IDCoercible, scene: IDCoercible, intensity_axis: str | None | UnsetType=UNSET, red_index: int | None | UnsetType=UNSET, green_index: int | None | UnsetType=UNSET, blue_index: int | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerRgbLayer:
+    """CreateRgbLayer 
+ Three channels as the red, green and blue of one picture. Never inferred and always
+ stated: a flat three-channel image is a three-marker fluorescence acquisition far more
+ often than a photograph, and the two are indistinguishable as graphs. Note the server
+ forces NORMAL blending here -- a photograph sits *over* what is beneath it -- and takes
+ no `blending` argument at all.
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    red_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    green_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    blue_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    clim_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerRgbLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if intensity_axis is not UNSET:
+        _input['intensityAxis'] = intensity_axis
+    if red_index is not UNSET:
+        _input['redIndex'] = red_index
+    if green_index is not UNSET:
+        _input['greenIndex'] = green_index
+    if blue_index is not UNSET:
+        _input['blueIndex'] = blue_index
+    if clim_min is not UNSET:
+        _input['climMin'] = clim_min
+    if clim_max is not UNSET:
+        _input['climMax'] = clim_max
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(CreateRgbLayerMutation, variables, rath=rath)).create_rgb_layer
+
+def create_rgb_layer(lens: IDCoercible, scene: IDCoercible, intensity_axis: str | None | UnsetType=UNSET, red_index: int | None | UnsetType=UNSET, green_index: int | None | UnsetType=UNSET, blue_index: int | None | UnsetType=UNSET, clim_min: float | None | UnsetType=UNSET, clim_max: float | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerRgbLayer:
+    """CreateRgbLayer 
+ Three channels as the red, green and blue of one picture. Never inferred and always
+ stated: a flat three-channel image is a three-marker fluorescence acquisition far more
+ often than a photograph, and the two are indistinguishable as graphs. Note the server
+ forces NORMAL blending here -- a photograph sits *over* what is beneath it -- and takes
+ no `blending` argument at all.
+
+Args:
+    lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    intensity_axis: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    red_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    green_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    blue_index: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    clim_min: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    clim_max: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerRgbLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['lens'] = lens
+    _input['scene'] = scene
+    if intensity_axis is not UNSET:
+        _input['intensityAxis'] = intensity_axis
+    if red_index is not UNSET:
+        _input['redIndex'] = red_index
+    if green_index is not UNSET:
+        _input['greenIndex'] = green_index
+    if blue_index is not UNSET:
+        _input['blueIndex'] = blue_index
+    if clim_min is not UNSET:
+        _input['climMin'] = clim_min
+    if clim_max is not UNSET:
+        _input['climMax'] = clim_max
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(CreateRgbLayerMutation, variables, rath=rath).create_rgb_layer
 
 async def acreate_label_layer(lens: IDCoercible, scene: IDCoercible, render: LabelRenderInput | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerLabelLayer:
     """CreateLabelLayer 
@@ -8215,6 +9523,266 @@ Returns:
     variables['input'] = _input
     return execute(UpdateMeshLayerMutation, variables, rath=rath).update_mesh_layer
 
+async def acreate_network_layer(scene: IDCoercible, network_collection: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, node_size_column: str | None | UnsetType=UNSET, edge_width_column: str | None | UnsetType=UNSET, directed: bool | None | UnsetType=UNSET, show_nodes: bool | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[NetworkColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[NetworkFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerNetworkLayer:
+    """CreateNetworkLayer 
+ A node/edge network -- a traced arbor, a vessel tree, a connectome -- rather than a surface.
+ Its own mutation and not a mesh layer with a flag, for the reason the two collections are two
+ stores: konnektion holds a segment list and fabriks a triangle list, and nothing about either
+ blob distinguishes them once they are the same field.
+
+Args:
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    network_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    material_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    node_size_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    edge_width_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    directed: The `Boolean` scalar type represents `true` or `false`.
+    show_nodes: The `Boolean` scalar type represents `true` or `false`.
+    max_level: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    color_bys: Color a network collection's objects or nodes: by a column of the table its FIELD edge keys into, by a slice of a sparse matrix, or (GRAPH) by a per-node value the collection itself carries -- Strahler order, degree, depth, component, a stored radius, or a writer's own column (required) (list)
+    active_color_by: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    filter_bys: Draw only the objects -- or, for a GRAPH rule, the nodes and segments -- whose value satisfies this rule. Which half applies follows from the source: bounds for a measure column, a sparse slice or a graph attribute; an explicit value set for a categorical column (required) (list)
+    active_filter_bys: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerNetworkLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['scene'] = scene
+    _input['networkCollection'] = network_collection
+    if material_color is not UNSET:
+        _input['materialColor'] = material_color
+    if line_width is not UNSET:
+        _input['lineWidth'] = line_width
+    if node_size_column is not UNSET:
+        _input['nodeSizeColumn'] = node_size_column
+    if edge_width_column is not UNSET:
+        _input['edgeWidthColumn'] = edge_width_column
+    if directed is not UNSET:
+        _input['directed'] = directed
+    if show_nodes is not UNSET:
+        _input['showNodes'] = show_nodes
+    if max_level is not UNSET:
+        _input['maxLevel'] = max_level
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(CreateNetworkLayerMutation, variables, rath=rath)).create_network_layer
+
+def create_network_layer(scene: IDCoercible, network_collection: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, node_size_column: str | None | UnsetType=UNSET, edge_width_column: str | None | UnsetType=UNSET, directed: bool | None | UnsetType=UNSET, show_nodes: bool | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[NetworkColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[NetworkFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerNetworkLayer:
+    """CreateNetworkLayer 
+ A node/edge network -- a traced arbor, a vessel tree, a connectome -- rather than a surface.
+ Its own mutation and not a mesh layer with a flag, for the reason the two collections are two
+ stores: konnektion holds a segment list and fabriks a triangle list, and nothing about either
+ blob distinguishes them once they are the same field.
+
+Args:
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    network_collection: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    material_color: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    node_size_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    edge_width_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    directed: The `Boolean` scalar type represents `true` or `false`.
+    show_nodes: The `Boolean` scalar type represents `true` or `false`.
+    max_level: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    color_bys: Color a network collection's objects or nodes: by a column of the table its FIELD edge keys into, by a slice of a sparse matrix, or (GRAPH) by a per-node value the collection itself carries -- Strahler order, degree, depth, component, a stored radius, or a writer's own column (required) (list)
+    active_color_by: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    filter_bys: Draw only the objects -- or, for a GRAPH rule, the nodes and segments -- whose value satisfies this rule. Which half applies follows from the source: bounds for a measure column, a sparse slice or a graph attribute; an explicit value set for a categorical column (required) (list)
+    active_filter_bys: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1. (required) (list)
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerNetworkLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['scene'] = scene
+    _input['networkCollection'] = network_collection
+    if material_color is not UNSET:
+        _input['materialColor'] = material_color
+    if line_width is not UNSET:
+        _input['lineWidth'] = line_width
+    if node_size_column is not UNSET:
+        _input['nodeSizeColumn'] = node_size_column
+    if edge_width_column is not UNSET:
+        _input['edgeWidthColumn'] = edge_width_column
+    if directed is not UNSET:
+        _input['directed'] = directed
+    if show_nodes is not UNSET:
+        _input['showNodes'] = show_nodes
+    if max_level is not UNSET:
+        _input['maxLevel'] = max_level
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(CreateNetworkLayerMutation, variables, rath=rath).create_network_layer
+
+async def aupdate_network_layer(id: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, node_size_column: str | None | UnsetType=UNSET, edge_width_column: str | None | UnsetType=UNSET, directed: bool | None | UnsetType=UNSET, show_nodes: bool | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[NetworkColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[NetworkFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerNetworkLayer:
+    """UpdateNetworkLayer 
+
+Retune how a network layer is drawn: its colour, its widths, whether direction and nodes are drawn, and the compositing it takes part in. A patch -- an omitted field keeps its value
+
+Args:
+    id: The ID of the network layer to update
+    material_color: The flat colour of every segment, as RGBA
+    line_width: The flat width of every segment, in scene units -- the world's spatial-axis unit, which is a well-defined length for a layer only when its `placementInvariance` is SIMILARITY or better (RFC-8). The fallback: `nodeSizeColumn` and `edgeWidthColumn` override it where they are set. An explicit `null` clears it
+    node_size_column: The per-node column giving each node's radius, so a segment **tapers** between its endpoints. This is the shape traced morphology actually has -- a dendrite's calibre is a measurement per node, not per branch -- and it is why this wins over `edgeWidthColumn` when both are given: a per-node profile is strictly the more specific statement. An explicit `null` clears it, falling back to `edgeWidthColumn` and then to `lineWidth`
+    edge_width_column: The per-edge column giving each segment one uniform width -- a connectome's weight, a vessel segment's calibre where the tracer recorded one per segment rather than per node. Ignored when `nodeSizeColumn` is set. An explicit `null` clears it
+    directed: Whether to draw each edge's direction, e.g. as arrowheads. **A render setting, never a fact about the graph**: an edge is always stored source-to-target, so the direction is in the data whether or not it is drawn. A traced arbor is directed away from the soma and usually drawn without arrows; a connectome usually with them
+    show_nodes: Whether to draw a glyph at each node as well as the segments
+    max_level: The deepest octree level this layer may load, capping detail against the collection's declared `grid.levels`. A budget, not a choice of level: which level a viewer fetches still follows from the zoom. Null lets the viewer decide. Commonly moot here -- a traced arbor is usually a single-level collection, because konnektion picks its depth from the data. An omitted field keeps the cap, an explicit `null` removes it
+    color_bys: The colourings this layer offers, in the order a picker should show them, instead of the flat `materialColor`. Three entry kinds: a COLUMN entry colours whole objects by a table reachable from this collection by a FIELD edge (author it with `createTableDataset(keyedBy: {kind: NETWORK_COLLECTION})` -- the table's rows are keyed by **object** ids, one per filament or arbor); a SPARSE entry colours objects by one slice of a matrix those ids index; and a GRAPH entry -- this kind's own -- colours per **node**, by a value the collection itself carries: Strahler order, degree, depth, component, a stored radius, or a writer's own column, exactly the set the collection's manifest declares and `networkColorByOptions` offers. Which entry is drawn is `activeColorBy`; publishing a picker is not the same as choosing within it. Replaces the published picker wholesale: its order is the display order, so there is nothing to merge on. Pass `[]` to remove every colouring and fall back to `materialColor`
+    active_color_by: Which entry of `colorBys` is drawn, as an index into it. Null draws the flat `materialColor` -- what having no colouring has always meant. Pass `null` to publish the picker and draw none of it; omit to leave the choice alone. Re-checked against the picker being written, never the stored one. If a new `colorBys` no longer holds the entry that was active, the layer falls back to `materialColor` -- name `activeColorBy` in the same call to point at another entry instead
+    filter_bys: The filters this layer offers, in the order a picker should show them. A COLUMN or SPARSE rule keeps or drops whole objects; a GRAPH rule -- always `min`/`max` bounds over a per-node value the collection carries -- hides individual nodes and segments, which is what 'trunk only' (Strahler order at least 3) means on an arbor. Which of them are actually applied is `activeFilterBys`. Replaces the published filters wholesale, as `colorBys` does. Pass `[]` to remove every rule and draw everything
+    active_filter_bys: Which entries of `filterBys` are applied, as indices into it. Several at once is the normal case -- they combine with AND, and something is drawn when every active rule keeps it. Empty applies none of them, so everything draws. Re-checked against the filters being written: a new `filterBys` that no longer holds an applied rule drops it from this set rather than leaving it dangling
+    blending: Layer-level blend mode
+    opacity: Layer alpha, from 0 to 1
+    visible: Whether the layer participates in compositing
+    order: Explicit z-index for back-to-front compositing
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerNetworkLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    if material_color is not UNSET:
+        _input['materialColor'] = material_color
+    if line_width is not UNSET:
+        _input['lineWidth'] = line_width
+    if node_size_column is not UNSET:
+        _input['nodeSizeColumn'] = node_size_column
+    if edge_width_column is not UNSET:
+        _input['edgeWidthColumn'] = edge_width_column
+    if directed is not UNSET:
+        _input['directed'] = directed
+    if show_nodes is not UNSET:
+        _input['showNodes'] = show_nodes
+    if max_level is not UNSET:
+        _input['maxLevel'] = max_level
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(UpdateNetworkLayerMutation, variables, rath=rath)).update_network_layer
+
+def update_network_layer(id: IDCoercible, material_color: Iterable[int] | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, node_size_column: str | None | UnsetType=UNSET, edge_width_column: str | None | UnsetType=UNSET, directed: bool | None | UnsetType=UNSET, show_nodes: bool | None | UnsetType=UNSET, max_level: int | None | UnsetType=UNSET, color_bys: Iterable[NetworkColorByInput] | None | UnsetType=UNSET, active_color_by: int | None | UnsetType=UNSET, filter_bys: Iterable[NetworkFilterByInput] | None | UnsetType=UNSET, active_filter_bys: Iterable[int] | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerNetworkLayer:
+    """UpdateNetworkLayer 
+
+Retune how a network layer is drawn: its colour, its widths, whether direction and nodes are drawn, and the compositing it takes part in. A patch -- an omitted field keeps its value
+
+Args:
+    id: The ID of the network layer to update
+    material_color: The flat colour of every segment, as RGBA
+    line_width: The flat width of every segment, in scene units -- the world's spatial-axis unit, which is a well-defined length for a layer only when its `placementInvariance` is SIMILARITY or better (RFC-8). The fallback: `nodeSizeColumn` and `edgeWidthColumn` override it where they are set. An explicit `null` clears it
+    node_size_column: The per-node column giving each node's radius, so a segment **tapers** between its endpoints. This is the shape traced morphology actually has -- a dendrite's calibre is a measurement per node, not per branch -- and it is why this wins over `edgeWidthColumn` when both are given: a per-node profile is strictly the more specific statement. An explicit `null` clears it, falling back to `edgeWidthColumn` and then to `lineWidth`
+    edge_width_column: The per-edge column giving each segment one uniform width -- a connectome's weight, a vessel segment's calibre where the tracer recorded one per segment rather than per node. Ignored when `nodeSizeColumn` is set. An explicit `null` clears it
+    directed: Whether to draw each edge's direction, e.g. as arrowheads. **A render setting, never a fact about the graph**: an edge is always stored source-to-target, so the direction is in the data whether or not it is drawn. A traced arbor is directed away from the soma and usually drawn without arrows; a connectome usually with them
+    show_nodes: Whether to draw a glyph at each node as well as the segments
+    max_level: The deepest octree level this layer may load, capping detail against the collection's declared `grid.levels`. A budget, not a choice of level: which level a viewer fetches still follows from the zoom. Null lets the viewer decide. Commonly moot here -- a traced arbor is usually a single-level collection, because konnektion picks its depth from the data. An omitted field keeps the cap, an explicit `null` removes it
+    color_bys: The colourings this layer offers, in the order a picker should show them, instead of the flat `materialColor`. Three entry kinds: a COLUMN entry colours whole objects by a table reachable from this collection by a FIELD edge (author it with `createTableDataset(keyedBy: {kind: NETWORK_COLLECTION})` -- the table's rows are keyed by **object** ids, one per filament or arbor); a SPARSE entry colours objects by one slice of a matrix those ids index; and a GRAPH entry -- this kind's own -- colours per **node**, by a value the collection itself carries: Strahler order, degree, depth, component, a stored radius, or a writer's own column, exactly the set the collection's manifest declares and `networkColorByOptions` offers. Which entry is drawn is `activeColorBy`; publishing a picker is not the same as choosing within it. Replaces the published picker wholesale: its order is the display order, so there is nothing to merge on. Pass `[]` to remove every colouring and fall back to `materialColor`
+    active_color_by: Which entry of `colorBys` is drawn, as an index into it. Null draws the flat `materialColor` -- what having no colouring has always meant. Pass `null` to publish the picker and draw none of it; omit to leave the choice alone. Re-checked against the picker being written, never the stored one. If a new `colorBys` no longer holds the entry that was active, the layer falls back to `materialColor` -- name `activeColorBy` in the same call to point at another entry instead
+    filter_bys: The filters this layer offers, in the order a picker should show them. A COLUMN or SPARSE rule keeps or drops whole objects; a GRAPH rule -- always `min`/`max` bounds over a per-node value the collection carries -- hides individual nodes and segments, which is what 'trunk only' (Strahler order at least 3) means on an arbor. Which of them are actually applied is `activeFilterBys`. Replaces the published filters wholesale, as `colorBys` does. Pass `[]` to remove every rule and draw everything
+    active_filter_bys: Which entries of `filterBys` are applied, as indices into it. Several at once is the normal case -- they combine with AND, and something is drawn when every active rule keeps it. Empty applies none of them, so everything draws. Re-checked against the filters being written: a new `filterBys` that no longer holds an applied rule drops it from this set rather than leaving it dangling
+    blending: Layer-level blend mode
+    opacity: Layer alpha, from 0 to 1
+    visible: Whether the layer participates in compositing
+    order: Explicit z-index for back-to-front compositing
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerNetworkLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    if material_color is not UNSET:
+        _input['materialColor'] = material_color
+    if line_width is not UNSET:
+        _input['lineWidth'] = line_width
+    if node_size_column is not UNSET:
+        _input['nodeSizeColumn'] = node_size_column
+    if edge_width_column is not UNSET:
+        _input['edgeWidthColumn'] = edge_width_column
+    if directed is not UNSET:
+        _input['directed'] = directed
+    if show_nodes is not UNSET:
+        _input['showNodes'] = show_nodes
+    if max_level is not UNSET:
+        _input['maxLevel'] = max_level
+    if color_bys is not UNSET:
+        _input['colorBys'] = color_bys
+    if active_color_by is not UNSET:
+        _input['activeColorBy'] = active_color_by
+    if filter_bys is not UNSET:
+        _input['filterBys'] = filter_bys
+    if active_filter_bys is not UNSET:
+        _input['activeFilterBys'] = active_filter_bys
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(UpdateNetworkLayerMutation, variables, rath=rath).update_network_layer
+
 async def aupdate_label_layer(id: IDCoercible, render: LabelRenderInput | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerLabelLayer:
     """UpdateLabelLayer 
  Retune a label layer after creation -- above all, switch or republish its colour picker.
@@ -8487,6 +10055,168 @@ Returns:
     variables['input'] = _input
     return execute(UpdatePointLayerMutation, variables, rath=rath).update_point_layer
 
+async def acreate_track_layer(scene: IDCoercible, table_dataset: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerTrackLayer:
+    """CreateTrackLayer 
+ Trajectories from a table dataset, one polyline per value of its TRACK_ID column.
+ The trajectory itself is the table's declaration — coordinate, track and time
+ columns are derived, never stored per layer — so the input only styles it.
+
+Args:
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    table_dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    color_by_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerTrackLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['scene'] = scene
+    _input['tableDataset'] = table_dataset
+    if color_by_column is not UNSET:
+        _input['colorByColumn'] = color_by_column
+    if line_width is not UNSET:
+        _input['lineWidth'] = line_width
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(CreateTrackLayerMutation, variables, rath=rath)).create_track_layer
+
+def create_track_layer(scene: IDCoercible, table_dataset: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerTrackLayer:
+    """CreateTrackLayer 
+ Trajectories from a table dataset, one polyline per value of its TRACK_ID column.
+ The trajectory itself is the table's declaration — coordinate, track and time
+ columns are derived, never stored per layer — so the input only styles it.
+
+Args:
+    scene: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    table_dataset: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    color_by_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerTrackLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['scene'] = scene
+    _input['tableDataset'] = table_dataset
+    if color_by_column is not UNSET:
+        _input['colorByColumn'] = color_by_column
+    if line_width is not UNSET:
+        _input['lineWidth'] = line_width
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(CreateTrackLayerMutation, variables, rath=rath).create_track_layer
+
+async def aupdate_track_layer(id: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerTrackLayer:
+    """UpdateTrackLayer 
+
+Retune a track layer after creation -- its line width, its colouring column and the compositing it takes part in.
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    color_by_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerTrackLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    if color_by_column is not UNSET:
+        _input['colorByColumn'] = color_by_column
+    if line_width is not UNSET:
+        _input['lineWidth'] = line_width
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return (await aexecute(UpdateTrackLayerMutation, variables, rath=rath)).update_track_layer
+
+def update_track_layer(id: IDCoercible, color_by_column: str | None | UnsetType=UNSET, line_width: float | None | UnsetType=UNSET, colormap: ColorMap | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerTrackLayer:
+    """UpdateTrackLayer 
+
+Retune a track layer after creation -- its line width, its colouring column and the compositing it takes part in.
+
+Args:
+    id: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+    color_by_column: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+    line_width: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    colormap: ColorMap
+    blending: Blending
+    opacity: The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+    visible: The `Boolean` scalar type represents `true` or `false`.
+    order: The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    LayerTrackLayer
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    if color_by_column is not UNSET:
+        _input['colorByColumn'] = color_by_column
+    if line_width is not UNSET:
+        _input['lineWidth'] = line_width
+    if colormap is not UNSET:
+        _input['colormap'] = colormap
+    if blending is not UNSET:
+        _input['blending'] = blending
+    if opacity is not UNSET:
+        _input['opacity'] = opacity
+    if visible is not UNSET:
+        _input['visible'] = visible
+    if order is not UNSET:
+        _input['order'] = order
+    variables['input'] = _input
+    return execute(UpdateTrackLayerMutation, variables, rath=rath).update_track_layer
+
 async def acreate_lens(dataset: IDCoercible, slices: Iterable[SliceInput], rath: MikroNextRath | None=None) -> Lens:
     """CreateLens 
 
@@ -8631,10 +10361,114 @@ Returns:
     variables['input'] = _input
     return execute(DeleteMeshCollectionMutation, variables, rath=rath).delete_mesh_collection
 
-async def acreate_phasor_layer(lens: IDCoercible, scene: IDCoercible, phasor_axis: str | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, harmonic: int | None | UnsetType=UNSET, transfer: PhasorTransferInput | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerImageLayer:
+async def acreate_network_collection(version: str, store: KonnektionCoercible, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> NetworkCollection:
+    """CreateNetworkCollection 
+
+Register an immutable, versioned network collection from an uploaded konnektion store, in a coordinate system of its own
+
+Args:
+    version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    store: A reference to an uploaded **konnektion store**: one prefix holding `konnektion.json`, both catalogs and every octree level of a node/edge network. Named for the wire format the way `FabriksLike` is, and a separate scalar because it is a separate format -- a graph, not a surface. Request it with `requestKonnektionUpload`, write the tree, land the manifest last, then `finishKonnektionUpload` -- which reads the manifest and refuses a prefix without one. A collection registered this way declares no grid and no encoding: the server reads them from the artifact, so they cannot be stated wrong (required)
+    axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
+    provenance_metadata: The `Any` scalar any type
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    NetworkCollection
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['version'] = version
+    _input['store'] = store
+    _input['axes'] = axes
+    if folder is not UNSET:
+        _input['folder'] = folder
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
+    if provenance_metadata is not UNSET:
+        _input['provenanceMetadata'] = provenance_metadata
+    variables['input'] = _input
+    return (await aexecute(CreateNetworkCollectionMutation, variables, rath=rath)).create_network_collection
+
+def create_network_collection(version: str, store: KonnektionCoercible, axes: Iterable[AxisInput | str], folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, provenance_metadata: Any | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> NetworkCollection:
+    """CreateNetworkCollection 
+
+Register an immutable, versioned network collection from an uploaded konnektion store, in a coordinate system of its own
+
+Args:
+    version: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+    store: A reference to an uploaded **konnektion store**: one prefix holding `konnektion.json`, both catalogs and every octree level of a node/edge network. Named for the wire format the way `FabriksLike` is, and a separate scalar because it is a separate format -- a graph, not a surface. Request it with `requestKonnektionUpload`, write the tree, land the manifest last, then `finishKonnektionUpload` -- which reads the manifest and refuses a prefix without one. A collection registered this way declares no grid and no encoding: the server reads them from the artifact, so they cannot be stated wrong (required)
+    axes: Input type for one structural axis of a dataset's pixel grid: its name and its semantic kind. Units and spacings do not belong here -- they belong to a physical space, a separate coordinate system plus one edge (required) (list) (required)
+    folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+    derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
+    source_files: One file this container was produced from -- the CZI a converter read to write these arrays, the CSV this table was loaded from. Recorded as a link between bytes and data, deliberately not as a coordinate-graph edge: a file has no space, so there is no map to state and `derivedFrom` is the wrong mechanism (required) (list)
+    provenance_metadata: The `Any` scalar any type
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    NetworkCollection
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['version'] = version
+    _input['store'] = store
+    _input['axes'] = axes
+    if folder is not UNSET:
+        _input['folder'] = folder
+    if derived_from is not UNSET:
+        _input['derivedFrom'] = derived_from
+    if source_files is not UNSET:
+        _input['sourceFiles'] = source_files
+    if provenance_metadata is not UNSET:
+        _input['provenanceMetadata'] = provenance_metadata
+    variables['input'] = _input
+    return execute(CreateNetworkCollectionMutation, variables, rath=rath).create_network_collection
+
+async def adelete_network_collection(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
+    """DeleteNetworkCollection 
+
+Delete an existing network collection
+
+Args:
+    id: The ID of the network collection to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return (await aexecute(DeleteNetworkCollectionMutation, variables, rath=rath)).delete_network_collection
+
+def delete_network_collection(id: IDCoercible, rath: MikroNextRath | None=None) -> ID:
+    """DeleteNetworkCollection 
+
+Delete an existing network collection
+
+Args:
+    id: The ID of the network collection to delete
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    ID
+"""
+    variables: dict[str, Any] = {}
+    _input: dict[str, Any] = {}
+    _input['id'] = id
+    variables['input'] = _input
+    return execute(DeleteNetworkCollectionMutation, variables, rath=rath).delete_network_collection
+
+async def acreate_phasor_layer(lens: IDCoercible, scene: IDCoercible, phasor_axis: str | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, harmonic: int | None | UnsetType=UNSET, transfer: PhasorTransferInput | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerPhasorLayer:
     """CreatePhasorLayer 
 
-Create a layer that reduces one axis of a lens to a phasor and colors each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube
+Create a phasor layer, reducing one axis of a lens to a phasor and coloring each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube. For a phasor composited *with* an ordinary intensity channel, use createLayer with a PhasorNode in the graph
 
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -8651,7 +10485,7 @@ Args:
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    LayerImageLayer
+    LayerPhasorLayer
 """
     variables: dict[str, Any] = {}
     _input: dict[str, Any] = {}
@@ -8678,10 +10512,10 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreatePhasorLayerMutation, variables, rath=rath)).create_phasor_layer
 
-def create_phasor_layer(lens: IDCoercible, scene: IDCoercible, phasor_axis: str | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, harmonic: int | None | UnsetType=UNSET, transfer: PhasorTransferInput | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerImageLayer:
+def create_phasor_layer(lens: IDCoercible, scene: IDCoercible, phasor_axis: str | None | UnsetType=UNSET, intensity_axis: str | None | UnsetType=UNSET, intensity_index: int | None | UnsetType=UNSET, harmonic: int | None | UnsetType=UNSET, transfer: PhasorTransferInput | None | UnsetType=UNSET, blending: Blending | None | UnsetType=UNSET, opacity: float | None | UnsetType=UNSET, visible: bool | None | UnsetType=UNSET, order: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> LayerPhasorLayer:
     """CreatePhasorLayer 
 
-Create a layer that reduces one axis of a lens to a phasor and colors each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube
+Create a phasor layer, reducing one axis of a lens to a phasor and coloring each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube. For a phasor composited *with* an ordinary intensity channel, use createLayer with a PhasorNode in the graph
 
 Args:
     lens: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -8698,7 +10532,7 @@ Args:
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
 Returns:
-    LayerImageLayer
+    LayerPhasorLayer
 """
     variables: dict[str, Any] = {}
     _input: dict[str, Any] = {}
@@ -8985,7 +10819,7 @@ Bootstrap a renderable scene over an existing coordinate system: a shared space 
 Args:
     coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    policy: The policy createSceneFromCoordinateSystem follows: at most `nchildren` layers, materialized from the sources living in or registered into the space, filtered by source kind and drawn by the recipe in `kind` (required)
+    policy: The policy createSceneFromCoordinateSystem follows: at most `nchildren` sources, materialized from what lives in or is registered into the space, filtered by source kind and drawn by the recipe in `kind`. A source may become several layers -- a multi-channel image becomes one layer per channel (required)
     default_for: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -9011,7 +10845,7 @@ Bootstrap a renderable scene over an existing coordinate system: a shared space 
 Args:
     coordinate_system: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-    policy: The policy createSceneFromCoordinateSystem follows: at most `nchildren` layers, materialized from the sources living in or registered into the space, filtered by source kind and drawn by the recipe in `kind` (required)
+    policy: The policy createSceneFromCoordinateSystem follows: at most `nchildren` sources, materialized from what lives in or is registered into the space, filtered by source kind and drawn by the recipe in `kind`. A source may become several layers -- a multi-channel image becomes one layer per channel (required)
     default_for: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
     rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
 
@@ -9423,7 +11257,7 @@ Returns:
     variables['input'] = _input
     return execute(DeleteSparseDatasetMutation, variables, rath=rath).delete_sparse_dataset
 
-async def acreate_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[ColumnInput], axes: Iterable[TableAxisInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> TableDataset:
+async def acreate_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[ColumnInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> TableDataset:
     """CreateTableDataset 
 
 Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
@@ -9431,8 +11265,7 @@ Create a table dataset from a Parquet store. Its declared coordinate columns bec
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     data: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
-    columns: One column of the table. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A COORDINATE column is an axis and is declared in `axes` as well, which is where its type and its identification live (required) (list) (required)
-    axes: One axis of the table's own space: which Parquet column it is, what kind of position it holds, and what those positions **are**. The list's order is the axis order, so the space is stated rather than derived by filtering a column list. `identifiedBy` replaces the old sibling `keyedBy`: there the axis a source keyed was matched by subtraction inside the server, correct and invisible, and here the pairing is the input's own shape. It is a list because fan-in is real -- a nucleus mask and a cell mask may key one axis, one edge each -- and it may be empty, because a localization table's `x` axis is identified by nothing and should be (required) (list) (required)
+    columns: One column of the table -- THE one declaration a column gets. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A non-null `axisType` makes the column an axis of the table's own space; **the axis-typed columns, in this list's (= the file's) order, ARE the space** -- a table has no byte order, its axes are named columns, and an edge wanting a different order states its own `inputAxes`/`outputAxes`. `identifiedBy` says what the values are, for an axis and a data column alike (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
@@ -9447,7 +11280,6 @@ Returns:
     _input['name'] = name
     _input['data'] = data
     _input['columns'] = columns
-    _input['axes'] = axes
     if description is not UNSET:
         _input['description'] = description
     if folder is not UNSET:
@@ -9459,7 +11291,7 @@ Returns:
     variables['input'] = _input
     return (await aexecute(CreateTableDatasetMutation, variables, rath=rath)).create_table_dataset
 
-def create_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[ColumnInput], axes: Iterable[TableAxisInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> TableDataset:
+def create_table_dataset(name: str, data: ParquetCoercible, columns: Iterable[ColumnInput], description: str | None | UnsetType=UNSET, folder: IDCoercible | None | UnsetType=UNSET, derived_from: Iterable[DerivedFromInput] | None | UnsetType=UNSET, source_files: Iterable[SourceFileInput] | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> TableDataset:
     """CreateTableDataset 
 
 Create a table dataset from a Parquet store. Its declared coordinate columns become the axes of a coordinate system it owns, which lets a localization table be placed in a scene; a table with no coordinate columns is a measurement table whose rows enumerate objects and whose lineage edge is UNMAPPABLE
@@ -9467,8 +11299,7 @@ Create a table dataset from a Parquet store. Its declared coordinate columns bec
 Args:
     name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
     data: The `ParquetLike` scalar type represents a reference to a parquet objected stored previously created by the user on a datalayer (required)
-    columns: One column of the table. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A COORDINATE column is an axis and is declared in `axes` as well, which is where its type and its identification live (required) (list) (required)
-    axes: One axis of the table's own space: which Parquet column it is, what kind of position it holds, and what those positions **are**. The list's order is the axis order, so the space is stated rather than derived by filtering a column list. `identifiedBy` replaces the old sibling `keyedBy`: there the axis a source keyed was matched by subtraction inside the server, correct and invisible, and here the pairing is the input's own shape. It is a list because fan-in is real -- a nucleus mask and a cell mask may key one axis, one edge each -- and it may be empty, because a localization table's `x` axis is identified by nothing and should be (required) (list) (required)
+    columns: One column of the table -- THE one declaration a column gets. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A non-null `axisType` makes the column an axis of the table's own space; **the axis-typed columns, in this list's (= the file's) order, ARE the space** -- a table has no byte order, its axes are named columns, and an edge wanting a different order states its own `inputAxes`/`outputAxes`. `identifiedBy` says what the values are, for an axis and a data column alike (required) (list) (required)
     description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
     folder: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
     derived_from: Where this data came from, as a discriminated union: `kind` selects which sort of source is being named, and only that member's id field is read -- any other is rejected. The member inputs annotated `@unionElementOf(union: "DerivedFromInput")` say which field each kind reads. Direction is always this data -> its source (required) (list)
@@ -9483,7 +11314,6 @@ Returns:
     _input['name'] = name
     _input['data'] = data
     _input['columns'] = columns
-    _input['axes'] = axes
     if description is not UNSET:
         _input['description'] = description
     if folder is not UNSET:
@@ -10441,6 +12271,114 @@ Returns:
         variables['maxJoinDepth'] = max_join_depth
     return execute(FilterByOptionsQuery, variables, rath=rath).filter_by_options
 
+async def anetwork_color_by_options(network_collection: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[ColorByOption, ...]:
+    """NetworkColorByOptions 
+ Rooted on a network collection -- what a network layer over it can be coloured by. The one
+ options list with a third arm: `graphAttribute` names a per-node value the collection itself
+ carries (strahler, degree, depth, component, a writer's own column, `radius` when the
+ encoding stores one), present exactly when `table`, `column` and `sparseDataset` are null.
+ Pass it back as `colorBys[].attribute` with `kind: GRAPH`. The COLUMN half is rooted at
+ depth zero server-side: only tables keyed by this collection's *object* ids are offered.
+
+Args:
+    network_collection (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[ColorByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['networkCollection'] = network_collection
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return (await aexecute(NetworkColorByOptionsQuery, variables, rath=rath)).network_color_by_options
+
+def network_color_by_options(network_collection: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[ColorByOption, ...]:
+    """NetworkColorByOptions 
+ Rooted on a network collection -- what a network layer over it can be coloured by. The one
+ options list with a third arm: `graphAttribute` names a per-node value the collection itself
+ carries (strahler, degree, depth, component, a writer's own column, `radius` when the
+ encoding stores one), present exactly when `table`, `column` and `sparseDataset` are null.
+ Pass it back as `colorBys[].attribute` with `kind: GRAPH`. The COLUMN half is rooted at
+ depth zero server-side: only tables keyed by this collection's *object* ids are offered.
+
+Args:
+    network_collection (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[ColorByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['networkCollection'] = network_collection
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return execute(NetworkColorByOptionsQuery, variables, rath=rath).network_color_by_options
+
+async def anetwork_filter_by_options(network_collection: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[FilterByOption, ...]:
+    """NetworkFilterByOptions 
+
+Everything a network layer over one collection can be filtered by -- **the same set `networkColorByOptions` returns**, under the name that reads right where a rule is being authored. A GRAPH option is the one whose rule is per node: `min`/`max` bounds over Strahler order, degree or a radius hide individual nodes and segments, where a COLUMN or SPARSE rule keeps or drops whole objects. Everything returned is something `createNetworkLayer(filterBys:)` accepts
+
+Args:
+    network_collection (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[FilterByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['networkCollection'] = network_collection
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return (await aexecute(NetworkFilterByOptionsQuery, variables, rath=rath)).network_filter_by_options
+
+def network_filter_by_options(network_collection: IDCoercible, filters: ColumnOptionFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, max_join_depth: int | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[FilterByOption, ...]:
+    """NetworkFilterByOptions 
+
+Everything a network layer over one collection can be filtered by -- **the same set `networkColorByOptions` returns**, under the name that reads right where a rule is being authored. A GRAPH option is the one whose rule is per node: `min`/`max` bounds over Strahler order, degree or a radius hide individual nodes and segments, where a COLUMN or SPARSE rule keeps or drops whole objects. Everything returned is something `createNetworkLayer(filterBys:)` accepts
+
+Args:
+    network_collection (ID): No description
+    filters (ColumnOptionFilter | None, optional): No description. 
+    pagination (OffsetPaginationInput | None, optional): No description. 
+    max_join_depth (int, optional): No description. Defaults to 1
+    rath (mikro_next.rath.MikroNextRath, optional): The mikro rath client
+
+Returns:
+    list[FilterByOption]
+"""
+    variables: dict[str, Any] = {}
+    variables['networkCollection'] = network_collection
+    if filters is not UNSET:
+        variables['filters'] = filters
+    if pagination is not UNSET:
+        variables['pagination'] = pagination
+    if max_join_depth is not UNSET:
+        variables['maxJoinDepth'] = max_join_depth
+    return execute(NetworkFilterByOptionsQuery, variables, rath=rath).network_filter_by_options
+
 async def aget_coordinate_graph(coordinate_system: IDCoercible, max_depth: int | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> GetCoordinateGraphQueryCoordinateGraph:
     """GetCoordinateGraph 
 
@@ -10771,7 +12709,7 @@ Returns:
         variables['offset'] = offset
     return execute(SearchFoldersQuery, variables, rath=rath).options
 
-async def aget_layer(id: IDCoercible, rath: MikroNextRath | None=None) -> Annotated[GetLayerQueryLayerBaseAnnotationLayer | GetLayerQueryLayerBaseImageLayer | GetLayerQueryLayerBaseLabelLayer | GetLayerQueryLayerBaseMeshLayer | GetLayerQueryLayerBasePointLayer | GetLayerQueryLayerBaseTrackLayer, Field(discriminator='typename')] | GetLayerQueryLayerBaseCatchAll:
+async def aget_layer(id: IDCoercible, rath: MikroNextRath | None=None) -> Annotated[GetLayerQueryLayerBaseAnnotationLayer | GetLayerQueryLayerBaseImageLayer | GetLayerQueryLayerBaseIntensityLayer | GetLayerQueryLayerBaseLabelLayer | GetLayerQueryLayerBaseMeshLayer | GetLayerQueryLayerBaseNetworkLayer | GetLayerQueryLayerBasePhasorLayer | GetLayerQueryLayerBasePointLayer | GetLayerQueryLayerBaseRgbLayer | GetLayerQueryLayerBaseTrackLayer | GetLayerQueryLayerBaseVectorLayer, Field(discriminator='typename')] | GetLayerQueryLayerBaseCatchAll:
     """GetLayer 
  Read a layer back. The server has had `layer` and `layers` all along; no document ever
  asked for them, so the only way to see a layer's current picker from Python was to fire
@@ -10789,7 +12727,7 @@ Returns:
     variables['id'] = id
     return (await aexecute(GetLayerQuery, variables, rath=rath)).layer
 
-def get_layer(id: IDCoercible, rath: MikroNextRath | None=None) -> Annotated[GetLayerQueryLayerBaseAnnotationLayer | GetLayerQueryLayerBaseImageLayer | GetLayerQueryLayerBaseLabelLayer | GetLayerQueryLayerBaseMeshLayer | GetLayerQueryLayerBasePointLayer | GetLayerQueryLayerBaseTrackLayer, Field(discriminator='typename')] | GetLayerQueryLayerBaseCatchAll:
+def get_layer(id: IDCoercible, rath: MikroNextRath | None=None) -> Annotated[GetLayerQueryLayerBaseAnnotationLayer | GetLayerQueryLayerBaseImageLayer | GetLayerQueryLayerBaseIntensityLayer | GetLayerQueryLayerBaseLabelLayer | GetLayerQueryLayerBaseMeshLayer | GetLayerQueryLayerBaseNetworkLayer | GetLayerQueryLayerBasePhasorLayer | GetLayerQueryLayerBasePointLayer | GetLayerQueryLayerBaseRgbLayer | GetLayerQueryLayerBaseTrackLayer | GetLayerQueryLayerBaseVectorLayer, Field(discriminator='typename')] | GetLayerQueryLayerBaseCatchAll:
     """GetLayer 
  Read a layer back. The server has had `layer` and `layers` all along; no document ever
  asked for them, so the only way to see a layer's current picker from Python was to fire
@@ -10807,7 +12745,7 @@ Returns:
     variables['id'] = id
     return execute(GetLayerQuery, variables, rath=rath).layer
 
-async def alayers(filters: LayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotated[LayersQueryLayersBaseAnnotationLayer | LayersQueryLayersBaseImageLayer | LayersQueryLayersBaseLabelLayer | LayersQueryLayersBaseMeshLayer | LayersQueryLayersBasePointLayer | LayersQueryLayersBaseTrackLayer, Field(discriminator='typename')] | LayersQueryLayersBaseCatchAll, ...]:
+async def alayers(filters: LayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotated[LayersQueryLayersBaseAnnotationLayer | LayersQueryLayersBaseImageLayer | LayersQueryLayersBaseIntensityLayer | LayersQueryLayersBaseLabelLayer | LayersQueryLayersBaseMeshLayer | LayersQueryLayersBaseNetworkLayer | LayersQueryLayersBasePhasorLayer | LayersQueryLayersBasePointLayer | LayersQueryLayersBaseRgbLayer | LayersQueryLayersBaseTrackLayer | LayersQueryLayersBaseVectorLayer, Field(discriminator='typename')] | LayersQueryLayersBaseCatchAll, ...]:
     """Layers 
  No `ordering` variable, matching every other list query here: turms cannot parse a list
  literal as a variable default, and the server's `ordering` already defaults to `[]`.
@@ -10827,7 +12765,7 @@ Returns:
         variables['pagination'] = pagination
     return (await aexecute(LayersQuery, variables, rath=rath)).layers
 
-def layers(filters: LayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotated[LayersQueryLayersBaseAnnotationLayer | LayersQueryLayersBaseImageLayer | LayersQueryLayersBaseLabelLayer | LayersQueryLayersBaseMeshLayer | LayersQueryLayersBasePointLayer | LayersQueryLayersBaseTrackLayer, Field(discriminator='typename')] | LayersQueryLayersBaseCatchAll, ...]:
+def layers(filters: LayerFilter | None | UnsetType=UNSET, pagination: OffsetPaginationInput | None | UnsetType=UNSET, rath: MikroNextRath | None=None) -> tuple[Annotated[LayersQueryLayersBaseAnnotationLayer | LayersQueryLayersBaseImageLayer | LayersQueryLayersBaseIntensityLayer | LayersQueryLayersBaseLabelLayer | LayersQueryLayersBaseMeshLayer | LayersQueryLayersBaseNetworkLayer | LayersQueryLayersBasePhasorLayer | LayersQueryLayersBasePointLayer | LayersQueryLayersBaseRgbLayer | LayersQueryLayersBaseTrackLayer | LayersQueryLayersBaseVectorLayer, Field(discriminator='typename')] | LayersQueryLayersBaseCatchAll, ...]:
     """Layers 
  No `ordering` variable, matching every other list query here: turms cannot parse a list
  literal as a variable default, and the server's `ordering` already defaults to `[]`.
@@ -11473,6 +13411,7 @@ ArrayDatasetFilter.model_rebuild()
 BeamSplitterElementInput.model_rebuild()
 CCDElementInput.model_rebuild()
 ColumnColorByInput.model_rebuild()
+ColumnInput.model_rebuild()
 CoordinateAnchorInput.model_rebuild()
 CoordinateSystemDerivedFromInput.model_rebuild()
 CoordinateSystemFilter.model_rebuild()
@@ -11484,6 +13423,8 @@ CreateLayerInput.model_rebuild()
 CreateLensInput.model_rebuild()
 CreateMeshCollectionInput.model_rebuild()
 CreateMeshLayerInput.model_rebuild()
+CreateNetworkCollectionInput.model_rebuild()
+CreateNetworkLayerInput.model_rebuild()
 CreatePhasorLayerInput.model_rebuild()
 CreatePointLayerInput.model_rebuild()
 CreateSceneFromCoordinateSystemInput.model_rebuild()

@@ -497,6 +497,7 @@ A layer that renders an annotation collection's drawn shapes (polygons, boxes, e
 type AnnotationLayer implements Layer @key(fields: "id", resolvable: true) {
   id: ID!
   kind: LayerKind!
+  name: String
   scene: Scene!
   blending: Blending!
   opacity: Float!
@@ -662,7 +663,7 @@ type ArrayDataset @key(fields: "id", resolvable: true) {
   axisNames: [String!]!
 
   """
-  Whether every downsampled level of this pyramid was built by a method that only ever returns a value already present in the input -- NEAREST or MODE. Only meaningful when the values are object ids, and only *reportable* rather than enforceable: `createArrayDataset` refuses a non-compliant pyramid on a dataset already declared CATEGORIZED, but a mask can be declared a mask afterwards, by the `keyedBy` FIELD edge authored when its object table is created -- and by then the levels exist. False means the levels above 0 hold ids that were interpolated into existence and belong to no object; treat level 0 as the only trustworthy one. Null when no level says how it was made, which is not the same as compliant. True for an unpyramided dataset: there is nothing that could be wrong
+  Whether every downsampled level of this pyramid was built by a method that only ever returns a value already present in the input -- NEAREST or MODE. Only meaningful when the values are object ids, and only *reportable* rather than enforceable: `createArrayDataset` refuses a non-compliant pyramid on a dataset already declared CATEGORIZED or carrying an INDEX axis, but a mask can be declared a mask afterwards, by the `keyedBy` FIELD edge authored when its object table is created -- and by then the levels exist. False means the levels above 0 hold ids that were interpolated into existence and belong to no object; treat level 0 as the only trustworthy one. Null when no level says how it was made, which is not the same as compliant. True for an unpyramided dataset: there is nothing that could be wrong
   """
   pyramidIsLabelCompliant: Boolean
 
@@ -766,7 +767,7 @@ input ArrayDatasetFilter {
   scene: ID
 
   """
-  Filter to datasets placeable into this coordinate system: those with a lens whose space has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene, because that is all the answer depends on -- every scene over one world offers the same candidates. Pass `scene.worldCoordinateSystem.id` to ask it of a scene. What could be staged there -- for what already is, use `scene`
+  Filter to datasets placeable into this coordinate system: those with a lens whose space reaches it across steps that compose into one affine map, walking the transformation edges. A route crossing a FIELD is not one -- it relates the two spaces by the values of an array, which no renderer can draw with, so such a dataset is not offered and `createLayer` would refuse it. Takes a *space*, not a scene, because that is all the answer depends on -- every scene over one world offers the same candidates. Pass `scene.worldCoordinateSystem.id` to ask it of a scene. What could be staged there -- for what already is, use `scene`
   """
   placeableIn: ID
 
@@ -1255,17 +1256,17 @@ The render recipe an image layer carries: which default graph createSceneFromCoo
 """
 enum BootstrapLayerKind {
   """
-  Composite three channels as red, green and blue. Inferred for a 2D dataset whose channel axis has exactly three positions -- a photograph, a brightfield slide.
+  Composite three channels as red, green and blue in a single layer -- a photograph, a brightfield slide. Never inferred from *shape*: a flat three-channel image is a three-marker fluorescence acquisition far more often than a photograph, and the two cannot be told apart that way. It is inferred from what ingest recorded -- three channels labelled red, green and blue (whose order then decides the components), or a source file that is a PNG or a JPEG -- so pass it for a photograph nothing recorded. Every other recipe gives each channel a layer of its own; this one keeps them together, because red, green and blue are components of one picture.
   """
   RGB
 
   """
-  One colormapped source per channel, additively blended (grey for a single channel). The fluorescence default, and the fallback when nothing else is inferred.
+  One additively-blended INTENSITY layer per channel, each with its own colormap, order and visibility (a single grey layer when there is one channel). The fluorescence default, and the fallback when nothing else is inferred.
   """
   INTENSITY
 
   """
-  The channel sources under a maximum-intensity projection over z. Inferred when the dataset has a z axis with more than one plane.
+  One INTENSITY layer per channel as above, each with `projectionMode` set to MIP. Inferred when the dataset has a z axis with more than one plane. The one member with no `LayerKind` of its own: a projection is a setting on one channel, not a kind of layer.
   """
   VOLUME
 
@@ -1273,6 +1274,11 @@ enum BootstrapLayerKind {
   A single categorical source mapping discrete integer labels to distinct colors. Never inferred from structure -- nothing about an array distinguishes a label map from an image -- so it comes either from a derivation declared CATEGORIZED or from stating it outright.
   """
   LABEL
+
+  """
+  A single VECTOR layer drawing the dataset's vectors as glyphs. Inferred whenever the dataset carries a DISPLACEMENT value axis -- like LABEL's CATEGORIZED edge, that axis type is something an author stated rather than a shape to guess from, so the inference is reading a declaration back. There are no channels to peel: the value axis's positions are components of one offset, not signals to layer separately.
+  """
+  VECTOR
 }
 
 """An axis-aligned bounding box, as a min and a max corner"""
@@ -1571,6 +1577,16 @@ type ColorByOption {
   axes: [String!]!
 
   """
+  (GRAPH, network collections only) A per-node value the collection itself carries: a name its manifest declares -- strahler, degree, depth, component, a writer's own column -- or `radius` when the encoding carries one. Present exactly when `table`, `column` and `sparseDataset` are all null. Pass it back as `colorBys[].attribute` with `kind: GRAPH`; always MEASURE, and the one option kind whose values are per node rather than per object
+  """
+  graphAttribute: String
+
+  """
+  (network collections only) Which row set this option's values belong to. Null is per-object -- every option every other source offers. NODE/EDGE on a graph attribute or on a column of a table whose axes are node-identified (`NETWORK_COLLECTION_NODES`), where it is derived from the table's own shape -- one node axis is per-node, two are per-edge. Informational on the way back in: the mutation re-derives and stamps it, so a caller never sends it on a COLUMN entry
+  """
+  target: GraphTarget
+
+  """
   Which control this column admits, derived from its role by the same rule the write path enforces: MEASURE takes a colormap and a `min`/`max` range, CATEGORICAL an explicit colour map and a `values` set
   """
   control: ColumnControl!
@@ -1679,7 +1695,7 @@ enum ColorMap {
 }
 
 """
-Which sort of source a colouring reads its value from: the discriminator of `LabelColorByInput` and `MeshColorByInput`. Two members, because there are two ways a set of ids reaches a number -- a column of a table they key into, or one slice of a sparse matrix they index. Flat with a discriminator rather than an input union, which GraphQL has no such thing as; the fields the other member reads are refused rather than ignored
+Which sort of source a colouring reads its value from: the discriminator of `LabelColorByInput`, `MeshColorByInput` and `NetworkColorByInput`. Three members, because there are three ways a set of ids reaches a number -- a column of a table they key into, one slice of a sparse matrix they index, or (for a network alone) a per-node value the collection itself carries. Flat with a discriminator rather than an input union, which GraphQL has no such thing as; the fields the other members read are refused rather than ignored. GRAPH is valid only where the source has per-node values to read, which today means a network layer
 """
 enum ColorSourceKind {
   """
@@ -1691,6 +1707,11 @@ enum ColorSourceKind {
   One slice of a sparse matrix the source's ids index, reached by `dataset` and the position `at`. Always measured: a slice is a value per object, so it takes a colormap and never a class map.
   """
   SPARSE
+
+  """
+  A per-node value the network collection itself carries, reached by `attribute` -- a name its manifest declares (Strahler order, degree, depth, component, a writer's own column), or `radius` when the encoding carries one. Computed once on the full level-0 graph and only ever subset, so the value is the same at every level a node survives to. Always measured, per node rather than per object; `target` says whether it paints nodes or edges.
+  """
+  GRAPH
 }
 
 """
@@ -1716,12 +1737,17 @@ type Column @key(fields: "id", resolvable: true) {
   The table whose rows this column's values identify -- a declared foreign key, e.g. an `instance_id` column referencing a table of tracks. The target is keyed by its single INDEX coordinate column; look a value up there. Null for a column that identifies nothing
   """
   references: TableDataset
+
+  """
+  The network collection whose NODE ids this INDEX coordinate column's values are, scoped by the sibling INDEX axis keyed by the same collection's object ids. One such column makes the table per-node, two make it per-edge -- (source, target), in axis declaration order -- which is what a client resolving a per-node picker entry reads the key columns from. Null for every column of every other table
+  """
+  nodeReferences: NetworkCollection
 }
 
 """
-The fields a COLUMN member of a colour picker entry reads. Published for codegen; the wire type is the flat LabelColorByInput / MeshColorByInput
+The fields a COLUMN member of a colour picker entry reads. Published for codegen; the wire type is the flat LabelColorByInput / MeshColorByInput / NetworkColorByInput
 """
-input ColumnColorByInput @unionElementOf(union: "LabelColorByInput", discriminator: "kind", key: "COLUMN") @unionElementOf(union: "MeshColorByInput", discriminator: "kind", key: "COLUMN") {
+input ColumnColorByInput @unionElementOf(union: "LabelColorByInput", discriminator: "kind", key: "COLUMN") @unionElementOf(union: "MeshColorByInput", discriminator: "kind", key: "COLUMN") @unionElementOf(union: "NetworkColorByInput", discriminator: "kind", key: "COLUMN") {
   colormap: ColorMap = null
   min: Float = null
   max: Float = null
@@ -1748,16 +1774,17 @@ enum ColumnControl {
 }
 
 """
-One column of the table. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A COORDINATE column is an axis and is declared in `axes` as well, which is where its type and its identification live
+One column of the table -- THE one declaration a column gets. **Every column of the Parquet is declared, and the declaration is checked against the file** -- same names, same order, same types -- so a declaration that has drifted from the data is refused rather than stored. That check is the whole reason `name` is here: it is a fact about the file, and stating it is how a caller says which file they think they are describing. `dtype` is **optional** -- the server read every column's type off the Parquet when the upload finished, so it is checked when given and taken from the file when not. Given, it is a **DuckDB** type name (`BIGINT`, `DOUBLE`, `VARCHAR`), not a pandas one where a float64 is a `double`. A non-null `axisType` makes the column an axis of the table's own space; **the axis-typed columns, in this list's (= the file's) order, ARE the space** -- a table has no byte order, its axes are named columns, and an edge wanting a different order states its own `inputAxes`/`outputAxes`. `identifiedBy` says what the values are, for an axis and a data column alike
 """
 input ColumnInput {
   name: String!
   dtype: String = null
   role: ColumnRole = null
+  axisType: AxisType = null
   unit: Unit = null
   longName: String = null
   description: String = null
-  references: ID = null
+  identifiedBy: [IdentificationInput!]! = []
 }
 
 input ColumnOptionFilter {
@@ -1817,6 +1844,11 @@ enum ColumnRole {
 
   """Groups rows into a trajectory. Required to render a table as tracks."""
   TRACK_ID
+
+  """
+  Groups rows into one connected object — the nodes of one traced arbor, the points of one cluster. Distinct from TRACK_ID, which means a trajectory: a branching tree is not one, and a table that grouped by TRACK_ID would be claiming an order its rows do not have.
+  """
+  GROUP_ID
 
   """A per-row text label."""
   LABEL
@@ -1936,7 +1968,7 @@ type CoordinateSystem @key(fields: "id", resolvable: true) {
   registrations: [Transformation!]!
 
   """
-  Every space whose data can be composed here: those with a traversable path into this one, walking the transformation edges. The same set the `placeableIn` filters answer from, so a picker and a layer mutation cannot disagree. Distinct from `coordinateGraph`, which walks the undirected *neighbourhood* -- this is directed, and asks who can get in
+  Every space whose data can be composed here: those reaching this one across steps that compose into one affine map, walking the transformation edges. Composed, not merely connected -- a space reaching this one only across a FIELD relates to it by the values of an array and yields no matrix to draw with, so it is not here. The same set the `placeableIn` filters answer from, so a picker and a layer mutation cannot disagree. Distinct from `coordinateGraph`, which walks the undirected *neighbourhood* -- this is directed, and asks who can get in
   """
   placedSystems: [CoordinateSystem!]!
 
@@ -2163,6 +2195,7 @@ input CreateIntensityLayerInput {
   intensityAxis: String = null
   intensityIndex: Int = 0
   colormap: ColorMap = null
+  color: [Int!] = null
   climMin: Float = null
   climMax: Float = null
   gamma: Float = null
@@ -2227,6 +2260,42 @@ input CreateMeshLayerInput {
   colorBys: [MeshColorByInput!] = null
   activeColorBy: Int = null
   filterBys: [MeshFilterByInput!] = null
+  activeFilterBys: [Int!] = null
+  blending: Blending = null
+  opacity: Float = null
+  visible: Boolean = null
+  order: Int = null
+}
+
+"""
+Input for registering an immutable, versioned network collection. The collection gets a coordinate system of its own, and an edge relates it to the space the network was traced in
+"""
+input CreateNetworkCollectionInput {
+  version: String!
+  store: KonnektionLike!
+  axes: [AxisInput!]!
+  folder: ID = null
+  derivedFrom: [DerivedFromInput!] = null
+  sourceFiles: [SourceFileInput!] = null
+  provenanceMetadata: Any = null
+}
+
+"""
+Input for drawing a network collection -- a traced arbor, a vessel tree, a connectome -- in a scene. Its segments are drawn as camera-facing quads rather than GL lines, which is what makes a width in scene units meaningful at all
+"""
+input CreateNetworkLayerInput {
+  scene: ID!
+  networkCollection: ID!
+  materialColor: [Int!] = null
+  lineWidth: Float = null
+  nodeSizeColumn: String = null
+  edgeWidthColumn: String = null
+  directed: Boolean = null
+  showNodes: Boolean = null
+  maxLevel: Int = null
+  colorBys: [NetworkColorByInput!] = null
+  activeColorBy: Int = null
+  filterBys: [NetworkFilterByInput!] = null
   activeFilterBys: [Int!] = null
   blending: Blending = null
   opacity: Float = null
@@ -2345,12 +2414,12 @@ input CreateRgbLayerInput {
 }
 
 """
-Bootstrap a renderable scene over an existing coordinate system. Over an ownerless SHARED space the sources already registered into it become layers, up to the policy's nchildren -- each source's path to world is the one registration createCoordinateSystem authored. Over an owned system (a dataset's intrinsic pixels, a physical space, a collection's space) the container's own data becomes the layer: it is in its own space by construction, so no edge exists or is authored. Rerunning makes another scene over the same space, which outlives them all
+Bootstrap a renderable scene over an existing coordinate system. Over an ownerless SHARED space the sources already registered into it become layers, up to the policy's nchildren sources -- each source's path to world is the one registration createCoordinateSystem authored. Over an owned system (a dataset's intrinsic pixels, a physical space, a collection's space) the container's own data becomes the layer: it is in its own space by construction, so no edge exists or is authored. A multi-channel image becomes one layer per channel, each with its own hue, order and visibility, so a viewer can control the channels separately; an RGB photograph stays one layer. Rerunning makes another scene over the same space, which outlives them all
 """
 input CreateSceneFromCoordinateSystemInput {
   coordinateSystem: ID!
   name: String = null
-  policy: ScenePolicyInput! = {nchildren: 8, transformTables: false, includeMeshes: true}
+  policy: ScenePolicyInput! = {nchildren: 8, transformTables: false, includeMeshes: true, includeNetworks: true, skipUnplaceable: false}
   defaultFor: [ID!] = null
 }
 
@@ -2382,13 +2451,12 @@ input CreateSparseDatasetInput {
 }
 
 """
-Input for creating a table dataset from a Parquet store. Its coordinate columns become the axes of a coordinate system it owns; declare no coordinate columns for a pure measurement table (its rows enumerate objects and its lineage edge is UNMAPPABLE)
+Input for creating a table dataset from a Parquet store. A column is declared ONCE, in `columns`: a non-null `axisType` makes it an axis of the coordinate system the table owns, and the axis-typed columns, in list (= file) order, are the space -- there is no separate axes list, because a table's axes are named columns and every consumer addresses them by name. Declare no axis-typed columns for a pure measurement table (its rows enumerate objects, its space is a synthetic `object` axis, and its lineage edge is UNMAPPABLE)
 """
 input CreateTableDatasetInput {
   name: String!
   data: ParquetLike!
   columns: [ColumnInput!]! = []
-  axes: [TableAxisInput!]! = []
   description: String = null
   folder: ID = null
   derivedFrom: [DerivedFromInput!] = null
@@ -2423,6 +2491,23 @@ input CreateTransformationInput {
   selector: SelectorInput = null
 }
 
+"""Create a vector layer drawing a vector-valued lens as glyphs"""
+input CreateVectorLayerInput {
+  lens: ID!
+  scene: ID!
+  glyph: VectorGlyph = null
+  glyphStride: Int = null
+  glyphScale: Float = null
+  colormap: ColorMap = null
+  color: [Int!] = null
+  climMin: Float = null
+  climMax: Float = null
+  blending: Blending = null
+  opacity: Float = null
+  visible: Boolean = null
+  order: Int = null
+}
+
 """
 Create a single-channel layer rendered as a 3D volume projection (MIP / attenuated-MIP / volume / isosurface) over its z-axis
 """
@@ -2433,6 +2518,7 @@ input CreateVolumeLayerInput {
   intensityAxis: String = null
   intensityIndex: Int = 0
   colormap: ColorMap = null
+  color: [Int!] = null
   climMin: Float = null
   climMax: Float = null
   gamma: Float = null
@@ -2582,6 +2668,12 @@ input DeleteLensInput {
 """Input for deleting a mesh collection by ID"""
 input DeleteMeshCollectionInput {
   """The ID of the mesh collection to delete"""
+  id: ID!
+}
+
+"""Input for deleting a network collection by ID"""
+input DeleteNetworkCollectionInput {
+  """The ID of the network collection to delete"""
   id: ID!
 }
 
@@ -3408,6 +3500,16 @@ type FilterByOption {
   axes: [String!]!
 
   """
+  (GRAPH, network collections only) A per-node value the collection itself carries, exactly as on `ColorByOption`. Present exactly when `table`, `column` and `sparseDataset` are all null. Pass it back as `filterBys[].attribute` with `kind: GRAPH`; always MEASURE, so the rule is `min`/`max` bounds, and it hides individual nodes and segments rather than whole objects
+  """
+  graphAttribute: String
+
+  """
+  (network collections only) Which row set a rule over this option hides, exactly as on `ColorByOption`: null keeps or drops whole objects, NODE hides nodes and their segments, EDGE hides segments alone. Derived from the table's shape and stamped by the mutation, never sent on a COLUMN rule
+  """
+  target: GraphTarget
+
+  """
   Which rule this column admits, derived from its role by the same rule the write path enforces: MEASURE takes a `min`/`max` bound, CATEGORICAL an explicit `values` set. Passing the wrong one is refused at the boundary
   """
   control: ColumnControl!
@@ -3472,6 +3574,11 @@ input FinishBigFileUploadInput {
 }
 
 input FinishFabriksUploadInput {
+  storeId: String!
+  valid: Boolean! = true
+}
+
+input FinishKonnektionUploadInput {
   storeId: String!
   valid: Boolean! = true
 }
@@ -3636,6 +3743,19 @@ type GeneralFabriksAccessGrant {
   expiresIn: Int!
 }
 
+"""
+Temporary S3 credentials for reading the organization's konnektion stores.
+"""
+type GeneralKonnektionAccessGrant {
+  status: String!
+  accessKey: String!
+  secretKey: String!
+  sessionToken: String!
+  region: String!
+  bucket: String!
+  expiresIn: Int!
+}
+
 """Temporary S3 credentials for reading a media object."""
 type GeneralMediaAccessGrant {
   path: String!
@@ -3706,6 +3826,34 @@ enum Granularity {
   YEAR
 }
 
+"""
+The fields a GRAPH member of a colour picker entry reads: a per-node value the network collection itself carries. Published for codegen; the wire type is the flat NetworkColorByInput -- and only that one, because a mask and a mesh have no per-node values to read
+"""
+input GraphColorByInput @unionElementOf(union: "NetworkColorByInput", discriminator: "kind", key: "GRAPH") {
+  colormap: ColorMap = null
+  min: Float = null
+  max: Float = null
+  label: String = null
+  kind: ColorSourceKind! = GRAPH
+  attribute: String!
+  target: GraphTarget! = NODE
+}
+
+"""
+Which of a network's two row sets a GRAPH colouring or rule addresses. A network is the one layer kind with two -- every other source has exactly one set of objects -- and an edge has no durable identity of its own (simplification re-links edges between levels), so an edge's value is *derived*: it takes its start node's value, the same convention the renderer already uses for an edge's object ordinal
+"""
+enum GraphTarget {
+  """
+  Every node, and the segments and glyphs that touch it: a segment takes its start node's value, so colouring nodes colours the wireframe too.
+  """
+  NODE
+
+  """
+  Segments only, each taking its start node's value; node glyphs keep the layer's base colour. The honest per-edge statement, since an edge owns no value of its own.
+  """
+  EDGE
+}
+
 """The type of change that was made."""
 enum HistoryKind {
   CREATE
@@ -3714,11 +3862,11 @@ enum HistoryKind {
 }
 
 """
-What one axis of a sparse dataset **is**, as a discriminated union: `kind` selects which sort of thing is being named, and only that member's id field is read -- any other is rejected. Every axis carries exactly one of these, which is what makes 'identified exactly once' a property of the input rather than a check on it. `DATASET` and `MESH_COLLECTION` author a FIELD edge from the source into this matrix, which is also what makes the matrix reachable from a layer over that source; `TABLE` authors no edge and states a foreign key instead
+What a column's values or an axis' positions **are**, as a discriminated union: `kind` selects which sort of thing is being named, and only that member's id field is read -- any other is rejected. Carried by a sparse dataset's axes and by a table's columns alike -- the one spelling of every 'values here identify things there' claim. `DATASET`, `MESH_COLLECTION` and `NETWORK_COLLECTION` author a FIELD edge from the source into this data, which is also what makes it reachable from a layer over that source (INDEX axes only -- the edge produces an axis); `TABLE` authors no edge and states a foreign key instead, on an INDEX axis or a plain data column; `NETWORK_COLLECTION_NODES` likewise authors none, on an INDEX axis scoped by a sibling object axis
 """
 input IdentificationInput {
   """
-  Which sort of thing identifies this axis. It fixes which id field below is read; any other is rejected
+  Which sort of thing identifies this column or axis. It fixes which id field below is read; any other is rejected
   """
   kind: IdentificationKind!
 
@@ -3733,7 +3881,12 @@ input IdentificationInput {
   meshCollection: ID = null
 
   """
-  (TABLE) The table whose rows this axis' positions are. Must be keyed by exactly one INDEX coordinate column, which is where a position is looked up -- the same contract `Column.references` carries. A matrix with 19 059 features costs one picker entry because of this, not 19 059
+  (NETWORK_COLLECTION) The network collection whose **object** ids are the positions along this axis -- one per traced object, never per node; its coordinate system is both the edge's input and its field, exactly as a mesh collection's is. (NETWORK_COLLECTION_NODES) The collection whose **node** ids they are instead -- no edge, scoped by a sibling INDEX axis keyed by the same collection's objects; two such axes over one collection are its edges' (source, target), in axis declaration order. One field for both kinds because the id names the same sort of thing and `kind` already says which claim is being made
+  """
+  networkCollection: ID = null
+
+  """
+  (TABLE) The table whose rows this column's values are -- an INDEX axis' enumeration, or a plain data column's foreign key (an `instance_id` referencing a table of tracks: the edge of the join graph `colorBys` walks). Must be keyed by exactly one INDEX coordinate column, which is where a value is looked up -- the contract `Column.references` records. A matrix with 19 059 features costs one picker entry because of this, not 19 059
   """
   table: ID = null
 
@@ -3749,7 +3902,7 @@ input IdentificationInput {
 }
 
 """
-How one axis is identified -- the discriminator of `IdentificationInput`, and the same question whether the axis belongs to a sparse matrix or to a table. An axis of positions means nothing until something says what those positions *are*, and there are exactly these three ways to answer. Two of them author a FIELD edge, which is also what makes the data reachable from a layer over that source; `TABLE` authors none and states a foreign key instead, because a table is already in record-land
+How one axis is identified -- the discriminator of `IdentificationInput`, and the same question whether the axis belongs to a sparse matrix or to a table. An axis of positions means nothing until something says what those positions *are*, and there are exactly these five ways to answer. Three of them author a FIELD edge, which is also what makes the data reachable from a layer over that source; `TABLE` and `NETWORK_COLLECTION_NODES` author none -- a table states a foreign key, and a node axis states which collection's nodes it enumerates, scoped by the sibling axis that collection's objects key
 """
 enum IdentificationKind {
   """
@@ -3761,6 +3914,16 @@ enum IdentificationKind {
   A mesh collection, through its vertex coordinate system: the ids ride on the geometry rows, so a client that picked a surface is already holding one. Authors a FIELD edge, exactly as DATASET does.
   """
   MESH_COLLECTION
+
+  """
+  A network collection, through its coordinate system, identified by its **object** ids -- one row per traced object (a filament, an arbor, a vessel tree), never per node. The object ids ride on the geometry rows and the object catalog, so a client that picked a wireframe is already holding one. Authors a FIELD edge, exactly as MESH_COLLECTION does. A per-node identification is the sibling member NETWORK_COLLECTION_NODES: a node id is unique only within its object, so it cannot key a row on its own.
+  """
+  NETWORK_COLLECTION
+
+  """
+  A network collection's **node** ids -- the values along this axis are node ids, scoped by a sibling INDEX axis keyed by the same collection's object ids (a node id is unique only within its traced object, so the pair is the row's key). Authors no edge, like TABLE, and for the same reason: the object axis' edge already supplies the one id an edge supplies, and this says what the *other* axis enumerates. One such axis makes the table per-node; two over one collection make it per-edge, (source, target) in axis declaration order. Node ids survive every octree level; edge rows resolve exactly at level 0 and on pruned levels and are void on simplified ones, where edges are re-linked chords.
+  """
+  NETWORK_COLLECTION_NODES
 
   """
   A table whose rows this axis' positions are -- the relation `Column.references` carries, said of the axis. Authors no edge and touches no coordinate system: a table is already in record-land, where the relation is a foreign key rather than a map between spaces. It is what lets a FIELD edge land beside it, because an axis identified this way is one the edge is not expected to supply. Valid on an INDEX axis only: a SPACE or TIME coordinate's values are positions, and a position in nanometres and a row id are different things.
@@ -3832,11 +3995,12 @@ The `ImageFileLike` scalar type represents a reference to a snapshot image previ
 scalar ImageFileLike
 
 """
-A layer that renders array (lens) data as an alpha-blended image. Its rendering is described entirely by the composable render graph; its placement, entirely by the coordinate graph.
+The general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually **composites** -- several channels blended together, a hand-authored transfer curve, a solid tint, per-channel opacity. When the recipe's shape is fixed instead, one of IntensityLayer, RgbLayer or PhasorLayer says so directly and carries its settings as fields, which is why those are not this type with a flag. Its rendering is described entirely by the render graph; its placement, entirely by the coordinate graph.
 """
 type ImageLayer implements Layer @key(fields: "id", resolvable: true) {
   id: ID!
   kind: LayerKind!
+  name: String
   scene: Scene!
   blending: Blending!
   opacity: Float!
@@ -3904,6 +4068,59 @@ input IntFilterLookup {
 }
 
 """
+One channel of a lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. The fluorescence workhorse, and the layer a renderer can take straight to a single-channel texture and a LUT without walking a tree. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing. Anything that *would* need the tree -- a second channel, an authored transfer curve, per-channel opacity -- is an ImageLayer. A tint is not among them: it names the hue one ramp ends at, which is what `colormap` does, so it is a field here rather than a reason to author a graph.
+"""
+type IntensityLayer implements Layer @key(fields: "id", resolvable: true) {
+  id: ID!
+  kind: LayerKind!
+  name: String
+  scene: Scene!
+  blending: Blending!
+  opacity: Float!
+  visible: Boolean!
+  order: Int!
+
+  """
+  The path of transformation edges from this layer's source coordinate system to its scene's world system. A layer belongs to exactly one scene, so this is the one 'to world' question with a single right answer -- the path uses the layer's dataset facts plus the world's registrations, which are the same for every scene over that space. Null when the layer is unregistered or has no source system; empty when the source already is the world system. Every step is here in full, with its own validity, invariance and provenance, which is what to ask for when you care *how* the data got placed; `asAffine` is the same path composed, for when you only need the map
+  """
+  pathToWorld(at: [CoordinateInput!] = null): [PlacementStep!]
+
+  """
+  This layer's whole `pathToWorld` composed into one affine map -- the same path, same edges, same order, with the flagged steps inverted. Derived on read and stored nowhere, exactly as the path itself is, so refining one registration moves it. **Null when `pathToWorld` is null** and for the same two reasons; `placement` is what tells them apart. It errors rather than returning null when a path exists but does not condense: a FIELD step gives its map as the values of an array and has no closed form, and a singular step cannot be walked backwards -- the error names the transformation that stopped it. Note that `placementInvariance` being AFFINE or stronger is necessary but not sufficient for this to succeed. `outputAxes` names only the destination axes the path constrains, so pass `strict: true` to be refused a partial map instead of handed one
+  """
+  asAffine(strict: Boolean! = false, at: [CoordinateInput!] = null): AffinePlacement
+
+  """
+  Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means three different things -- nobody has registered this data yet, its geometry did not survive the operation that produced it and it can never be placed, or it is registered per index and you have not said which index -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Pass the same `at` you would pass `pathToWorld` to be told about that coordinate. Derived, never stored
+  """
+  placement(at: [CoordinateInput!] = null): PlacementState!
+
+  """
+  How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed, and when there is no path at all; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. A layer placed per index reports one of its scoped routes rather than UNKNOWN; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path
+  """
+  placementValidity(at: [CoordinateInput!] = null): PlacementValidity!
+
+  """
+  Which geometric properties survive the whole walk from this layer's data to its scene's world: the weakest edge on its path. ISOMETRY means a distance measured in the data IS that distance in world; SIMILARITY means shapes and angles transfer and every length needs one common factor; AFFINE means only parallelism and area ratios do, so an angle or a distance read in the data means nothing in world; DIFFEOMORPHIC means nothing metric survives anywhere; NONE means there is no path at all. This is what says whether a scalar length in scene units (`pointSize`, `lineWidth`, a stroke width, a camera zoom) is well defined for this layer: it is, from SIMILARITY up. A layer placed per index reports one of its scoped routes rather than NONE; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `invariance`, this being the minimum over the whole path. `placement` says which of the reasons a NONE layer has
+  """
+  placementInvariance(at: [CoordinateInput!] = null): TransformInvariance!
+  lens: Lens!
+  intensityAxis: String
+  intensityIndex: Int!
+  colormap: ColorMap!
+  color: [Int!]
+  climMin: Float
+  climMax: Float
+  gamma: Float
+  projectionMode: ProjectionMode
+
+  """
+  Per pyramid level, the path from that level's voxel grid to this scene's world system. What a multiscale renderer consumes directly: pick a level by zoom and use its path -- every level stars into the same intrinsic system, so the registration tail is shared. A level's path is null when the dataset is not registered into the scene
+  """
+  levelPaths: [LevelPlacement!]!
+}
+
+"""
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
 """
 scalar JSON @specifiedBy(url: "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf")
@@ -3922,6 +4139,84 @@ One hop of a join path: the column whose values identify rows of the next table.
 input JoinStepInput {
   table: ID!
   column: String!
+}
+
+"""
+Temporary S3 credentials for reading a konnektion store. Covers the whole prefix, so one grant reads the manifest, both catalogs and every level.
+"""
+type KonnektionAccessGrant {
+  status: String!
+  accessKey: String!
+  secretKey: String!
+  sessionToken: String!
+  region: String!
+  bucket: String!
+  key: String!
+  path: String!
+  expiresIn: Int!
+  store: String
+}
+
+"""
+A reference to an uploaded **konnektion store**: one prefix holding `konnektion.json`, both catalogs and every octree level of a node/edge network. Named for the wire format the way `FabriksLike` is, and a separate scalar because it is a separate format -- a graph, not a surface. Request it with `requestKonnektionUpload`, write the tree, land the manifest last, then `finishKonnektionUpload` -- which reads the manifest and refuses a prefix without one. A collection registered this way declares no grid and no encoding: the server reads them from the artifact, so they cannot be stated wrong
+"""
+scalar KonnektionLike
+
+"""
+A konnektion collection stored as a prefix of Parquet files behind the S3 datalayer. Its grid and encoding are read from its own manifest, never declared by a caller.
+"""
+type KonnektionStore @key(fields: "id", resolvable: true) {
+  id: ID!
+  path: String!
+  bucket: String!
+  key: String!
+
+  """
+  The byte budget the upload grant advertised for this store. Advertised, not enforced: a session policy bounds what a credential may write, never how much, so a store may exceed this
+  """
+  maxBytes: Int
+
+  """
+  How many bytes this store actually holds, measured when its upload was finished. Null while unfinished, or for stores written before this was recorded
+  """
+  sizeBytes: Int
+  specVersion: String
+  grid: JSON
+  encoding: JSON
+  axes: [String!]
+  counts: JSON
+  files: JSON
+
+  """
+  The per-node value columns the manifest declares, each {name, encoding, semantics} -- the vocabulary a network layer's GRAPH picker entries are validated against, `radius` joining off `encoding.radii`. Null on a store filled before attributes existed, which reads the same as declaring none
+  """
+  attributes: JSON
+
+  """
+  Get temporary S3 read credentials covering this store's whole prefix -- the manifest, both catalogs and every level, in one grant.
+  """
+  accessGrant(host: String = null): KonnektionAccessGrant!
+}
+
+"""
+Temporary S3 credentials for uploading a konnektion store. Scoped to the prefix and permitted to read back and delete inside it, because the tree is written incrementally and its manifest lands last.
+"""
+type KonnektionUploadGrant {
+  status: String!
+  accessKey: String!
+  secretKey: String!
+  sessionToken: String!
+  region: String!
+  bucket: String!
+  key: String!
+  path: String!
+  expiresIn: Int!
+  store: String!
+  maxBytes: Int!
+  originalFileName: String
+  uploadFileName: String!
+  uploadContentType: String
+  uploadFormField: String!
 }
 
 """
@@ -4003,6 +4298,7 @@ A layer that renders array (lens) data whose values are discrete object ids -- a
 type LabelLayer implements Layer @key(fields: "id", resolvable: true) {
   id: ID!
   kind: LayerKind!
+  name: String
   scene: Scene!
   blending: Blending!
   opacity: Float!
@@ -4041,7 +4337,7 @@ type LabelLayer implements Layer @key(fields: "id", resolvable: true) {
   labelRender: LabelRender
 
   """
-  Per pyramid level, the path from that level's voxel grid to this scene's world system -- the same multiscale placement an image layer exposes. A level's path is null when the dataset is not registered into the scene
+  Per pyramid level, the path from that level's voxel grid to this scene's world system. What a multiscale renderer consumes directly: pick a level by zoom and use its path -- every level stars into the same intrinsic system, so the registration tail is shared. A level's path is null when the dataset is not registered into the scene
   """
   levelPaths: [LevelPlacement!]!
 }
@@ -4230,11 +4526,12 @@ input LaserElementInput @unionElementOf(union: "OpticalElementInput", discrimina
 }
 
 """
-A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind (ImageLayer, AnnotationLayer, PointLayer, TrackLayer, MeshLayer) carries its own data source and render settings.
+A layer placed in a scene and alpha-blended over the layers below it. It carries view state only: a spatial fact is a coordinate system or a transformation edge, never a field here, and every spatial question a layer answers -- `pathToWorld`, `placement`, `placementValidity`, `placementInvariance` -- is derived from the graph on read and stored nowhere, so refining one edge updates every layer that looks through it. Which columns hold a point layer's coordinates is likewise the table dataset's declaration, not a per-layer copy. The concrete kind carries its own data source and render settings: IntensityLayer, RgbLayer, PhasorLayer and LabelLayer each state a recipe of fixed shape as fields, ImageLayer carries a composable render graph for the layers that genuinely composite, and AnnotationLayer, PointLayer, TrackLayer and MeshLayer draw from a collection or a table rather than a lens.
 """
 interface Layer {
   id: ID!
   kind: LayerKind!
+  name: String
   scene: Scene!
   blending: Blending!
   opacity: Float!
@@ -4290,9 +4587,24 @@ The kind of a layer, discriminating which data source it renders and which rende
 """
 enum LayerKind {
   """
-  An image layer rendering array (lens) data through a composable render graph.
+  The general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually composites -- several channels blended together, a hand-authored transfer curve, an inverted mapping, per-channel opacity. When the recipe's shape is fixed, one of INTENSITY, RGB or PHASOR says so directly and carries its settings as fields.
   """
   IMAGE
+
+  """
+  One channel of a lens through one colormap -- or one solid tint -- with contrast limits and gamma, optionally projected over z. The fluorescence workhorse. Its settings are fields rather than a render graph because there is nothing here to composite: the graph form of this was a blend node with a single child, and additively blending one thing is that thing.
+  """
+  INTENSITY
+
+  """
+  Three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. Its own kind rather than a three-child blend because the two are indistinguishable as graphs, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape. Never inferred from that shape, for the same reason: a bootstrapped scene reaches this kind only on something ingest recorded -- channels *named* red, green and blue, or arrays read out of a PNG -- or on a caller saying so. Keeping the three together is the point: they are components of one picture, not three signals to hide and reorder separately.
+  """
+  RGB
+
+  """
+  One axis of a lens -- MICROTIME or SPECTRUM -- reduced per pixel to a phasor and coloured by it: a lifetime, or a spectral centre of mass. Its recipe lives in `phasorRender`, as a label layer's lives in `labelRender`, because a phasor's transfer maps a (g, s) pair plus a photon count rather than a sampled scalar. A phasor may still appear as a node inside an IMAGE layer's graph, which is what composites one with an ordinary channel.
+  """
+  PHASOR
 
   """
   A label layer rendering array (lens) data whose values are discrete object ids -- a segmentation or instance map. It shares the image layer's source but none of its render settings: contrast limits, gamma, colormaps and intensity projections are all meaningless over ids, and what it carries instead is an id-to-color hashing, a transparent background id, contour-or-fill, a selection, and an optional `colorBy` dereferencing the FIELD edge that keys the mask's pixels to a table of objects.
@@ -4316,15 +4628,30 @@ enum LayerKind {
 
   """A mesh layer rendering a 3D surface reconstruction."""
   MESH
+
+  """
+  A network layer rendering a node/edge graph from a konnektion collection -- a traced arbor, a vessel tree, a connectome. Distinct from TRACK, which draws trajectories from a table and can only express a path: a network is a graph, so it carries branch points, and a dividing cell or a dendrite is not a trajectory. Its segments are drawn as camera-facing quads, which is also why `lineWidth` and `nodeSizeColumn` mean something only from SIMILARITY up.
+  """
+  NETWORK
+
+  """
+  A vector layer rendering a vector-valued lens -- an optical flow, a deformation field, an orientation map -- as glyphs sampled from the grid. The sixth lens-backed kind, and the value axis is what makes it one: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry rather than composited as channels. Which axis that is is derived (`renderAxes.vector`), never stored; what the layer carries is view state -- a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window. `glyphScale` maps a magnitude in the component axis's unit to a drawn length in scene units, so like `pointSize` it means something only from SIMILARITY up.
+  """
+  VECTOR
 }
 
 enum LayerKindChoices {
   IMAGE
+  INTENSITY
+  RGB
+  PHASOR
   LABEL
   ANNOTATION
   POINT
   TRACK
   MESH
+  NETWORK
+  VECTOR
 }
 
 """
@@ -4489,24 +4816,44 @@ input LensFilter {
   dataset: ID
 
   """
-  Filter to lenses placeable into a coordinate system: those whose space has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene. `derivedOnly` and `asLayer` narrow the answer for a particular picker; with neither, this is the whole set layer creation would accept
+  Filter to lenses placeable into a coordinate system: those whose space reaches it across steps that compose into one affine map, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene. `derivedOnly` and `asLayer` narrow the answer for a particular picker; with neither, this is the whole set layer creation would accept
   """
   placeableIn: LensPlaceableFilter
 }
 
 """
-The kind of layer a lens could source, for narrowing a picker: the two members of `LayerKind` that draw array data. Input-only, and deliberately not `LayerKind` itself -- an annotation, point, track or mesh layer sources from a collection or a table, never from a lens, so four of that enum's members could only ever answer 'no'.
+The kind of layer a lens could source, for narrowing a picker: the members of `LayerKind` that draw array data. Input-only, and deliberately not `LayerKind` itself -- an annotation, point, track or mesh layer sources from a collection or a table, never from a lens, so four of that enum's members could only ever answer 'no'.
 """
 enum LensLayerKind {
   """
-  Drawable as an image layer -- which is every lens with an x and a y axis of more than one pixel. It is the renderability gate alone, and deliberately *not* the complement of LABEL: a mask drawn through a render graph is a legitimate thing to want, and `createLayer` does not refuse one.
+  Drawable as a general image layer -- which is every lens with an x and a y axis of more than one pixel. It is the renderability gate alone, and deliberately *not* the complement of the others: a mask drawn through a render graph is a legitimate thing to want, and `createLayer` does not refuse one.
   """
   IMAGE
+
+  """
+  Drawable as an intensity layer: renderable, which is the whole condition. Every lens an image layer can draw, one channel of it can also be drawn on its own.
+  """
+  INTENSITY
+
+  """
+  Drawable as an RGB layer: renderable, and carrying a channel axis with at least three positions. Structural capacity only -- whether those three channels *are* red, green and blue is a fact about the acquisition, which a shape cannot carry. `createSceneFromCoordinateSystem` answers it from what ingest recorded (channel labels, a photographic source file) and falls back to one layer per channel; this filter answers the narrower structural question and never guesses.
+  """
+  RGB
+
+  """
+  Drawable as a phasor layer: renderable, and carrying a MICROTIME or SPECTRUM axis -- the continuous ones a phasor transform means anything over.
+  """
+  PHASOR
 
   """
   Drawable as a label layer: renderable, and derived by an edge declaring CATEGORIZED -- the values became object ids. The same signal `createSceneFromCoordinateSystem` infers a label layer from, asked of a candidate instead of a source, so a picker and a bootstrapped scene cannot disagree about what a label is.
   """
   LABEL
+
+  """
+  Drawable as a vector layer: renderable, and carrying a DISPLACEMENT value axis -- the values are components of a per-point offset. The same signal `createSceneFromCoordinateSystem` infers a vector layer from, asked of a candidate instead of a source, for LABEL's stated reason.
+  """
+  VECTOR
 }
 
 input LensOrder @oneOf {
@@ -4528,7 +4875,7 @@ input LensPlaceableFilter {
   derivedOnly: Boolean = null
 
   """
-  Keep only the lenses that could source a layer of this kind. Both members require the lens to be drawable at all -- an x and a y axis of more than one pixel, the same gate layer creation applies -- and `LABEL` additionally requires a primary derivation declaring CATEGORIZED. Note that *omitting* this applies no renderability gate, so `IMAGE` is a real narrowing rather than a no-op: the unqualified filter answers what is placeable, which is a spatial question, not what is drawable
+  Keep only the lenses that could source a layer of this kind. Every member requires the lens to be drawable at all -- an x and a y axis of more than one pixel, the same gate layer creation applies. Three ask something further: `LABEL` a primary derivation declaring CATEGORIZED, `RGB` a channel axis with at least three positions, and `PHASOR` a MICROTIME or SPECTRUM axis. `RGB` is capacity only -- whether those three channels *are* red, green and blue is not a question any axis can answer, which is why RGB is never inferred. Note that *omitting* this applies no renderability gate, so `IMAGE` is a real narrowing rather than a no-op: the unqualified filter answers what is placeable, which is a spatial question, not what is drawable
   """
   asLayer: LensLayerKind = null
 }
@@ -5037,6 +5384,7 @@ A layer that renders a 3D mesh (surface reconstruction / isosurface) placed and 
 type MeshLayer implements Layer @key(fields: "id", resolvable: true) {
   id: ID!
   kind: LayerKind!
+  name: String
   scene: Scene!
   blending: Blending!
   opacity: Float!
@@ -5315,6 +5663,26 @@ type Mutation {
   """
   requestGeneralFabriksAccess(input: RequestGeneralFabriksAccessInput!): GeneralFabriksAccessGrant!
 
+  """
+  Request an upload grant for a konnektion store. The grant covers the whole prefix, so one request authorizes the manifest, both catalogs and every level
+  """
+  requestKonnektionUpload(input: RequestKonnektionUploadInput!): KonnektionUploadGrant!
+
+  """
+  Finalize a konnektion upload. This reads the store's `konnektion.json` and refuses a prefix that has none -- which is what an interrupted upload looks like, since the manifest is written last
+  """
+  finishKonnektionUpload(input: FinishKonnektionUploadInput!): KonnektionStore!
+
+  """
+  Request temporary S3 read credentials covering a konnektion store's whole prefix
+  """
+  requestKonnektionAccess(input: RequestKonnektionAccessInput!): KonnektionAccessGrant!
+
+  """
+  Request temporary S3 read credentials for konnektion stores in the organization
+  """
+  requestGeneralKonnektionAccess(input: RequestGeneralKonnektionAccessInput!): GeneralKonnektionAccessGrant!
+
   """Request an upload grant for a Parquet store"""
   requestParquetUpload(input: RequestParquetUploadInput!): ParquetUploadGrant!
 
@@ -5465,6 +5833,14 @@ type Mutation {
   deleteMeshCollection(input: DeleteMeshCollectionInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
+  Register an immutable, versioned network collection from an uploaded konnektion store, in a coordinate system of its own
+  """
+  createNetworkCollection(input: CreateNetworkCollectionInput!): NetworkCollection! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """Delete an existing network collection"""
+  deleteNetworkCollection(input: DeleteNetworkCollectionInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
   Create a sparse dataset from one uploaded sparse store, which holds the matrix in one or more layouts. A sparse matrix is a grid of numbers with no row labels and no column labels, so **every axis says what its positions are** through its own `identifiedBy` -- a source whose own contents are the ids (which authors a FIELD edge, and is what makes the matrix reachable from a layer over that source), or the table whose rows they are (which authors a foreign key and no edge). Carried on the axis, identified-exactly-once is a property of the input rather than a rule this enforces. Nothing about the matrix itself is declared: the spec, the shape, each layout's encoding and its chunking were read from the store when its upload was finished, and are checked against these axes rather than taken from them
   """
   createSparseDataset(input: CreateSparseDatasetInput!): SparseDataset! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
@@ -5491,7 +5867,7 @@ type Mutation {
   deleteTableDataset(input: DeleteTableDatasetInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
-  Create a new layer from an existing lens with optional affine transformation and colormap settings
+  Create a general image layer: array (lens) data rendered through a composable render graph. The kind for a layer that actually composites -- several channels together, an authored transfer curve, a tint, per-channel opacity. For a recipe of fixed shape, createIntensityLayer, createRgbLayer, createVolumeLayer and createPhasorLayer make a layer of that kind, whose settings are fields rather than a tree
   """
   createLayer(input: CreateLayerInput!): ImageLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
@@ -5499,19 +5875,29 @@ type Mutation {
   deleteLayer(input: DeleteLayerInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
-  Update an existing layer's lens, scene, affine transformation, and colormap settings
+  Update a general image layer's lens, scene, compositing settings and render graph. Refuses every other kind, naming the mutation that does write its settings -- a layer's kind is fixed for the life of the row
   """
   updateLayer(input: UpdateLayerInput!): ImageLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
-  Create a layer that composites three channels of a lens as red, green and blue
+  Create an RGB layer: three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. Its own kind rather than a three-channel render graph, because as a graph it is indistinguishable from three fluorescence markers somebody tinted red, green and blue, which is the commoner reading. Never inferred from that shape: a bootstrapped scene reaches this kind only on evidence ingest recorded -- channels labelled red, green and blue, or arrays read out of a PNG -- so state it here for a photograph that arrived with neither
   """
-  createRgbLayer(input: CreateRgbLayerInput!): ImageLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createRgbLayer(input: CreateRgbLayerInput!): RgbLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
-  Create a single-channel intensity layer rendered through a colormap (e.g. a fluorescence channel)
+  Update an RGB layer's channel indices, contrast limits and compositing settings. A patch: what is not sent keeps its current value
   """
-  createIntensityLayer(input: CreateIntensityLayerInput!): ImageLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  updateRgbLayer(input: UpdateRgbLayerInput!): RgbLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
+  Create an intensity layer: one channel of a lens through one colormap -- or one solid RGBA tint, for a colour that is a measured fact rather than a choice -- with contrast limits and gamma. The fluorescence workhorse, and its own kind -- its settings are fields, not a render graph, because there is nothing here to composite
+  """
+  createIntensityLayer(input: CreateIntensityLayerInput!): IntensityLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
+  Update an intensity layer's channel, colormap or tint, contrast limits, gamma, projection and compositing settings. A patch: what is not sent keeps its current value
+  """
+  updateIntensityLayer(input: UpdateIntensityLayerInput!): IntensityLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Create a label layer that renders an instance / segmentation map -- an array whose values are discrete object ids. Its own layer kind, not an image layer: ids take a hashed colour, a transparent background value and an optional `colorBy` over the table they key into, and none of an image's contrast limits, gamma or colormaps
@@ -5524,14 +5910,29 @@ type Mutation {
   updateLabelLayer(input: UpdateLabelLayerInput!): LabelLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
-  Create a single-channel layer rendered as a 3D volume projection (MIP / attenuated-MIP / volume / isosurface)
+  Create a single-channel layer rendered as a 3D volume projection (MIP / attenuated-MIP / volume / isosurface). Returns an IntensityLayer with `projectionMode` set, not a kind of its own: a projection collapses z, it does not composite anything, so it is a setting on one channel. Update it with updateIntensityLayer
   """
-  createVolumeLayer(input: CreateVolumeLayerInput!): ImageLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createVolumeLayer(input: CreateVolumeLayerInput!): IntensityLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
-  Create a layer that reduces one axis of a lens to a phasor and colors each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube
+  Create a phasor layer, reducing one axis of a lens to a phasor and coloring each pixel by it: a lifetime overlay over a FLIM (microtime) cube, or a spectral one over a hyperspectral cube. For a phasor composited *with* an ordinary intensity channel, use createLayer with a PhasorNode in the graph
   """
-  createPhasorLayer(input: CreatePhasorLayerInput!): ImageLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+  createPhasorLayer(input: CreatePhasorLayerInput!): PhasorLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
+  Update a phasor layer's axis, harmonic, color transfer and compositing settings. A patch: what is not sent keeps its current value, except `transfer`, which replaces the whole transfer when given
+  """
+  updatePhasorLayer(input: UpdatePhasorLayerInput!): PhasorLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
+  Create a vector layer, drawing a vector-valued lens -- an optical flow, a deformation field, an orientation map -- as glyphs sampled from the grid. The lens must carry a DISPLACEMENT value axis of 2 or 3 positions; which axis that is is derived from the axes, never chosen here. What the layer carries is view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window
+  """
+  createVectorLayer(input: CreateVectorLayerInput!): VectorLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
+  Update a vector layer's glyph style, sampling stride, magnitude scale, colormap window and compositing settings. A patch: what is not sent keeps its current value
+  """
+  updateVectorLayer(input: UpdateVectorLayerInput!): VectorLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Create a layer that renders an annotation collection's drawn shapes in a scene. The explicit path for a second scene: the collection's system must already be registered into that scene's world
@@ -5554,6 +5955,11 @@ type Mutation {
   createTrackLayer(input: CreateTrackLayerInput!): TrackLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
+  Retune a track layer after creation -- its line width, its colouring column and the compositing it takes part in.
+  """
+  updateTrackLayer(input: UpdateTrackLayerInput!): TrackLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
   Create a layer that renders a 3D mesh (surface reconstruction / isosurface) in a scene
   """
   createMeshLayer(input: CreateMeshLayerInput!): MeshLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
@@ -5562,6 +5968,16 @@ type Mutation {
   Retune how a mesh layer is drawn: its material, wireframe, compositing, and which table column colours its objects. A patch -- an omitted field keeps its value
   """
   updateMeshLayer(input: UpdateMeshLayerInput!): MeshLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
+  Create a layer that renders a node/edge network -- a traced arbor, a vessel tree, a connectome -- in a scene
+  """
+  createNetworkLayer(input: CreateNetworkLayerInput!): NetworkLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
+  Retune how a network layer is drawn: its colour, its widths, whether direction and nodes are drawn, and the compositing it takes part in. A patch -- an omitted field keeps its value
+  """
+  updateNetworkLayer(input: UpdateNetworkLayerInput!): NetworkLayer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Attach unstructured metadata to a file"""
   attachUnstructuredMeta(input: UnstructuredMetaInput!): UnstructuredMeta! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
@@ -5662,6 +6078,308 @@ type Mutation {
 
   """Assign a user permission to an object"""
   assignUserPermission(input: AssignUserPermissionInput!): [UserObjectPermission!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+}
+
+"""
+An immutable, versioned collection of networks, stored as one konnektion prefix. Ask its `store` for an access grant and query the Parquet directly (e.g. with DuckDB) rather than paginating nodes through GraphQL
+"""
+type NetworkCollection @key(fields: "id", resolvable: true) {
+  """
+  The folder this network collection is filed in. Organisational only: it says where a user keeps this collection, never where the networks sit in space -- that is `coordinateSystem` and the edges out of it
+  """
+  folder: Folder
+  id: ID!
+  version: String!
+  specVersion: String!
+
+  """
+  The coordinate system the collection's node positions are expressed in. The collection owns it; `derivedFrom` relates it to the data the network was traced in
+  """
+  coordinateSystem: CoordinateSystem!
+
+  """
+  The **konnektion store** holding this collection: one prefix with `konnektion.json`, both catalogs and every octree level. Ask it for a single access grant and you can read all of it -- the manifest, the indexes and the geometry. Its `grid` and `encoding` were read from that manifest rather than declared through this API, so they describe what was actually written. Never null: a collection whose bytes are not addressable is not a collection
+  """
+  store: KonnektionStore!
+
+  """
+  The files this network collection was converted from -- the CZI a converter read to write these arrays, named per series. **Read this alongside `derivedFrom`, not instead of it**: `derivedFrom` says which *data* this was computed from and relates two coordinate systems, while this says which *bytes* it was read out of and relates to no space at all, because a file has none. Both can be non-empty and complete
+  """
+  sourceFiles(filters: FileLinkFilter): [FileLink!]!
+
+  """
+  The files written out of this network collection: an OME-TIFF export, a rendered snapshot registered as a file. The mirror of `sourceFiles`
+  """
+  exports(filters: FileLinkFilter): [FileLink!]!
+
+  """
+  The octree grid, as read from the store's manifest. Its `cellSize` is in voxels, one size per position component -- the same order the catalog's bbox columns use, which is not necessarily the coordinate system's axis order
+  """
+  grid: Any!
+
+  """
+  The geometry encoding: how positions, edges, node ids, radii and ghosts are quantized and compressed, and which coarsening operations each level ran
+  """
+  encoding: Any!
+
+  """
+  Everything a layer over this collection can be coloured or filtered by -- the same set `createNetworkLayer(colorBys:)` and `filterBys` accept. The graph attributes the collection itself carries come first (Strahler order, degree, depth, component, a stored radius, a writer's own column -- per node), then every reachable table column and sparse slice (per object). The nested form of the `networkColorByOptions` root query, which is where the search, narrowing and paging live; this one hands back the whole list. It walks the coordinate graph once per collection, so read it on a collection, not across a page of them
+  """
+  colorByOptions(maxJoinDepth: Int! = 1): [ColorByOption!]!
+
+  """
+  Every edge from this collection's space back into data the network was traced in, in declared order -- the first is the primary parent, the one that places it. An identity when the network is in that grid as-is, a scale when it was traced on a downsampled one, UNMAPPABLE where the lineage is recorded but no geometry is claimed. Empty for a network derived from no data at all. The same relation a derived dataset's `derivedFrom` records
+  """
+  derivedFrom: [Transformation!]!
+}
+
+input NetworkCollectionFilter {
+  """Filter by list of IDs"""
+  ids: [ID!]
+
+  """Filter for items created before this datetime"""
+  createdBefore: DateTime
+
+  """Filter for items created after this datetime"""
+  createdAfter: DateTime
+
+  """Filter by the creator's subject ID"""
+  owner: ID
+  id: ID
+  version: StrFilterLookup
+  AND: NetworkCollectionFilter
+  OR: NetworkCollectionFilter
+  NOT: NetworkCollectionFilter
+  DISTINCT: Boolean
+
+  """Filter by the folder this network collection is filed in"""
+  folder: ID
+
+  """Filter by a list of folder IDs"""
+  folders: [ID!]
+
+  """
+  Filter by the coordinate system the network geometry is expressed in (the collection's own)
+  """
+  coordinateSystem: ID
+
+  """
+  Filter by the dataset the networkes were extracted from, following the derivation edge
+  """
+  dataset: ID
+}
+
+"""
+The fields a NETWORK_COLLECTION identification reads. Published for codegen; the wire type is the flat IdentificationInput
+"""
+input NetworkCollectionIdentifiesInput @unionElementOf(union: "IdentificationInput", discriminator: "kind", key: "NETWORK_COLLECTION") {
+  kind: IdentificationKind! = NETWORK_COLLECTION
+  name: String = null
+  validity: PlacementValidity = null
+  networkCollection: ID!
+}
+
+"""
+The fields a NETWORK_COLLECTION_NODES identification reads. Published for codegen; the wire type is the flat IdentificationInput
+"""
+input NetworkCollectionNodesIdentifiesInput @unionElementOf(union: "IdentificationInput", discriminator: "kind", key: "NETWORK_COLLECTION_NODES") {
+  kind: IdentificationKind! = NETWORK_COLLECTION_NODES
+  networkCollection: ID!
+}
+
+"""
+One entry of a network layer's colour picker. Three kinds where the other pickers have two: COLUMN and SPARSE colour whole objects exactly as a mesh's do, and GRAPH -- this layer kind's own -- colours per node, by a value the collection itself carries (Strahler order, degree, depth, component, a stored radius, a writer's own column). Computed once on the full level-0 graph and only ever subset, so the value is the same at every level a node survives to
+"""
+type NetworkColorBy {
+  kind: ColorSourceKind!
+  table: ID
+  column: String
+  dataset: ID
+  at: [AxisPosition!]!
+  attribute: String
+  target: GraphTarget
+  joinPath: [JoinStep!]!
+  colormap: ColorMap
+  min: Float
+  max: Float
+  label: String
+}
+
+"""
+Color a network collection's objects or nodes: by a column of the table its FIELD edge keys into, by a slice of a sparse matrix, or (GRAPH) by a per-node value the collection itself carries -- Strahler order, degree, depth, component, a stored radius, or a writer's own column
+"""
+input NetworkColorByInput {
+  kind: ColorSourceKind! = COLUMN
+  table: ID = null
+  column: String = null
+  dataset: ID = null
+  at: [AxisPositionInput!]! = []
+  colormap: ColorMap = null
+  min: Float = null
+  max: Float = null
+  label: String = null
+  joinPath: [JoinStepInput!]! = []
+  attribute: String = null
+  target: GraphTarget = null
+}
+
+"""
+One entry of a network layer's filter picker. A COLUMN or SPARSE rule keeps or drops whole objects, exactly as a mesh's does; a GRAPH rule -- always `min`/`max` bounds over a per-node value the collection carries -- hides individual nodes and segments, which is what 'trunk only' means on an arbor
+"""
+type NetworkFilterBy {
+  kind: ColorSourceKind!
+  table: ID
+  column: String
+  joinPath: [JoinStep!]!
+  dataset: ID
+  at: [AxisPosition!]!
+  attribute: String
+  target: GraphTarget
+  min: Float
+  max: Float
+  values: [String!]
+  exclude: Boolean!
+  label: String
+}
+
+"""
+Draw only the objects -- or, for a GRAPH rule, the nodes and segments -- whose value satisfies this rule. Which half applies follows from the source: bounds for a measure column, a sparse slice or a graph attribute; an explicit value set for a categorical column
+"""
+input NetworkFilterByInput {
+  kind: ColorSourceKind! = COLUMN
+  table: ID = null
+  column: String = null
+  joinPath: [JoinStepInput!]! = []
+  dataset: ID = null
+  at: [AxisPositionInput!]! = []
+  attribute: String = null
+  target: GraphTarget = null
+  min: Float = null
+  max: Float = null
+  values: [String!] = null
+  exclude: Boolean! = false
+  label: String = null
+}
+
+"""
+A layer that renders a node/edge network -- a traced arbor, a vessel tree, a connectome -- placed and styled in a scene. Its segments are drawn as camera-facing quads rather than GL lines, which is what makes a width in scene units meaningful.
+"""
+type NetworkLayer implements Layer @key(fields: "id", resolvable: true) {
+  id: ID!
+  kind: LayerKind!
+  name: String
+  scene: Scene!
+  blending: Blending!
+  opacity: Float!
+  visible: Boolean!
+  order: Int!
+
+  """
+  The path of transformation edges from this layer's source coordinate system to its scene's world system. A layer belongs to exactly one scene, so this is the one 'to world' question with a single right answer -- the path uses the layer's dataset facts plus the world's registrations, which are the same for every scene over that space. Null when the layer is unregistered or has no source system; empty when the source already is the world system. Every step is here in full, with its own validity, invariance and provenance, which is what to ask for when you care *how* the data got placed; `asAffine` is the same path composed, for when you only need the map
+  """
+  pathToWorld(at: [CoordinateInput!] = null): [PlacementStep!]
+
+  """
+  This layer's whole `pathToWorld` composed into one affine map -- the same path, same edges, same order, with the flagged steps inverted. Derived on read and stored nowhere, exactly as the path itself is, so refining one registration moves it. **Null when `pathToWorld` is null** and for the same two reasons; `placement` is what tells them apart. It errors rather than returning null when a path exists but does not condense: a FIELD step gives its map as the values of an array and has no closed form, and a singular step cannot be walked backwards -- the error names the transformation that stopped it. Note that `placementInvariance` being AFFINE or stronger is necessary but not sufficient for this to succeed. `outputAxes` names only the destination axes the path constrains, so pass `strict: true` to be refused a partial map instead of handed one
+  """
+  asAffine(strict: Boolean! = false, at: [CoordinateInput!] = null): AffinePlacement
+
+  """
+  Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means three different things -- nobody has registered this data yet, its geometry did not survive the operation that produced it and it can never be placed, or it is registered per index and you have not said which index -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Pass the same `at` you would pass `pathToWorld` to be told about that coordinate. Derived, never stored
+  """
+  placement(at: [CoordinateInput!] = null): PlacementState!
+
+  """
+  How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed, and when there is no path at all; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. A layer placed per index reports one of its scoped routes rather than UNKNOWN; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path
+  """
+  placementValidity(at: [CoordinateInput!] = null): PlacementValidity!
+
+  """
+  Which geometric properties survive the whole walk from this layer's data to its scene's world: the weakest edge on its path. ISOMETRY means a distance measured in the data IS that distance in world; SIMILARITY means shapes and angles transfer and every length needs one common factor; AFFINE means only parallelism and area ratios do, so an angle or a distance read in the data means nothing in world; DIFFEOMORPHIC means nothing metric survives anywhere; NONE means there is no path at all. This is what says whether a scalar length in scene units (`pointSize`, `lineWidth`, a stroke width, a camera zoom) is well defined for this layer: it is, from SIMILARITY up. A layer placed per index reports one of its scoped routes rather than NONE; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `invariance`, this being the minimum over the whole path. `placement` says which of the reasons a NONE layer has
+  """
+  placementInvariance(at: [CoordinateInput!] = null): TransformInvariance!
+
+  """
+  The versioned, coordinate-system-anchored network collection this layer renders. Its nodes and edges are fetched from the collection's Parquet catalog, not through this API
+  """
+  collection: NetworkCollection
+  materialColor: [Int!]
+
+  """
+  The flat width of every segment, in scene units. A well-defined length only from `placementInvariance` SIMILARITY up. Overridden where `nodeSizeColumn` or `edgeWidthColumn` is set
+  """
+  lineWidth: Float
+
+  """
+  The per-node column giving each node's radius, so a segment tapers between its endpoints -- the shape traced morphology actually has. Wins over `edgeWidthColumn`, being the more specific statement
+  """
+  nodeSizeColumn: String
+
+  """
+  The per-edge column giving each segment one uniform width. Ignored when `nodeSizeColumn` is set
+  """
+  edgeWidthColumn: String
+
+  """
+  Whether the edge direction is drawn, e.g. as arrowheads. A render setting, never a fact about the graph: an edge is always stored source-to-target
+  """
+  directed: Boolean!
+
+  """
+  Whether a glyph is drawn at each node as well as the segments between them
+  """
+  showNodes: Boolean!
+  maxLevel: Int
+
+  """
+  Which entry of `colorBys` is drawn, as an index into it. Null means the flat `materialColor` is what is drawn
+  """
+  activeColorBy: Int
+
+  """
+  Which entries of `filterBys` are applied, as indices into it. They combine with AND: something is drawn when every active rule keeps it. Empty applies none of them, so everything draws
+  """
+  activeFilterBys: [Int!]!
+
+  """
+  The colourings this layer offers, in the order a picker should show them. A COLUMN or SPARSE entry colours whole objects, already checked reachable; a GRAPH entry colours per node, by a value the collection itself carries, already checked against its manifest. Empty means there is nothing to pick and the material color is the rendering
+  """
+  colorBys: [NetworkColorBy!]!
+
+  """
+  The filters this layer offers, in the order a picker should show them. A COLUMN or SPARSE rule keeps or drops whole objects; a GRAPH rule hides individual nodes and segments by a per-node value the collection carries. Empty means nothing is offered and everything draws
+  """
+  filterBys: [NetworkFilterBy!]!
+}
+
+"""
+A network collection whose geometry carries the ids -- `MeshSample`'s sentence over a wireframe. **Nothing is sampled at a coordinate here**: an OBJECT id (one per traced filament or arbor, never per node) rides on the geometry rows and the object catalog, so a client that picked a segment is already holding one and goes straight to the lookup. The store is named for a headless worker that did not do the picking and must read the object catalog itself
+"""
+type NetworkSample implements SampleStep {
+  """
+  The coordinate system whose contents are the map. Equal to the queried system when the thing's own contents are the map (a label mask, a mesh collection); a different, array-backed system when the map is a separate field. `consumes` is stated in this system's axis order
+  """
+  system: CoordinateSystem!
+
+  """
+  The axes the point is resolved against, in the field system's axis order, e.g. ['y', 'x'] -- what you index an array with, or what your pick resolved for a collection
+  """
+  consumes: [String!]!
+
+  """
+  The axis names the resulting id produces, per-edge: two sibling edges off one mask may name their produced axis differently (`i`, `label_id`), so always zip the value against THIS edge's names, never a shared key set
+  """
+  produces: [String!]!
+
+  """
+  The axes the edge did not consume, e.g. ['t']: their coordinates pass through by name and join the produced values as lookup keys
+  """
+  passthrough: [String!]!
+
+  """
+  The konnektion store holding the collection -- its manifest, both catalogs and every octree level. Ask it for an accessGrant; one grant covers the whole prefix
+  """
+  store: KonnektionStore!
 }
 
 enum ObjectiveCorrectionKind {
@@ -6283,6 +7001,56 @@ input PhasorHistogramInput {
 }
 
 """
+One axis of a lens -- MICROTIME or SPECTRUM -- reduced per pixel to a phasor and coloured by it: over microtime the phase reads as a fluorescence lifetime, over a spectrum as a spectral centre of mass. Its recipe lives in `phasorRender` rather than in fields, as a label layer's lives in `labelRender`, because a phasor's transfer maps the *reduction's* output -- a (g, s) pair plus a photon count -- and carries a list of cursors. A phasor composited *with* an ordinary intensity channel is still expressible: that is an ImageLayer whose graph carries a `PhasorNode`.
+"""
+type PhasorLayer implements Layer @key(fields: "id", resolvable: true) {
+  id: ID!
+  kind: LayerKind!
+  name: String
+  scene: Scene!
+  blending: Blending!
+  opacity: Float!
+  visible: Boolean!
+  order: Int!
+
+  """
+  The path of transformation edges from this layer's source coordinate system to its scene's world system. A layer belongs to exactly one scene, so this is the one 'to world' question with a single right answer -- the path uses the layer's dataset facts plus the world's registrations, which are the same for every scene over that space. Null when the layer is unregistered or has no source system; empty when the source already is the world system. Every step is here in full, with its own validity, invariance and provenance, which is what to ask for when you care *how* the data got placed; `asAffine` is the same path composed, for when you only need the map
+  """
+  pathToWorld(at: [CoordinateInput!] = null): [PlacementStep!]
+
+  """
+  This layer's whole `pathToWorld` composed into one affine map -- the same path, same edges, same order, with the flagged steps inverted. Derived on read and stored nowhere, exactly as the path itself is, so refining one registration moves it. **Null when `pathToWorld` is null** and for the same two reasons; `placement` is what tells them apart. It errors rather than returning null when a path exists but does not condense: a FIELD step gives its map as the values of an array and has no closed form, and a singular step cannot be walked backwards -- the error names the transformation that stopped it. Note that `placementInvariance` being AFFINE or stronger is necessary but not sufficient for this to succeed. `outputAxes` names only the destination axes the path constrains, so pass `strict: true` to be refused a partial map instead of handed one
+  """
+  asAffine(strict: Boolean! = false, at: [CoordinateInput!] = null): AffinePlacement
+
+  """
+  Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means three different things -- nobody has registered this data yet, its geometry did not survive the operation that produced it and it can never be placed, or it is registered per index and you have not said which index -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Pass the same `at` you would pass `pathToWorld` to be told about that coordinate. Derived, never stored
+  """
+  placement(at: [CoordinateInput!] = null): PlacementState!
+
+  """
+  How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed, and when there is no path at all; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. A layer placed per index reports one of its scoped routes rather than UNKNOWN; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path
+  """
+  placementValidity(at: [CoordinateInput!] = null): PlacementValidity!
+
+  """
+  Which geometric properties survive the whole walk from this layer's data to its scene's world: the weakest edge on its path. ISOMETRY means a distance measured in the data IS that distance in world; SIMILARITY means shapes and angles transfer and every length needs one common factor; AFFINE means only parallelism and area ratios do, so an angle or a distance read in the data means nothing in world; DIFFEOMORPHIC means nothing metric survives anywhere; NONE means there is no path at all. This is what says whether a scalar length in scene units (`pointSize`, `lineWidth`, a stroke width, a camera zoom) is well defined for this layer: it is, from SIMILARITY up. A layer placed per index reports one of its scoped routes rather than NONE; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `invariance`, this being the minimum over the whole path. `placement` says which of the reasons a NONE layer has
+  """
+  placementInvariance(at: [CoordinateInput!] = null): TransformInvariance!
+  lens: Lens!
+
+  """
+  Which axis is reduced to a phasor, at which harmonic, and how the resulting (g, s) becomes color
+  """
+  phasorRender: PhasorRender
+
+  """
+  Per pyramid level, the path from that level's voxel grid to this scene's world system. What a multiscale renderer consumes directly: pick a level by zoom and use its path -- every level stars into the same intrinsic system, so the registration tail is shared. A level's path is null when the dataset is not registered into the scene
+  """
+  levelPaths: [LevelPlacement!]!
+}
+
+"""
 Reduces one axis of the lens to a phasor -- the DFT of each pixel's profile along it, at a harmonic -- and colors the pixel by the result. Over a microtime axis the phase reads as a fluorescence lifetime; over a spectrum axis, as a spectral centre of mass. Its output is a raster that composites into the scene like any other leaf, not a scatter plot
 """
 type PhasorNode implements LayerRenderNode {
@@ -6291,6 +7059,17 @@ type PhasorNode implements LayerRenderNode {
   """An optional human-readable label for the node"""
   label: String
   visible: Boolean!
+  phasorAxis: String!
+  intensityAxis: String
+  intensityIndex: Int!
+  harmonic: Int!
+  transfer: PhasorTransfer!
+}
+
+"""
+How a phasor layer draws: which axis is reduced to a phasor, at which harmonic, and how the resulting (g, s) becomes color. The whole recipe of a PHASOR layer, as `labelRender` is the whole recipe of a LABEL one -- for a phasor composited *with* other channels, an IMAGE layer's graph carries a `PhasorNode` instead
+"""
+type PhasorRender {
   phasorAxis: String!
   intensityAxis: String
   intensityIndex: Int!
@@ -6473,6 +7252,7 @@ A layer that renders a point cloud (e.g. SMLM localisations, centroids) from a t
 type PointLayer implements Layer @key(fields: "id", resolvable: true) {
   id: ID!
   kind: LayerKind!
+  name: String
   scene: Scene!
   blending: Blending!
   opacity: Float!
@@ -6624,7 +7404,7 @@ enum PreferredView {
 }
 
 """
-The 3D projection / rendering mode applied to a volumetric (z-stacked) render node.
+The 3D projection / rendering mode applied to a volumetric (z-stacked) render, whether that is an IMAGE layer's projection node or an INTENSITY layer's `projectionMode`.
 """
 enum ProjectionMode {
   """
@@ -6774,6 +7554,14 @@ type Query {
   meshCollection(id: ID!): MeshCollection! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
+  List network collections (immutable, versioned Parquet-backed node/edge networks, each in a coordinate system of its own)
+  """
+  networkCollections(filters: NetworkCollectionFilter, pagination: OffsetPaginationInput): [NetworkCollection!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """Get a single network collection by ID"""
+  networkCollection(id: ID!): NetworkCollection! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
   List sparse datasets (matrices over two enumerated axes, stored as anndata-spelled zarr groups)
   """
   sparseDatasets(filters: SparseDatasetFilter, ordering: [SparseDatasetOrder!]! = [], pagination: OffsetPaginationInput): [SparseDataset!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
@@ -6837,6 +7625,16 @@ type Query {
   Every column a mesh collection's objects can be filtered by -- **the same set `colorByOptions` returns**, under the name that reads right where a rule is being authored. One relation, one walk, two names: a colouring and a rule reach the same column through the same join and branch on the same measure-vs-categorical split, so two different sets would mean one of them was wrong. What differs is what a control *means*: MEASURE takes a `min`/`max` bound here and a colormap there. Same arguments, same `joinPath` to pass back, same invariant -- everything returned is something `createMeshLayer(filterBys:)` accepts
   """
   filterByOptions(meshCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
+  Everything a network layer over one collection can be coloured or filtered by. **The set this returns is exactly the set `createNetworkLayer(colorBys:)` and `filterBys` accept.** Two halves in one list: the GRAPH options first -- the per-node values the collection itself carries (Strahler order, degree, depth, component, a stored radius, a writer's own column), named by `graphAttribute` and always MEASURE -- then the COLUMN and SPARSE options from the shared reachability walk, rooted at depth zero so only tables keyed by this collection's **object** ids (via `createTableDataset(keyedBy: {kind: NETWORK_COLLECTION})`) are offered; the wider fact walk would offer the source image's mask-keyed tables, joins an object id cannot execute. Same arguments, same `joinPath` to pass back, same no-values rule as every other options query
+  """
+  networkColorByOptions(networkCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [ColorByOption!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
+  Everything a network layer over one collection can be filtered by -- **the same set `networkColorByOptions` returns**, under the name that reads right where a rule is being authored. A GRAPH option is the one whose rule is per node: `min`/`max` bounds over Strahler order, degree or a radius hide individual nodes and segments, where a COLUMN or SPARSE rule keeps or drops whole objects. Everything returned is something `createNetworkLayer(filterBys:)` accepts
+  """
+  networkFilterByOptions(networkCollection: ID!, filters: ColumnOptionFilter = null, pagination: OffsetPaginationInput = null, maxJoinDepth: Int! = 1): [FilterByOption!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Every column a mask's objects can be coloured or filtered by: `colorByOptions` rooted on the lens a label layer renders instead of on a mesh collection, and the same answer for the same reason -- a mask's pixel values dereference into a table by exactly the FIELD edge a collection's ids do, so the walk, the measure-vs-categorical rule and the `joinPath` to pass back are one. **The set this returns is exactly the set `createLabelLayer(render: {colorBys: ...})` and `filterBys` accept.** The columns' *values* are not here: a picker wanting a class list or a numeric range reads them from the parquet it already has an `accessGrant` for
@@ -6943,6 +7741,11 @@ type RenderAxes {
   The axis a phasor may be taken over -- a MICROTIME (FLIM arrival time) or SPECTRUM (wavelength) axis -- if the data has one
   """
   phasor: String
+
+  """
+  The DISPLACEMENT value axis, if the data has one: its positions are the components of a per-point offset, which is what a vector layer draws
+  """
+  vector: String
 }
 
 input RequestBigFileAccessInput {
@@ -6970,6 +7773,10 @@ input RequestGeneralFabriksAccessInput {
   expiresIn: Int = null
 }
 
+input RequestGeneralKonnektionAccessInput {
+  expiresIn: Int = null
+}
+
 input RequestGeneralMediaAccessInput {
   expiresIn: Int = null
 }
@@ -6984,6 +7791,15 @@ input RequestGeneralSparseAccessInput {
 
 input RequestGeneralZarrAccessInput {
   expiresIn: Int = null
+}
+
+input RequestKonnektionAccessInput {
+  storeId: String!
+}
+
+input RequestKonnektionUploadInput {
+  host: String = null
+  port: Int = null
 }
 
 input RequestMediaAccessInput {
@@ -7030,7 +7846,7 @@ input RequestZarrUploadInput {
 """
 A piece of data living in a coordinate system. Data belongs to a space; the space belongs to nobody
 """
-union Resident = ArrayDataset | DataArray | Lens | MeshCollection | TableDataset | AnnotationCollection | SparseDataset
+union Resident = ArrayDataset | DataArray | Lens | MeshCollection | NetworkCollection | TableDataset | AnnotationCollection | SparseDataset
 
 """Input for reverting a folder to a previous history revision"""
 input RevertInput {
@@ -7039,6 +7855,57 @@ input RevertInput {
 
   """The ID of the provenance history entry to revert the folder to"""
   historyId: ID!
+}
+
+"""
+Three channels of a lens as the red, green and blue components of one picture -- a photograph, a brightfield slide -- sharing one pair of contrast limits. A renderer can upload this as a single RGB texture in one pass. Its own kind rather than a three-child blend because the two are **indistinguishable as graphs**, and a three-marker fluorescence acquisition coloured red/green/blue is by far the commoner reading of that shape -- so as a graph the authored fact was destroyed at write time. Never inferred, for the same reason. There is no per-channel colormap here and no per-channel visibility: the channel *is* the colour, and the three are components of one picture rather than three signals to hide and reorder separately. Wanting to do that means wanting three layers, or an ImageLayer.
+"""
+type RgbLayer implements Layer @key(fields: "id", resolvable: true) {
+  id: ID!
+  kind: LayerKind!
+  name: String
+  scene: Scene!
+  blending: Blending!
+  opacity: Float!
+  visible: Boolean!
+  order: Int!
+
+  """
+  The path of transformation edges from this layer's source coordinate system to its scene's world system. A layer belongs to exactly one scene, so this is the one 'to world' question with a single right answer -- the path uses the layer's dataset facts plus the world's registrations, which are the same for every scene over that space. Null when the layer is unregistered or has no source system; empty when the source already is the world system. Every step is here in full, with its own validity, invariance and provenance, which is what to ask for when you care *how* the data got placed; `asAffine` is the same path composed, for when you only need the map
+  """
+  pathToWorld(at: [CoordinateInput!] = null): [PlacementStep!]
+
+  """
+  This layer's whole `pathToWorld` composed into one affine map -- the same path, same edges, same order, with the flagged steps inverted. Derived on read and stored nowhere, exactly as the path itself is, so refining one registration moves it. **Null when `pathToWorld` is null** and for the same two reasons; `placement` is what tells them apart. It errors rather than returning null when a path exists but does not condense: a FIELD step gives its map as the values of an array and has no closed form, and a singular step cannot be walked backwards -- the error names the transformation that stopped it. Note that `placementInvariance` being AFFINE or stronger is necessary but not sufficient for this to succeed. `outputAxes` names only the destination axes the path constrains, so pass `strict: true` to be refused a partial map instead of handed one
+  """
+  asAffine(strict: Boolean! = false, at: [CoordinateInput!] = null): AffinePlacement
+
+  """
+  Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means three different things -- nobody has registered this data yet, its geometry did not survive the operation that produced it and it can never be placed, or it is registered per index and you have not said which index -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Pass the same `at` you would pass `pathToWorld` to be told about that coordinate. Derived, never stored
+  """
+  placement(at: [CoordinateInput!] = null): PlacementState!
+
+  """
+  How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed, and when there is no path at all; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. A layer placed per index reports one of its scoped routes rather than UNKNOWN; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path
+  """
+  placementValidity(at: [CoordinateInput!] = null): PlacementValidity!
+
+  """
+  Which geometric properties survive the whole walk from this layer's data to its scene's world: the weakest edge on its path. ISOMETRY means a distance measured in the data IS that distance in world; SIMILARITY means shapes and angles transfer and every length needs one common factor; AFFINE means only parallelism and area ratios do, so an angle or a distance read in the data means nothing in world; DIFFEOMORPHIC means nothing metric survives anywhere; NONE means there is no path at all. This is what says whether a scalar length in scene units (`pointSize`, `lineWidth`, a stroke width, a camera zoom) is well defined for this layer: it is, from SIMILARITY up. A layer placed per index reports one of its scoped routes rather than NONE; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `invariance`, this being the minimum over the whole path. `placement` says which of the reasons a NONE layer has
+  """
+  placementInvariance(at: [CoordinateInput!] = null): TransformInvariance!
+  lens: Lens!
+  intensityAxis: String
+  redIndex: Int!
+  greenIndex: Int!
+  blueIndex: Int!
+  climMin: Float
+  climMax: Float
+
+  """
+  Per pyramid level, the path from that level's voxel grid to this scene's world system. What a multiscale renderer consumes directly: pick a level by zoom and use its path -- every level stars into the same intrinsic system, so the registration tail is shared. A level's path is null when the dataset is not registered into the scene
+  """
+  levelPaths: [LevelPlacement!]!
 }
 
 """
@@ -7350,12 +8217,14 @@ input SceneOrder @oneOf {
 }
 
 """
-The policy createSceneFromCoordinateSystem follows: at most `nchildren` layers, materialized from the sources living in or registered into the space, filtered by source kind and drawn by the recipe in `kind`
+The policy createSceneFromCoordinateSystem follows: at most `nchildren` sources, materialized from what lives in or is registered into the space, filtered by source kind and drawn by the recipe in `kind`. A source may become several layers -- a multi-channel image becomes one layer per channel
 """
 input ScenePolicyInput {
   nchildren: Int! = 8
   transformTables: Boolean! = false
   includeMeshes: Boolean! = true
+  includeNetworks: Boolean! = true
+  skipUnplaceable: Boolean! = false
   kind: BootstrapLayerKind = null
 }
 
@@ -7745,9 +8614,9 @@ type SparseAxisReference @key(fields: "id", resolvable: true) {
 }
 
 """
-The fields a SPARSE member of a colour picker entry reads. Published for codegen; the wire type is the flat LabelColorByInput / MeshColorByInput
+The fields a SPARSE member of a colour picker entry reads. Published for codegen; the wire type is the flat LabelColorByInput / MeshColorByInput / NetworkColorByInput
 """
-input SparseColorByInput @unionElementOf(union: "LabelColorByInput", discriminator: "kind", key: "SPARSE") @unionElementOf(union: "MeshColorByInput", discriminator: "kind", key: "SPARSE") {
+input SparseColorByInput @unionElementOf(union: "LabelColorByInput", discriminator: "kind", key: "SPARSE") @unionElementOf(union: "MeshColorByInput", discriminator: "kind", key: "SPARSE") @unionElementOf(union: "NetworkColorByInput", discriminator: "kind", key: "SPARSE") {
   colormap: ColorMap = null
   min: Float = null
   max: Float = null
@@ -8033,18 +8902,6 @@ type Subscription {
 }
 
 """
-One axis of the table's own space: which Parquet column it is, what kind of position it holds, and what those positions **are**. The list's order is the axis order, so the space is stated rather than derived by filtering a column list. `identifiedBy` replaces the old sibling `keyedBy`: there the axis a source keyed was matched by subtraction inside the server, correct and invisible, and here the pairing is the input's own shape. It is a list because fan-in is real -- a nucleus mask and a cell mask may key one axis, one edge each -- and it may be empty, because a localization table's `x` axis is identified by nothing and should be
-"""
-input TableAxisInput {
-  column: String!
-  type: AxisType!
-  unit: Unit = null
-  longName: String = null
-  description: String = null
-  identifiedBy: [IdentificationInput!]! = []
-}
-
-"""
 A parquet-backed table whose rows are scientific records (segmented objects, localizations, cells). It owns a coordinate system whose axes are its coordinate columns, which is what makes a localization table placeable; a table with no coordinate columns enumerates its rows and its lineage edge is UNMAPPABLE. Its store, its columns and that coordinate system are fixed at creation -- only `name` and `description` can be updated, and a recomputation is a new table rather than an edit of this one. Read the rows directly from the Parquet store with a datalayer access grant rather than paginating through GraphQL
 """
 type TableDataset @key(fields: "id", resolvable: true) {
@@ -8183,7 +9040,7 @@ input TableDatasetFilter {
   hasColumnRole: ColumnRole
 
   """
-  Filter to table datasets placeable into this coordinate system: those whose own coordinate system has a traversable path into it, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene
+  Filter to table datasets placeable into this coordinate system: those whose own coordinate system reaches it across steps that compose into one affine map, walking the transformation edges. Takes a *space*, not a scene -- pass `scene.worldCoordinateSystem.id` to ask it of a scene
   """
   placeableIn: ID
 }
@@ -8305,6 +9162,7 @@ A layer that renders trajectories (e.g. particle/cell tracks) from a table datas
 type TrackLayer implements Layer @key(fields: "id", resolvable: true) {
   id: ID!
   kind: LayerKind!
+  name: String
   scene: Scene!
   blending: Blending!
   opacity: Float!
@@ -8830,6 +9688,26 @@ input UpdateCoordinateSystemInput {
 }
 
 """
+Update an intensity layer's render settings. Every field is a patch: what is not sent keeps its current value
+"""
+input UpdateIntensityLayerInput {
+  id: ID!
+  name: String = null
+  intensityAxis: String = null
+  intensityIndex: Int = null
+  colormap: ColorMap = null
+  color: [Int!] = null
+  climMin: Float = null
+  climMax: Float = null
+  gamma: Float = null
+  projectionMode: ProjectionMode = null
+  blending: Blending = null
+  opacity: Float = null
+  visible: Boolean = null
+  order: Int = null
+}
+
+"""
 Update a label layer's render settings. Every field is a patch: what is not sent keeps its current value
 """
 input UpdateLabelLayerInput {
@@ -8909,6 +9787,94 @@ input UpdateMeshLayerInput {
 }
 
 """
+Retune how a network layer is drawn. A patch: an OMITTED field keeps its current value. The collection and the scene are not editable -- a layer renders what it was created to render
+"""
+input UpdateNetworkLayerInput {
+  """The ID of the network layer to update"""
+  id: ID!
+
+  """The flat colour of every segment, as RGBA"""
+  materialColor: [Int!] = null
+
+  """
+  The flat width of every segment, in scene units -- the world's spatial-axis unit, which is a well-defined length for a layer only when its `placementInvariance` is SIMILARITY or better (RFC-8). The fallback: `nodeSizeColumn` and `edgeWidthColumn` override it where they are set. An explicit `null` clears it
+  """
+  lineWidth: Float
+
+  """
+  The per-node column giving each node's radius, so a segment **tapers** between its endpoints. This is the shape traced morphology actually has -- a dendrite's calibre is a measurement per node, not per branch -- and it is why this wins over `edgeWidthColumn` when both are given: a per-node profile is strictly the more specific statement. An explicit `null` clears it, falling back to `edgeWidthColumn` and then to `lineWidth`
+  """
+  nodeSizeColumn: String
+
+  """
+  The per-edge column giving each segment one uniform width -- a connectome's weight, a vessel segment's calibre where the tracer recorded one per segment rather than per node. Ignored when `nodeSizeColumn` is set. An explicit `null` clears it
+  """
+  edgeWidthColumn: String
+
+  """
+  Whether to draw each edge's direction, e.g. as arrowheads. **A render setting, never a fact about the graph**: an edge is always stored source-to-target, so the direction is in the data whether or not it is drawn. A traced arbor is directed away from the soma and usually drawn without arrows; a connectome usually with them
+  """
+  directed: Boolean = null
+
+  """Whether to draw a glyph at each node as well as the segments"""
+  showNodes: Boolean = null
+
+  """
+  The deepest octree level this layer may load, capping detail against the collection's declared `grid.levels`. A budget, not a choice of level: which level a viewer fetches still follows from the zoom. Null lets the viewer decide. Commonly moot here -- a traced arbor is usually a single-level collection, because konnektion picks its depth from the data. An omitted field keeps the cap, an explicit `null` removes it
+  """
+  maxLevel: Int
+
+  """
+  The colourings this layer offers, in the order a picker should show them, instead of the flat `materialColor`. Three entry kinds: a COLUMN entry colours whole objects by a table reachable from this collection by a FIELD edge (author it with `createTableDataset(keyedBy: {kind: NETWORK_COLLECTION})` -- the table's rows are keyed by **object** ids, one per filament or arbor); a SPARSE entry colours objects by one slice of a matrix those ids index; and a GRAPH entry -- this kind's own -- colours per **node**, by a value the collection itself carries: Strahler order, degree, depth, component, a stored radius, or a writer's own column, exactly the set the collection's manifest declares and `networkColorByOptions` offers. Which entry is drawn is `activeColorBy`; publishing a picker is not the same as choosing within it. Replaces the published picker wholesale: its order is the display order, so there is nothing to merge on. Pass `[]` to remove every colouring and fall back to `materialColor`
+  """
+  colorBys: [NetworkColorByInput!] = null
+
+  """
+  Which entry of `colorBys` is drawn, as an index into it. Null draws the flat `materialColor` -- what having no colouring has always meant. Pass `null` to publish the picker and draw none of it; omit to leave the choice alone. Re-checked against the picker being written, never the stored one. If a new `colorBys` no longer holds the entry that was active, the layer falls back to `materialColor` -- name `activeColorBy` in the same call to point at another entry instead
+  """
+  activeColorBy: Int
+
+  """
+  The filters this layer offers, in the order a picker should show them. A COLUMN or SPARSE rule keeps or drops whole objects; a GRAPH rule -- always `min`/`max` bounds over a per-node value the collection carries -- hides individual nodes and segments, which is what 'trunk only' (Strahler order at least 3) means on an arbor. Which of them are actually applied is `activeFilterBys`. Replaces the published filters wholesale, as `colorBys` does. Pass `[]` to remove every rule and draw everything
+  """
+  filterBys: [NetworkFilterByInput!] = null
+
+  """
+  Which entries of `filterBys` are applied, as indices into it. Several at once is the normal case -- they combine with AND, and something is drawn when every active rule keeps it. Empty applies none of them, so everything draws. Re-checked against the filters being written: a new `filterBys` that no longer holds an applied rule drops it from this set rather than leaving it dangling
+  """
+  activeFilterBys: [Int!] = null
+
+  """Layer-level blend mode"""
+  blending: Blending = null
+
+  """Layer alpha, from 0 to 1"""
+  opacity: Float = null
+
+  """Whether the layer participates in compositing"""
+  visible: Boolean = null
+
+  """Explicit z-index for back-to-front compositing"""
+  order: Int = null
+}
+
+"""
+Update a phasor layer's render settings. Every field is a patch: what is not sent keeps its current value, except `transfer`, which replaces the whole transfer when given
+"""
+input UpdatePhasorLayerInput {
+  id: ID!
+  name: String = null
+  phasorAxis: String = null
+  intensityAxis: String = null
+  intensityIndex: Int = null
+  harmonic: Int = null
+  transfer: PhasorTransferInput = null
+  blending: Blending = null
+  opacity: Float = null
+  visible: Boolean = null
+  order: Int = null
+}
+
+"""
 Retune a point layer after creation -- above all, switch or republish its colour picker
 """
 input UpdatePointLayerInput {
@@ -8920,6 +9886,23 @@ input UpdatePointLayerInput {
   sizeColumn: String = null
   pointSize: Float = null
   colormap: ColorMap = null
+  opacity: Float = null
+  visible: Boolean = null
+  order: Int = null
+}
+
+"""
+Update an RGB layer's render settings. Every field is a patch: what is not sent keeps its current value
+"""
+input UpdateRgbLayerInput {
+  id: ID!
+  name: String = null
+  intensityAxis: String = null
+  redIndex: Int = null
+  greenIndex: Int = null
+  blueIndex: Int = null
+  climMin: Float = null
+  climMax: Float = null
   opacity: Float = null
   visible: Boolean = null
   order: Int = null
@@ -8952,6 +9935,20 @@ input UpdateTableDatasetInput {
 }
 
 """
+Retune a track layer after creation -- its line width, its colouring column and the compositing it takes part in
+"""
+input UpdateTrackLayerInput {
+  id: ID!
+  colorByColumn: String = null
+  lineWidth: Float = null
+  colormap: ColorMap = null
+  blending: Blending = null
+  opacity: Float = null
+  visible: Boolean = null
+  order: Int = null
+}
+
+"""
 Input for refining an edge's parameters. The refinement is recorded in the edge's provenance, which is what tells an ROI its chain has moved
 """
 input UpdateTransformationInput {
@@ -8961,6 +9958,25 @@ input UpdateTransformationInput {
   translation: [Float!] = null
   affine: [[Float!]!] = null
   validity: PlacementValidity = null
+}
+
+"""
+Update a vector layer's render settings. Every field is a patch: what is not sent keeps its current value
+"""
+input UpdateVectorLayerInput {
+  id: ID!
+  name: String = null
+  glyph: VectorGlyph = null
+  glyphStride: Int = null
+  glyphScale: Float = null
+  colormap: ColorMap = null
+  color: [Int!] = null
+  climMin: Float = null
+  climMax: Float = null
+  blending: Blending = null
+  opacity: Float = null
+  visible: Boolean = null
+  order: Int = null
 }
 
 """
@@ -9051,6 +10067,83 @@ input Vec3Input {
   z: Float = null
 }
 
+"""
+How a vector layer draws one sampled vector. Every glyph is real triangle geometry, never a sprite -- a sprite is not an occluder in a volume pass, so it would vanish behind data it sits in front of.
+"""
+enum VectorGlyph {
+  """
+  A shaft with a head: direction and magnitude both read at a glance. The default, and the quiver-plot convention.
+  """
+  ARROW
+
+  """
+  A bare segment scaled by magnitude, direction unmarked. Half the geometry of an arrow, and the honest choice for an orientation field, where the sign of the vector is not a measurement.
+  """
+  LINE
+
+  """
+  A solid cone pointing along the vector, its length the magnitude. Reads best in 3D, where an arrow's head is a few pixels.
+  """
+  CONE
+}
+
+"""
+A vector-valued lens -- an optical flow, a deformation field, an orientation map -- drawn as glyphs sampled from the grid. The sixth lens-backed kind, and the value domain is what earns it one, for LabelLayer's reason: the lens carries a DISPLACEMENT axis whose positions are the components of a per-point offset, so the axis is read as geometry, and none of the intensity vocabulary (a channel index, a gamma, a projection) survives that. Which axis holds the components is derived (`vectorAxis`), never stored -- a per-layer copy could disagree with the axes themselves. What the layer carries is honestly view state: a glyph style, a sampling stride, a magnitude scale and a magnitude colormap window, and two layers over one field may disagree about all of it -- a coarse overview beside a dense inset.
+"""
+type VectorLayer implements Layer @key(fields: "id", resolvable: true) {
+  id: ID!
+  kind: LayerKind!
+  name: String
+  scene: Scene!
+  blending: Blending!
+  opacity: Float!
+  visible: Boolean!
+  order: Int!
+
+  """
+  The path of transformation edges from this layer's source coordinate system to its scene's world system. A layer belongs to exactly one scene, so this is the one 'to world' question with a single right answer -- the path uses the layer's dataset facts plus the world's registrations, which are the same for every scene over that space. Null when the layer is unregistered or has no source system; empty when the source already is the world system. Every step is here in full, with its own validity, invariance and provenance, which is what to ask for when you care *how* the data got placed; `asAffine` is the same path composed, for when you only need the map
+  """
+  pathToWorld(at: [CoordinateInput!] = null): [PlacementStep!]
+
+  """
+  This layer's whole `pathToWorld` composed into one affine map -- the same path, same edges, same order, with the flagged steps inverted. Derived on read and stored nowhere, exactly as the path itself is, so refining one registration moves it. **Null when `pathToWorld` is null** and for the same two reasons; `placement` is what tells them apart. It errors rather than returning null when a path exists but does not condense: a FIELD step gives its map as the values of an array and has no closed form, and a singular step cannot be walked backwards -- the error names the transformation that stopped it. Note that `placementInvariance` being AFFINE or stronger is necessary but not sufficient for this to succeed. `outputAxes` names only the destination axes the path constrains, so pass `strict: true` to be refused a partial map instead of handed one
+  """
+  asAffine(strict: Boolean! = false, at: [CoordinateInput!] = null): AffinePlacement
+
+  """
+  Whether this layer has a place in its scene's world, and if not, why not. A null `pathToWorld` means three different things -- nobody has registered this data yet, its geometry did not survive the operation that produced it and it can never be placed, or it is registered per index and you have not said which index -- and a client should not have to guess which. UNREGISTERED is a gap to close; UNMAPPABLE is a fact to badge; CONDITIONAL is a placement to ask again for with `at`. Pass the same `at` you would pass `pathToWorld` to be told about that coordinate. Derived, never stored
+  """
+  placement(at: [CoordinateInput!] = null): PlacementState!
+
+  """
+  How much this layer's placement is actually known: the weakest edge on its path to world. UNKNOWN while the path rests on an edge a client marked as guessed, and when there is no path at all; MANUAL once someone authored the registration; VALIDATED once it was checked, and by construction when the path is empty -- data in its own space is placed exactly. A layer placed per index reports one of its scoped routes rather than UNKNOWN; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `validity`: this is the minimum over the whole path
+  """
+  placementValidity(at: [CoordinateInput!] = null): PlacementValidity!
+
+  """
+  Which geometric properties survive the whole walk from this layer's data to its scene's world: the weakest edge on its path. ISOMETRY means a distance measured in the data IS that distance in world; SIMILARITY means shapes and angles transfer and every length needs one common factor; AFFINE means only parallelism and area ratios do, so an angle or a distance read in the data means nothing in world; DIFFEOMORPHIC means nothing metric survives anywhere; NONE means there is no path at all. This is what says whether a scalar length in scene units (`pointSize`, `lineWidth`, a stroke width, a camera zoom) is well defined for this layer: it is, from SIMILARITY up. A layer placed per index reports one of its scoped routes rather than NONE; pass `at` for that coordinate's exact answer. Derived, never stored -- and distinct from a single edge's `invariance`, this being the minimum over the whole path. `placement` says which of the reasons a NONE layer has
+  """
+  placementInvariance(at: [CoordinateInput!] = null): TransformInvariance!
+  lens: Lens!
+  glyph: VectorGlyph!
+  glyphStride: Int
+  glyphScale: Float
+  colormap: ColorMap!
+  color: [Int!]
+  climMin: Float
+  climMax: Float
+
+  """
+  The lens axis whose positions are the vector components: the DISPLACEMENT value axis. Derived from the axis types on every read and stored nowhere, so two layers over one field cannot disagree about it. Component ORDER follows the spatial axes' array order -- position i displaces along the i-th spatial axis, slowest-varying first, so the last component displaces along x. Stated here because a standalone layer has no FIELD edge to name the order per-edge, and a renderer and a writer silently disagreeing about it draws every arrow transposed
+  """
+  vectorAxis: String!
+
+  """
+  Per pyramid level, the path from that level's voxel grid to this scene's world system. What a multiscale renderer consumes directly: pick a level by zoom and use its path -- every level stars into the same intrinsic system, so the registration tail is shared. A level's path is null when the dataset is not registered into the scene
+  """
+  levelPaths: [LevelPlacement!]!
+}
+
 """A retarder: a fraction of a wave, at an angle"""
 type WaveplateElement implements OpticalElement {
   id: ID!
@@ -9121,7 +10214,16 @@ type ZarrStore @key(fields: "id", resolvable: true) {
   """
   sizeBytes: Int
   shape: [Int!]!
+
+  """
+  Effective inner chunk shape — the brick/residency unit a reader can decode. For sharded arrays this is the sharding codec's inner chunk_shape, not the chunk-grid (shard) shape.
+  """
   chunks: [Int!]!
+
+  """
+  Shard (outer storage object) shape for zarr v3 sharding_indexed arrays; null when unsharded. Shards exist to cut object count — readers should still treat `chunks` as the brick unit.
+  """
+  shards: [Int!]
   version: String
   dtype: String
   dimensionNames: [String]
@@ -9156,7 +10258,7 @@ type ZarrUploadGrant {
 
 scalar _Any
 
-union _Entity = AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationCollection | AnnotationLayer | ArrayDataset | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | FabriksStore | FieldTransformation | File | FileLink | Folder | IdentityTransformation | ImageLayer | LabelLayer | Lens | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PointLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SparseArray | SparseAxisReference | SparseDataset | SparseStore | TableDataset | Task | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | ZarrStore
+union _Entity = AffineTransformation | Animation | AnimationWaypoint | Annotation | AnnotationCollection | AnnotationLayer | ArrayDataset | Axis | BigFileStore | ByDimensionTransformation | ChannelLabel | Client | Column | CoordinateAnchor | CoordinateSystem | DataArray | FabriksStore | FieldTransformation | File | FileLink | Folder | IdentityTransformation | ImageLayer | IntensityLayer | KonnektionStore | LabelLayer | Lens | LightPath | MapAxisTransformation | MediaStore | Membership | MeshCollection | MeshLayer | NetworkCollection | NetworkLayer | OptikitState | Organization | ParquetStore | PhasorCalibration | PhasorHistogram | PhasorLayer | PointLayer | RgbLayer | RotationTransformation | ScaleTransformation | Scene | SceneSnapshot | SequenceTransformation | SparseArray | SparseAxisReference | SparseDataset | SparseStore | TableDataset | Task | TrackLayer | TranslationTransformation | UnmappableTransformation | User | ValueHistogram | VectorLayer | ZarrStore
 
 type _Service {
   sdl: String!

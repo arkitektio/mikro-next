@@ -43,6 +43,23 @@ fragment FabriksStore on FabriksStore {
   counts
   files
 }
+
+fragment KonnektionStore on KonnektionStore {
+  id
+  key
+  bucket
+  path
+  specVersion
+  grid
+  encoding
+  axes
+  counts
+  files
+  # The declared per-node attributes -- the vocabulary a network layer's GRAPH
+  # picker entries are validated against, `radius` joining off `encoding.radii`.
+  attributes
+}
+
 fragment SparseStore on SparseStore {
   id
   key

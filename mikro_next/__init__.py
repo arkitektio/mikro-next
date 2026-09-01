@@ -36,9 +36,9 @@ __all__ = [
     "space_3d",
     "timelapse_3d",
     "rechunk",
-    # The declaration a caller writes against is the generated `ColumnInput` /
-    # `TableAxisInput`; what lives here is the refusal it can raise and the codec
-    # vocabulary, which is this client's own and stated nowhere else.
+    # The declaration a caller writes against is the generated `ColumnInput`;
+    # what lives here is the refusal it can raise and the codec vocabulary,
+    # which is this client's own and stated nowhere else.
     "SparseDeclarationError",
     "TableDeclarationError",
     "UnreadableCodecError",

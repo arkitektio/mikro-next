@@ -22,6 +22,7 @@ from pydantic_core import CoreSchema, core_schema
 if TYPE_CHECKING:
     import pandas as pd
     from fabriks import MeshCollection
+    from konnektion import NetworkCollection
 
 OneDArray = NDArray[np.generic]
 TwoDArray = NDArray[np.generic]
@@ -679,6 +680,89 @@ SporadikCoercible: TypeAlias = "Any | SporadikLike"
 """What :class:`SporadikLike` accepts: a `scipy.sparse` CSR or CSC matrix, or one already wrapped."""
 
 FabriksCoercible: TypeAlias = "MeshCollection | FabriksLike"
+
+
+class KonnektionLike:
+    """A reference to a **konnektion collection**, uploaded as one prefix rather than as tables.
+
+    The graph twin of :class:`FabriksLike`, and the same shape: a konnektion store is
+    ``konnektion.json``, both catalogs and one part file per octree level under a single key, so
+    the value here is the built collection itself and the upload link writes the tree into a
+    granted prefix and lands the manifest last. The server reads the grid and the encoding off
+    that manifest rather than taking a caller's word for them.
+
+    **A separate scalar rather than a flag on the mesh one**, because it names a separate format.
+    The two differ where it is least visible: a konnektion blob is a segment list and a fabriks
+    blob is a triangle list, and reading either as the other raises nothing at any layer.
+    Keeping them apart at the type level is what makes that mistake impossible to make by
+    accident rather than merely unlikely.
+    """
+
+    def __init__(self, value: NetworkCollection) -> None:
+        """Initialize the KonnektionLike scalar with a built konnektion collection."""
+        self.value = value
+        self.key = str(uuid.uuid4())
+
+    def __get__(self, instance, owner) -> KonnektionLike: ...  # noqa: ANN001, D105 # type: ignore
+
+    def __set__(self, instance, value: KonnektionCoercible) -> None: ...  # noqa: ANN001, D105 # type: ignore
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(cls.validate, handler(object))
+
+    @classmethod
+    def validate(cls, v: KonnektionCoercible) -> KonnektionLike:
+        """Accept a built collection, and refuse the things that look like one but are not."""
+        if isinstance(v, KonnektionLike):
+            return v
+
+        # konnektion is an extra, so it is imported only where the value might be one of its types.
+        try:
+            from konnektion import NetworkCollection  # type: ignore
+        except ImportError as error:
+            raise ValueError(
+                "A network collection is built by `konnektion`, which is not installed. Install it "
+                "with `pip install mikro-next[network]`."
+            ) from error
+
+        # The mistake worth naming is the neighbouring format: a mesh collection is the other
+        # thing in this codebase that is "a built collection", and the server would refuse it a
+        # round trip later on a manifest key it does not have.
+        try:
+            from fabriks import MeshCollection  # type: ignore
+        except ImportError:
+            MeshCollection = ()  # type: ignore[assignment]
+
+        if isinstance(v, NetworkCollection):
+            return cls(v)
+
+        if MeshCollection and isinstance(v, MeshCollection):
+            raise ValueError(
+                "This is a `fabriks.MeshCollection` -- a collection of surfaces -- and this field "
+                "takes a `konnektion.NetworkCollection`, a collection of node/edge graphs. The two "
+                "are separate formats: a mesh index blob is triangles and a network one is "
+                "segments. Register a mesh with `create_mesh_collection` instead."
+            )
+
+        raise ValueError(
+            f"This is uploaded as a konnektion collection -- one prefix holding the manifest, both "
+            f"catalogs and every octree level -- so it takes a `konnektion.NetworkCollection`, not "
+            f"a {type(v).__name__}. Build one with `konnektion.build_collection(objects)`."
+        )
+
+    def __repr__(self) -> str:
+        """Return a string representation of the KonnektionLike scalar."""
+        manifest = self.value.manifest()
+        return f"KonnektionLike({manifest.counts}, cellSize={manifest.grid.cell_size}, levels={manifest.grid.levels})"
+
+
+KonnektionCoercible: TypeAlias = "NetworkCollection | KonnektionLike"
 
 
 class ImageFileLike:

@@ -64,6 +64,13 @@ query AttributePlans($system: ID!, $maxDepth: Int) {
           ...FabriksStore
         }
       }
+      # The wireframe twin of MeshSample: the id rides on the geometry rows,
+      # one per traced OBJECT (never per node), so a pick already holds it.
+      ... on NetworkSample {
+        store {
+          ...KonnektionStore
+        }
+      }
     }
     lookup {
       # TABLE or SPARSE. The other shape's fields are null: a table lookup is SQL over a

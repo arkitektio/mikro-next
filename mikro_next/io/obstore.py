@@ -14,7 +14,7 @@ from zarr.storage import ObjectStore as ZarrObjectStore
 from zarr.storage import StorePath
 
 from mikro_next.scalars import is_dask_array
-from mikro_next.utils import rechunk
+from mikro_next.utils import INNER_CHUNK_BYTES, SHARD_BYTES, chunk_and_shard, rechunk
 
 if TYPE_CHECKING:
     from obstore.store import ClientConfig, RetryConfig
@@ -135,34 +135,94 @@ def _generic_chunk_shape(array: xr.DataArray, chunksize_in_bytes: int = 20_000_0
     return tuple(int(c) for c in chunk)
 
 
-def _zarr_chunk_shape(array: xr.DataArray) -> tuple[int, ...]:
-    """Compute an on-disk zarr chunk shape (~20MB) aligned to the array dims.
+#: Arrays below this total size are written plain-chunked: a shard's index and
+#: read-modify-write machinery buys nothing when the whole array fits in a few
+#: objects, and this automatically keeps small pyramid levels unsharded.
+SHARD_MIN_ARRAY_BYTES = 64 * 1024**2
 
-    Canonical 5D ``ctzyx`` arrays use the ``ctzyx``-aware :func:`rechunk`
-    heuristic. Arbitrarily-labelled arrays (the ``ArrayLike`` dataset path, which
-    is now the only one the schema has) fall back to a semantics-agnostic
-    chunker. Returns a chunk tuple in the array's own dimension order so it can be
-    passed straight to zarr.
+
+def _generic_shard_shape(shape: tuple[int, ...], inner: tuple[int, ...], itemsize: int, shard_bytes: int = SHARD_BYTES) -> tuple[int, ...]:
+    """Grow an inner chunk shape into a shard shape for arbitrarily-labelled dims.
+
+    Walks dimensions inner→outer (C-order), multiplying each axis's chunk count by
+    the largest integer factor that keeps the shard within the byte budget, clamped
+    so a shard overhangs the array by less than one inner chunk per axis. Every
+    result axis is an exact multiple of the inner chunk axis — readers reject
+    anything else.
     """
+    shard = list(inner)
+    bytes_so_far = itemsize
+    for size in inner:
+        bytes_so_far *= size
+    for i in reversed(range(len(shape))):
+        budget = max(1, shard_bytes // bytes_so_far)
+        factor = min(budget, max(1, -(-shape[i] // inner[i])))
+        shard[i] = inner[i] * factor
+        bytes_so_far *= factor
+        if budget == 1:
+            break
+    return tuple(int(s) for s in shard)
+
+
+def _zarr_chunk_layout(array: xr.DataArray) -> tuple[tuple[int, ...], tuple[int, ...] | None]:
+    """Compute the on-disk zarr (chunk, shard) layout aligned to the array dims.
+
+    Arrays under ``SHARD_MIN_ARRAY_BYTES`` keep today's plain ~20MB chunks and no
+    shards. Above it, canonical 5D ``ctzyx`` arrays use the ``ctzyx``-aware
+    :func:`chunk_and_shard` split (small readable bricks grouped into large storage
+    objects); arbitrarily-labelled arrays (the ``ArrayLike`` dataset path, which is
+    now the only one the schema has) get a semantics-agnostic equivalent. Both
+    tuples are in the array's own dimension order so they pass straight to zarr;
+    the shard is ``None`` when the array should stay unsharded.
+    """
+    total_bytes = array.dtype.itemsize * array.size
+    if total_bytes < SHARD_MIN_ARRAY_BYTES:
+        if set(array.dims) == _CTZYX_DIMS:
+            chunks = rechunk(
+                dict(array.sizes), itemsize=array.dtype.itemsize, chunksize_in_bytes=20_000_000
+            )
+            return tuple(int(chunks[dim]) for dim in array.dims), None
+        return _generic_chunk_shape(array), None
+
     if set(array.dims) == _CTZYX_DIMS:
-        chunks = rechunk(
-            dict(array.sizes), itemsize=array.dtype.itemsize, chunksize_in_bytes=20_000_000
-        )
-        return tuple(int(chunks[dim]) for dim in array.dims)
-    return _generic_chunk_shape(array)
+        inner, shard = chunk_and_shard(dict(array.sizes), itemsize=array.dtype.itemsize)
+        chunk_shape = tuple(int(inner[dim]) for dim in array.dims)
+        shard_shape = tuple(int(shard[dim]) for dim in array.dims)
+    else:
+        chunk_shape = _generic_chunk_shape(array, chunksize_in_bytes=INNER_CHUNK_BYTES)
+        shard_shape = _generic_shard_shape(array.shape, chunk_shape, array.dtype.itemsize)
+    if shard_shape == chunk_shape:
+        return chunk_shape, None
+    return chunk_shape, shard_shape
 
 
-def write_dataarray_to_zarr(store_path: StorePath, array: xr.DataArray) -> None:
+def write_dataarray_to_zarr(
+    store_path: StorePath,
+    array: xr.DataArray,
+    *,
+    chunks: tuple[int, ...] | None = None,
+    shards: tuple[int, ...] | None = None,
+) -> None:
     """Write a DataArray to a zarr v3 array synchronously with explicit chunks.
 
-    Dask-backed arrays are streamed chunk-by-chunk via ``dask.array.store`` so the
-    full array is never materialised in memory; numpy arrays are written directly.
+    Large arrays are sharded by default (small readable inner chunks grouped into
+    large storage objects); pass explicit ``chunks`` without ``shards`` to force an
+    unsharded layout. The default codecs are kept deliberately: zarr's stock
+    sharded layout (sole top-level ``sharding_indexed``, declared crc32c index
+    codecs) is exactly what the platform's readers require.
+
+    Dask-backed arrays are streamed via ``dask.array.store`` so the full array is
+    never materialised in memory; numpy arrays are written directly.
     """
-    chunk_shape = _zarr_chunk_shape(array)
+    if chunks is None and shards is None:
+        chunks, shards = _zarr_chunk_layout(array)
+    elif chunks is None:
+        raise ValueError("shards cannot be given without the inner chunks they group.")
     zarr_array = zarr.create_array(
         store_path,
         shape=array.shape,
-        chunks=chunk_shape,
+        chunks=chunks,
+        shards=shards,
         dtype=array.dtype,
         dimension_names=[str(dim) for dim in array.dims],
         zarr_format=3,
@@ -172,15 +232,23 @@ def write_dataarray_to_zarr(store_path: StorePath, array: xr.DataArray) -> None:
     if is_dask_array(data):
         from dask.array.core import store as dask_store
 
-        # Align dask blocks to the zarr chunk grid so concurrent, lock-free writes
-        # never target the same chunk from two blocks (which would race/corrupt).
-        data = data.rechunk(chunk_shape)
+        # Align dask blocks to the *storage object* grid — the shard when sharding,
+        # else the chunk — so concurrent, lock-free writes never target the same
+        # object from two blocks. A sub-shard write is a read-modify-write of the
+        # whole shard, so two blocks in one shard would silently drop inner chunks.
+        data = data.rechunk(shards or chunks)
         dask_store(data, zarr_array, lock=False)
     else:
         zarr_array[...] = np.asarray(data)
 
 
-async def awrite_dataarray_to_zarr(store_path: StorePath, array: xr.DataArray) -> None:
+async def awrite_dataarray_to_zarr(
+    store_path: StorePath,
+    array: xr.DataArray,
+    *,
+    chunks: tuple[int, ...] | None = None,
+    shards: tuple[int, ...] | None = None,
+) -> None:
     """Write a DataArray to a zarr v3 array without blocking the event loop.
 
     Delegates to the synchronous streaming writer in a worker thread so that
@@ -188,7 +256,7 @@ async def awrite_dataarray_to_zarr(store_path: StorePath, array: xr.DataArray) -
     and are never fully materialised in memory. ``dask.array.store`` runs the dask
     scheduler synchronously, so it must not be awaited directly on the event loop.
     """
-    await asyncio.to_thread(write_dataarray_to_zarr, store_path, array)
+    await asyncio.to_thread(write_dataarray_to_zarr, store_path, array, chunks=chunks, shards=shards)
 
 
 async def awrite_xarray_to_obstore(

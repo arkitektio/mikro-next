@@ -46,11 +46,15 @@ from mikro_next.api.schema import (
     ColorMap,
     ColorSourceKind,
     ColumnColorByInput,
+    GraphColorByInput,
+    GraphTarget,
     LabelColorByInput,
     LabelFilterByInput,
     LabelRenderInput,
     MeshColorByInput,
     MeshFilterByInput,
+    NetworkColorByInput,
+    NetworkFilterByInput,
     SparseColorByInput,
     UnsetType,
 )
@@ -59,12 +63,16 @@ __all__ = [
     "QUALITATIVE_COLORMAPS",
     "categorical_color_by",
     "categorical_filter_by",
+    "graph_color_by",
+    "graph_filter_by",
     "join_path_of",
     "label_render",
     "measure_color_by",
     "measure_filter_by",
     "mesh_color_by",
     "mesh_filter_by",
+    "network_color_by",
+    "network_filter_by",
     "sparse_color_by",
 ]
 
@@ -257,6 +265,101 @@ def _check_slice(dataset: object, at: Mapping[str, int]) -> None:
             f"indexed on: {list(indexable)}. Upload the matrix compressed along one of the "
             "axes `at` names and register it on the same dataset."
         )
+
+
+def graph_color_by(
+    attribute: str,
+    *,
+    target: GraphTarget = GraphTarget.NODE,
+    colormap: ColorMap = ColorMap.VIRIDIS,
+    min: float | None = None,
+    max: float | None = None,
+    label: str | None = None,
+) -> NetworkColorByInput:
+    """Colour a network's nodes -- or its segments -- by a value the collection itself carries.
+
+    The third way a picker entry reaches a number, and the only per-**node** one: where a
+    column colouring joins a table and a sparse one slices a matrix, this names an attribute
+    the konnektion collection stores beside its geometry. Every current build carries
+    ``strahler``, ``degree``, ``depth`` and ``component`` (computed once, on the full level-0
+    graph, and only ever subset -- so the value is the same at every level a node survives
+    to), plus whatever per-node columns the writer passed on ``Network.attributes``, plus
+    ``radius`` when the encoding stores one. `networkColorByOptions` lists exactly this set,
+    and the server refuses a name the collection's manifest never declared.
+
+    ``target`` says which of the network's two row sets is painted. An edge has no durable
+    identity of its own -- simplification re-links edges between levels -- so a segment takes
+    its **start node's** value either way; `EDGE` merely leaves the node glyphs at the
+    layer's base colour.
+
+    **Always measured** (`component` included -- one rule, no per-semantics branch), so a
+    qualitative palette is refused. Pass `min`/`max` for the reason the module docstring
+    gives; the intrinsic metrics make this easy (`strahler` runs 1..max order, `depth` 0..the
+    longest path).
+    """
+    return GraphColorByInput(
+        kind=ColorSourceKind.GRAPH,
+        attribute=attribute,
+        target=target,
+        colormap=colormap,
+        min=min,
+        max=max,
+        label=label,
+    )
+
+
+def graph_filter_by(
+    attribute: str,
+    *,
+    target: GraphTarget = GraphTarget.NODE,
+    min: float | None = None,
+    max: float | None = None,
+    exclude: bool = False,
+    label: str | None = None,
+) -> NetworkFilterByInput:
+    """Hide the nodes -- or segments -- whose graph attribute falls outside a bound.
+
+    The one rule that hides *parts* of an object: a COLUMN or SPARSE rule keeps or drops
+    whole objects, where ``graph_filter_by("strahler", min=3)`` is "trunk only" on an arbor
+    and ``graph_filter_by("depth", max=100)`` is a soma-centred ball. Always bounds -- a
+    graph attribute is measured, so a `values` set has nothing to match.
+
+    A hidden node takes its glyphs and its outgoing segments with it; a `target=EDGE` rule
+    hides segments only, each tested by its start node's value.
+    """
+    if min is None and max is None:
+        raise ValueError(f"a filter on the graph attribute '{attribute}' states no bound, so it would keep everything. Give a `min`, a `max`, or both.")
+    return NetworkFilterByInput(kind=ColorSourceKind.GRAPH, attribute=attribute, target=target, min=min, max=max, exclude=exclude, label=label)
+
+
+def network_color_by(*args, **kwargs) -> NetworkColorByInput:
+    """The one-call form over a network collection, dispatching on what was named.
+
+    ``network_color_by("strahler")`` is a graph colouring; ``network_color_by(table,
+    "total_length")`` is a column one, exactly as :func:`mesh_color_by` builds it -- the
+    member classes are shared across all three flat unions, so an entry built by any of
+    these goes into `createNetworkLayer` unchanged.
+
+    The same column form covers a per-node or per-edge table (one identified by the
+    collection's *node* ids, not just its object ids): never send ``target`` for it --
+    the server derives NODE or EDGE from the table's shape and stamps it on the stored
+    entry, and refuses a caller-sent one.
+    """
+    if "attribute" in kwargs or (len(args) == 1 and not kwargs.get("table") and isinstance(args[0], str) and "column" not in kwargs):
+        return graph_color_by(*args, **kwargs)
+    return mesh_color_by(*args, **kwargs)
+
+
+def network_filter_by(*args, **kwargs) -> NetworkFilterByInput:
+    """:func:`graph_filter_by` / :func:`mesh_filter_by` over a network collection.
+
+    As with :func:`network_color_by`, a rule over a per-node or per-edge table is the
+    plain column form: the server stamps ``target`` from the table's shape.
+    """
+    if "attribute" in kwargs or (len(args) == 1 and isinstance(args[0], str) and "column" not in kwargs and "table" not in kwargs):
+        return graph_filter_by(*args, **kwargs)
+    entry = categorical_filter_by(*args, **kwargs) if "values" in kwargs or (len(args) > 2 and not isinstance(args[2], (int, float))) else measure_filter_by(*args, **kwargs)
+    return NetworkFilterByInput(**entry.model_dump(by_alias=True, exclude_none=True))
 
 
 def measure_filter_by(

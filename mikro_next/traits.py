@@ -684,10 +684,10 @@ class DatasetTrait:
         many-to-one on purpose — an object is a set of voxels — and is never
         walked backwards.
 
-        For a table that does not exist yet, prefer saying it on the axis at
-        creation -- ``TableAxisInput(column="object_id",
-        identifiedBy=[DatasetIdentifiesInput(kind="DATASET", dataset=mask.id)])``
-        in ``create_table_dataset``'s ``axes``. It says the same thing in the call
+        For a table that does not exist yet, prefer saying it on the column at
+        creation -- ``ColumnInput(name="object_id", axis_type=AxisType.INDEX,
+        identified_by=[DatasetIdentifiesInput(kind="DATASET", dataset=mask.id)])``
+        in ``create_table_dataset``'s ``columns``. It says the same thing in the call
         that creates the table, so the pair is atomic, and the server derives the
         consumed and produced axes from the two spaces rather than taking them on
         trust. (It was a sibling ``keyed_by`` list until 2026-08-21, which named
@@ -827,7 +827,7 @@ class CreateTableDatasetTrait(BaseModel):
             # server still checks, so an unreadable frame is not a reason to refuse here.
             return self
 
-        columns = resolve_columns(file_columns, self.columns or (), self.axes or ())
+        columns = resolve_columns(file_columns, self.columns or ())
         object.__setattr__(self, "columns", columns)
         # `object.__setattr__` does not touch `fields_set`, and `funcs.execute` dumps with
         # `exclude_unset=True` -- so without this the resolved list would be dropped on the
@@ -955,6 +955,42 @@ class SparseColorByInputTrait(BaseModel):
                 f"A sparse colouring is measured -- a slice is a value per object, and "
                 f"nothing stores categories sparsely, since the zeros would be a category "
                 f"too -- so it takes a colormap over its range, and {name!r} is qualitative."
+            )
+
+        # Not `not max > min`: a degenerate window is legal server-side, and being stricter
+        # than the server is the one thing a client-side check must not be.
+        low, high = getattr(self, "min", None), getattr(self, "max", None)
+        if low is not None and high is not None and low > high:
+            raise ValueError(f"the colormap window is inverted: min={low} is above max={high}.")
+        return self
+
+
+class GraphColorByInputTrait(BaseModel):
+    """The two rules a graph colouring can be judged by from the input alone.
+
+    A per-node graph attribute -- Strahler order, degree, depth, a radius, a writer's own
+    column -- is **always measured**: ordered values every one, so a qualitative palette is
+    refused rather than reinterpreted, `component` included (one rule, no per-semantics
+    branch; the server applies the same one). Whether the *attribute exists* needs the
+    collection's manifest and stays server-side, exactly as a sparse entry's reachability
+    does -- this input carries only a name.
+
+    On the input rather than in :func:`mikro_next.picker.graph_color_by`, for
+    :class:`SparseColorByInputTrait`'s reason: entries built some other way still pass
+    through here.
+    """
+
+    @model_validator(mode="after")
+    def _a_metric_is_measured(self) -> Self:
+        """Refuse a qualitative colormap, and an inverted window."""
+        from mikro_next.vocabulary import QUALITATIVE_COLORMAP_VALUES
+
+        colormap = getattr(self, "colormap", None)
+        name = getattr(colormap, "value", colormap)
+        if name in QUALITATIVE_COLORMAP_VALUES:
+            raise ValueError(
+                f"A graph colouring is measured -- a per-node metric is an ordered value -- "
+                f"so it takes a colormap over its range, and {name!r} is qualitative."
             )
 
         # Not `not max > min`: a degenerate window is legal server-side, and being stricter

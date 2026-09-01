@@ -38,6 +38,7 @@ projects:
               FileLike: mikro_next.scalars.ImageFileCoercible
               ParquetLike: mikro_next.scalars.ParquetCoercible
               FabriksLike: mikro_next.scalars.FabriksCoercible
+              KonnektionLike: mikro_next.scalars.KonnektionCoercible
               SporadikLike: mikro_next.scalars.SporadikCoercible
               ID: rath.scalars.IDCoercible
             coercible_inputs:
@@ -71,6 +72,7 @@ projects:
           ArrayLike: mikro_next.scalars.ArrayLike
           ParquetLike: mikro_next.scalars.ParquetLike
           FabriksLike: mikro_next.scalars.FabriksLike
+          KonnektionLike: mikro_next.scalars.KonnektionLike
           SporadikLike: mikro_next.scalars.SporadikLike
           FileLike: mikro_next.scalars.FileLike
           ImageFileLike: mikro_next.scalars.ImageFileLike
@@ -101,6 +103,8 @@ projects:
             - mikro_next.traits.SparseAxisInputTrait
           SparseColorByInput:
             - mikro_next.traits.SparseColorByInputTrait
+          GraphColorByInput:
+            - mikro_next.traits.GraphColorByInputTrait
           TableDataset:
             - mikro_next.traits.HasParquestStoreTrait
           ZarrStore:

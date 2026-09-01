@@ -6,11 +6,12 @@ server DESCRIBEs the Parquet with its own DuckDB, and a mapping that is merely p
 produces a column confidently declared as the wrong thing with nothing anywhere to object.
 Every entry in it was measured against a real Parquet round trip on two DuckDB versions.
 
-The third is the shape of the API itself. A caller writes the generated inputs --
-``ColumnInput``, ``TableAxisInput`` -- and passes them to ``create_table_dataset``; there is
-no helper in between and no wrapper type. So the tests construct
-``CreateTableDatasetInput``, which is where the resolution and every refusal now live, and a
-refusal arrives as pydantic's ``ValidationError`` wrapping ours.
+The third is the shape of the API itself. A caller writes the generated ``ColumnInput`` --
+one declaration per column, `axisType` making it an axis, `identifiedBy` saying what its
+values are -- and passes them to ``create_table_dataset``; there is no helper in between and
+no wrapper type. So the tests construct ``CreateTableDatasetInput``, which is where the
+resolution and every refusal now live, and a refusal arrives as pydantic's
+``ValidationError`` wrapping ours.
 """
 
 import pandas as pd
@@ -24,7 +25,6 @@ from mikro_next.api.schema import (
     ColumnInput,
     ColumnRole,
     CreateTableDatasetInput,
-    TableAxisInput,
     TableIdentifiesInput,
 )
 from mikro_next.tables import (
@@ -49,9 +49,9 @@ def frame() -> pd.DataFrame:
     )
 
 
-def declare(data, columns=(), axes=()) -> CreateTableDatasetInput:
+def declare(data, columns=()) -> CreateTableDatasetInput:
     """The call under test, minus the name nothing here is about."""
-    return CreateTableDatasetInput(name="t", data=data, columns=list(columns), axes=list(axes))
+    return CreateTableDatasetInput(name="t", data=data, columns=list(columns))
 
 
 # --- the vocabulary ---------------------------------------------------------
@@ -261,27 +261,15 @@ def test_a_declared_column_that_is_not_in_the_frame_is_refused_with_the_near_mis
     assert "volume_um3" in str(raised.value), "the near miss is named"
 
 
-def test_a_column_declared_in_both_lists_is_refused(frame):
-    """An axis carries its own unit and prose, and the server keeps the axis' answer and
-    drops the column's -- so saying both is a field silently discarded."""
-    with pytest.raises(ValidationError, match="both `axes` and `columns`"):
-        declare(
-            frame,
-            columns=[ColumnInput(name="object_id", longName="instance id")],
-            axes=[TableAxisInput(column="object_id", type=AxisType.INDEX)],
-        )
-
-
-def test_an_axis_column_is_still_a_column_of_the_file(frame):
-    """It is a column of the file *and* a position in a space, so it is in both lists that
-    reach the server -- with no role, because the server assigns COORDINATE from `axes` and
-    refuses a column that claims it."""
-    got = declare(frame, axes=[TableAxisInput(column="object_id", type=AxisType.INDEX, longName="instance id")])
+def test_an_axis_column_carries_its_own_prose(frame):
+    """One declaration: the column that is an axis says everything about itself in one place,
+    so there is no second list for a unit or a longName to be silently dropped from."""
+    got = declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.INDEX, long_name="instance id")])
 
     assert [column.name for column in got.columns] == ["object_id", "volume_um3", "label", "at_edge"]
-    assert got.columns[0].role is None
-    assert got.columns[0].long_name is None, "the prose is the axis', declared once"
-    assert got.axes[0].long_name == "instance id"
+    assert got.columns[0].axis_type == AxisType.INDEX.value
+    assert got.columns[0].role is None, "COORDINATE follows from `axisType`, not from a role"
+    assert got.columns[0].long_name == "instance id"
 
 
 def test_a_column_declared_twice_is_refused(frame):
@@ -289,51 +277,59 @@ def test_a_column_declared_twice_is_refused(frame):
         declare(frame, columns=[ColumnInput(name="label"), ColumnInput(name="label", role=ColumnRole.LABEL)])
 
 
-def test_an_axis_declared_twice_is_refused(frame):
-    with pytest.raises(ValidationError, match="more than once"):
-        declare(
-            frame,
-            axes=[
-                TableAxisInput(column="object_id", type=AxisType.INDEX),
-                TableAxisInput(column="object_id", type=AxisType.INDEX),
-            ],
-        )
+def test_an_axis_type_beside_a_role_is_refused(frame):
+    """An axis column IS a COORDINATE by the fact of `axisType`; a role beside it is the same
+    question answered twice, and the old two-list shape silently preferred one answer."""
+    with pytest.raises(ValidationError, match="both `axis_type` and `role`"):
+        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.INDEX, role=ColumnRole.ID)])
 
 
 def test_an_index_axis_carries_no_unit(frame):
     """It enumerates: the distance between object 3 and object 4 is not a small number, it is
     not a number."""
     with pytest.raises(ValidationError, match="no metric to state a unit in"):
-        declare(frame, axes=[TableAxisInput(column="object_id", type=AxisType.INDEX, unit="micrometer")])
+        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.INDEX, unit="micrometer")])
 
 
-def test_only_an_index_axis_may_say_what_it_enumerates(frame):
+def test_a_space_axis_may_not_say_what_it_enumerates(frame):
     """A position in nanometres and a row id are different things."""
     enumerates = [TableIdentifiesInput(kind="TABLE", table="7")]
 
     with pytest.raises(ValidationError, match="positions rather than ids"):
-        declare(frame, axes=[TableAxisInput(column="volume_um3", type=AxisType.SPACE, identifiedBy=enumerates)])
+        declare(frame, columns=[ColumnInput(name="volume_um3", axis_type=AxisType.SPACE, unit="micrometer**3", identified_by=enumerates)])
 
     # Accepted -- the product-space case -- and the identification reaches the input intact.
-    got = declare(frame, axes=[TableAxisInput(column="object_id", type=AxisType.INDEX, identifiedBy=enumerates)])
-    assert got.axes[0].identified_by[0].table == "7"
+    got = declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.INDEX, identified_by=enumerates)])
+    assert got.columns[0].identified_by[0].table == "7"
 
 
-def test_an_axis_identified_by_two_tables_is_refused(frame):
+def test_a_data_column_may_reference_a_table(frame):
+    """The retired `references`, spelled the one remaining way: a TABLE identification on a
+    plain data column is a foreign key, authors no edge, and makes the column no axis."""
+    got = declare(
+        frame,
+        columns=[ColumnInput(name="object_id", role=ColumnRole.ID, identified_by=[TableIdentifiesInput(kind="TABLE", table="7")])],
+    )
+    assert got.columns[0].axis_type is None
+    assert got.columns[0].identified_by[0].table == "7"
+
+
+def test_a_column_identified_by_two_tables_is_refused(frame):
     """Fan-in is meaningful only for the kinds that author an edge.
 
     Two masks keying one axis are two edges, each standing on its own. Two tables would be two
-    different answers to what a position along the axis is -- and it lands on one column's
+    different answers to what a value in the column is -- and it lands on one column's
     `references`, so only one of them could even be recorded.
     """
-    with pytest.raises(ValidationError, match="more than one table"):
+    # The prose says "enumeration" now that NETWORK_COLLECTION_NODES counts too.
+    with pytest.raises(ValidationError, match="more than one enumeration"):
         declare(
             frame,
-            axes=[
-                TableAxisInput(
-                    column="object_id",
-                    type=AxisType.INDEX,
-                    identifiedBy=[
+            columns=[
+                ColumnInput(
+                    name="object_id",
+                    axis_type=AxisType.INDEX,
+                    identified_by=[
                         TableIdentifiesInput(kind="TABLE", table="7"),
                         TableIdentifiesInput(kind="TABLE", table="8"),
                     ],
@@ -342,41 +338,44 @@ def test_an_axis_identified_by_two_tables_is_refused(frame):
         )
 
 
-def test_the_axes_reach_the_input_in_the_declared_order(frame):
-    """The order of the list is the order of the space, and nothing here sorts it: a table's
-    axis order is the caller's, unlike an array's, which is its zarr's."""
+def test_the_axis_order_is_the_files_column_order(frame):
+    """A table has no byte order, so there is no list to reorder its space with: the axes are
+    the axis-typed columns as the file runs, however the caller orders the declaration."""
     spatial = pd.DataFrame({"z": [1.0], "y": [2.0], "x": [3.0], "photons": [4.0]})
     got = declare(
         spatial,
-        axes=[
-            TableAxisInput(column=name, type=AxisType.SPACE, unit="nanometer")
-            for name in ("z", "y", "x")
+        columns=[
+            # Declared x-first on purpose: `columns` is a subset in any order, and the
+            # resolution imposes the file's.
+            ColumnInput(name=name, axis_type=AxisType.SPACE, unit="nanometer")
+            for name in ("x", "y", "z")
         ],
     )
-    assert [axis.column for axis in got.axes] == ["z", "y", "x"]
+    assert [column.name for column in got.columns if column.axis_type is not None] == ["z", "y", "x"]
 
 
-def test_spatial_axes_declared_in_ascending_order_are_refused():
+def test_spatial_columns_in_ascending_order_are_refused():
     """x is the *last* spatial axis and y the one before it, by position and never by name,
-    so `(x, y, z)` renders fully transposed rather than failing. Nothing on the server can
-    catch it -- a table's axis names are free-form -- so only a name that follows the
-    convention says which order was meant."""
+    so a frame whose columns run `(x, y, z)` renders fully transposed rather than failing.
+    Nothing on the server can catch it -- a table's axis names are free-form -- so only a
+    name that follows the convention says which order was meant. The axis order is the
+    column order, so the fix is reordering the frame, and the message says so."""
     spatial = pd.DataFrame({"x": [1.0], "y": [2.0], "z": [3.0]})
     with pytest.raises(ValidationError, match="reverse of the array convention"):
         declare(
             spatial,
-            axes=[TableAxisInput(column=name, type=AxisType.SPACE, unit="nanometer") for name in ("x", "y", "z")],
+            columns=[ColumnInput(name=name, axis_type=AxisType.SPACE, unit="nanometer") for name in ("x", "y", "z")],
         )
 
 
 def test_a_table_axis_is_a_position_an_instant_or_an_enumeration(frame):
     with pytest.raises(ValidationError, match="a table's axes are"):
-        declare(frame, axes=[TableAxisInput(column="object_id", type=AxisType.CHANNEL)])
+        declare(frame, columns=[ColumnInput(name="object_id", axis_type=AxisType.CHANNEL)])
 
 
-def test_a_coordinate_role_belongs_in_axes(frame):
-    """The server refuses this too, and assigns the role itself from `axes`."""
-    with pytest.raises(ValidationError, match="declare it in `axes`"):
+def test_a_coordinate_role_is_spelled_axis_type(frame):
+    """The server refuses this too: COORDINATE follows from `axisType`, it is not a role."""
+    with pytest.raises(ValidationError, match="say so with `axis_type`"):
         declare(frame, columns=[ColumnInput(name="object_id", role=ColumnRole.COORDINATE)])
 
 
