@@ -1,8 +1,18 @@
 # mikro
 
+> # ⚠️ DEPRECATED — do not use for new work
+>
+> This package was **renamed to [`mikro`](https://github.com/arkitektio/mikro)**. It was
+> published as `mikro-next` up to **2.1.1**; from **3.0.0** the same client is published
+> as `mikro`, and the import root is `mikro` (`mikro_next` is gone).
+>
+> **Use `mikro>=3` instead.** All work from this repository — including the `cs-first`
+> branch (the datalayer rewrite and the removal of the old data types) and
+> `obstorificatoin` — is already in `mikro`'s `main`. Nothing here is maintained.
+
 [![codecov](https://codecov.io/gh/arkitektio/mikro-next/graph/badge.svg?token=PRoouTwAGx)](https://codecov.io/gh/arkitektio/mikro-next)
 [![PyPI version](https://badge.fury.io/py/mikro-next.svg)](https://pypi.org/project/mikro-next/)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/mikro-next/)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-no-red.svg)](https://pypi.org/project/mikro/)
 ![Maintainer](https://img.shields.io/badge/maintainer-jhnnsrs-blue)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/mikro-next.svg)](https://pypi.python.org/pypi/mikro-next/)
 [![PyPI status](https://img.shields.io/pypi/status/mikro-next.svg)](https://pypi.python.org/pypi/mikro-next/)
